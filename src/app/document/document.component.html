@@ -21,6 +21,29 @@
       </div>
     </div>
 
+    <!-- Persistent Search Pattern Highlight Alert Banner -->
+    <div *ngIf="activeHighlight" class="alert alert-info border shadow-sm mb-4 py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-semibold text-primary"><i class="bi bi-search me-1"></i>Search Pattern Highlights Active:</span>
+        <span class="badge bg-white text-dark border font-monospace" style="font-size: 0.85rem;">{{activeHighlight.patternLabel}}</span>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
+          {{activeHighlight.occurrences.length}} {{activeHighlight.occurrences.length === 1 ? 'instance' : 'instances'}} highlighted
+        </span>
+        <!-- Occurrence color badges -->
+        <div class="d-flex align-items-center gap-1 ms-2" *ngIf="activeHighlight.occurrences.length > 0">
+          <span *ngFor="let occ of activeHighlight.occurrences; let idx = index"
+                class="badge rounded-pill text-white"
+                [style.background-color]="occ.color"
+                [title]="'Match #' + (idx + 1) + ': Notes ' + (occ.startNoteIndex + 1) + '–' + (occ.endNoteIndex + 1)">
+            #{{idx + 1}}
+          </span>
+        </div>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" (click)="clearHighlights()">
+        <i class="bi bi-x-circle me-1 text-danger"></i>Clear Highlights
+      </button>
+    </div>
+
     <!-- Print-Only Metadata Inline styled & dense -->
     <div class="print-only mb-4" *ngIf="isPrinting && printIncludeMetadata">
       <div class="inline-metadata" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; line-height: 1.5; color: #000; margin-bottom: 15px;">

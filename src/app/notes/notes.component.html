@@ -2,7 +2,7 @@
 	<ng-container *ngFor="let voice of getVoices(); let i = index; trackBy: trackByIndex">
 	<div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
 		(focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
-		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? (65 * staffScale) : 120">
+		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? (80 * staffScale) : 120">
 			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, -20)' : 'scale(' + staffScale + ') translate(0, 0)'">
 				<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
 				<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
@@ -32,9 +32,9 @@
 							style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
 						<!-- Search Result Note Highlight Circle -->
 						<circle *ngIf="isNote(drawable) && isHighlighted(drawable)"
-							[attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 30"
-							r="12" fill="#fde047" fill-opacity="0.8"
-							stroke="#eab308" stroke-width="1.5"
+							[attr.cx]="drawable.x + (drawable.ref.liquescent ? 4 : 6)" [attr.cy]="drawable.y + 30"
+							r="10" [attr.fill]="getHighlightFill(drawable)" fill-opacity="0.8"
+							[attr.stroke]="getHighlightStroke(drawable)" stroke-width="1.5"
 							style="pointer-events: none;" />
 						<image *ngIf="isNote(drawable)"
 							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"

@@ -629,37 +629,153 @@
     <div class="card shadow-sm mb-4">
       <div class="card-body">
 
-        <!-- Search type and Allowed Derivations options -->
-        <div class="d-flex align-items-center gap-4 mb-3 flex-wrap border-bottom pb-3">
-          <div class="d-flex align-items-center gap-2">
-            <span class="text-muted small fw-semibold">Search by:</span>
-            <div class="btn-group btn-group-sm">
-              <button type="button" class="btn"
-                      [class.btn-primary]="melodySearchType === 'pitch'"
-                      [class.btn-outline-secondary]="melodySearchType !== 'pitch'"
-                      (click)="melodySearchType = 'pitch'">
-                <i class="bi bi-music-note me-1"></i>Pitch Names
-              </button>
-              <button type="button" class="btn"
-                      [class.btn-primary]="melodySearchType === 'contour'"
-                      [class.btn-outline-secondary]="melodySearchType !== 'contour'"
-                      (click)="melodySearchType = 'contour'">
-                <i class="bi bi-graph-up me-1"></i>Contour
-              </button>
+        <!-- Search type and Advanced Options toggle -->
+        <div class="d-flex align-items-center justify-content-between gap-3 mb-3 flex-wrap border-bottom pb-3">
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+              <span class="text-muted small fw-semibold">Search by:</span>
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn"
+                        [class.btn-primary]="melodySearchType === 'pitch'"
+                        [class.btn-outline-secondary]="melodySearchType !== 'pitch'"
+                        (click)="melodySearchType = 'pitch'">
+                  <i class="bi bi-music-note me-1"></i>Pitch Names
+                </button>
+                <button type="button" class="btn"
+                        [class.btn-primary]="melodySearchType === 'contour'"
+                        [class.btn-outline-secondary]="melodySearchType !== 'contour'"
+                        (click)="melodySearchType = 'contour'">
+                  <i class="bi bi-graph-up me-1"></i>Contour
+                </button>
+              </div>
             </div>
-          </div>
-          
-          <div class="form-check form-switch mb-0" *ngIf="melodySearchType === 'pitch'">
-            <input class="form-check-input" type="checkbox" id="withOctave" [(ngModel)]="melodyWithOctave" />
-            <label class="form-check-label small" for="withOctave">Include octave (e.g. C4)</label>
+
+            <div class="form-check form-switch mb-0" *ngIf="melodySearchType === 'pitch'">
+              <input class="form-check-input" type="checkbox" id="includeTransposedQuick" [(ngModel)]="melodyIncludeTransposed" />
+              <label class="form-check-label small" for="includeTransposedQuick">Include transposed instances</label>
+            </div>
           </div>
 
-          <div class="d-flex align-items-center gap-2">
-            <span class="text-muted small fw-semibold">Max differences (Allowed derivations):</span>
-            <div class="d-flex align-items-center gap-2">
-              <input type="number" class="form-control form-control-sm" style="width: 55px;" min="0" max="6" [(ngModel)]="melodyMaxDistance" />
-              <span class="text-muted small">(0 = exact match)</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+                  (click)="showAdvancedOptions = !showAdvancedOptions">
+            <i class="bi" [class.bi-sliders]="!showAdvancedOptions" [class.bi-chevron-up]="showAdvancedOptions"></i>
+            <span>{{ showAdvancedOptions ? 'Hide Advanced Options' : 'Advanced Options' }}</span>
+            <span class="badge bg-primary rounded-pill ms-1" *ngIf="melodyRangeStartPct > 0 || melodyRangeEndPct < 100 || melodyOnlyWithinSyllables || melodyMaxDistance > 0 || melodyWithOctave">
+              Active
+            </span>
+          </button>
+        </div>
+
+        <!-- Advanced Options Panel -->
+        <div *ngIf="showAdvancedOptions" class="p-3 bg-light rounded border mb-3">
+          <div class="row g-3">
+            
+            <!-- Chant Section Range Filter (%) -->
+            <div class="col-md-6">
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label small fw-semibold text-secondary mb-0">
+                  <i class="bi bi-arrows-expand me-1"></i>Chant Section Range
+                </label>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-semibold" style="font-size: 0.75rem;">
+                  {{melodyRangeStartPct}}% – {{melodyRangeEndPct}}%
+                </span>
+              </div>
+
+              <!-- Visual Track Bar -->
+              <div class="position-relative my-2" style="height: 16px;">
+                <div class="position-absolute w-100 rounded" style="top: 4px; height: 8px; background-color: #cbd5e1;"></div>
+                <div class="position-absolute rounded bg-primary"
+                     [style.left.%]="melodyRangeStartPct"
+                     [style.width.%]="melodyRangeEndPct - melodyRangeStartPct"
+                     style="top: 4px; height: 8px; transition: left 0.05s, width 0.05s;"></div>
+              </div>
+
+              <!-- Dual Sliders & Number Controls -->
+              <div class="row g-2 align-items-center mb-1">
+                <div class="col-6">
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="text-muted small" style="font-size: 0.75rem;">From</span>
+                    <input type="range" class="form-range flex-grow-1" min="0" max="100" step="1"
+                           [ngModel]="melodyRangeStartPct"
+                           (ngModelChange)="onRangeStartChange($event)" />
+                    <input type="number" class="form-control form-control-sm text-center px-1" style="width: 48px; font-size: 0.75rem;" min="0" max="100"
+                           [ngModel]="melodyRangeStartPct"
+                           (ngModelChange)="onRangeStartChange($event)" />
+                    <span class="text-muted small" style="font-size: 0.75rem;">%</span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="text-muted small" style="font-size: 0.75rem;">To</span>
+                    <input type="range" class="form-range flex-grow-1" min="0" max="100" step="1"
+                           [ngModel]="melodyRangeEndPct"
+                           (ngModelChange)="onRangeEndChange($event)" />
+                    <input type="number" class="form-control form-control-sm text-center px-1" style="width: 48px; font-size: 0.75rem;" min="0" max="100"
+                           [ngModel]="melodyRangeEndPct"
+                           (ngModelChange)="onRangeEndChange($event)" />
+                    <span class="text-muted small" style="font-size: 0.75rem;">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick Range Presets -->
+              <div class="d-flex align-items-center gap-1 flex-wrap">
+                <span class="text-muted small" style="font-size: 0.7rem;">Presets:</span>
+                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
+                        (click)="melodyRangeStartPct = 0; melodyRangeEndPct = 100">All (0–100%)</button>
+                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
+                        (click)="melodyRangeStartPct = 0; melodyRangeEndPct = 25">Incipit (0–25%)</button>
+                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
+                        (click)="melodyRangeStartPct = 25; melodyRangeEndPct = 75">Middle (25–75%)</button>
+                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
+                        (click)="melodyRangeStartPct = 75; melodyRangeEndPct = 100">Cadence (75–100%)</button>
+              </div>
             </div>
+
+            <!-- Syllable Boundary Scope -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-secondary mb-1">
+                <i class="bi bi-chat-text me-1"></i>Syllable Boundary Constraint
+              </label>
+              <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="syllableConstraintAdv" [(ngModel)]="melodyOnlyWithinSyllables" />
+                <label class="form-check-label small" for="syllableConstraintAdv">
+                  Limit matches strictly within a single syllable (no syllable changes)
+                </label>
+              </div>
+              <div class="form-text text-muted" style="font-size: 0.75rem;">
+                When checked, pattern matches across syllable boundaries are excluded.
+              </div>
+            </div>
+
+            <!-- Max Differences (Allowed Derivations) -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-secondary mb-1">
+                <i class="bi bi-diagram-3 me-1"></i>Max Differences (Allowed Derivations)
+              </label>
+              <div class="d-flex align-items-center gap-2">
+                <input type="number" class="form-control form-control-sm" style="width: 70px;" min="0" max="6" [(ngModel)]="melodyMaxDistance" />
+                <span class="text-muted small">(0 = exact match, 1–6 = insertions/deletions/substitutions)</span>
+              </div>
+            </div>
+
+            <!-- Pitch Search Settings -->
+            <div class="col-md-6" *ngIf="melodySearchType === 'pitch'">
+              <label class="form-label small fw-semibold text-secondary mb-1">
+                <i class="bi bi-music-note-beamed me-1"></i>Pitch Matching Options
+              </label>
+              <div class="d-flex flex-column gap-1">
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" id="withOctaveAdv" [(ngModel)]="melodyWithOctave" />
+                  <label class="form-check-label small" for="withOctaveAdv">Include octave (e.g. C4)</label>
+                </div>
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" id="includeTransposedAdv" [(ngModel)]="melodyIncludeTransposed" />
+                  <label class="form-check-label small" for="includeTransposedAdv">Include transposed instances (match at any pitch level)</label>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -694,12 +810,13 @@
               <br>Examples: <code>C4D4E4F4</code> &nbsp;|&nbsp; <code>G3A3B3C4</code>
             </ng-container>
             <br><strong>German notation support:</strong> you can use <code>H</code> for B-natural and <code>Bb</code> or <code>B</code> for B-flat.
+            <br><strong>Wildcard support:</strong> use <code>.</code> for any single note/step (e.g. <code>C . E</code>), or <code>.?</code> for an optional note/step (0 or 1 note).
             <br><strong>Derivation tolerance:</strong> if set >0, matches melodies with differences (mismatches, insertions, deletions) up to the limit.
           </ng-container>
           <ng-container *ngIf="melodySearchType === 'contour'">
             <strong>Contour search:</strong> describe melodic direction between consecutive notes (spaces are optional).
-            <br>Use: <code>u</code> = up &nbsp;|&nbsp; <code>d</code> = down &nbsp;|&nbsp; <code>r</code> = same pitch
-            <br>Examples: <code>uuuu</code> (4-step ascent) &nbsp;|&nbsp; <code>uudduudd</code> (wave)
+            <br>Use: <code>u</code> = up &nbsp;|&nbsp; <code>d</code> = down &nbsp;|&nbsp; <code>r</code> = same pitch &nbsp;|&nbsp; <code>.</code> = any direction &nbsp;|&nbsp; <code>.?</code> = optional direction
+            <br>Examples: <code>uuuu</code> (4-step ascent) &nbsp;|&nbsp; <code>u . d .?</code> (wildcard contour)
             <br>A pattern of N letters matches N+1 consecutive notes.
           </ng-container>
         </div>
@@ -723,6 +840,84 @@
         <span *ngIf="melodyWithNotes === 0" class="text-warning">
           <i class="bi bi-exclamation-triangle me-1"></i>No transcriptions have notes yet
         </span>
+      </div>
+
+      <!-- Ultra-Compact Wildcard Match Distribution Diagram (Fixed Pitch/Interval Axis <= 100x40px) -->
+      <div class="card border-0 shadow-sm bg-white mb-3" *ngIf="wildcardStats.length > 0">
+        <div class="card-body py-1 px-2">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="fw-semibold text-secondary d-flex align-items-center gap-1" style="font-size: 0.75rem;">
+              <i class="bi bi-pie-chart-fill text-primary" style="font-size: 0.8rem;"></i>
+              Wildcard Distributions ('.' & '.?')
+            </span>
+            <div class="btn-group btn-group-xs">
+              <button type="button" class="btn btn-xs py-0 px-2 font-monospace" style="font-size: 0.65rem;"
+                      [class.btn-primary]="wildcardViewMode === 'pitch'"
+                      [class.btn-outline-secondary]="wildcardViewMode !== 'pitch'"
+                      (click)="wildcardViewMode = 'pitch'">
+                Pitch Axis
+              </button>
+              <button type="button" class="btn btn-xs py-0 px-2 font-monospace" style="font-size: 0.65rem;"
+                      [class.btn-primary]="wildcardViewMode === 'interval'"
+                      [class.btn-outline-secondary]="wildcardViewMode !== 'interval'"
+                      (click)="wildcardViewMode = 'interval'">
+                Interval Axis
+              </button>
+            </div>
+          </div>
+
+          <!-- 200x60px fixed-axis diagrams with interactive hover details -->
+          <div class="d-flex flex-wrap gap-3 align-items-center">
+            <div *ngFor="let stat of wildcardStats"
+                 class="d-inline-flex flex-column p-2 bg-light rounded border shadow-sm position-relative"
+                 style="width: 206px; height: 84px; user-select: none;">
+              
+              <!-- Badge Header & Live Hover Details -->
+              <div class="d-flex align-items-center justify-content-between mb-1" style="line-height: 1.2;">
+                <span class="badge rounded-pill text-white font-monospace py-1 px-2"
+                      [style.background-color]="stat.color"
+                      style="font-size: 0.68rem;">
+                  {{stat.shortLabel}} <span class="opacity-75">("{{stat.patternToken}}")</span>
+                </span>
+
+                <span *ngIf="stat.hoveredBin" class="badge bg-white text-dark border font-monospace shadow-sm" style="font-size: 0.68rem;">
+                  <strong class="text-primary">{{stat.hoveredBin.label}}</strong>: {{stat.hoveredBin.count}} ({{stat.hoveredBin.pct}}%)
+                </span>
+                <span *ngIf="!stat.hoveredBin" class="text-muted small" style="font-size: 0.68rem;">n={{stat.totalMatches}}</span>
+              </div>
+
+              <!-- 190x56 Mini SVG sparkline histogram along fixed pitch/interval X-axis -->
+              <svg width="190" height="56" class="overflow-visible" style="background-color: #ffffff; border-radius: 3px;">
+                <!-- Baseline -->
+                <line x1="0" y1="44" x2="190" y2="44" stroke="#cbd5e1" stroke-width="1" />
+                
+                <!-- Fixed axis bars -->
+                <g *ngFor="let bin of (wildcardViewMode === 'pitch' ? stat.pitchAxisBins : stat.intervalAxisBins)">
+                  <rect *ngIf="bin.pct > 0"
+                        [attr.x]="bin.x"
+                        [attr.y]="44 - (bin.pct * 0.40)"
+                        [attr.width]="bin.width"
+                        [attr.height]="Math.max(2, bin.pct * 0.40)"
+                        [attr.fill]="stat.hoveredBin === bin ? '#1e293b' : stat.color"
+                        rx="1"
+                        style="cursor: pointer; transition: fill 0.1s;"
+                        (mouseenter)="stat.hoveredBin = bin"
+                        (mouseleave)="stat.hoveredBin = null">
+                    <title>{{bin.label}}: {{bin.pct}}% ({{bin.count}} matches)</title>
+                  </rect>
+                  <text *ngIf="bin.pct >= 15 || stat.hoveredBin === bin"
+                        [attr.x]="bin.x + bin.width / 2"
+                        y="53"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        style="font-size: 7.5px; font-family: monospace; pointer-events: none;">
+                    {{bin.label}}
+                  </text>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="melodyResults.length === 0" class="text-center text-muted py-4">
@@ -763,48 +958,125 @@
           </div>
         </div>
 
-        <!-- Result cards with embedded SVG -->
-        <div class="melody-results">
-          <div *ngFor="let r of pagedMelodyResults; trackBy: trackMelody"
-               class="melody-card card shadow-sm mb-3 cursor-pointer"
-               (click)="goToDocument(r.document.quelle_id, r.document.id)">
-            <div class="card-body py-2 px-3">
-              <div class="d-flex align-items-start justify-content-between gap-3">
-                <div class="d-flex align-self-center pe-1" (click)="$event.stopPropagation()">
-                  <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
-                         [checked]="isDocSelected(r.document.id)"
-                         (change)="toggleDocSelection(r.document, $event)" />
-                </div>
-                <!-- Metadata -->
-                <div style="min-width: 180px;">
-                  <div class="fw-semibold text-accent">{{r.sourceSigle}}</div>
-                  <div class="small fw-medium">{{r.document.textinitium || r.document.dokumenten_id}}</div>
-                  <div class="text-muted" style="font-size:0.78rem;">
-                    {{r.document.gattung1}}<span *ngIf="r.document.gattung2"> / {{r.document.gattung2}}</span>
-                  </div>
-                  <div class="text-muted" style="font-size:0.78rem;">{{r.document.festtag}}</div>
-                  <div class="text-muted mt-1" style="font-size:0.72rem;">{{r.noteCount}} notes total</div>
-                  <div class="mt-2" *ngIf="r.distance !== undefined">
-                    <span *ngIf="r.distance === 0" class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Exact Match</span>
-                    <span *ngIf="r.distance > 0" class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill small">
-                      {{r.distance}} {{r.distance === 1 ? 'difference' : 'differences'}}
-                    </span>
-                  </div>
-                </div>
+        <!-- Melody results table with 100px chant position minimap -->
+        <div class="card shadow-sm border-0 mb-3">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 40px;" class="text-center"></th>
+                    <th style="min-width: 170px;">Source & Document</th>
+                    <th style="width: 120px;" class="text-center">Chant Location</th>
+                    <th>Melodic Preview</th>
+                    <th style="min-width: 120px;">Match Info</th>
+                    <th style="width: 40px;"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let r of pagedMelodyResults; trackBy: trackMelody"
+                      class="cursor-pointer"
+                      [style.border-left]="'4px solid ' + (r.docColor || '#cbd5e1')"
+                      (click)="goToMelodyDocument(r)">
+                    <!-- Checkbox -->
+                    <td class="text-center" (click)="$event.stopPropagation()">
+                      <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
+                             [checked]="isDocSelected(r.document.id)"
+                             (change)="toggleDocSelection(r.document, $event)" />
+                    </td>
 
-                <!-- Syllable preview using transcription component -->
-                <div class="melody-preview-container flex-grow-1 overflow-auto py-2">
-                  <div class="d-flex flex-nowrap align-items-start gap-1 p-2 bg-light rounded" style="min-height: 100px;">
-                    <div *ngFor="let syl of r.matchingSyllables"
-                         
-                         style="flex-shrink: 0; border-radius: 6px; padding: 2px;">
-                      <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="r.matchNoteSet"></app-notes>
-                    </div>
-                  </div>
-                </div>
+                    <!-- Source & Document info -->
+                    <td>
+                      <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <span class="fw-semibold text-accent" style="font-size: 0.88rem;">{{r.sourceSigle}}</span>
+                        <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill ms-1"
+                              *ngIf="r.isDocGroupStart && r.docGroupCount && r.docGroupCount > 1"
+                              style="font-size: 0.68rem;"
+                              title="Multiple note realizations of contour found in this document">
+                          <i class="bi bi-layers me-1"></i>{{r.docGroupCount}} realizations
+                        </span>
+                      </div>
+                      <div class="fw-medium text-dark" style="font-size: 0.84rem;">{{r.document.textinitium || r.document.dokumenten_id}}</div>
+                      <div class="text-muted" style="font-size: 0.75rem;">
+                        <span class="badge bg-secondary-subtle text-secondary me-1" *ngIf="r.document.dokumenten_id">{{r.document.dokumenten_id}}</span>
+                        <span *ngIf="r.document.gattung1">{{r.document.gattung1}}</span>
+                        <span *ngIf="r.document.gattung2"> / {{r.document.gattung2}}</span>
+                        <span *ngIf="r.document.festtag"> · {{r.document.festtag}}</span>
+                      </div>
+                      <!-- Realized note sequence badge for contour results -->
+                      <div *ngIf="r.noteSequenceLabel" class="mt-1">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" style="font-size:0.72rem;">
+                          <i class="bi bi-music-note me-1"></i>{{r.noteSequenceLabel}}
+                        </span>
+                      </div>
+                    </td>
 
-                <i class="bi bi-chevron-right text-muted mt-1 flex-shrink-0"></i>
-              </div>
+                    <!-- Chant Location Minimap (100px Canvas/SVG representation with multi-color occurrences) -->
+                    <td class="text-center align-middle" (click)="$event.stopPropagation()">
+                      <div class="d-flex flex-column align-items-center">
+                        <div class="chant-minimap-track border rounded-1 position-relative overflow-hidden bg-light shadow-sm"
+                             style="width: 100px; height: 14px; border-color: #cbd5e1 !important;"
+                             [title]="r.occurrences.length + ' match(es) in chant'">
+                          <div class="position-absolute top-50 start-0 end-0 border-top border-secondary opacity-25" style="transform: translateY(-50%);"></div>
+                          <div *ngFor="let occ of r.occurrences"
+                               class="position-absolute h-100 border-start border-end"
+                               [style.left.%]="occ.startPct"
+                               [style.width.%]="occ.widthPct"
+                               [style.background-color]="occ.color"
+                               [style.border-color]="occ.border"
+                               style="min-width: 3px;"
+                               [title]="'Match (' + occ.pitchKey + '): Notes ' + (occ.startNoteIndex + 1) + '–' + (occ.endNoteIndex + 1) + ' (' + occ.startPct + '%–' + occ.endPct + '%)'">
+                          </div>
+                        </div>
+                        <!-- Occurrence legend / percentage -->
+                        <div class="text-muted text-center mt-1" style="font-size: 0.68rem; font-family: monospace; white-space: nowrap;">
+                          <span *ngIf="r.occurrences.length === 1">
+                            {{r.occurrences[0].startPct}}%–{{r.occurrences[0].endPct}}%
+                          </span>
+                          <span *ngIf="r.occurrences.length > 1" class="d-flex align-items-center gap-1 justify-content-center">
+                            <span *ngFor="let occ of r.occurrences" class="badge rounded-circle p-1" [style.background-color]="occ.color" [title]="occ.startPct + '%–' + occ.endPct + '%'"> </span>
+                            <span class="fw-semibold text-dark">{{r.occurrences.length}} matches</span>
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Melodic Notation Preview -->
+                    <td>
+                      <div class="melody-preview-container overflow-auto py-1">
+                        <div class="d-flex flex-nowrap align-items-center gap-0 p-1 bg-light rounded" style="min-height: 70px;">
+                          <div *ngFor="let syl of r.matchingSyllables" style="flex-shrink: 0;">
+                            <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="r.matchNoteSet"></app-notes>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Match Info -->
+                    <td>
+                      <div class="d-flex flex-column gap-1">
+                        <div>
+                          <span *ngIf="r.distance === 0" class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Exact Match</span>
+                          <span *ngIf="r.distance !== undefined && r.distance > 0" class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill small">
+                            {{r.distance}} {{r.distance === 1 ? 'diff' : 'diffs'}}
+                          </span>
+                        </div>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                          <i class="bi bi-music-note me-1"></i>{{r.noteCount}} notes total
+                        </div>
+                        <div class="text-muted" style="font-size: 0.72rem;" *ngIf="r.occurrences.length > 1">
+                          <i class="bi bi-layers me-1 text-primary"></i>{{r.occurrences.length}} matches in chant
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Action arrow -->
+                    <td class="text-end">
+                      <i class="bi bi-chevron-right text-muted"></i>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1350,7 +1622,7 @@
           <div class="list-group-item py-2" *ngFor="let occ of g.occurrences">
             <div class="small fw-semibold text-accent mb-1">{{occ.sourceSigle}} <span class="text-muted fw-normal">· {{occ.docTitle}}</span></div>
             <div class="d-flex flex-nowrap overflow-auto pb-1 align-items-center bg-light rounded px-2 pt-2" style="min-height: 60px;">
-              <div *ngFor="let syl of occ.matchingSyllables" class="me-1 flex-shrink-0">
+              <div *ngFor="let syl of occ.matchingSyllables" class="flex-shrink-0">
                 <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="occ.matchNoteSet"></app-notes>
               </div>
             </div>
@@ -1360,7 +1632,7 @@
           <div class="list-group-item py-2" *ngFor="let occ of visibleOccurrences(g)">
             <div class="small fw-semibold text-accent mb-1">{{occ.sourceSigle}} <span class="text-muted fw-normal">· {{occ.docTitle}}</span></div>
             <div class="d-flex flex-nowrap overflow-auto pb-1 align-items-center bg-light rounded px-2 pt-2" style="min-height: 60px;">
-              <div *ngFor="let syl of occ.matchingSyllables" class="me-1 flex-shrink-0">
+              <div *ngFor="let syl of occ.matchingSyllables" class="flex-shrink-0">
                 <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="occ.matchNoteSet"></app-notes>
               </div>
             </div>

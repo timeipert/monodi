@@ -32,6 +32,59 @@ export interface QuickResult {
   matchedIn: string;
 }
 
+export interface MelodyMatchOccurrence {
+  startNoteIndex: number;
+  endNoteIndex: number;
+  distance: number;
+  startPct: number;
+  endPct: number;
+  widthPct: number;
+  pitchKey: string;
+  color: string;
+  border: string;
+  name: string;
+  noteUUIDs?: string[];
+  matchedPitches?: string[];
+  matchedIntervals?: string[];
+}
+
+export const WILDCARD_COLORS = [
+  '#d946ef',
+  '#06b6d4',
+  '#f59e0b',
+  '#10b981',
+  '#8b5cf6',
+  '#ec4899',
+];
+
+export interface DistributionItem {
+  label: string;
+  count: number;
+  pct: number;
+}
+
+export interface AxisBin {
+  label: string;
+  count: number;
+  pct: number;
+  x: number;
+  width: number;
+}
+
+export interface WildcardStat {
+  tokenIndex: number;
+  patternToken: string;
+  color: string;
+  label: string;
+  shortLabel: string;
+  totalMatches: number;
+  pitchDist: DistributionItem[];
+  intervalDist: DistributionItem[];
+  pitchAxisBins: AxisBin[];
+  intervalAxisBins: AxisBin[];
+  hoveredBin?: AxisBin | null;
+}
+
 export interface MelodyResult {
   document: Document;
   sourceSigle: string;
@@ -40,7 +93,44 @@ export interface MelodyResult {
   matchSylSet: Set<string>;
   matchNoteSet: Set<string>;
   distance?: number;
+  occurrences: MelodyMatchOccurrence[];
+  noteSequenceLabel?: string;
+  docColor?: string;
+  isDocGroupStart?: boolean;
+  docGroupCount?: number;
 }
+
+export interface HighlightColorInfo {
+  fill: string;
+  stroke: string;
+}
+
+export interface DocumentHighlightState {
+  documentId: string;
+  patternLabel: string;
+  occurrences: MelodyMatchOccurrence[];
+  allNoteUUIDMap: Map<string, HighlightColorInfo>;
+}
+
+export const OCCURRENCE_COLORS = [
+  { color: '#ef4444', border: '#dc2626', name: 'red' },
+  { color: '#3b82f6', border: '#2563eb', name: 'blue' },
+  { color: '#10b981', border: '#059669', name: 'green' },
+  { color: '#8b5cf6', border: '#7c3aed', name: 'purple' },
+  { color: '#f97316', border: '#ea580c', name: 'orange' },
+  { color: '#06b6d4', border: '#0891b2', name: 'cyan' },
+];
+
+export const DOC_ACCENT_COLORS = [
+  '#2563eb',
+  '#059669',
+  '#d97706',
+  '#7c3aed',
+  '#dc2626',
+  '#0891b2',
+  '#4f46e5',
+  '#ca8a04',
+];
 
 export interface SequenceMatch {
   start: number;
@@ -79,7 +169,7 @@ function isFuzzySubstring(target: string, query: string, maxDistance: number): {
   return { matched: bestDist <= maxDistance, matchedSub: bestSub };
 }
 
-function sequenceDistance(s1: string[], s2: string[]): number {
+export function sequenceDistance(s1: string[], s2: string[]): number {
   const m = s1.length;
   const n = s2.length;
   const dp: number[][] = [];
@@ -87,16 +177,26 @@ function sequenceDistance(s1: string[], s2: string[]): number {
   for (let i = 0; i <= m; i++) {
     dp[i] = [i];
   }
+
+  dp[0][0] = 0;
   for (let j = 1; j <= n; j++) {
-    dp[0][j] = j;
+    const patTok = s2[j - 1].toLowerCase();
+    const skipCost = (patTok === '.?' || patTok === '?') ? 0 : 1;
+    dp[0][j] = dp[0][j - 1] + skipCost;
   }
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      const cost = s1[i - 1].toLowerCase() === s2[j - 1].toLowerCase() ? 0 : 1;
+      const patTok = s2[j - 1].toLowerCase();
+      const seqTok = s1[i - 1].toLowerCase();
+
+      const isMatch = (patTok === '.' || patTok === '.?' || patTok === '?' || seqTok === patTok);
+      const cost = isMatch ? 0 : 1;
+      const skipCost = (patTok === '.?' || patTok === '?') ? 0 : 1;
+
       dp[i][j] = Math.min(
         dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
+        dp[i][j - 1] + skipCost,
         dp[i - 1][j - 1] + cost
       );
     }
@@ -109,10 +209,15 @@ function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistan
   const M = sequence.length;
   if (N === 0 || M === 0) return [];
 
+  let optCount = 0;
+  for (const t of pattern) {
+    if (t === '.?' || t === '?') optCount++;
+  }
+
   const matches: SequenceMatch[] = [];
 
   for (let start = 0; start < M; start++) {
-    const minLen = Math.max(1, N - maxDistance);
+    const minLen = Math.max(1, N - optCount - maxDistance);
     const maxLen = N + maxDistance;
 
     for (let len = minLen; len <= maxLen; len++) {
@@ -146,36 +251,50 @@ function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistan
   return filteredMatches.sort((a, b) => a.start - b.start);
 }
 
-function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour' | 'interval', withOctave: boolean): string[] {
+export function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour' | 'interval', withOctave: boolean): string[] {
   const clean = raw.trim();
+  if (!clean) return [];
+
   if (searchType === 'contour') {
-    if (clean.includes(' ')) {
-      return clean.split(/\s+/).filter(Boolean).map(p => p.toLowerCase());
-    } else {
-      return clean.split('').filter(char => !/\s/.test(char)).map(p => p.toLowerCase());
+    const tokens: string[] = [];
+    const regex = /(\.\?|\.|\s+|[udrUDR])/g;
+    let m;
+    while ((m = regex.exec(clean)) !== null) {
+      const tok = m[1].trim();
+      if (tok) tokens.push((tok === '.?' || tok === '?') ? '.?' : tok.toLowerCase());
     }
+    return tokens;
   }
 
   if (searchType === 'interval') {
-    const matches: string[] = [];
-    const regex = /([+-]?\d+)/g;
-    let match;
-    while ((match = regex.exec(clean)) !== null) {
-      const num = parseInt(match[1], 10);
-      matches.push(num > 0 ? `+${num}` : `${num}`);
+    const tokens: string[] = [];
+    const regex = /(\.\?|\.|[+-]?\d+)/g;
+    let m;
+    while ((m = regex.exec(clean)) !== null) {
+      const tok = m[1];
+      if (tok === '.?' || tok === '?') tokens.push('.?');
+      else if (tok === '.') tokens.push('.');
+      else {
+        const num = parseInt(tok, 10);
+        tokens.push(num > 0 ? `+${num}` : `${num}`);
+      }
     }
-    return matches;
+    return tokens;
   }
 
-  const noteRegex = /(?:([bB])([b#♭♯]?)|([ac-ghAC-GH])([#♭♯]?))([0-9]?)/g;
+  const noteRegex = /(\.\?|\.)|(?:([bB])([b#♭♯]?)|([ac-ghAC-GH])([#♭♯]?))([0-9]?)/g;
   const matches: string[] = [];
   let match;
   
   while ((match = noteRegex.exec(clean)) !== null) {
-    const isB = match[1] !== undefined;
-    const base = (isB ? match[1] : match[3]).toLowerCase();
-    const accidental = (isB ? match[2] : match[4]) || '';
-    const octave = match[5] || '';
+    if (match[1]) {
+      matches.push(match[1]);
+      continue;
+    }
+    const isB = match[2] !== undefined;
+    const base = (isB ? match[2] : match[4]).toLowerCase();
+    const accidental = (isB ? match[3] : match[5]) || '';
+    const octave = match[6] || '';
 
     let note = base;
     if (note === 'h') {
@@ -201,6 +320,120 @@ function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour' | 'inte
   }
 
   return matches;
+}
+
+function pitchPatternToIntervals(pattern: string[]): string[] {
+  const intervals: string[] = [];
+  let currentOctave = 4;
+  let prevVal: number | null = null;
+
+  for (const token of pattern) {
+    if (token === '.' || token === '.?' || token === '?') {
+      intervals.push(token);
+      continue;
+    }
+
+    const match = token.match(/^([a-g]|bb)(#|b)?(\d)?$/i);
+    if (!match) continue;
+    let base = match[1].toUpperCase();
+    if (base === 'BB') base = 'B';
+    const explicitOctave = match[3] ? parseInt(match[3], 10) : undefined;
+    const baseIdx = (VM.baseNoteIndexes as any)[base] ?? 0;
+
+    let octave = explicitOctave;
+    if (octave === undefined) {
+      if (prevVal === null) {
+        octave = 4;
+      } else {
+        let bestOct = currentOctave;
+        let minDiff = Infinity;
+        for (const testOct of [currentOctave - 1, currentOctave, currentOctave + 1]) {
+          const testVal = testOct * 7 + baseIdx;
+          const diff = Math.abs(testVal - prevVal);
+          if (diff < minDiff) {
+            minDiff = diff;
+            bestOct = testOct;
+          }
+        }
+        octave = bestOct;
+      }
+    }
+    currentOctave = octave;
+
+    const val = octave * 7 + baseIdx;
+    if (prevVal !== null) {
+      const diff = val - prevVal;
+      intervals.push(diff > 0 ? `+${diff}` : `${diff}`);
+    }
+    prevVal = val;
+  }
+  return intervals;
+}
+
+const PITCH_AXIS = ['F3', 'G3', 'A3', 'Bb3', 'B3', 'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'Bb4', 'B4', 'C5', 'D5', 'E5', 'F5'];
+const INTERVAL_AXIS = ['-7', '-6', '-5', '-4', '-3', '-2', '-1', '0', '+1', '+2', '+3', '+4', '+5', '+6', '+7'];
+
+function buildPitchAxisBins(counts: Map<string, number>, total: number): AxisBin[] {
+  const nBins = PITCH_AXIS.length;
+  const canvasW = 190;
+  const colW = canvasW / nBins;
+  const barW = Math.max(3, colW - 1);
+
+  const binCounts = new Map<string, number>();
+  PITCH_AXIS.forEach(p => binCounts.set(p, 0));
+
+  for (const [pitch, count] of counts.entries()) {
+    let norm = pitch.toUpperCase().replace(/BB/g, 'Bb');
+    if (binCounts.has(norm)) {
+      binCounts.set(norm, (binCounts.get(norm) || 0) + count);
+    } else {
+      const baseOnly = norm.replace(/\d+/g, '');
+      const matchKey = PITCH_AXIS.find(p => p.startsWith(baseOnly));
+      if (matchKey) {
+        binCounts.set(matchKey, (binCounts.get(matchKey) || 0) + count);
+      }
+    }
+  }
+
+  return PITCH_AXIS.map((pLabel, i) => {
+    const count = binCounts.get(pLabel) || 0;
+    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    return {
+      label: pLabel,
+      count,
+      pct,
+      x: Math.round(i * colW * 10) / 10,
+      width: Math.round(barW * 10) / 10
+    };
+  });
+}
+
+function buildIntervalAxisBins(counts: Map<string, number>, total: number): AxisBin[] {
+  const nBins = INTERVAL_AXIS.length;
+  const canvasW = 190;
+  const colW = canvasW / nBins;
+  const barW = Math.max(3, colW - 1);
+
+  const binCounts = new Map<string, number>();
+  INTERVAL_AXIS.forEach(inv => binCounts.set(inv, 0));
+
+  for (const [inv, count] of counts.entries()) {
+    if (binCounts.has(inv)) {
+      binCounts.set(inv, (binCounts.get(inv) || 0) + count);
+    }
+  }
+
+  return INTERVAL_AXIS.map((invLabel, i) => {
+    const count = binCounts.get(invLabel) || 0;
+    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    return {
+      label: invLabel,
+      count,
+      pct,
+      x: Math.round(i * colW * 10) / 10,
+      width: Math.round(barW * 10) / 10
+    };
+  });
 }
 
 function findTextSnippet(text: string, query: string, window = 35): TextSnippet | undefined {
@@ -273,6 +506,25 @@ export class SearchExecService {
   searchProgress = { current: 0, total: 0, matched: 0 };
   searchCancelled = false;
 
+  // Active persistent document highlights from search
+  activeDocumentHighlight: DocumentHighlightState | null = null;
+
+  setDocumentHighlight(highlight: DocumentHighlightState): void {
+    this.activeDocumentHighlight = highlight;
+    this.notifyChange();
+  }
+
+  clearDocumentHighlight(): void {
+    this.activeDocumentHighlight = null;
+    this.notifyChange();
+  }
+
+  getNoteHighlightColor(docId: string | undefined, noteUuid: string | undefined): HighlightColorInfo | null {
+    if (!this.activeDocumentHighlight || !docId || !noteUuid) return null;
+    if (this.activeDocumentHighlight.documentId !== docId) return null;
+    return this.activeDocumentHighlight.allNoteUUIDMap.get(noteUuid) || null;
+  }
+
   quickText = '';
   quickResults: QuickResult[] = [];
   quickSearched = false;
@@ -305,8 +557,12 @@ export class SearchExecService {
   melodyPattern = '';
   melodySearchType: 'pitch' | 'contour' | 'interval' = 'pitch';
   melodyWithOctave = false;
+  melodyIncludeTransposed = false;
   melodyOnlyWithinSyllables = false;
+  melodyRangeStartPct = 0;
+  melodyRangeEndPct = 100;
   melodyResults: MelodyResult[] = [];
+  wildcardStats: WildcardStat[] = [];
   melodySearched = false;
   melodySearching = false;
   melodyScanned = 0;
@@ -548,6 +804,8 @@ export class SearchExecService {
     this.melodyPage = 1;
 
     const pattern = parseMelodyPattern(this.melodyPattern, this.melodySearchType, this.melodyWithOctave);
+    const useTransposedPitch = (this.melodySearchType === 'pitch' && this.melodyIncludeTransposed);
+    const effectivePattern = useTransposedPitch ? pitchPatternToIntervals(pattern) : pattern;
 
     try {
       const [docsRes, sourcesRes] = await Promise.all([
@@ -579,60 +837,122 @@ export class SearchExecService {
             if (notes.length > 0) {
               this.melodyWithNotes++;
 
-              const sequence = this.melodySearchType === 'pitch'
+              const sequence = (this.melodySearchType === 'pitch' && !useTransposedPitch)
                 ? toPitchNames(notes, this.melodyWithOctave)
                 : this.melodySearchType === 'contour'
                 ? toContour(notes)
                 : toIntervals(notes);
 
-              let matches = findSubsequenceMatches(sequence, pattern, this.melodyMaxDistance);
+              let matches = findSubsequenceMatches(sequence, effectivePattern, this.melodyMaxDistance);
               if (this.melodyOnlyWithinSyllables) {
                 matches = matches.filter(m => {
                   const startNote = m.start;
-                  const endNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval') ? m.end + 1 : m.end;
+                  const endNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval' || useTransposedPitch) ? m.end + 1 : m.end;
                   return sylIdx[startNote] === sylIdx[endNote];
                 });
               }
 
-              if (matches.length > 0) {
-                const bestMatch = matches[0];
-                const matchStart = bestMatch.start;
-                const matchEndNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval')
-                  ? bestMatch.end + 1
-                  : bestMatch.end;
-                const distance = bestMatch.distance;
-
-                const matchSylSet = new Set<string>();
-                for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
-                  const syl = syllables[sylIdx[ni]];
-                  if (syl?.uuid) matchSylSet.add(syl.uuid);
-                }
-
-                const matchNoteSet = new Set<string>();
-                for (let ni = matchStart; ni <= matchEndNote && ni < notes.length; ni++) {
-                  const note = notes[ni];
-                  if (note?.uuid) matchNoteSet.add(note.uuid);
-                }
-
-                const matchingSyllableIndices: number[] = [];
-                for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
-                  matchingSyllableIndices.push(sylIdx[ni]);
-                }
-                const matchSylMin = Math.min(...matchingSyllableIndices);
-                const matchSylMax = Math.max(...matchingSyllableIndices);
-                const ctxFirst = Math.max(0, matchSylMin - 3);
-                const ctxLast  = Math.min(syllables.length - 1, matchSylMax + 3);
-                const contextSyllables = syllables.slice(ctxFirst, ctxLast + 1);
-
-                results.push({
-                  document:   doc,
-                  sourceSigle: sourceMap.get(doc.quelle_id)?.quellensigle ?? '',
-                  noteCount:  notes.length,
-                  matchingSyllables: contextSyllables,
-                  matchSylSet,
-                  matchNoteSet,
-                  distance,
+              if (this.melodyRangeStartPct > 0 || this.melodyRangeEndPct < 100) {
+                const totalNotes = Math.max(1, notes.length);
+                matches = matches.filter(m => {
+                  const startNote = m.start;
+                  const endNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval' || useTransposedPitch) ? m.end + 1 : m.end;
+                  const matchStartPct = (startNote / totalNotes) * 100;
+                  const matchEndPct = (endNote / totalNotes) * 100;
+                  return matchStartPct >= (this.melodyRangeStartPct - 0.1) && matchEndPct <= (this.melodyRangeEndPct + 0.1);
                 });
+              }
+
+              if (matches.length > 0) {
+                const groupsByPitch = new Map<string, typeof matches>();
+                if (this.melodySearchType === 'contour' || this.melodySearchType === 'interval' || useTransposedPitch) {
+                  for (const m of matches) {
+                    const startNote = m.start;
+                    const endNote = m.end + 1;
+                    const matchedNotes = notes.slice(startNote, Math.min(notes.length, endNote + 1));
+                    const key = matchedNotes.map(n => n.base.toUpperCase() + (n.octave !== undefined ? n.octave : '')).join(' ');
+                    if (!groupsByPitch.has(key)) groupsByPitch.set(key, []);
+                    groupsByPitch.get(key)!.push(m);
+                  }
+                } else {
+                  groupsByPitch.set(pattern.join(' ').toUpperCase(), matches);
+                }
+
+                let colorIdx = 0;
+                for (const [pitchKey, matchGroup] of groupsByPitch.entries()) {
+                  const matchSylSet = new Set<string>();
+                  const matchNoteSet = new Set<string>();
+                  const allMatchingSylIndices: number[] = [];
+
+                  const occurrences: MelodyMatchOccurrence[] = matchGroup.map(m => {
+                    const startNote = m.start;
+                    const endNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval' || useTransposedPitch)
+                      ? m.end + 1
+                      : m.end;
+
+                    for (let ni = startNote; ni <= endNote && ni < sylIdx.length; ni++) {
+                      const syl = syllables[sylIdx[ni]];
+                      if (syl?.uuid) matchSylSet.add(syl.uuid);
+                      allMatchingSylIndices.push(sylIdx[ni]);
+                    }
+
+                    const occNoteUUIDs: string[] = [];
+                    for (let ni = startNote; ni <= endNote && ni < notes.length; ni++) {
+                      const note = notes[ni];
+                      if (note?.uuid) {
+                        matchNoteSet.add(note.uuid);
+                        occNoteUUIDs.push(note.uuid);
+                      }
+                    }
+
+                    const totalNotes = Math.max(1, notes.length);
+                    const startPct = Math.round((startNote / totalNotes) * 1000) / 10;
+                    const endPct   = Math.round((endNote / totalNotes) * 1000) / 10;
+                    const widthPct = Math.max(3, Math.round(((endNote - startNote + 1) / totalNotes) * 1000) / 10);
+                    const cObj = OCCURRENCE_COLORS[colorIdx % OCCURRENCE_COLORS.length];
+                    colorIdx++;
+
+                    const matchedNotes = notes.slice(startNote, Math.min(notes.length, endNote + 1));
+                    const matchedPitches = matchedNotes.map(n => n.base.toUpperCase() + (this.melodyWithOctave && n.octave !== undefined ? n.octave : ''));
+                    const matchedIntervals = toIntervals(matchedNotes);
+
+                    return {
+                      startNoteIndex: startNote,
+                      endNoteIndex: endNote,
+                      distance: m.distance,
+                      startPct,
+                      endPct,
+                      widthPct,
+                      pitchKey,
+                      color: cObj.color,
+                      border: cObj.border,
+                      name: cObj.name,
+                      noteUUIDs: occNoteUUIDs,
+                      matchedPitches,
+                      matchedIntervals
+                    };
+                  });
+
+                  const bestDistance = Math.min(...matchGroup.map(m => m.distance));
+
+                  const matchSylMin = Math.min(...allMatchingSylIndices);
+                  const matchSylMax = Math.max(...allMatchingSylIndices);
+                  const ctxFirst = Math.max(0, matchSylMin - 2);
+                  const ctxLast  = Math.min(syllables.length - 1, matchSylMax + 2);
+                  const contextSyllables = syllables.slice(ctxFirst, ctxLast + 1);
+
+                  results.push({
+                    document:   doc,
+                    sourceSigle: sourceMap.get(doc.quelle_id)?.quellensigle ?? '',
+                    noteCount:  notes.length,
+                    matchingSyllables: contextSyllables,
+                    matchSylSet,
+                    matchNoteSet,
+                    distance: bestDistance,
+                    occurrences,
+                    noteSequenceLabel: (this.melodySearchType === 'contour' || this.melodySearchType === 'interval') ? pitchKey : undefined
+                  });
+                }
               }
             }
           }
@@ -643,7 +963,7 @@ export class SearchExecService {
         const currentProgress = Math.min(i + BATCH_SIZE, allDocs.length);
         this.searchProgress.current = currentProgress;
         this.searchProgress.matched = results.length;
-        this.melodyResults = results.slice().sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+        this.finishMelodySearch(results);
         this.notifyChange();
         await new Promise(resolve => setTimeout(resolve, 0));
       }
@@ -658,7 +978,99 @@ export class SearchExecService {
   }
 
   private finishMelodySearch(results: MelodyResult[]): void {
-    this.melodyResults  = results.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+    const docColorMap = new Map<string, string>();
+    let docColorIdx = 0;
+
+    results.sort((a, b) => {
+      const docCompare = a.document.id.localeCompare(b.document.id);
+      if (docCompare !== 0) return docCompare;
+      return (a.distance ?? 0) - (b.distance ?? 0);
+    });
+
+    for (let r = 0; r < results.length; r++) {
+      const res = results[r];
+      if (!docColorMap.has(res.document.id)) {
+        docColorMap.set(res.document.id, DOC_ACCENT_COLORS[docColorIdx % DOC_ACCENT_COLORS.length]);
+        docColorIdx++;
+      }
+      res.docColor = docColorMap.get(res.document.id);
+
+      const isFirst = (r === 0 || results[r - 1].document.id !== res.document.id);
+      res.isDocGroupStart = isFirst;
+      if (isFirst) {
+        let count = 0;
+        for (let k = r; k < results.length && results[k].document.id === res.document.id; k++) {
+          count++;
+        }
+        res.docGroupCount = count;
+      }
+    }
+
+    // Compute wildcard match distributions for '.' and '.?'
+    const wildcardIndices: { idx: number; token: string }[] = [];
+    const parsedPattern = parseMelodyPattern(this.melodyPattern, this.melodySearchType, this.melodyWithOctave);
+    parsedPattern.forEach((tok, i) => {
+      if (tok === '.' || tok === '.?' || tok === '?') {
+        wildcardIndices.push({ idx: i, token: tok });
+      }
+    });
+
+    if (wildcardIndices.length > 0) {
+      this.wildcardStats = wildcardIndices.map((wObj, wIdx) => {
+        const pitchCounts = new Map<string, number>();
+        const intervalCounts = new Map<string, number>();
+        let totalMatches = 0;
+
+        for (const res of results) {
+          for (const occ of res.occurrences) {
+            if (occ.matchedPitches && wObj.idx < occ.matchedPitches.length) {
+              const p = occ.matchedPitches[wObj.idx];
+              if (p) {
+                pitchCounts.set(p, (pitchCounts.get(p) || 0) + 1);
+                totalMatches++;
+              }
+            }
+            if (occ.matchedIntervals && wObj.idx < occ.matchedIntervals.length) {
+              const inv = occ.matchedIntervals[wObj.idx];
+              if (inv) {
+                intervalCounts.set(inv, (intervalCounts.get(inv) || 0) + 1);
+              }
+            }
+          }
+        }
+
+        const total = Math.max(1, totalMatches);
+
+        const pitchDist: DistributionItem[] = Array.from(pitchCounts.entries())
+          .map(([label, count]) => ({ label, count, pct: Math.round((count / total) * 100) }))
+          .sort((a, b) => b.count - a.count);
+
+        const intervalDist: DistributionItem[] = Array.from(intervalCounts.entries())
+          .map(([label, count]) => ({ label, count, pct: Math.round((count / total) * 100) }))
+          .sort((a, b) => b.count - a.count);
+
+        const pitchAxisBins = buildPitchAxisBins(pitchCounts, total);
+        const intervalAxisBins = buildIntervalAxisBins(intervalCounts, total);
+        const color = WILDCARD_COLORS[wIdx % WILDCARD_COLORS.length];
+
+        return {
+          tokenIndex: wObj.idx,
+          patternToken: wObj.token,
+          color,
+          label: `Wildcard #${wIdx + 1} (Pos ${wObj.idx + 1})`,
+          shortLabel: `.${wIdx + 1}`,
+          totalMatches,
+          pitchDist,
+          intervalDist,
+          pitchAxisBins,
+          intervalAxisBins
+        };
+      });
+    } else {
+      this.wildcardStats = [];
+    }
+
+    this.melodyResults  = results;
     this.melodySearched = true;
     this.melodySearching = false;
     this.saveSearchStateToIndexedDB();

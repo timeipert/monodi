@@ -19,6 +19,7 @@ import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
 import { ContextMenuService } from '../context-menu/context-menu.service';
 import { Router } from '@angular/router';
+import { SearchExecService } from '../search/search-exec.service';
 import { extractPattern } from '../transcription-analyzer-core';
 
 declare const $: any;
@@ -139,6 +140,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     );
   }
 
+  @Input()
+  docId?: string;
+
   constructor(
     private focusService: FocusService,
     private cdr: ChangeDetectorRef,
@@ -148,7 +152,8 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     private undoService: UndoService,
     private modalService: NgbModal,
     private contextMenuService: ContextMenuService,
-    private router: Router) {
+    private router: Router,
+    private searchExecSvc: SearchExecService) {
   }
 
   refresh() { this.cdr.detectChanges(); this.notesToText(); }
@@ -1252,12 +1257,30 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   isHelperLine: (d: Drawable) => boolean = d => d instanceof DHelperLine;
 
   isHighlighted(d: Drawable): boolean {
-    if (!this.highlightNoteUUIDs || !d.ref) return false;
-    const ref = d.ref;
-    if ('uuid' in ref) {
-      return this.highlightNoteUUIDs.has(ref.uuid);
+    if (!d.ref) return false;
+    const ref: any = d.ref;
+    if (!('uuid' in ref)) return false;
+    if (this.highlightNoteUUIDs && this.highlightNoteUUIDs.has(ref.uuid)) return true;
+    const targetDocId = this.docId || this.searchExecSvc.activeDocumentHighlight?.documentId;
+    return !!this.searchExecSvc.getNoteHighlightColor(targetDocId, ref.uuid);
+  }
+
+  getHighlightFill(d: Drawable): string {
+    if (d.ref && 'uuid' in d.ref) {
+      const targetDocId = this.docId || this.searchExecSvc.activeDocumentHighlight?.documentId;
+      const custom = this.searchExecSvc.getNoteHighlightColor(targetDocId, (d.ref as any).uuid);
+      if (custom) return custom.fill;
     }
-    return false;
+    return '#fde047';
+  }
+
+  getHighlightStroke(d: Drawable): string {
+    if (d.ref && 'uuid' in d.ref) {
+      const targetDocId = this.docId || this.searchExecSvc.activeDocumentHighlight?.documentId;
+      const custom = this.searchExecSvc.getNoteHighlightColor(targetDocId, (d.ref as any).uuid);
+      if (custom) return custom.stroke;
+    }
+    return '#eab308';
   }
 
   isThisCommentStart(): boolean {

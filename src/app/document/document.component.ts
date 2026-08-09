@@ -22,6 +22,7 @@ import { NavigationService } from '../notationsdokumentation/navigation.service'
 import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
 import { MeiExportService } from '../mei-export.service';
+import { SearchExecService } from '../search/search-exec.service';
 
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
@@ -209,7 +210,20 @@ export class DocumentComponent implements OnInit {
     public dragState: DragStateService,
     private navService: NavigationService,
     private meiExport: MeiExportService,
-    private pageTitle: PageTitleService, public focusService: FocusService) {
+    private pageTitle: PageTitleService, public focusService: FocusService,
+    public searchExecSvc: SearchExecService) {
+  }
+
+  get activeHighlight() {
+    const h = this.searchExecSvc.activeDocumentHighlight;
+    if (h && this.document && h.documentId === this.document.id) {
+      return h;
+    }
+    return null;
+  }
+
+  clearHighlights(): void {
+    this.searchExecSvc.clearDocumentHighlight();
   }
 
   documentTypes = [

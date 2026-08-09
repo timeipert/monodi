@@ -215,16 +215,26 @@ function sequenceDistance(s1: string[], s2: string[]): number {
   for (let i = 0; i <= m; i++) {
     dp[i] = [i];
   }
+
+  dp[0][0] = 0;
   for (let j = 1; j <= n; j++) {
-    dp[0][j] = j;
+    const patTok = s2[j - 1].toLowerCase();
+    const skipCost = (patTok === '.?' || patTok === '?') ? 0 : 1;
+    dp[0][j] = dp[0][j - 1] + skipCost;
   }
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      const cost = s1[i - 1].toLowerCase() === s2[j - 1].toLowerCase() ? 0 : 1;
+      const patTok = s2[j - 1].toLowerCase();
+      const seqTok = s1[i - 1].toLowerCase();
+
+      const isMatch = (patTok === '.' || patTok === '.?' || patTok === '?' || seqTok === patTok);
+      const cost = isMatch ? 0 : 1;
+      const skipCost = (patTok === '.?' || patTok === '?') ? 0 : 1;
+
       dp[i][j] = Math.min(
         dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
+        dp[i][j - 1] + skipCost,
         dp[i - 1][j - 1] + cost
       );
     }
@@ -237,11 +247,15 @@ function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistan
   const M = sequence.length;
   if (N === 0 || M === 0) return [];
 
+  let optCount = 0;
+  for (const t of pattern) {
+    if (t === '.?' || t === '?') optCount++;
+  }
+
   const matches: SequenceMatch[] = [];
 
-  // Iterate over all possible starting positions in the sequence
   for (let start = 0; start < M; start++) {
-    const minLen = Math.max(1, N - maxDistance);
+    const minLen = Math.max(1, N - optCount - maxDistance);
     const maxLen = N + maxDistance;
 
     for (let len = minLen; len <= maxLen; len++) {
@@ -256,7 +270,6 @@ function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistan
     }
   }
 
-  // Filter overlapping matches, keeping the best one
   matches.sort((a, b) => a.distance - b.distance || (a.end - a.start) - (b.end - b.start));
   const filteredMatches: SequenceMatch[] = [];
 
@@ -278,57 +291,60 @@ function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistan
 
 function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour' | 'interval', withOctave: boolean): string[] {
   const clean = raw.trim();
+  if (!clean) return [];
+
   if (searchType === 'contour') {
-    if (clean.includes(' ')) {
-      return clean.split(/\s+/).filter(Boolean).map(p => p.toLowerCase());
-    } else {
-      return clean.split('').filter(char => !/\s/.test(char)).map(p => p.toLowerCase());
+    const tokens: string[] = [];
+    const regex = /(\.\?|\.|\s+|[udrUDR])/g;
+    let m;
+    while ((m = regex.exec(clean)) !== null) {
+      const tok = m[1].trim();
+      if (tok) tokens.push((tok === '.?' || tok === '?') ? '.?' : tok.toLowerCase());
     }
+    return tokens;
   }
 
   if (searchType === 'interval') {
-    const matches: string[] = [];
-    const regex = /([+-]?\d+)/g;
-    let match;
-    while ((match = regex.exec(clean)) !== null) {
-      const num = parseInt(match[1], 10);
-      matches.push(num > 0 ? `+${num}` : `${num}`);
+    const tokens: string[] = [];
+    const regex = /(\.\?|\.|[+-]?\d+)/g;
+    let m;
+    while ((m = regex.exec(clean)) !== null) {
+      const tok = m[1];
+      if (tok === '.?' || tok === '?') tokens.push('.?');
+      else if (tok === '.') tokens.push('.');
+      else {
+        const num = parseInt(tok, 10);
+        tokens.push(num > 0 ? `+${num}` : `${num}`);
+      }
     }
-    return matches;
+    return tokens;
   }
 
-  // Pitch matching
-  // Note base: A-G, H (case-insensitive)
-  // We use a regex that restricts the flat accidental 'b' to only follow a B/b base.
-  // Other notes (A, C, D, E, F, G, H) can only have #, ♭, ♯ as accidentals.
-  // This prevents 'ab' from being parsed as A-flat instead of note A followed by note B.
-  const noteRegex = /(?:([bB])([b#♭♯]?)|([ac-ghAC-GH])([#♭♯]?))([0-9]?)/g;
+  const noteRegex = /(\.\?|\.)|(?:([bB])([b#♭♯]?)|([ac-ghAC-GH])([#♭♯]?))([0-9]?)/g;
   const matches: string[] = [];
   let match;
   
   while ((match = noteRegex.exec(clean)) !== null) {
-    const isB = match[1] !== undefined;
-    const base = (isB ? match[1] : match[3]).toLowerCase();
-    const accidental = (isB ? match[2] : match[4]) || '';
-    const octave = match[5] || '';
+    if (match[1]) {
+      matches.push(match[1]);
+      continue;
+    }
+    const isB = match[2] !== undefined;
+    const base = (isB ? match[2] : match[4]).toLowerCase();
+    const accidental = (isB ? match[3] : match[5]) || '';
+    const octave = match[6] || '';
 
     let note = base;
-    // Normalize German notation:
-    // H -> B (B-natural)
-    // B -> Bb (B-flat)
     if (note === 'h') {
       note = 'b';
     } else if (note === 'b') {
       note = 'bb';
     }
 
-    // Normalize accidental
     let accNorm = accidental.replace(/♭/g, 'b').replace(/♯/g, '#');
 
-    // Combine base and accidental
     if (accNorm) {
       if (note === 'bb' && accNorm === 'b') {
-        // already B-flat, do nothing
       } else {
         note += accNorm;
       }
@@ -488,8 +504,39 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   get melodyWithOctave() { return this.searchExecSvc.melodyWithOctave; }
   set melodyWithOctave(v) { this.searchExecSvc.melodyWithOctave = v; }
 
+  get melodyIncludeTransposed() { return this.searchExecSvc.melodyIncludeTransposed; }
+  set melodyIncludeTransposed(v) { this.searchExecSvc.melodyIncludeTransposed = v; }
+
   get melodyOnlyWithinSyllables() { return this.searchExecSvc.melodyOnlyWithinSyllables; }
   set melodyOnlyWithinSyllables(v) { this.searchExecSvc.melodyOnlyWithinSyllables = v; }
+
+  showAdvancedOptions = false;
+
+  get melodyRangeStartPct() { return this.searchExecSvc.melodyRangeStartPct; }
+  set melodyRangeStartPct(v) { this.searchExecSvc.melodyRangeStartPct = Math.max(0, Math.min(100, v ?? 0)); }
+
+  get melodyRangeEndPct() { return this.searchExecSvc.melodyRangeEndPct; }
+  set melodyRangeEndPct(v) { this.searchExecSvc.melodyRangeEndPct = Math.max(0, Math.min(100, v ?? 100)); }
+
+  wildcardViewMode: 'pitch' | 'interval' = 'pitch';
+  get wildcardStats() { return this.searchExecSvc.wildcardStats; }
+  Math = Math;
+
+  onRangeStartChange(val: any): void {
+    const v = Math.max(0, Math.min(100, Number(val) || 0));
+    if (v > this.melodyRangeEndPct) {
+      this.searchExecSvc.melodyRangeEndPct = v;
+    }
+    this.searchExecSvc.melodyRangeStartPct = v;
+  }
+
+  onRangeEndChange(val: any): void {
+    const v = Math.max(0, Math.min(100, Number(val) || 100));
+    if (v < this.melodyRangeStartPct) {
+      this.searchExecSvc.melodyRangeStartPct = v;
+    }
+    this.searchExecSvc.melodyRangeEndPct = v;
+  }
 
   get melodyResults() { return this.searchExecSvc.melodyResults; }
   set melodyResults(v) { this.searchExecSvc.melodyResults = v; }
@@ -1210,6 +1257,35 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   goToSource(id: string)                         { this.router.navigate(['/source', id]); }
   goToDocument(sourceId: string, docId: string)  { this.router.navigate(['/document', sourceId, docId]); }
+  goToMelodyDocument(r: MelodyResult): void {
+    const allNoteUUIDMap = new Map<string, { fill: string; stroke: string }>();
+    if (r.occurrences && r.occurrences.length > 0) {
+      for (const occ of r.occurrences) {
+        if (occ.noteUUIDs && occ.noteUUIDs.length > 0) {
+          for (const noteUuid of occ.noteUUIDs) {
+            allNoteUUIDMap.set(noteUuid, { fill: occ.color, stroke: occ.border });
+          }
+        } else {
+          for (const noteUuid of r.matchNoteSet) {
+            allNoteUUIDMap.set(noteUuid, { fill: occ.color, stroke: occ.border });
+          }
+        }
+      }
+    } else {
+      for (const noteUuid of r.matchNoteSet) {
+        allNoteUUIDMap.set(noteUuid, { fill: '#ef4444', stroke: '#dc2626' });
+      }
+    }
+
+    this.searchExecSvc.setDocumentHighlight({
+      documentId: r.document.id,
+      patternLabel: r.noteSequenceLabel || this.melodyPattern,
+      occurrences: r.occurrences || [],
+      allNoteUUIDMap,
+    });
+
+    this.goToDocument(r.document.quelle_id, r.document.id);
+  }
   goToQuickResult(r: QuickResult) {
     if (r.kind === 'source') this.goToSource(r.id);
     else this.goToDocument(r.sourceId!, r.id);
