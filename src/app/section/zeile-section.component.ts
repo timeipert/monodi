@@ -2,7 +2,7 @@ import { ViewChildren, QueryList, Component, OnInit, ElementRef, ViewChild, OnDe
 import * as S from './Section';
 import * as Model from '../types/model';
 import * as R from '../notes/Request';
-import { assertNever, handleFocusChangeFromParent } from '../../utils';
+import { assertNever, handleFocusChangeFromParent, focusNewChild } from '../../utils';
 import { Focusable, Focus, FocusChange } from '../types/Focus';
 import { FocusShiftRequested } from '../types/CommonEvent';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
@@ -92,6 +92,10 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
     this.updateActionHandlers();
     this.children.forEach(c => { if ((c as any).refresh) (c as any).refresh(); });
     this.changeRef.detectChanges();
+  }
+
+  isFirstLineInContainer(): boolean {
+    return !this.zipper || this.zipper.length === 0 || (this.zipper[this.zipper.length - 1] === 0);
   }
 
   ngOnDestroy(): void {
@@ -247,10 +251,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
 
 
   private focusChild(model: any, level: Focus | undefined, fromLast: boolean = false) {
-    this.children.toArray().find(n => n.getData() === model)!.focus({
-      focusLast: fromLast,
-      preferredLevel: level
-    });
+    focusNewChild(this.children, this.changeRef, model, fromLast, level);
   }
 
   reciveSyllableText(newData: string) {

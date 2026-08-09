@@ -37,6 +37,9 @@ export class LineChangeComponent implements OnDestroy, OnInit {
   @Input()
   readOnly!: boolean;
 
+  @Input()
+  showGClef = false;
+
   @Output()
   request = new EventEmitter<R.Request>();
   hasFocus = false;

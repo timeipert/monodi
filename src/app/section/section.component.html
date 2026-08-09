@@ -92,17 +92,21 @@
 
         </div>
         <div *ngIf=" ('' + data.kind) === 'ZeileContainer'" (contextmenu)="onContextMenu($event)">
-          <ng-container *ngFor="let child of data.children; trackBy:getUUID">
+          <ng-container *ngFor="let child of data.children; trackBy:getUUID; let first = first">
             <app-notes #linechild *ngIf="child.kind === 'Syllable'" [readOnly]="readOnly" [model]="child"
-              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-notes>
+              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
+              [showGClef]="first"></app-notes>
             <app-line-change #linechild *ngIf="child.kind === 'LineChange'" [readOnly]="readOnly" [model]="child"
-              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-line-change>
+              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
+              [showGClef]="first"></app-line-change>
             <app-folio-change #linechild *ngIf="child.kind === 'FolioChange'" [readOnly]="readOnly" [model]="child"
               (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-folio-change>
             <app-clef #linechild *ngIf="child.kind === 'Clef'" [readOnly]="readOnly" [model]="child"
-              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-clef>
+              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
+              [showGClef]="first"></app-clef>
             <app-box #linechild *ngIf="child.kind === 'Box'" [readOnly]="readOnly" [model]="child"
-              (request)="onLinePartRequest($event, child)" [attr.data-uuid]="child.uuid">
+              (request)="onLinePartRequest($event, child)" [attr.data-uuid]="child.uuid"
+              [showGClef]="first">
             </app-box>
           </ng-container>
         </div>

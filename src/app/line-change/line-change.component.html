@@ -7,6 +7,7 @@
         <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
         <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
         <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
+        <text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="bold" fill="black" style="user-select: none; pointer-events: none;">G</text>
         <g [attr.transform]="'translate(' + (20/2) + ', 0)'">
           <rect x=0 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus? 'lightgreen': 'black'" />
         </g>

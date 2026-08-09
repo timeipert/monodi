@@ -76,6 +76,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   @Input()
   staffScale = 1.0;
 
+  @Input()
+  showGClef = false;
+
   syllableWidth = 0;
   noteTextWidth = 0;
   syllTextWidth = 0;
@@ -1376,7 +1379,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   getWidth(): number {
     const isEdit = !this.readOnly;
     const minW = isEdit ? 40 : (this.hideSyllableText ? 12 : 30);
-    const padding = isEdit ? 20 : (this.hideSyllableText ? 6 : 12);
+    const padding = (isEdit ? 20 : (this.hideSyllableText ? 6 : 12)) + (this.showGClef ? 22 : 0);
     const activeSyllTextWidth = (this.hideSyllableText && !isEdit) ? 0 : this.syllTextWidth;
     let baseW = padding;
     if (this.isNormal()) {

@@ -6,6 +6,7 @@ import * as MS from '../types/modelStorage';
 import { Event, PasteRequested, MoveRequested, NewCommentRequested } from './Event';
 import { ToastrService } from 'ngx-toastr';
 import { Focusable } from "../types/Focus";
+import { focusNewChild } from "../../utils";
 import { ResolveCommentSpansRequested, CommentDeletionRequested, LineFocusShiftRequest } from "../types/CommonEvent";
 import { UndoService } from '../undoService';
 import { DragStateService } from '../dragger/drag-state.service';
@@ -219,16 +220,13 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
     this.undo.beforeChange();
     const newData = Model.createNestedFormteilContainer(this.data.documentType, 1);
     this.data.children.splice(oldIndex, 0, newData);
-    setTimeout(() => this.children.toArray().find(p => p.getData() === newData)!.focus({ focusLast: false }), 0);
+    focusNewChild(this.children, this.cdr, newData, false);
   }
 
   newAt(child: any, newIndex: number) {
     this.undo.beforeChange();
     this.data.children.splice(newIndex, 0, child);
-    setTimeout(() => {
-      const focusTarget = this.children.toArray().find(sft => sft.getData() === child);
-      if (focusTarget) focusTarget.focus({ focusLast: false });
-    }, 0);
+    focusNewChild(this.children, this.cdr, child, false);
   }
 
   canBeDeleted(): boolean {

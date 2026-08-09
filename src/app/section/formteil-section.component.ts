@@ -1,9 +1,9 @@
-import { ChangeDetectorRef, OnChanges, ViewChildren, QueryList, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, OnChanges, ViewChildren, QueryList, Component, OnDestroy, OnInit, ElementRef } from '@angular/core';
 import * as S from './Section';
 import * as Model from '../types/model';
 import { Event, NewNoteLineRequsted } from './Event';
 import { FocusShiftRequested, DeletionRequested, LineFocusShiftRequest } from '../types/CommonEvent';
-import { handleFocusShiftFromChild, handleFocusChangeFromParent } from '../../utils';
+import { handleFocusShiftFromChild, handleFocusChangeFromParent, focusNewChild } from '../../utils';
 import { Focusable, FocusChange } from "../types/Focus";
 import { UndoService } from '../undoService';
 import { ContextMenuService } from '../context-menu/context-menu.service';
@@ -49,7 +49,8 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     private contextMenuService: ContextMenuService, 
     private toastr: ToastrService,
     private focusService: FocusService,
-    private toolService: ToolsService
+    private toolService: ToolsService,
+    private el: ElementRef
   ) {
     super("Formteil", {
       'NewNoteLineRequsted': (e: Event, oldIndex: number) => {
@@ -164,11 +165,24 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
   newAt(model: Model.FormteilChildren, newIndex: number) {
     this.undo.beforeChange();
     this.data.children.splice(newIndex, 0, model);
-    setTimeout(() => this.children.toArray().find(sft => sft.getData() === model)!.focus({ focusLast: false }), 0);
+    focusNewChild(this.children, this.cdr, model, false);
   }
 
   focus(change: FocusChange): void {
-    handleFocusChangeFromParent(change, this.children.toArray());
+    const kids = this.children.toArray();
+    if (kids.length > 0) {
+      handleFocusChangeFromParent(change, kids);
+      return;
+    }
+    // Empty section (no lines or sub-sections yet): focus this section's own
+    // Signature input so a freshly created "+ L…" section is immediately
+    // editable instead of dropping focus to the page body. With no sub-children
+    // the first input in the host is this section's own metadata (Signature).
+    const input = this.el?.nativeElement?.querySelector('input') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+      try { input.select(); } catch { /* ignore */ }
+    }
   }
 
   getData(): any {

@@ -28,6 +28,9 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   readOnly!: boolean;
 
   @Input()
+  showGClef = false;
+
+  @Input()
   comments!: VM.Comment[];
 
   @Output()

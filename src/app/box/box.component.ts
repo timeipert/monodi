@@ -19,6 +19,9 @@ export class BoxComponent implements OnInit, OnDestroy, AfterViewChecked, Focusa
   @Input()
   readOnly!: boolean;
 
+  @Input()
+  showGClef = false;
+
   @Output()
   request = new EventEmitter<R.Request>();
 

@@ -1,13 +1,14 @@
-<div class="section" [style.width.px]="readOnly ? (35 * staffScale) : 35" [class.read-only]="readOnly">
+<div class="section" [style.width.px]="(readOnly ? (35 * staffScale) : 35) + (showGClef ? 32 : 0)" [class.read-only]="readOnly">
 	<div #notesDiv class="notes" (keydown)="keyDown($event)" (click)="clicked()" (contextmenu)="onContextMenu($event)" tabindex="-1" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)">
-		<svg [attr.width]="(readOnly ? (35 * staffScale) : 35) + 'px'" [style.height.px]="readOnly ? (65 * staffScale) : 120">
+		<svg [attr.width]="((readOnly ? (35 * staffScale) : 35) + (showGClef ? 32 : 0)) + 'px'" [style.height.px]="readOnly ? (65 * staffScale) : 120">
 			<g (click)="clicked()" [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, -20)' : 'scale(' + staffScale + ') translate(0, 0)'">
                           <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
                           <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
                           <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
                           <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
                           <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
-                          <text x=5 [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.fill]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.y]="getY() + 6">{{this.model.shape}}</text>
+                          <text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
+                          <text [attr.x]="showGClef ? 27 : 5" [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.fill]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.y]="getY() + 6">{{this.model.shape}}</text>
 			</g>
 		</svg>
 	</div>

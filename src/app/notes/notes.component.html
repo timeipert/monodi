@@ -9,13 +9,14 @@
 				<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
 				<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
 				<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
+				<text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="bold" fill="black" style="user-select: none; pointer-events: none;">G</text>
 
 				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="2px"
 					height="60px" [attr.fill]="syllableBracketColor('start')" />
 				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="10px"
 					height="2px" [attr.fill]="syllableBracketColor('start')" />
 
-				<g *ngIf="isNormal()" [attr.transform]="'translate(12, 0)'">
+				<g *ngIf="isNormal()" [attr.transform]="showGClef ? 'translate(34, 0)' : 'translate(12, 0)'">
 					<g *ngFor="let drawable of getDrawables(i);trackBy:refOfDrawable"
 						[style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
 						(click)="drawableClicked(drawable, $event, i)"

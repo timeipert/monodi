@@ -2,7 +2,7 @@ import { ChangeDetectorRef, OnChanges, ViewChildren, QueryList, Component } from
 import * as S from './Section';
 import * as Model from '../types/model';
 import { Event, NewNoteLineRequsted } from './Event';
-import { handleFocusShiftFromChild, handleFocusChangeFromParent } from '../../utils';
+import { handleFocusShiftFromChild, handleFocusChangeFromParent, focusNewChild } from '../../utils';
 import { Focusable, FocusChange } from "../types/Focus";
 import { FocusShiftRequested, DeletionRequested } from "../types/CommonEvent";
 import { UndoService } from '../undoService';
@@ -60,7 +60,7 @@ export class MiscSectionComponent extends S.Section<Model.MiscContainer> impleme
 
   newAt(model: Model.MiscChildren, newIndex: number) {
     this.data.children.splice(newIndex, 0, model);
-    setTimeout(() => this.children.toArray().find(sft => sft.getData() === model)!.focus({ focusLast: false }), 0);
+    focusNewChild(this.children, this.cdr, model, false);
 
   }
   focus(change: FocusChange): void {
