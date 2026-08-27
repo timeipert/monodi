@@ -1,0 +1,152 @@
+<div class="selection-dashboard" *ngIf="analysis as a">
+
+  <!-- Overview -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3 col-lg-2">
+      <div class="stat-card"><div class="stat-value">{{ a.docCount }}</div><div class="stat-label">Documents</div></div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <div class="stat-card"><div class="stat-value">{{ a.sourceCount }}</div><div class="stat-label">Sources</div></div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <div class="stat-card"><div class="stat-value">{{ a.totalSyllables }}</div><div class="stat-label">Syllables</div></div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <div class="stat-card"><div class="stat-value">{{ a.totalNotes }}</div><div class="stat-label">Notes</div></div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <div class="stat-card"><div class="stat-value">{{ a.avgNotesPerSyllable | number:'1.1-2' }}</div><div class="stat-label">Notes / syllable</div></div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <div class="stat-card">
+        <div class="stat-value" *ngIf="a.ambitus">{{ a.ambitus.low }}–{{ a.ambitus.high }}</div>
+        <div class="stat-value" *ngIf="!a.ambitus">—</div>
+        <div class="stat-label">Ambitus<span *ngIf="a.ambitus" class="text-muted"> ({{ a.ambitus.span + 1 }})</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Commonalities -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h6 class="fw-bold mb-3"><i class="bi bi-diagram-3 me-2 text-primary"></i>What this selection shares</h6>
+      <div *ngIf="a.sharedMetadata.length > 0" class="d-flex flex-wrap gap-2">
+        <span class="shared-chip" *ngFor="let s of a.sharedMetadata">
+          <span class="shared-key">{{ s.label }}</span>
+          <span class="shared-val">{{ s.value }}</span>
+          <span class="shared-cov" [class.full]="s.count === s.total">{{ s.count }}/{{ s.total }}</span>
+        </span>
+      </div>
+      <p class="text-muted small mb-0" *ngIf="a.sharedMetadata.length === 0">
+        No metadata field is shared by a majority of the selected documents.
+      </p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Pitch distribution + grouping -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h6 class="fw-bold mb-0"><i class="bi bi-music-note-list me-2 text-primary"></i>Pitch distribution</h6>
+            <select class="form-select form-select-sm w-auto" [(ngModel)]="groupField" (change)="onGroupChange()"
+                    *ngIf="a.groupableFields.length > 0">
+              <option value="">Overall</option>
+              <option *ngFor="let f of a.groupableFields" [value]="f.key">by {{ f.label }}</option>
+            </select>
+          </div>
+
+          <!-- overall -->
+          <ng-container *ngIf="!groupField">
+            <ng-container *ngIf="{ m: maxCount(a.pitchDistribution) } as ctx">
+              <div class="bar-row" *ngFor="let b of a.pitchDistribution">
+                <div class="bar-label mono">{{ b.label }}</div>
+                <div class="bar-track"><div class="bar-fill" [style.width.%]="pct(b.count, ctx.m)"></div></div>
+                <div class="bar-count">{{ b.count }}</div>
+              </div>
+            </ng-container>
+            <p class="text-muted small mb-0" *ngIf="a.pitchDistribution.length === 0">No notes in the selection.</p>
+          </ng-container>
+
+          <!-- grouped small multiples -->
+          <ng-container *ngIf="groupField">
+            <div class="group-block mb-3" *ngFor="let g of groupPitch">
+              <div class="d-flex justify-content-between small fw-semibold mb-1">
+                <span>{{ g.group }}</span><span class="text-muted">{{ g.total }} notes</span>
+              </div>
+              <ng-container *ngIf="{ m: maxCount(g.buckets) } as ctx">
+                <div class="bar-row compact" *ngFor="let b of g.buckets">
+                  <div class="bar-label mono">{{ b.label }}</div>
+                  <div class="bar-track"><div class="bar-fill" [style.width.%]="pct(b.count, ctx.m)"></div></div>
+                  <div class="bar-count">{{ b.count }}</div>
+                </div>
+              </ng-container>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes per syllable + intervals -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart me-2 text-primary"></i>Notes per syllable</h6>
+          <ng-container *ngIf="{ m: maxCount(a.notesPerSyllable) } as ctx">
+            <div class="bar-row" *ngFor="let b of a.notesPerSyllable">
+              <div class="bar-label">{{ b.label }}</div>
+              <div class="bar-track"><div class="bar-fill green" [style.width.%]="pct(b.count, ctx.m)"></div></div>
+              <div class="bar-count">{{ b.count }}</div>
+            </div>
+          </ng-container>
+          <p class="text-muted small mb-0" *ngIf="a.notesPerSyllable.length === 0">No sung syllables.</p>
+        </div>
+      </div>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Melodic intervals</h6>
+          <ng-container *ngIf="{ m: maxCount(a.intervals) } as ctx">
+            <div class="bar-row" *ngFor="let b of a.intervals">
+              <div class="bar-label">{{ b.label }}</div>
+              <div class="bar-track"><div class="bar-fill amber" [style.width.%]="pct(b.count, ctx.m)"></div></div>
+              <div class="bar-count">{{ b.count }}</div>
+            </div>
+          </ng-container>
+          <p class="text-muted small mb-0" *ngIf="a.intervals.length === 0">Not enough notes to measure intervals.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Text: words + phrases -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-fonts me-2 text-primary"></i>Most frequent words</h6>
+          <div class="d-flex flex-wrap gap-2" *ngIf="a.topWords.length > 0">
+            <span class="word-chip" *ngFor="let w of a.topWords"
+                  [style.font-size.rem]="0.75 + 0.6 * w.count / a.topWords[0].count">
+              {{ w.label }} <span class="text-muted">{{ w.count }}</span>
+            </span>
+          </div>
+          <p class="text-muted small mb-0" *ngIf="a.topWords.length === 0">No text in the selection.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-chat-quote me-2 text-primary"></i>Recurring phrases</h6>
+          <ng-container *ngIf="{ m: maxCount(a.topPhrases) } as ctx">
+            <div class="bar-row" *ngFor="let b of a.topPhrases">
+              <div class="bar-label phrase">{{ b.label }}</div>
+              <div class="bar-track"><div class="bar-fill" [style.width.%]="pct(b.count, ctx.m)"></div></div>
+              <div class="bar-count">{{ b.count }}</div>
+            </div>
+          </ng-container>
+          <p class="text-muted small mb-0" *ngIf="a.topPhrases.length === 0">No repeated two-word phrases.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

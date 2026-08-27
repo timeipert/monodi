@@ -391,6 +391,12 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   showSynopsis = false;
   synopsisLoading = false;
 
+  // Selection analysis dashboard
+  showDashboard = false;
+  dashboardLoading = false;
+  dashboardRoots: (VM.RootContainer | null)[] = [];
+  dashboardSources: (Source | null)[] = [];
+
   get alignedTree(): AlignedNode[] { return this.synopsisSvc.alignedTree; }
   set alignedTree(v: AlignedNode[]) { this.synopsisSvc.alignedTree = v; }
 
@@ -1454,6 +1460,41 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       (loading) => { this.synopsisLoading = loading; this.cdRef.markForCheck(); },
       () => { this.updateUrl(); this.cdRef.markForCheck(); }
     );
+  }
+
+  // ── Selection analysis dashboard ──────────────────────────────────────────
+
+  openDashboard() {
+    if (!this.user || this.selectedDocs.length < 1) return;
+    const token = this.user.token;
+    this.dashboardLoading = true;
+    this.cdRef.markForCheck();
+    forkJoin({
+      sources: this.api.listSources(token),
+      notes: forkJoin(this.selectedDocs.map(d => this.api.getDocumentNotes(token, d.id))),
+    }).subscribe({
+      next: ({ sources, notes }) => {
+        const srcList = sources.kind === 'SourcesRetrieved' ? sources.sources : [];
+        const srcMap = new Map(srcList.filter(s => s.id).map(s => [s.id!, s] as [string, Source]));
+        this.dashboardSources = this.selectedDocs.map(d => srcMap.get(d.quelle_id) || null);
+        this.dashboardRoots = notes.map(n => (n.kind === 'NotesRetrieved' ? n.data : null));
+        this.dashboardLoading = false;
+        this.showDashboard = true;
+        this.cdRef.markForCheck();
+      },
+      error: () => {
+        this.dashboardLoading = false;
+        this.toastr.error('Could not load the selected documents for analysis.');
+        this.cdRef.markForCheck();
+      },
+    });
+  }
+
+  exitDashboard() {
+    this.showDashboard = false;
+    this.dashboardRoots = [];
+    this.dashboardSources = [];
+    this.cdRef.markForCheck();
   }
 
   // ── Pattern Analysis Methods ──────────────────────────────────────────────

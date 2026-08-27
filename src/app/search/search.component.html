@@ -1,5 +1,5 @@
 <div *ngIf="!showPatternAnalysis">
-<div class="search-page container-fluid px-4 py-4" style="max-width: 1200px;" *ngIf="!showSynopsis">
+<div class="search-page container-fluid px-4 py-4" style="max-width: 1200px;" *ngIf="!showSynopsis && !showDashboard">
 
   <!-- Page header -->
   <div class="d-flex align-items-center justify-content-between mb-4">
@@ -146,6 +146,10 @@
             <span class="text-primary small ms-2"><i class="bi bi-info-circle me-1"></i>Check multiple documents below to compare them side-by-side (Synopse).</span>
           </div>
           <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-outline-primary" *ngIf="selectedDocs.length >= 1" (click)="openDashboard()">
+              <span *ngIf="dashboardLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
+            </button>
             <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
               <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
               Open Synopsis ({{selectedDocs.length}})
@@ -512,6 +516,10 @@
           <span *ngIf="documentsTotalPages > 1">· page {{documentsPage}} / {{documentsTotalPages}}</span>
         </span>
         <div class="d-flex gap-2 align-items-center">
+          <button class="btn btn-sm btn-outline-primary" *ngIf="selectedDocs.length >= 1" (click)="openDashboard()">
+            <span *ngIf="dashboardLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
+          </button>
           <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
             <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
             Open Synopsis ({{selectedDocs.length}})
@@ -743,6 +751,10 @@
             <span class="text-primary small"><i class="bi bi-info-circle me-1"></i>Select multiple chants below to compare them side-by-side.</span>
           </div>
           <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-outline-primary" *ngIf="selectedDocs.length >= 1" (click)="openDashboard()">
+              <span *ngIf="dashboardLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
+            </button>
             <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
               <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
               Open Synopsis ({{selectedDocs.length}})
@@ -1174,6 +1186,20 @@
       </div>
     </ng-container>
   </ng-template>
+
+  <!-- Selection analysis dashboard -->
+  <div *ngIf="showDashboard" class="dashboard-view container-fluid px-4 py-4" style="max-width: 1200px;">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary btn-sm" (click)="exitDashboard()" title="Back to search">
+          <i class="bi bi-arrow-left"></i>
+        </button>
+        <h5 class="fw-bold mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>Selection analysis</h5>
+        <span class="text-muted small">{{ selectedDocs.length }} document(s)</span>
+      </div>
+    </div>
+    <app-selection-dashboard [documents]="selectedDocs" [sources]="dashboardSources" [roots]="dashboardRoots"></app-selection-dashboard>
+  </div>
 
 </div>
 
