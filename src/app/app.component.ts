@@ -6,6 +6,7 @@ import { UserService, User } from './user.service';
 import { GithubService } from './github.service';
 import { UndoService } from './undoService';
 import { ContextMenuService } from './context-menu/context-menu.service';
+import { BackupReminderService } from './backup-reminder.service';
 import * as localforage from 'localforage';
 import * as _ from 'lodash';
 import { NotesStore } from './notes-store';
@@ -23,20 +24,35 @@ export class AppComponent {
   toolHasParent: boolean = false;
   isSyncing = false;
   isOnline: boolean = navigator.onLine;
-  
+  showBackupReminder = false;
+
   constructor (
-    private api: APIService, 
-    private userService: UserService, 
+    private api: APIService,
+    private userService: UserService,
     private toolsService: ToolsService,
     public github: GithubService,
     public undoService: UndoService,
     public router: Router,
-    private contextMenuService: ContextMenuService
+    private contextMenuService: ContextMenuService,
+    private backupReminder: BackupReminderService
   ) {
     userService.user.subscribe(u => this.user = u);
     toolsService.subscribe((ts, hasParent) => { this.tools = ts; this.toolHasParent = hasParent });
     window.addEventListener('online', () => this.isOnline = true);
     window.addEventListener('offline', () => this.isOnline = false);
+    this.backupReminder.visible$.subscribe(v => this.showBackupReminder = v);
+  }
+
+  /** Backup reminder banner actions. */
+  goToBackup(): void {
+    this.showBackupReminder = false;
+    this.router.navigate(['/import-export']);
+  }
+  snoozeBackup(): void {
+    this.backupReminder.snooze();
+  }
+  dismissBackupReminder(): void {
+    this.backupReminder.dismissForever();
   }
 
   @HostListener('contextmenu', ['$event'])
@@ -239,6 +255,7 @@ export class AppComponent {
        const date = new Date().toLocaleString();
        const success = await this.github.pushDatabase(this.resolvedDb, `Update from Monodi-Light (${date})`);
        if (success) {
+         this.backupReminder.markBackup();
          alert('Successfully synced and pushed to GitHub!');
        }
     } else {

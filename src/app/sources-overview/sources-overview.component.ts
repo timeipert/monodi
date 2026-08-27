@@ -4,6 +4,7 @@ import { UserService, User } from '../user.service';
 import { APIService, UserInfo, Source, Document } from '../api.service'
 import { assertNever } from '../../utils';
 import { buildWorkspaceCsv, parseWorkspaceCsv } from '../workspace-csv';
+import { BackupReminderService } from '../backup-reminder.service';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { Header } from '../smart-table/smart-table.component';
 import { ToastrService } from 'ngx-toastr';
@@ -123,6 +124,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     private cdRef: ChangeDetectorRef,
     private zone: NgZone,
     private route: ActivatedRoute,
+    private backupReminder: BackupReminderService,
   ) {}
 
   ngOnInit() {
@@ -253,6 +255,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       a.download = `workspace_export_${new Date().toISOString().split('T')[0]}.monodijson`;
       a.click();
       window.URL.revokeObjectURL(url);
+      this.backupReminder.markBackup();
       this.toastr.success("Workspace erfolgreich exportiert.");
     } catch (e) {
       this.toastr.error("Fehler beim Exportieren: " + e);
@@ -1047,6 +1050,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       a.click();
       window.URL.revokeObjectURL(url);
       
+      this.backupReminder.markBackup();
       this.toastr.success("Workspace successfully exported as ZIP.");
       this.closeExportDialog();
     } catch (e) {

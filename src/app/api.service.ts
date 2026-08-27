@@ -8,6 +8,7 @@ import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
 import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings } from './mei/mei-mapping.model';
 import { SavedCommentTemplate } from './comment/comment-templates';
+import { BackupReminderService } from './backup-reminder.service';
 
 @Injectable({
   providedIn: 'root'
@@ -17,7 +18,7 @@ export class APIService {
   private documentsCache: Document[] | null = null;
   public storagePersisted: boolean | null = null;
 
-  constructor() { 
+  constructor(private backupReminder: BackupReminderService) {
     localforage.config({
       name: 'monodi-light',
       storeName: 'monodi_data'
@@ -40,6 +41,7 @@ export class APIService {
   private async saveSources(sources: Source[]): Promise<void> {
     this.sourcesCache = sources;
     await localforage.setItem('monodi_sources', sources);
+    this.backupReminder.markChanged();
   }
 
   private async getDocuments(): Promise<Document[]> {
@@ -52,6 +54,7 @@ export class APIService {
   private async saveDocuments(docs: Document[]): Promise<void> {
     this.documentsCache = docs;
     await localforage.setItem('monodi_documents', docs);
+    this.backupReminder.markChanged();
   }
 
   private async initStorage() {

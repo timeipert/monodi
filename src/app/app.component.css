@@ -175,3 +175,7 @@ svg {
         height: unset;
     }
 }
+
+.backup-reminder {
+  background: #fff8e1;
+}
