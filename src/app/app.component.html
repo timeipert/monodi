@@ -68,21 +68,21 @@
         <div class="d-flex align-items-start gap-2 flex-wrap">
             <i class="bi bi-shield-exclamation fs-5 text-warning flex-shrink-0"></i>
             <div class="flex-grow-1" style="min-width: 220px;">
-                <div class="fw-semibold">Ungesicherte Änderungen</div>
+                <div class="fw-semibold">Changes not backed up</div>
                 <div class="small text-muted">
-                    Deine Daten liegen nur in diesem Browser. Wird der Browser-Speicher gelöscht, sind sie
-                    unwiderruflich weg. Sichere sie zur Sicherheit per <strong>Export</strong> oder <strong>GitHub</strong>.
+                    Your data lives only in this browser. If the browser's storage is cleared, it is gone for
+                    good. Back it up to be safe — via <strong>Export</strong> or <strong>GitHub</strong>.
                 </div>
             </div>
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
                 <button class="btn btn-sm btn-warning" (click)="goToBackup()">
-                    <i class="bi bi-download me-1"></i>Jetzt sichern
+                    <i class="bi bi-download me-1"></i>Back up now
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" (click)="snoozeBackup()" title="Für 30 Minuten ausblenden">
-                    Später
+                <button class="btn btn-sm btn-outline-secondary" (click)="snoozeBackup()" title="Hide for 30 minutes">
+                    Later
                 </button>
                 <button class="btn btn-sm btn-link text-muted text-decoration-none px-1" (click)="dismissBackupReminder()">
-                    Nicht mehr anzeigen
+                    Don't show again
                 </button>
             </div>
         </div>

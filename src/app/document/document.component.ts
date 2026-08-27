@@ -1877,7 +1877,7 @@ export class DocumentComponent implements OnInit {
   /** Export the current document as a Volpiano string: download a .txt and copy to clipboard. */
   exportVolpiano(): void {
     if (!this.cont) {
-      this.toastr.error('Kein Dokument zum Exportieren geöffnet.');
+      this.toastr.error('No document open to export.');
       return;
     }
     try {
@@ -1885,17 +1885,17 @@ export class DocumentComponent implements OnInit {
       const result = this.volpiano.exportAndDownload(this.cont, baseId + '.volpiano.txt');
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(result.volpiano).then(
-          () => this.toastr.success('Volpiano in die Zwischenablage kopiert und als .txt heruntergeladen.'),
-          () => this.toastr.success('Volpiano als .txt heruntergeladen.')
+          () => this.toastr.success('Volpiano copied to clipboard and downloaded as .txt.'),
+          () => this.toastr.success('Volpiano downloaded as .txt.')
         );
       } else {
-        this.toastr.success('Volpiano als .txt heruntergeladen.');
+        this.toastr.success('Volpiano downloaded as .txt.');
       }
       if (result.warnings.length > 0) {
-        this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano-Export mit Hinweisen');
+        this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano export warnings');
       }
     } catch (e) {
-      this.toastr.error('Volpiano-Export fehlgeschlagen: ' + e);
+      this.toastr.error('Volpiano export failed: ' + e);
     }
   }
 

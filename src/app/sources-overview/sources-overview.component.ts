@@ -256,9 +256,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       a.click();
       window.URL.revokeObjectURL(url);
       this.backupReminder.markBackup();
-      this.toastr.success("Workspace erfolgreich exportiert.");
+      this.toastr.success("Workspace exported successfully.");
     } catch (e) {
-      this.toastr.error("Fehler beim Exportieren: " + e);
+      this.toastr.error("Export failed: " + e);
     }
   }
 
@@ -271,7 +271,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   async confirmCsvExport() {
     this.showCsvExportDialog = false;
     if (!this.csvIncludeSourceMeta && !this.csvIncludeDocumentMeta && !this.csvIncludeContent) {
-      this.toastr.error('Bitte mindestens eine Spalten-Gruppe auswählen.');
+      this.toastr.error('Please select at least one column group.');
       return;
     }
     await this.exportCsv();
@@ -296,9 +296,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       a.download = `workspace_export_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-      this.toastr.success('CSV erfolgreich exportiert.');
+      this.toastr.success('CSV exported successfully.');
     } catch (e) {
-      this.toastr.error('Fehler beim CSV-Export: ' + e);
+      this.toastr.error('CSV export failed: ' + e);
     }
   }
 
@@ -365,14 +365,14 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           this.updateList();
 
           this.toastr.success(
-            `CSV importiert: ${createdSources} neue / ${updatedSources} aktualisierte Quellen, ` +
-              `${createdDocs} neue / ${updatedDocs} aktualisierte Dokumente.`
+            `CSV imported: ${createdSources} new / ${updatedSources} updated sources, ` +
+              `${createdDocs} new / ${updatedDocs} updated documents.`
           );
           if (parsed.warnings.length > 0) {
-            this.toastr.warning(parsed.warnings.slice(0, 5).join('; '), 'CSV-Import mit Hinweisen');
+            this.toastr.warning(parsed.warnings.slice(0, 5).join('; '), 'CSV import warnings');
           }
         } catch (err) {
-          this.toastr.error('Fehler beim CSV-Import: ' + err);
+          this.toastr.error('CSV import failed: ' + err);
         }
 
         event.target.value = '';
@@ -398,7 +398,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           const data = parseWorkspaceImport(json);
           
           if (data.schemaVersion > WORKSPACE_SCHEMA_VERSION) {
-            this.toastr.error("Fehler beim Importieren: Die Schemaversion der Importdatei (" + data.schemaVersion + ") ist neuer als die vom Programm unterstützte Version (" + WORKSPACE_SCHEMA_VERSION + ").");
+            this.toastr.error("Import failed: the file's schema version (" + data.schemaVersion + ") is newer than the version this app supports (" + WORKSPACE_SCHEMA_VERSION + ").");
             event.target.value = '';
             return;
           }
@@ -411,10 +411,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           if (data.settings) await localforage.setItem('monodi_settings', data.settings);
           
           this.api.invalidateCache();
-          this.toastr.success("Workspace erfolgreich importiert.");
+          this.toastr.success("Workspace imported successfully.");
           this.updateList();
         } catch (err) {
-          this.toastr.error("Fehler beim Importieren: " + err);
+          this.toastr.error("Import failed: " + err);
         }
         
         event.target.value = '';

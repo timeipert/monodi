@@ -284,7 +284,7 @@ export class SourceComponent implements OnInit {
     if (!this.user || !this.source || !this.source.id) return;
     const raw = this.volpianoImportText.trim();
     if (!raw) {
-      this.toastr.error('Bitte einen Volpiano-String einfügen.');
+      this.toastr.error('Please paste a Volpiano string.');
       return;
     }
 
@@ -292,7 +292,7 @@ export class SourceComponent implements OnInit {
     try {
       result = this.volpiano.import(raw, this.volpianoImportAlignedText.trim() || undefined);
     } catch (e) {
-      this.toastr.error('Volpiano konnte nicht gelesen werden: ' + e);
+      this.toastr.error('Could not read Volpiano: ' + e);
       return;
     }
     this.volpianoImportWarnings = result.warnings;
@@ -320,9 +320,9 @@ export class SourceComponent implements OnInit {
         case 'LoginRequired': this.userService.logout(); break;
         case 'DocumentCreated':
           if (result.warnings.length > 0) {
-            this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano-Import mit Hinweisen');
+            this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano import warnings');
           }
-          this.toastr.success('Dokument aus Volpiano erstellt.');
+          this.toastr.success('Document created from Volpiano.');
           this.modalService.dismissAll();
           this.router.navigate(['/document', this.source!.id, res.id]);
           break;
