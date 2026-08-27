@@ -130,7 +130,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
 
   deleteClef(focusLast: boolean) {
     if (this.getActiveComments().length > 0) {
-      this.toastr.info("Bitte löschen Sie zunächst den Kommentar, bevor Sie das Symbol löschen");
+      this.toastr.info("Please delete the comment before deleting the symbol.");
     } else {
       this.request.emit({ kind: "DeletionRequested", focusLast });
     }
@@ -212,12 +212,12 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
         {
           callback: () => { this.showComments() },
           icon: 'comment',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         },
         {
           callback: () => { this.request.emit({ kind: "DeletionRequested", focusLast: false }); },
           icon: 'delete',
-          title: 'Löschen'
+          title: 'Delete'
         }
       ]
     });

@@ -210,7 +210,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
         try {
           newData.notes = musicLanguage.Spaced.tryParse(newNotesArray[i]);
         } catch (e) {
-          window.alert('Es wurde eine ungültige Eingabe erkannt ' + newNotesArray[i]);
+          window.alert('Invalid input detected: ' + newNotesArray[i]);
         }
         this.data.children.push(newData);
       }
@@ -225,7 +225,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
 
       if (commentsToUpdate.length > 0 && uuidInfo.fallbackUUID === undefined) {
         window.alert(
-          'Sie können diese Note nicht löschen, weil dabei ein Kommentar verloren gehen würde. Bitte entfernen Sie zunächst den Kommentar');
+          'You cannot delete this note because a comment would be lost. Please remove the comment first.');
         return notes;
       } else if (uuidInfo.fallbackUUID) {
         for (let c of commentsToUpdate) {
@@ -240,7 +240,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       return newNotes;
     } catch (e) {
       console.log(e);
-      window.alert('Error beim parsen von neuen Notentexten');
+      window.alert('Error parsing new note text');
       return notes;
     }
   }
@@ -376,7 +376,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       }
       case 'DeletionRequested': {
         if (Model.linePartContainsComments(child, this.comments)) {
-          window.alert('Bitte entfernen Sie zuerst alle Kommentare, bevor Sie diesen Teil löschen');
+          window.alert('Please remove all comments before deleting this part.');
           break;
         }
         this.undo.beforeChange();

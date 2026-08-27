@@ -57,7 +57,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
         if (child && child.kind === Model.ContainerKind.FormteilContainer) {
           const formteilCount = this.data.children.filter(c => c.kind === Model.ContainerKind.FormteilContainer).length;
           if (formteilCount <= 1) {
-            this.toaster.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+            this.toaster.warning("This section cannot be deleted because it is the only one at this level.");
             return;
           }
         }
@@ -81,7 +81,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
           Model.removeStaleComments(this.data);
           this.cdr.detectChanges();
         } else {
-          this.toaster.warning("Es gibt keine folgende Zeile zum Zusammenführen");
+          this.toaster.warning("There is no following line to merge with.");
         }
       },
       MergeSectionRequested: (e: any, oldIndex: number) => {
@@ -98,7 +98,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
             Model.removeStaleComments(this.data);
             this.cdr.detectChanges();
           } else {
-            this.toaster.warning("Es gibt keinen folgenden Abschnitt zum Zusammenführen");
+            this.toaster.warning("There is no following section to merge with.");
           }
         }
       },
@@ -110,7 +110,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
           const parentContainer = parent as any;
           const formteilCount = parentContainer.children.filter((c: any) => c.kind === Model.ContainerKind.FormteilContainer).length;
           if (formteilCount <= 1) {
-            this.toaster.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+            this.toaster.warning("This section cannot be deleted because it is the only one at this level.");
             return;
           }
           const node = parentContainer.children[index];
@@ -208,7 +208,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
     this.undo.beforeChange();
     const error = MS.insert(this.data, at, withoutNotes, withoutText);
     if (error === null) {
-      this.toaster.success("Erfolgreich eingefügt");
+      this.toaster.success("Inserted successfully");
     } else {
       this.toaster.error(error);
     }

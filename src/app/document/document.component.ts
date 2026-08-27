@@ -382,7 +382,7 @@ export class DocumentComponent implements OnInit {
   deleteContainerAt(zipper: number[]): void {
     if (!this.cont) return;
     if (!this.canDeleteContainer(zipper)) {
-      this.toastr.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+      this.toastr.warning("This section cannot be deleted because it is the only one at this level.");
       return;
     }
     this.undoService.beforeChange();
@@ -473,7 +473,7 @@ export class DocumentComponent implements OnInit {
         this.save();
         this.cont = { ...this.cont } as VM.RootContainer;
       }
-      this.toastr.success("Silbentrennstriche wurden korrigiert.");
+      this.toastr.success("Syllable hyphens corrected.");
       return;
     }
     if (e.kind === 'DocumentUpdated') {
@@ -1671,7 +1671,7 @@ export class DocumentComponent implements OnInit {
             this.save();
             this.cont = { ...this.cont } as VM.RootContainer;
           }
-          this.toastr.success("Silbentrennstriche wurden korrigiert.");
+          this.toastr.success("Syllable hyphens corrected.");
         },
         icon: 'type-strikethrough',
         title: 'Fix Syllable Dashes'
@@ -1784,7 +1784,7 @@ export class DocumentComponent implements OnInit {
     if (Array.isArray(arr) && !arr.includes(val)) {
       arr.push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -1797,7 +1797,7 @@ export class DocumentComponent implements OnInit {
     if (!this.settings.customLists[category].includes(val)) {
       this.settings.customLists[category].push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -1826,7 +1826,7 @@ export class DocumentComponent implements OnInit {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
           case 'DocumentCreated': 
-            this.toastr.success("Erfolgreich gespeichert"); 
+            this.toastr.success("Saved successfully");
             this.document!.id = res.id;
             this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
             break;
@@ -1855,8 +1855,8 @@ export class DocumentComponent implements OnInit {
             // Removed toastr to prevent spamming on autosave
             this.resetClones(); 
             break;
-          case 'DocumentNotFound': this.toastr.error("Es sieht so aus, als wäre das Dokument zwischenzeitlich gelöscht worden"); break;
-          case 'InsufficientPermissions': this.toastr.error("Sie haben nicht genügend Rechte, um dieses Dokument zu speichern. Sie können das Dokument jedoch als JSON downloaden, um die Rechte bitten und es dann wieder hochladen um Datenverlust zu vermeiden.", "Fehler beim Speichern."); break;
+          case 'DocumentNotFound': this.toastr.error("It looks like this document was deleted in the meantime."); break;
+          case 'InsufficientPermissions': this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
           default: assertNever(res);
         }
         if (this.savePending) {
@@ -1957,11 +1957,11 @@ export class DocumentComponent implements OnInit {
         this.api.verifyNotes(this.user.token, newCont).subscribe(res => {
           switch (res.kind) {
             case 'LoginRequired': this.userService.logout(); break;
-            case 'Failed': this.toastr.error("Invalides Format", "Upload gescheitert!"); break;
+            case 'Failed': this.toastr.error("Invalid format", "Upload failed!"); break;
             case 'NotesRetrieved':
               this.cont = VM.normalizeDocumentComments(res.data);
               this.contJsonClone = JSON.stringify(this.cont);
-              this.toastr.success("Upload erfolgreich!");
+              this.toastr.success("Upload successful!");
               this.checkSecondVoiceComments(this.cont);
               break;
 
@@ -2057,7 +2057,7 @@ export class DocumentComponent implements OnInit {
         this.modalService.dismissAll();
       } else {
         console.log(result);
-        this.toastr.error("Technische details können in der Konsole gesehen werden", "Text konnte nicht geparst werden");
+        this.toastr.error("Technical details are available in the console.", "Could not parse text");
         this.modalService.dismissAll();
       }
     }
@@ -2089,19 +2089,19 @@ export class DocumentComponent implements OnInit {
     if (!result) {
       if (errors.length > 0) {
         if (errors[0].length > 0) {
-          this.textImportErrors.push('Es wurden mehr als Zwei Tabstops in folgenden Zeilen erkannt: ' + errors[0]);
+          this.textImportErrors.push('More than two tab stops were found in these lines: ' + errors[0]);
         }
         if (errors[1].length > 0) {
-          this.textImportErrors.push('Es wurden Zwei oder mehr Leerzeichen hintereinander in folgenden Zeilen erkannt: ' + errors[1]);
+          this.textImportErrors.push('Two or more consecutive spaces were found in these lines: ' + errors[1]);
         }
         if (errors[2].length > 0) {
-          this.textImportErrors.push('Es wurden Leerzeichen in der ersten Spalte in folgenden Zeilen erkannt: ' + errors[2]);
+          this.textImportErrors.push('Spaces in the first column were found in these lines: ' + errors[2]);
         }
         if (errors[3].length > 0) {
-          this.textImportErrors.push('Es wurden Zwei Tabs in Zeilen ohne Seitenumbruch in folgenden Zeilen erkannt: ' + errors[3]);
+          this.textImportErrors.push('Two tabs in lines without a page break were found in these lines: ' + errors[3]);
         }
       }
-      this.toastr.error('Es wurden Fehler in der Eingabe erkannt.');
+      this.toastr.error('Errors were found in the input.');
     }
     return result;
   }

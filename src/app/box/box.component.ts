@@ -109,7 +109,7 @@ export class BoxComponent implements OnInit, OnDestroy, AfterViewChecked, Focusa
   clicked(): void {
     this.focusService.preferredFocus = Focus.Notes;
     if (this.focusService.mode.kind == "CommentCreate") {
-      window.alert("An Boxen können keine Kommentare gehängt werden.");
+      window.alert("Comments cannot be attached to boxes.");
     } else {
       this.addNoteTools();
       this.model.focus = true;
@@ -125,7 +125,7 @@ export class BoxComponent implements OnInit, OnDestroy, AfterViewChecked, Focusa
         {
           callback: () => { this.request.emit({ kind: "DeletionRequested", focusLast: false }); },
           icon: 'delete',
-          title: 'Löschen'
+          title: 'Delete'
         }
       ]
     });

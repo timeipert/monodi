@@ -426,7 +426,7 @@ export class CommentComponent implements OnInit, OnDestroy {
           }
         }
         else {
-          this.toaster.warning("Es können nur NotenZeilen und Paratexte als Kommentar eingefügt werden");
+          this.toaster.warning("Only note lines and paratexts can be inserted as a comment.");
         }
       }
     }
@@ -454,7 +454,7 @@ export class CommentComponent implements OnInit, OnDestroy {
         break;
       }
       case "NewFormteilRequested": {
-        this.toaster.info("Diese Operation wird bei Kommentaren nicht unterstützt");
+        this.toaster.info("This operation is not supported for comments.");
         break;
       }
       default:

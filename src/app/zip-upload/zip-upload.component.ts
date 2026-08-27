@@ -47,7 +47,7 @@ export class ZipUploadComponent implements OnInit {
         errors: [],
         state: "initial",
         uploader: (t, d) => api.deleteDocuments(t, d),
-        warning: "Achtung, alle Dokumente in der Excel-Liste der hochgeladenen Datei werden unwiderruflich gelöscht."
+        warning: "Warning: all documents in the Excel list of the uploaded file will be permanently deleted."
       }
       ,
       "delSources": {
@@ -55,7 +55,7 @@ export class ZipUploadComponent implements OnInit {
         errors: [],
         state: "initial",
         uploader: (t, d) => api.deleteSources(t, d),
-        warning: "Achtung, alle Quellen in der Excel-Liste der hochgeladenen Datei werden unwiderruflich gelöscht. Alle Dokumente zu diesen Quellen auch. Überprüfen Sie gegebenenfalls im Viewer, ob zu dieser Quelle noch Dokumente existieren.",
+        warning: "Warning: all sources in the Excel list of the uploaded file will be permanently deleted — along with all documents belonging to those sources. If in doubt, check in the viewer whether the source still has documents.",
       }
     };
   }

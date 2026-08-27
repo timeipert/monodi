@@ -196,12 +196,12 @@ export class FolioChangeComponent implements OnDestroy, OnInit {
         {
           callback: () => { this.showComments(); },
           icon: 'comment',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         },
         {
           callback: () => { this.request.emit({ kind: "DeletionRequested", focusLast: false }); },
           icon: 'delete',
-          title: 'Löschen'
+          title: 'Delete'
         },
         {
           callback: () => { this.request.emit({ kind: "ViewIiifRequested", folio: this.model.text }); },

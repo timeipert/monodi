@@ -4,7 +4,7 @@ export function insert(r: T.RootContainer, at: number[], stripNotes: boolean, st
   const old = getStore();
 
   if (old === null) {
-    return "Es wurde nichts kopiert. Wählen Sie ein Element und dann 'Kopieren', um ein Element zu kopieren.";
+    return "Nothing was copied. Select an element and then 'Copy' to copy an element.";
   }
   T.unsafeGenerateNewUUIDs(old.data);
   if (stripNotes) {
@@ -15,7 +15,7 @@ export function insert(r: T.RootContainer, at: number[], stripNotes: boolean, st
   }
   
   if (r.documentType !== old.partOf) {
-    return "Teile von unterschiedlichen Dokumenttypen können nicht kombiniert werden, weil Sie unterschiedliche Hierarchien und Daten besitzen."
+    return "Parts from different document types cannot be combined because they have different hierarchies and data."
   } else if (old.data.kind === "RootContainer") {
     old.data.comments = [];
     if (at.length === 0) {
@@ -23,7 +23,7 @@ export function insert(r: T.RootContainer, at: number[], stripNotes: boolean, st
       Object.assign(r, old.data);
       return null;
     } else {
-      return "Ein Root-Container kann nur auf der obersten Ebene eingefügt werden.";
+      return "A root container can only be inserted at the top level.";
     }
   } else if (old.oldDepth === at.length + 1) {
     const parent = T.resolve(r, at)!;
@@ -36,7 +36,7 @@ export function insert(r: T.RootContainer, at: number[], stripNotes: boolean, st
     children.splice(at[at.length - 1] + 1, 0, old.data);
     return null;
   } 
-  return "Dieses Element kann auf dieser Ebene nicht eingefügt werden.";
+  return "This element cannot be inserted at this level.";
 }
 
 export function store(sdp: StoredDocumentPart): void {

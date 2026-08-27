@@ -128,7 +128,7 @@ export class GithubService {
         return { sources: [], documents: [], notes: {}, settings: null };
       }
       console.error(e);
-      this.toastr.error('Fehler beim Pull von GitHub');
+      this.toastr.error('Failed to pull from GitHub');
       return null;
     }
   }
@@ -267,7 +267,7 @@ export class GithubService {
         return true;
      } catch(e) {
          console.error(e);
-         this.toastr.error('Fehler beim Push zu GitHub');
+         this.toastr.error('Failed to push to GitHub');
          return false;
      }
   }

@@ -226,7 +226,7 @@ export class SourceComponent implements OnInit {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
           case 'SourceCreated': 
-            this.toastr.success("Erfolgreich gespeichert.");
+            this.toastr.success("Saved successfully.");
             if (this.source) this.source.id = res.id;
             this.location.replaceState('/source/' + res.id);
             break;
@@ -249,7 +249,7 @@ export class SourceComponent implements OnInit {
               this.updateQuellensigle(this.source.quellensigle);
             }
             break;
-          case 'SourceNotFound': this.toastr.error("Es sieht so aus, als wäre die Quelle zwischenzeitlich gelöscht worden"); break;
+          case 'SourceNotFound': this.toastr.error("It looks like this source was deleted in the meantime."); break;
           default: assertNever(res);
         }
       });
@@ -257,11 +257,11 @@ export class SourceComponent implements OnInit {
   }
 
   deleteDocument(d: Document): void {
-    if (confirm(`Möchten Sie das Dokument ${d.dokumenten_id} wirklich löschen?`)) {
+    if (confirm(`Delete document ${d.dokumenten_id}?`)) {
       if (this.user) {
         this.api.removeDocument(this.user.token, d.id).subscribe(res => {
           if (res.kind === 'Ok') {
-            this.toastr.success("Dokument gelöscht.");
+            this.toastr.success("Document deleted.");
             if (this.source?.id) {
               this.retrieveForId(this.source.id);
             }
@@ -338,7 +338,7 @@ export class SourceComponent implements OnInit {
     if (Array.isArray(arr) && !arr.includes(val)) {
       arr.push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -417,7 +417,7 @@ export class SourceComponent implements OnInit {
     if (!this.settings.customLists[category].includes(val)) {
       this.settings.customLists[category].push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }

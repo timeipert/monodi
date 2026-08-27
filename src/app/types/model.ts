@@ -737,13 +737,13 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
   const moved = resolve(root, movedZ);
   const after = resolve(root, afterZ);
   if (!moved || !after) {
-    return "Die angegeben Pfade konnten nicht zu Container gehören";
+    return "The given paths do not point to containers.";
   }
 
   const movedDepth = movedZ.length;
   const afterDepth = afterZ.length;
 
-  if (after === moved) { return "Etwas kann nicht zu sich selbst verschoben werden"; }
+  if (after === moved) { return "An item cannot be moved onto itself."; }
 
   switch (after.kind) {
     case ContainerKind.RootContainer: switch (moved.kind) {
@@ -752,11 +752,11 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
         root.children.splice(root.children.indexOf(moved), 1);
         root.children.unshift(moved); return undefined;
       } else {
-        return "Diese Operation würde die Hierarchiestufen verletzen. Bitte legen Sie Container von Hand an und ziehen Sie das Objekt dann in den passenden Container.";
+        return "This operation would violate the hierarchy levels. Please create containers manually and then drag the item into the appropriate container.";
       }
-      case ContainerKind.ParatextContainer: return "Ein Paratext kann nur in einen Formteil gezogen werden.";
-      case ContainerKind.ZeileContainer: return "Eine Zeile kann nur in einen Formteil gezogen werden.";
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.ParatextContainer: return "A paratext can only be dragged into a Formteil.";
+      case ContainerKind.ZeileContainer: return "A line can only be dragged into a Formteil.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.FormteilContainer: switch (moved.kind) {
@@ -774,7 +774,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
           children.splice(afterIndex + 1, 0, moved);
           return undefined;
         } else {
-          return "Diese Operation würde die Hierarchiestufen verletzen. Bitte legen Sie Container von Hand an und ziehen Sie das Objekt dann in den passenden Container.";
+          return "This operation would violate the hierarchy levels. Please create containers manually and then drag the item into the appropriate container.";
         }
       }
       case ContainerKind.ParatextContainer: remove(root, moved); after.children.unshift(moved); return undefined;
@@ -789,15 +789,15 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
           return "In Edition units of this type, no note lines can be moved to this level. Please create additional intermediate containers and drop the lines there.";
         }
       }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.ZeileContainer: switch (moved.kind) {
       case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
-      case ContainerKind.FormteilContainer: return "Ein Formteil kann nicht hinter einer Zeile eingefügt werden.";
+      case ContainerKind.FormteilContainer: return "A Formteil cannot be inserted after a line.";
       case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.ParatextContainer: switch (moved.kind) {
@@ -810,12 +810,12 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
           children.splice(children.indexOf(after) + 1, 0, moved);
           return undefined;
         } else {
-          return "Diese Operation würde die Hierarchiestufen verletzen.";
+          return "This operation would violate the hierarchy levels.";
         }
       }
       case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.MiscContainer: switch (moved.kind) {
@@ -827,7 +827,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
         after.children.unshift(moved);
         return undefined;
       }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     default: assertNever(after);

@@ -98,7 +98,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     if (child && child.kind === Model.ContainerKind.FormteilContainer) {
       const formteilCount = this.data.children.filter(c => c.kind === Model.ContainerKind.FormteilContainer).length;
       if (formteilCount <= 1) {
-        this.toastr.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+        this.toastr.warning("This section cannot be deleted because it is the only one at this level.");
         return;
       }
     }

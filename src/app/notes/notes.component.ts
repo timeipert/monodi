@@ -788,7 +788,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
 
   deleteNote(focusLast: boolean): void {
     if (this.getActiveComments().length > 0) {
-      this.toastr.info('Bitte löschen Sie zunächst den Kommentar, bevor Sie das Symbol löschen');
+      this.toastr.info('Please delete the comment before deleting the symbol.');
     } else {
       const nextNote = this.withPath((s, ns, gr, no) => {
         this.undoService.beforeChange('Edit Note');
@@ -933,7 +933,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
       const commentsToUpdate = this.comments.filter(c => uuidInfo.lostUUIDs.find(u => c.startUUID === u || c.endUUID === u));
 
       if (commentsToUpdate.length > 0 && uuidInfo.fallbackUUID === undefined) {
-        window.alert('Sie können diese Note nicht löschen, weil dabei ein Kommentar verloren gehen würde. Bitte entfernen Sie zunächst den Kommentar');
+        window.alert('You cannot delete this note because a comment would be lost. Please remove the comment first.');
         this.notesToText();
         return;
       } else if (uuidInfo.fallbackUUID) {
@@ -978,7 +978,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
         {
           callback: () => { this.showComments(true); },
           icon: 'chat-text',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         }
       ]
     });
@@ -1168,17 +1168,17 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
         {
           callback: () => { this.showComments(false); },
           icon: 'chat-text',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         },
         {
           callback: () => { this.changeType(); this.cdr.markForCheck(); },
           icon: 'music-note-list',
-          title: 'Silbenart ändern'
+          title: 'Change syllable type'
         },
         {
           callback: () => { this.deleteNote(false); this.cdr.markForCheck(); },
           icon: 'trash',
-          title: 'Löschen'
+          title: 'Delete'
         }
       ]
     });

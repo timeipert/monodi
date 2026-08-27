@@ -19,7 +19,6 @@ import { SettingsComponent } from './settings/settings.component';
 import { SourcesOverviewComponent } from './sources-overview/sources-overview.component';
 import { SourceComponent } from './source/source.component';
 import { DocumentComponent } from './document/document.component';
-import { UsersOverviewComponent } from './users-overview/users-overview.component';
 import { SmartTableComponent } from './smart-table/smart-table.component';
 import { SselectComponent } from './sselect/sselect.component';
 import { ConfirmDeactivateGuard } from './ConfirmDeactivateGuard';
@@ -42,7 +41,6 @@ import { ImportExportComponent } from './import-export/import-export.component';
 @NgModule({ declarations: [
         AppComponent,
         WelcomeComponent,
-        UsersOverviewComponent,
         SourcesOverviewComponent,
         SubcorporaSelectorComponent,
         SourceComponent,
@@ -76,9 +74,6 @@ import { ImportExportComponent } from './import-export/import-export.component';
                 path: 'login',
                 redirectTo: '/sources',
                 pathMatch: 'full'
-            }, {
-                path: 'users',
-                component: UsersOverviewComponent,
             }, {
                 path: 'sources',
                 component: SourcesOverviewComponent,
