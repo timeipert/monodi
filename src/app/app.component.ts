@@ -25,6 +25,8 @@ export class AppComponent {
   isSyncing = false;
   isOnline: boolean = navigator.onLine;
   showBackupReminder = false;
+  /** Mobile/tablet navbar collapse state (driven by ng-bootstrap's ngbCollapse). */
+  isNavCollapsed = true;
 
   constructor (
     private api: APIService,
