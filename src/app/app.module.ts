@@ -37,6 +37,7 @@ import { SharedEditorModule } from './shared-editor.module';
 
 import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selector/subcorpora-selector.component';
 import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
+import { ImportExportComponent } from './import-export/import-export.component';
 
 @NgModule({ declarations: [
         AppComponent,
@@ -57,7 +58,8 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
         DragMapComponent,
         HelpButtonComponent,
         ContextMenuComponent,
-        MeiMappingEditorComponent
+        MeiMappingEditorComponent,
+        ImportExportComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
@@ -102,6 +104,9 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
             }, {
                 path: 'settings',
                 component: SettingsComponent,
+            }, {
+                path: 'import-export',
+                component: ImportExportComponent,
             }, {
                 path: 'zip-upload',
                 component: ZipUploadComponent,

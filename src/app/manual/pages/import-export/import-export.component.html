@@ -1,0 +1,76 @@
+<div class="manual-page-single">
+  <h1 id="import-export">Import / Export</h1>
+  <p class="lead">
+    The <strong>Import / Export</strong> page (in the top navigation bar) gathers every way of moving chant
+    data in and out of your workspace. This page explains each format and the two chant-specific tools added
+    for interoperability with the CANTUS ecosystem: <strong>Volpiano</strong> and the
+    <strong>Cantus Index import</strong>.
+  </p>
+
+  <h2 id="overview">Where the actions live</h2>
+  <ul>
+    <li><strong>Import / Export page</strong> (nav bar) — the hub: workspace backups, ZIP, HTML edition, CSV, and Cantus import.</li>
+    <li><strong>Document toolbar</strong> — per-document exports: JSON, PDF, MEI and <strong>Volpiano</strong>.</li>
+    <li><strong>Source page</strong> — <em>New Document</em>, <em>Import Volpiano</em>; the document page also has <em>Import Text</em>.</li>
+  </ul>
+
+  <h2 id="workspace-formats">Workspace formats</h2>
+  <ul>
+    <li class="mb-2"><strong>Workspace JSON</strong> (<code>.monodijson</code>) — the recommended lossless full backup: every source, document, transcription and your settings in one file.</li>
+    <li class="mb-2"><strong>ZIP</strong> — a monodi-/OMMR4all-compatible corpus archive; import auto-detects either layout.</li>
+    <li class="mb-2"><strong>HTML edition</strong> — a self-contained static site of your corpus (rendered notation, browsable metadata, built-in search) for publishing or sharing read-only.</li>
+  </ul>
+
+  <h2 id="csv">CSV (metadata + melody + text)</h2>
+  <p>
+    CSV is a <strong>spreadsheet-friendly exchange format</strong>, not a full backup. On <strong>Export CSV</strong> a
+    dialog lets you choose what to include — <em>source metadata</em>, <em>document metadata</em>, and
+    <em>content</em> — and only columns that actually contain data are written (one row per document).
+  </p>
+  <ul>
+    <li class="mb-2">Metadata columns are prefixed <code>source_</code> and <code>document_</code>; custom fields appear as <code>source_custom_&lt;key&gt;</code> / <code>document_custom_&lt;key&gt;</code>.</li>
+    <li class="mb-2">A <code>melody</code> column holds the chant in <strong>Volpiano</strong>, and a <code>text</code> column holds the sung text as <strong>space-separated syllables</strong> (<code>Quo ni am de us</code>), aligned one-to-one with the melody.</li>
+    <li class="mb-2"><strong>Import CSV</strong> creates new sources/documents and updates existing ones (matched by id); it never overwrites the richer notation of a document that already exists — only metadata is updated.</li>
+  </ul>
+  <p class="text-muted">Sections and the critical apparatus are intentionally out of scope for CSV; use JSON/ZIP to preserve them.</p>
+
+  <h2 id="volpiano">Volpiano</h2>
+  <p>
+    <strong>Volpiano</strong> is the plain-text chant encoding used by the CANTUS Database. Monodi-Zero reads and
+    writes it following the CANTUS <em>Volpiano Protocols</em>.
+  </p>
+  <ul>
+    <li class="mb-2"><strong>Export Volpiano</strong> (document toolbar) — copies the current chant's Volpiano to the clipboard and downloads a <code>.txt</code>.</li>
+    <li class="mb-2"><strong>Import Volpiano</strong> (source page) — paste a Volpiano string to create a new document under that source. An optional aligned-text field (<code>Quo-ni-am de-us</code>) places the sung text under the notes.</li>
+  </ul>
+  <p>
+    Pitches follow the standard non-transposing treble mapping (<code>b</code> = middle C). Adjacent letters are a
+    ligature; <code>-</code> separates neumes, <code>--</code> syllables, <code>---</code> words. Uppercase letters
+    are liquescents. Anything the parser doesn't recognise is skipped and reported as a warning rather than failing
+    the import.
+  </p>
+
+  <h2 id="cantus">Import chant by Cantus ID</h2>
+  <p>
+    On the Import / Export page, <strong>Import chant by Cantus ID</strong> fetches melodies live from
+    <a href="https://cantusindex.org" target="_blank" rel="noopener">cantusindex.org</a>. Enter a Cantus ID
+    (e.g. <code>501001</code>) or paste a <code>cantusindex.org/id/…</code> link and click <em>Fetch</em>.
+  </p>
+  <ul>
+    <li class="mb-2">Each manuscript witness of that chant is listed with its siglum, folio, mode and a melody preview. Tick the ones you want and click <em>Import</em>.</li>
+    <li class="mb-2">Each becomes a new document; a matching <strong>source</strong> is created (or reused) from the manuscript siglum. Genre, feast, incipit and the full text are stored as metadata.</li>
+    <li class="mb-2">By default only the melody and metadata are imported (syllable text left blank).</li>
+  </ul>
+
+  <h3 id="cantus-syllabify">Experimental: split text into syllables</h3>
+  <p>
+    The tick-box <strong>Split text into syllables (experimental)</strong> additionally places the Latin text under
+    the notes. The databases do not serve a pre-split text — and <code>cantusdatabase.org</code> cannot be read
+    directly from the browser — so Monodi-Zero uses the <strong>melody's own syllable structure</strong> (the
+    <code>--</code>/<code>---</code> boundaries) to split the text locally with a Latin heuristic. It is
+    <em>best-effort</em>: where the text and melody don't line up exactly, the chant is imported anyway and a notice
+    tells you to check the text. Always proofread the result.
+  </p>
+
+  <p><a routerLink="/import-export" class="btn btn-primary mt-3">Open Import / Export</a></p>
+</div>

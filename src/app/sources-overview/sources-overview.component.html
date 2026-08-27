@@ -10,6 +10,7 @@
            params when the user clicks a card in Settings. -->
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
       <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
+      <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
       <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
          class="btn btn-sm btn-outline-secondary"
          title="Import, export, storage usage & cleanup in Settings → Workspace">
@@ -156,6 +157,56 @@
                 *ngIf="importProgress.phase === 'done'"
                 (click)="finishImport(true)">
           <i class="bi bi-check-lg me-1"></i>Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CSV export options dialog -->
+<div class="modal fade show d-block" tabindex="-1"
+     style="background: rgba(0,0,0,0.5);" *ngIf="showCsvExportDialog">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+      <div class="modal-header border-0 pb-2">
+        <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-filetype-csv text-success"></i><span>Export CSV</span>
+        </h5>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closeCsvExportDialog()"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="text-muted small mb-3">
+          Choose what to include. Only columns that actually hold data are written.
+          Melody is exported in Volpiano; text is the syllables separated by spaces.
+        </p>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="csvSrcMeta" [(ngModel)]="csvIncludeSourceMeta">
+          <label class="form-check-label" for="csvSrcMeta">
+            <span class="fw-semibold">Source metadata</span>
+            <span class="text-muted small d-block">Siglum, provenance, library, shelfmark, custom fields…</span>
+          </label>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="csvDocMeta" [(ngModel)]="csvIncludeDocumentMeta">
+          <label class="form-check-label" for="csvDocMeta">
+            <span class="fw-semibold">Document metadata</span>
+            <span class="text-muted small d-block">ID, genre, feast, text initium, folio, custom fields…</span>
+          </label>
+        </div>
+        <div class="form-check mb-1">
+          <input class="form-check-input" type="checkbox" id="csvContent" [(ngModel)]="csvIncludeContent">
+          <label class="form-check-label" for="csvContent">
+            <span class="fw-semibold">Content</span>
+            <span class="text-muted small d-block"><code>melody</code> (Volpiano) and <code>text</code> columns</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeCsvExportDialog()">
+          <i class="bi bi-x-lg me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-sm btn-success" (click)="confirmCsvExport()">
+          <i class="bi bi-download me-1"></i>Export CSV
         </button>
       </div>
     </div>

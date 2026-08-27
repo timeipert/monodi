@@ -22,6 +22,7 @@ import { NavigationService } from '../notationsdokumentation/navigation.service'
 import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
 import { MeiExportService } from '../mei-export.service';
+import { VolpianoService } from '../volpiano.service';
 
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
@@ -209,6 +210,7 @@ export class DocumentComponent implements OnInit {
     public dragState: DragStateService,
     private navService: NavigationService,
     private meiExport: MeiExportService,
+    private volpiano: VolpianoService,
     private pageTitle: PageTitleService, public focusService: FocusService) {
   }
 
@@ -1647,6 +1649,11 @@ export class DocumentComponent implements OnInit {
         title: 'Export MEI'
       },
       {
+        callback: () => { this.exportVolpiano(); },
+        icon: 'music-note-beamed',
+        title: 'Export Volpiano'
+      },
+      {
         callback: () => { this.toggleReadOnly(); },
         icon: 'eye',
         title: 'Toggle Read-Only Mode'
@@ -1865,6 +1872,31 @@ export class DocumentComponent implements OnInit {
 
   openJsonExport(): void {
     this.showJsonExportDialog = true;
+  }
+
+  /** Export the current document as a Volpiano string: download a .txt and copy to clipboard. */
+  exportVolpiano(): void {
+    if (!this.cont) {
+      this.toastr.error('Kein Dokument zum Exportieren geöffnet.');
+      return;
+    }
+    try {
+      const baseId = (this.document && this.document.dokumenten_id) ? this.document.dokumenten_id : 'document';
+      const result = this.volpiano.exportAndDownload(this.cont, baseId + '.volpiano.txt');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(result.volpiano).then(
+          () => this.toastr.success('Volpiano in die Zwischenablage kopiert und als .txt heruntergeladen.'),
+          () => this.toastr.success('Volpiano als .txt heruntergeladen.')
+        );
+      } else {
+        this.toastr.success('Volpiano als .txt heruntergeladen.');
+      }
+      if (result.warnings.length > 0) {
+        this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano-Export mit Hinweisen');
+      }
+    } catch (e) {
+      this.toastr.error('Volpiano-Export fehlgeschlagen: ' + e);
+    }
   }
 
   confirmJsonExport(): void {

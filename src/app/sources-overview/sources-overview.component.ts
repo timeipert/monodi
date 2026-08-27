@@ -1,8 +1,9 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService, User } from '../user.service';
-import { APIService, UserInfo, Source } from '../api.service'
+import { APIService, UserInfo, Source, Document } from '../api.service'
 import { assertNever } from '../../utils';
+import { buildWorkspaceCsv, parseWorkspaceCsv } from '../workspace-csv';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { Header } from '../smart-table/smart-table.component';
 import { ToastrService } from 'ngx-toastr';
@@ -68,6 +69,12 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   selectedDocsForExport: any[] = [];
   renderingDocument: any = null;
   exportBackwardsCompatMode: BackwardsCompatMode = 'none';
+
+  // CSV export options
+  showCsvExportDialog = false;
+  csvIncludeSourceMeta = true;
+  csvIncludeDocumentMeta = true;
+  csvIncludeContent = true;
 
   importProgress: {
     active: boolean;
@@ -155,6 +162,12 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         break;
       case 'export-html':
         this.openExportDialog('html');
+        break;
+      case 'export-csv':
+        this.showCsvExportDialog = true;
+        break;
+      case 'import-csv':
+        document.getElementById('importCsvFile')?.click();
         break;
       default:
         console.warn('Unknown workspace action:', action);
@@ -247,6 +260,123 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
 
+
+  closeCsvExportDialog() {
+    this.showCsvExportDialog = false;
+  }
+
+  async confirmCsvExport() {
+    this.showCsvExportDialog = false;
+    if (!this.csvIncludeSourceMeta && !this.csvIncludeDocumentMeta && !this.csvIncludeContent) {
+      this.toastr.error('Bitte mindestens eine Spalten-Gruppe auswählen.');
+      return;
+    }
+    await this.exportCsv();
+  }
+
+  async exportCsv() {
+    try {
+      const sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      const documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+      const notesByDoc = await NotesStore.getAll();
+
+      const csv = buildWorkspaceCsv(sources, documents, notesByDoc as { [id: string]: RootContainer }, {
+        includeSourceMeta: this.csvIncludeSourceMeta,
+        includeDocumentMeta: this.csvIncludeDocumentMeta,
+        includeContent: this.csvIncludeContent,
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `workspace_export_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      this.toastr.success('CSV erfolgreich exportiert.');
+    } catch (e) {
+      this.toastr.error('Fehler beim CSV-Export: ' + e);
+    }
+  }
+
+  triggerCsvImport() {
+    document.getElementById('importCsvFile')?.click();
+  }
+
+  importCsv(event: any) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.zone.run(async () => {
+        try {
+          const content = e.target?.result as string;
+          const parsed = parseWorkspaceCsv(content);
+
+          const existingSources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+          const existingDocs = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+          const srcById = new Map(existingSources.filter((s) => s.id).map((s): [string, Source] => [s.id!, s]));
+          const docById = new Map(existingDocs.filter((d) => d.id).map((d): [string, Document] => [d.id, d]));
+
+          let createdSources = 0;
+          let updatedSources = 0;
+          for (const s of parsed.sources) {
+            const existing = s.id ? srcById.get(s.id) : undefined;
+            if (existing) {
+              // Update scalar metadata; keep existing notation-independent data
+              // (equivalents, annotations) and merge custom fields.
+              const mergedCustom = { ...(existing.custom || {}), ...(s.custom || {}) };
+              Object.assign(existing, s);
+              existing.custom = mergedCustom;
+              updatedSources++;
+            } else {
+              existingSources.push(s);
+              if (s.id) srcById.set(s.id, s);
+              createdSources++;
+            }
+          }
+
+          let createdDocs = 0;
+          let updatedDocs = 0;
+          for (const d of parsed.documents) {
+            const existing = d.id ? docById.get(d.id) : undefined;
+            if (existing) {
+              // Update metadata only; the existing (richer) notation is preserved.
+              const mergedCustom = { ...(existing.custom || {}), ...(d.custom || {}) };
+              Object.assign(existing, d);
+              existing.custom = mergedCustom;
+              updatedDocs++;
+            } else {
+              existingDocs.push(d);
+              docById.set(d.id, d);
+              await NotesStore.set(d.id, parsed.notesByDoc[d.id]);
+              createdDocs++;
+            }
+          }
+
+          await localforage.setItem('monodi_sources', existingSources);
+          await localforage.setItem('monodi_documents', existingDocs);
+
+          this.api.invalidateCache();
+          this.updateList();
+
+          this.toastr.success(
+            `CSV importiert: ${createdSources} neue / ${updatedSources} aktualisierte Quellen, ` +
+              `${createdDocs} neue / ${updatedDocs} aktualisierte Dokumente.`
+          );
+          if (parsed.warnings.length > 0) {
+            this.toastr.warning(parsed.warnings.slice(0, 5).join('; '), 'CSV-Import mit Hinweisen');
+          }
+        } catch (err) {
+          this.toastr.error('Fehler beim CSV-Import: ' + err);
+        }
+
+        event.target.value = '';
+      });
+    };
+    reader.readAsText(file);
+  }
 
   triggerImport() {
     document.getElementById('importFile')?.click();

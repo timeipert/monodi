@@ -208,6 +208,10 @@
               <button class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]">
                 <i class="bi bi-plus-lg me-1"></i> New Document
               </button>
+              <button class="btn btn-outline-primary btn-sm ms-2" (click)="openVolpianoImport()"
+                      title="Create a new document from a Volpiano string">
+                <i class="bi bi-music-note-beamed me-1"></i> Import Volpiano
+              </button>
             </ng-container>
             <ng-container *ngIf="!source.id">
               <button class="btn btn-warning btn-sm" (click)="promptForName()" title="Name the source first">
@@ -288,3 +292,50 @@
     </div><!-- /tabs wrap -->
   </div><!-- /source layout -->
 </div>
+
+<!-- Volpiano import modal -->
+<ng-template #volpianoImport let-modal>
+  <div class="modal-header">
+    <h4 class="modal-title">Import Volpiano</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click');"></button>
+  </div>
+  <div class="modal-body">
+    <p class="text-muted small">
+      Paste a Volpiano melody (CANTUS convention, e.g. <code>1---dh-k--h--h---h--h---</code>).
+      A new document is created under this source. Characters that aren't understood are ignored
+      and listed as warnings.
+    </p>
+
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">Document ID <span class="text-muted">(optional)</span></label>
+      <input class="form-control form-control-sm" [(ngModel)]="volpianoImportDocId" placeholder="e.g. A-KN1012_001r_01">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">Volpiano</label>
+      <textarea class="form-control font-monospace" rows="4" [(ngModel)]="volpianoImportText"
+                placeholder="1---dh-k--h--h---h--h---"></textarea>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">Aligned text <span class="text-muted">(optional)</span></label>
+      <textarea class="form-control" rows="2" [(ngModel)]="volpianoImportAlignedText"
+                placeholder="Quo-ni-am de-us"></textarea>
+      <div class="form-text">
+        Syllables separated by <code>-</code>, words by spaces. When supplied, word and syllable
+        boundaries survive a round trip.
+      </div>
+    </div>
+
+    <div *ngIf="volpianoImportWarnings.length > 0" class="alert alert-warning py-2 small">
+      <ul class="mb-0">
+        <li *ngFor="let w of volpianoImportWarnings">{{ w }}</li>
+      </ul>
+    </div>
+
+    <div class="text-end">
+      <button class="btn btn-secondary btn-sm me-2" (click)="modal.dismiss()">Cancel</button>
+      <button class="btn btn-primary btn-sm" (click)="doVolpianoImport()">Create Document</button>
+    </div>
+  </div>
+</ng-template>

@@ -1017,6 +1017,32 @@
                     <i class="bi bi-arrow-right ws-action-arrow"></i>
                   </a>
                 </div>
+
+                <div class="col-md-6 col-lg-4">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-csv' }"
+                     class="ws-action-card text-decoration-none"
+                     title="Download all source & document metadata as a CSV, with Volpiano and text columns">
+                    <i class="bi bi-filetype-csv text-success"></i>
+                    <div>
+                      <div class="ws-action-title">Export CSV</div>
+                      <div class="ws-action-sub">Metadata + Volpiano + text, one row per document</div>
+                    </div>
+                    <i class="bi bi-arrow-right ws-action-arrow"></i>
+                  </a>
+                </div>
+
+                <div class="col-md-6 col-lg-4">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-csv' }"
+                     class="ws-action-card text-decoration-none"
+                     title="Create or update sources & documents from a CSV file">
+                    <i class="bi bi-filetype-csv text-secondary"></i>
+                    <div>
+                      <div class="ws-action-title">Import CSV</div>
+                      <div class="ws-action-sub">Rows become sources &amp; documents</div>
+                    </div>
+                    <i class="bi bi-arrow-right ws-action-arrow"></i>
+                  </a>
+                </div>
               </div>
               <p class="text-muted small mt-3 mb-0">
                 <i class="bi bi-info-circle me-1"></i>
