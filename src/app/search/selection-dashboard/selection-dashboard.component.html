@@ -43,6 +43,32 @@
     </div>
   </div>
 
+  <!-- Similarity map (PCA) -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <h6 class="fw-bold mb-0"><i class="bi bi-bullseye me-2 text-primary"></i>Similarity map</h6>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <div class="btn-group btn-group-sm">
+            <button class="btn" [class.btn-primary]="embedMode==='melody'" [class.btn-outline-secondary]="embedMode!=='melody'" (click)="setEmbedMode('melody')">Melody</button>
+            <button class="btn" [class.btn-primary]="embedMode==='text'" [class.btn-outline-secondary]="embedMode!=='text'" (click)="setEmbedMode('text')">Text</button>
+          </div>
+          <select class="form-select form-select-sm w-auto" [(ngModel)]="embedGroupField" (change)="onEmbedGroupChange()" *ngIf="a.groupableFields.length > 0">
+            <option value="">Colour: none</option>
+            <option *ngFor="let f of a.groupableFields" [value]="f.key">Colour by {{ f.label }}</option>
+          </select>
+        </div>
+      </div>
+      <p class="text-muted small mb-2">
+        Each dot is a document; closer dots are more alike in {{ embedMode === 'melody' ? 'melodic profile' : 'vocabulary' }}.
+      </p>
+      <app-chart-scatter *ngIf="embedding.length > 0" [points]="embedding"></app-chart-scatter>
+      <p class="text-muted small mb-0" *ngIf="embedding.length === 0">
+        Needs at least 3 documents with {{ embedMode === 'melody' ? 'notes' : 'text' }} to draw a map.
+      </p>
+    </div>
+  </div>
+
   <div class="row g-4">
     <!-- Pitch distribution + grouping -->
     <div class="col-12 col-lg-6">
@@ -50,39 +76,22 @@
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h6 class="fw-bold mb-0"><i class="bi bi-music-note-list me-2 text-primary"></i>Pitch distribution</h6>
-            <select class="form-select form-select-sm w-auto" [(ngModel)]="groupField" (change)="onGroupChange()"
-                    *ngIf="a.groupableFields.length > 0">
+            <select class="form-select form-select-sm w-auto" [(ngModel)]="groupField" (change)="onGroupChange()" *ngIf="a.groupableFields.length > 0">
               <option value="">Overall</option>
               <option *ngFor="let f of a.groupableFields" [value]="f.key">by {{ f.label }}</option>
             </select>
           </div>
 
-          <!-- overall -->
-          <ng-container *ngIf="!groupField">
-            <ng-container *ngIf="{ m: maxCount(a.pitchDistribution) } as ctx">
-              <div class="bar-row" *ngFor="let b of a.pitchDistribution">
-                <div class="bar-label mono">{{ b.label }}</div>
-                <div class="bar-track"><div class="bar-fill" [style.width.%]="pct(b.count, ctx.m)"></div></div>
-                <div class="bar-count">{{ b.count }}</div>
-              </div>
-            </ng-container>
-            <p class="text-muted small mb-0" *ngIf="a.pitchDistribution.length === 0">No notes in the selection.</p>
-          </ng-container>
+          <app-chart-bars *ngIf="!groupField" [items]="pitchBars" labelClass="mono" empty="No notes in the selection."></app-chart-bars>
 
-          <!-- grouped small multiples -->
-          <ng-container *ngIf="groupField">
-            <div class="group-block mb-3" *ngFor="let g of groupPitch">
+          <ng-container *ngIf="groupField && grouped as g">
+            <div class="group-block mb-3" *ngFor="let gr of g.groups">
               <div class="d-flex justify-content-between small fw-semibold mb-1">
-                <span>{{ g.group }}</span><span class="text-muted">{{ g.total }} notes</span>
+                <span>{{ gr.group }}</span><span class="text-muted">{{ gr.total }} notes</span>
               </div>
-              <ng-container *ngIf="{ m: maxCount(g.buckets) } as ctx">
-                <div class="bar-row compact" *ngFor="let b of g.buckets">
-                  <div class="bar-label mono">{{ b.label }}</div>
-                  <div class="bar-track"><div class="bar-fill" [style.width.%]="pct(b.count, ctx.m)"></div></div>
-                  <div class="bar-count">{{ b.count }}</div>
-                </div>
-              </ng-container>
+              <app-chart-bars [items]="gr.bars" [max]="g.maxPercent" suffix="%" fmt="1.0-1" labelClass="mono"></app-chart-bars>
             </div>
+            <p class="text-muted small mb-0">Same % scale across groups, for comparison.</p>
           </ng-container>
         </div>
       </div>
@@ -93,27 +102,35 @@
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart me-2 text-primary"></i>Notes per syllable</h6>
-          <ng-container *ngIf="{ m: maxCount(a.notesPerSyllable) } as ctx">
-            <div class="bar-row" *ngFor="let b of a.notesPerSyllable">
-              <div class="bar-label">{{ b.label }}</div>
-              <div class="bar-track"><div class="bar-fill green" [style.width.%]="pct(b.count, ctx.m)"></div></div>
-              <div class="bar-count">{{ b.count }}</div>
-            </div>
-          </ng-container>
-          <p class="text-muted small mb-0" *ngIf="a.notesPerSyllable.length === 0">No sung syllables.</p>
+          <app-chart-bars [items]="npsBars" color="#16a34a" empty="No sung syllables."></app-chart-bars>
         </div>
       </div>
       <div class="card border-0 shadow-sm">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Melodic intervals</h6>
-          <ng-container *ngIf="{ m: maxCount(a.intervals) } as ctx">
-            <div class="bar-row" *ngFor="let b of a.intervals">
-              <div class="bar-label">{{ b.label }}</div>
-              <div class="bar-track"><div class="bar-fill amber" [style.width.%]="pct(b.count, ctx.m)"></div></div>
-              <div class="bar-count">{{ b.count }}</div>
-            </div>
-          </ng-container>
-          <p class="text-muted small mb-0" *ngIf="a.intervals.length === 0">Not enough notes to measure intervals.</p>
+          <app-chart-bars [items]="intervalBars" color="#f59e0b" empty="Not enough notes."></app-chart-bars>
+        </div>
+      </div>
+    </div>
+
+    <!-- Melodic n-grams -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-soundwave me-2 text-primary"></i>Recurring melodic passages</h6>
+          <p class="text-muted small mb-2">Most common 3-interval gestures (transposition-independent; ↑/↓ = up/down by that many steps).</p>
+          <app-chart-bars [items]="ngramBars" labelClass="wide" empty="Not enough melody."></app-chart-bars>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chant length distribution -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-rulers me-2 text-primary"></i>Chant length</h6>
+          <p class="text-muted small mb-2">Distribution of documents by number of notes.</p>
+          <app-chart-bars [items]="lengthBars" color="#0ea5e9" labelClass="wide" empty="No notes."></app-chart-bars>
         </div>
       </div>
     </div>
@@ -137,14 +154,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="bi bi-chat-quote me-2 text-primary"></i>Recurring phrases</h6>
-          <ng-container *ngIf="{ m: maxCount(a.topPhrases) } as ctx">
-            <div class="bar-row" *ngFor="let b of a.topPhrases">
-              <div class="bar-label phrase">{{ b.label }}</div>
-              <div class="bar-track"><div class="bar-fill" [style.width.%]="pct(b.count, ctx.m)"></div></div>
-              <div class="bar-count">{{ b.count }}</div>
-            </div>
-          </ng-container>
-          <p class="text-muted small mb-0" *ngIf="a.topPhrases.length === 0">No repeated two-word phrases.</p>
+          <app-chart-bars [items]="phraseBars" color="#a855f7" labelClass="wide" empty="No repeated two-word phrases."></app-chart-bars>
         </div>
       </div>
     </div>

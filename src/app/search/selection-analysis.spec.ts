@@ -1,4 +1,4 @@
-import { analyzeSelection, pitchByField, SelectionAnalysisInput } from './selection-analysis';
+import { analyzeSelection, pitchGroups, documentEmbedding, SelectionAnalysisInput } from './selection-analysis';
 import { Document, Source } from '../api.service';
 import { volpianoToRoot } from '../volpiano/volpiano';
 
@@ -63,13 +63,32 @@ describe('analyzeSelection', () => {
     expect(genre!.count).toBe(2);
   });
 
-  it('groups pitch distribution by a metadata field', () => {
+  it('groups pitch distribution by a metadata field on a shared axis', () => {
     const input: SelectionAnalysisInput = {
       documents: [doc('d1', 's1', { gattung1: 'A' }), doc('d2', 's2', { gattung1: 'B' })],
       sources: [src('s1', 'X'), src('s2', 'Y')],
       roots: [volpianoToRoot('1---d---', '').root, volpianoToRoot('1---k---', '').root],
     };
-    const groups = pitchByField(input, 'doc:gattung1');
-    expect(groups.map((g) => g.group).sort()).toEqual(['A', 'B']);
+    const g = pitchGroups(input, 'doc:gattung1');
+    expect(g.groups.map((x) => x.group).sort()).toEqual(['A', 'B']);
+    // shared axis holds both pitches (E4 from 'd', D5 from 'k')
+    expect(g.axis).toContain('E4');
+    expect(g.axis).toContain('D5');
+    g.groups.forEach((gr) => expect(gr.percent.length).toBe(g.axis.length));
+  });
+
+  it('projects documents to a 2-D similarity map (>=3 docs)', () => {
+    const mk = (v: string, text: string) => volpianoToRoot(v, text).root;
+    const input: SelectionAnalysisInput = {
+      documents: [doc('d1', 's1'), doc('d2', 's1'), doc('d3', 's1')],
+      sources: [src('s1', 'X'), src('s1', 'X'), src('s1', 'X')],
+      roots: [mk('1---d--e--f---', 'a-b-c'), mk('1---d--e--f---', 'a-b-c'), mk('1---k--l--m---', 'x-y-z')],
+    };
+    const pts = documentEmbedding(input, 'melody');
+    expect(pts.length).toBe(3);
+    pts.forEach((p) => {
+      expect(Number.isFinite(p.x)).toBe(true);
+      expect(Number.isFinite(p.y)).toBe(true);
+    });
   });
 });

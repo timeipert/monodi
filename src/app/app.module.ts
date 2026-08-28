@@ -38,6 +38,8 @@ import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selec
 import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
 import { ImportExportComponent } from './import-export/import-export.component';
 import { SelectionDashboardComponent } from './search/selection-dashboard/selection-dashboard.component';
+import { ChartBarsComponent } from './search/charts/chart-bars.component';
+import { ChartScatterComponent } from './search/charts/chart-scatter.component';
 
 @NgModule({ declarations: [
         AppComponent,
@@ -59,7 +61,9 @@ import { SelectionDashboardComponent } from './search/selection-dashboard/select
         ContextMenuComponent,
         MeiMappingEditorComponent,
         ImportExportComponent,
-        SelectionDashboardComponent
+        SelectionDashboardComponent,
+        ChartBarsComponent,
+        ChartScatterComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
