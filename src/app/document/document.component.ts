@@ -1075,14 +1075,11 @@ export class DocumentComponent implements OnInit {
                 }
               }
               
-              // Extend the SVG width to fill up to the right margin for the last syllable on the line
-              if (isLastOnLine) {
-                const extendedWidth = pageWidth - pdfMarginRight - cursorX;
-                if (extendedWidth > finalSecWidth) {
-                  finalSecWidth = extendedWidth;
-                }
-              }
-              
+              // Staff lines end at the last note of the line (they are NOT stretched
+              // to the right page margin). `isLastOnLine` is kept for potential future
+              // use but intentionally no longer extends the width.
+              void isLastOnLine;
+
               const partUuid = part.getAttribute('data-uuid');
               const partUuids = partUuid ? (uuidMap[partUuid] || [partUuid]) : [];
               
