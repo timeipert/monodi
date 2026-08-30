@@ -1351,7 +1351,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   isEditorEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.EditorialEllipsis; }
 
   /** Internal-unit width reserved for the G-clef at the chant start. */
-  static readonly CLEF_WIDTH = 26;
+  static readonly CLEF_WIDTH = 32;
 
   /** True for the first syllable of the document — it draws a leading G-clef. */
   get showClef(): boolean {

@@ -948,21 +948,37 @@ export class DocumentComponent implements OnInit, DoCheck {
               const tagName = part.tagName.toLowerCase();
               
               if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
-                // Manuscript line / folio breaks are drawn as an INLINE marker and
-                // must NOT wrap the PDF line — only ZeileContainer boundaries start a
-                // new staff line. ( | = line change, ‖ = folio change )
+                // Manuscript line/folio breaks: a short vertical tick (or two, for a
+                // folio change) hanging just below the staff — matching the on-screen
+                // look. They must NOT wrap the PDF line; only ZeileContainer boundaries
+                // start a new staff line.
                 const isFolio = tagName === 'app-folio-change';
                 const gap = 3;
                 const mx = cursorX + gap;
-                const top = cursorY + 2;
-                const bottom = cursorY + (lineMaxHeight > 0 ? lineMaxHeight : 24);
-                doc.setLineWidth(0.6);
-                doc.setDrawColor(130, 130, 130);
-                doc.line(mx, top, mx, bottom);
-                if (isFolio) doc.line(mx + 2.2, top, mx + 2.2, bottom);
+                const h = lineMaxHeight > 0 ? lineMaxHeight : 24;
+                const tickTop = cursorY + (60 / 65) * h;      // bottom staff line
+                const tickBottom = tickTop + (22 / 65) * h;   // hangs below, ~half staff height
+                const tickGap = Math.max(2, h * 0.08);
+                doc.setLineWidth(Math.max(0.7, h * 0.035));
                 doc.setDrawColor(0, 0, 0);
+                doc.line(mx, tickTop, mx, tickBottom);
+                let rightEdge = mx;
+                if (isFolio) {
+                  doc.line(mx + tickGap, tickTop, mx + tickGap, tickBottom);
+                  rightEdge = mx + tickGap;
+                }
                 doc.setLineWidth(0.2);
-                cursorX = mx + (isFolio ? 4 : 2) + gap;
+                if (isFolio) {
+                  const folioLabel = (part.textContent || '').trim();
+                  if (folioLabel) {
+                    doc.setFont(fontFamily, 'normal');
+                    doc.setFontSize(pdfFontSize * 0.85);
+                    doc.text(folioLabel, rightEdge + 3, tickBottom);
+                    rightEdge += 3 + doc.getTextWidth(folioLabel);
+                    doc.setFontSize(pdfFontSize);
+                  }
+                }
+                cursorX = rightEdge + gap + 2;
                 continue;
               }
               
