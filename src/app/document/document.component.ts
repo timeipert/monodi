@@ -936,34 +936,21 @@ export class DocumentComponent implements OnInit {
               const tagName = part.tagName.toLowerCase();
               
               if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
-                // Wrap on editorial break
-                const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
-                for (const key in activeBrackets) {
-                    const b = activeBrackets[key];
-                    drawActiveBracket(b.startX, cursorX, bracketY, b.label);
-                }
-                
-                let lineBottomY = lineStartY + lineMaxHeight;
-                if (lineHasBrackets) {
-                    lineBottomY = bracketY + pdfBracketTick + 8;
-                } else if (lineHasLyrics) {
-                    lineBottomY = lineStartY + lineMaxHeight + pdfSyllableTextOffset + pdfFontSize;
-                }
-                
-                cursorY = lineBottomY + pdfStaffSpacing;
-                checkPageOverflow(40); // check overflow for staff line height of at least 40pt
-                
-                lineStartY = cursorY;
-                cursorX = musicStartX;
-                lineMaxHeight = 0;
-                lineHasLyrics = false;
-                lineHasBrackets = Object.keys(activeBrackets).length > 0;
-                
-                for (const key in activeBrackets) {
-                    const b = activeBrackets[key];
-                    b.startX = musicStartX;
-                    b.startLineY = lineStartY;
-                }
+                // Manuscript line / folio breaks are drawn as an INLINE marker and
+                // must NOT wrap the PDF line — only ZeileContainer boundaries start a
+                // new staff line. ( | = line change, ‖ = folio change )
+                const isFolio = tagName === 'app-folio-change';
+                const gap = 3;
+                const mx = cursorX + gap;
+                const top = cursorY + 2;
+                const bottom = cursorY + (lineMaxHeight > 0 ? lineMaxHeight : 24);
+                doc.setLineWidth(0.6);
+                doc.setDrawColor(130, 130, 130);
+                doc.line(mx, top, mx, bottom);
+                if (isFolio) doc.line(mx + 2.2, top, mx + 2.2, bottom);
+                doc.setDrawColor(0, 0, 0);
+                doc.setLineWidth(0.2);
+                cursorX = mx + (isFolio ? 4 : 2) + gap;
                 continue;
               }
               
@@ -1056,9 +1043,9 @@ export class DocumentComponent implements OnInit {
               if (!isLastOnLine && j + 1 < parts.length) {
                 const nextPart = parts[j + 1] as HTMLElement;
                 const nextTag = nextPart.tagName.toLowerCase();
-                if (nextTag === 'app-line-change' || nextTag === 'app-folio-change') {
-                  isLastOnLine = true;
-                } else if (nextTag === 'app-notes') {
+                // A following line/folio change is an inline marker, not a line end,
+                // so it must NOT stretch this syllable's staff to the margin.
+                if (nextTag === 'app-notes') {
                   // Peek at the next syllable's width to see if it would trigger a wrap
                   const nextSec = nextPart.querySelector('.section') as HTMLElement;
                   if (nextSec) {
