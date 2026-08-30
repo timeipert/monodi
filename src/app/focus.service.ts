@@ -28,6 +28,10 @@ export class FocusService {
 
   lastPitch?: { base: VM.BaseNote, octave: number };
 
+  /** UUID of the first syllable of the currently displayed document. The
+   *  notes.component for that syllable draws a G-clef at the chant start. */
+  firstSyllableUuid: string | null = null;
+
   /** UUID of the note currently considered "selected" in the document.
    *  Used as a global cross-syllable signal: notes.component instances
    *  subscribe to this to know when to color their comment brackets in

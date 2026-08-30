@@ -1,5 +1,5 @@
 import { FocusService } from '../focus.service';
-import { ViewChild, ElementRef, Component, OnInit, HostListener } from '@angular/core';
+import { ViewChild, ElementRef, Component, OnInit, DoCheck, HostListener } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
@@ -33,7 +33,19 @@ import autoTable from 'jspdf-autotable';
   templateUrl: './document.component.html',
   styleUrls: ['./document.component.css']
 })
-export class DocumentComponent implements OnInit {
+export class DocumentComponent implements OnInit, DoCheck {
+  /** Tracks the last `cont` reference for which we computed the first syllable. */
+  private _clefContRef: VM.RootContainer | null = null;
+
+  /** Keep FocusService.firstSyllableUuid in sync so the first syllable draws a clef. */
+  ngDoCheck(): void {
+    if (this.cont !== this._clefContRef) {
+      this._clefContRef = this.cont ?? null;
+      const sylls = this.cont ? VM.getSyllables(this.cont) : [];
+      this.focusService.firstSyllableUuid = sylls.length > 0 ? sylls[0].uuid : null;
+    }
+  }
+
   getCategoryDetails = getCategoryDetails;
   getInterventionLabel = getInterventionLabel;
   getInterventionIcon(key: string): string {
@@ -871,7 +883,6 @@ export class DocumentComponent implements OnInit {
         // Track the current Signatures to print before the next Zeile
         let currentSignatures: string[] = [];
         let wasLastElementParatext = false;
-        let clefDrawn = false; // draw a G-clef once, at the very start of the chant
 
         for (let i = 0; i < containers.length; i++) {
           const container = containers[i] as HTMLElement;
@@ -1020,22 +1031,6 @@ export class DocumentComponent implements OnInit {
               
               const svgWidth = maxRawWidth * SCALE;
               const secHeight = totalRawHeight * SCALE;
-
-              // G-clef at the chant start only: a "G" centred on the 2nd staff line
-              // from the bottom (the G line). The 5 staff lines sit at 20/65…60/65 of
-              // the note height; the 2nd-from-bottom line is at 50/65.
-              if (!clefDrawn && secHeight > 0) {
-                const gLineY = cursorY + (50 / 65) * secHeight;
-                const clefSize = Math.max(9, secHeight * 0.6);
-                doc.setFont(fontFamily, 'bold');
-                doc.setFontSize(clefSize);
-                doc.setTextColor(0, 0, 0);
-                doc.text('G', cursorX, gLineY + clefSize * 0.35);
-                cursorX += doc.getTextWidth('G') + 8;
-                doc.setFont(fontFamily, 'normal');
-                doc.setFontSize(pdfFontSize);
-                clefDrawn = true;
-              }
 
               let txt = "";
               let textWidth = 0;

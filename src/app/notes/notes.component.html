@@ -10,12 +10,15 @@
 				<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
 				<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
 
+				<!-- G-clef at the chant start: a G centred on the 2nd line from the bottom (y=70). -->
+				<text *ngIf="showClef" x="1" y="84" font-size="44" font-weight="bold" fill="black" style="font-family: serif;">G</text>
+
 				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="2px"
 					height="60px" [attr.fill]="syllableBracketColor('start')" />
 				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="10px"
 					height="2px" [attr.fill]="syllableBracketColor('start')" />
 
-				<g *ngIf="isNormal()" [attr.transform]="'translate(12, 0)'">
+				<g *ngIf="isNormal()" [attr.transform]="'translate(' + (showClef ? 38 : 12) + ', 0)'">
 					<g *ngFor="let drawable of getDrawables(i);trackBy:refOfDrawable"
 						[style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
 						(click)="drawableClicked(drawable, $event, i)"

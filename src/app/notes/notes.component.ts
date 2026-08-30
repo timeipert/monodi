@@ -1350,6 +1350,14 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   isSourceEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.SourceEllipsis; }
   isEditorEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.EditorialEllipsis; }
 
+  /** Internal-unit width reserved for the G-clef at the chant start. */
+  static readonly CLEF_WIDTH = 26;
+
+  /** True for the first syllable of the document — it draws a leading G-clef. */
+  get showClef(): boolean {
+    return !!this.focusService.firstSyllableUuid && !!this.model && this.model.uuid === this.focusService.firstSyllableUuid;
+  }
+
   getWidth(): number {
     const isEdit = !this.readOnly;
     const minW = isEdit ? 40 : (this.hideSyllableText ? 12 : 30);
@@ -1361,6 +1369,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     } else {
       baseW += Math.max(minW, activeSyllTextWidth);
     }
+    if (this.showClef) baseW += NotesComponent.CLEF_WIDTH;
     return baseW * this.staffScale;
   }
 
