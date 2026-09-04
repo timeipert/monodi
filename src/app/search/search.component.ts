@@ -1429,6 +1429,19 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return this.synopsisSvc.hasLineElements(node, docIdx);
   }
 
+  /** How many of the selected witnesses actually contain this aligned section. */
+  getMatchedCount(node: AlignedNode): number {
+    const total = this.selectedDocs.length;
+    let count = 0;
+    for (let i = 0; i < total; i++) {
+      const hasContainer = !!(node.containers && node.containers[i]);
+      const hasItem = !!(node.items && node.items[i]);
+      const hasLeaf = !!node.alignedLineElements && this.synopsisSvc.hasLineElements(node, i);
+      if (hasContainer || hasItem || hasLeaf) count++;
+    }
+    return count;
+  }
+
   getConsensusSyllableTexts(col: AlignedLineElement[]): string[] {
     return this.synopsisSvc.getConsensusSyllableTexts(col);
   }
