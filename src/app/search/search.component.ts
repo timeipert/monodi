@@ -1463,6 +1463,15 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.enterSynopsis();
   }
 
+  get segmentAlignBy(): 'melody' | 'text' { return this.synopsisSvc.segmentAlignBy; }
+  set segmentAlignBy(v: 'melody' | 'text') { this.synopsisSvc.segmentAlignBy = v; }
+
+  /** Change the within-segment alignment basis (structure/sequential modes) and re-align. */
+  onSegmentAlignByChange(mode: 'melody' | 'text') {
+    this.synopsisSvc.segmentAlignBy = mode;
+    this.enterSynopsis();
+  }
+
   enterSynopsis() {
     if (!this.user || this.selectedDocs.length < 2) return;
     this.synopsisLoading = true;

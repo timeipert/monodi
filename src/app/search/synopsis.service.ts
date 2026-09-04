@@ -17,6 +17,8 @@ export interface AlignedNode {
   kind: 'container' | 'leaf';
   level: number;
   signature: string;
+  /** Structural index path of this node, e.g. "1-1-2" (1-based). */
+  path?: string;
   containers: (VM.FormteilContainer | null)[];
   children: AlignedNode[];
   items: (VM.FormteilChildren | null)[];
@@ -202,6 +204,8 @@ export class SynopsisService {
   showConsensusText = false;
   showSingleLineSynopsis = false;
   chunkedMelodyRows: AlignedLineElement[][][] = [];
+  /** Within-segment alignment basis for structure/sequential modes. */
+  segmentAlignBy: 'melody' | 'text' = 'melody';
   cachedRootContainers: VM.RootContainer[] = [];
   cachedDocIds: string[] = [];
 
@@ -218,7 +222,7 @@ export class SynopsisService {
     }));
   }
 
-  alignNodeChildren(parentNodes: (VM.FormteilContainer | VM.RootContainer | null)[], depth: number): AlignedNode[] {
+  alignNodeChildren(parentNodes: (VM.FormteilContainer | VM.RootContainer | null)[], depth: number, pathPrefix: number[] = []): AlignedNode[] {
     const K = parentNodes.length;
 
     const childLists: VM.FormteilChildren[][] = parentNodes.map(node => {
@@ -253,6 +257,7 @@ export class SynopsisService {
         kind: 'leaf',
         level: depth,
         signature: '',
+        path: [...pathPrefix, alignedNodes.length + 1].join('-'),
         containers: [],
         children: [],
         items: items
@@ -267,25 +272,9 @@ export class SynopsisService {
 
       const maxLineElCount = Math.max(...lineElements.map(el => el.length));
       if (maxLineElCount > 0) {
-        leafNode.alignedLineElements = [];
-        for (let col = 0; col < maxLineElCount; col++) {
-          const column: AlignedLineElement[] = [];
-          for (let docIdx = 0; docIdx < K; docIdx++) {
-            const el = lineElements[docIdx][col] || null;
-            if (el) {
-              column.push({
-                kind: el.kind === 'Clef' ? 'clef' : 'syllable',
-                element: el
-              });
-            } else {
-              column.push({
-                kind: 'placeholder',
-                element: null
-              });
-            }
-          }
-          leafNode.alignedLineElements.push(column);
-        }
+        // Align the segment's syllables/clefs across witnesses with the same
+        // Needleman–Wunsch aligner used by the flat melody/text synopsis.
+        leafNode.alignedLineElements = this.alignElementSequences(lineElements, this.segmentAlignBy);
       }
 
       alignedNodes.push(leafNode);
@@ -316,12 +305,14 @@ export class SynopsisService {
         }
       }
 
-      const subChildren = this.alignNodeChildren(matchedContainers, depth + 1);
+      const childPrefix = [...pathPrefix, alignedNodes.length + 1];
+      const subChildren = this.alignNodeChildren(matchedContainers, depth + 1, childPrefix);
 
       alignedNodes.push({
         kind: 'container',
         level: depth,
         signature: sig,
+        path: childPrefix.join('-'),
         containers: matchedContainers,
         children: subChildren,
         items: []
@@ -360,6 +351,7 @@ export class SynopsisService {
         kind: 'leaf',
         level: 1,
         signature: '',
+        path: String(idx + 1),
         containers: [],
         children: [],
         items: items
@@ -374,25 +366,7 @@ export class SynopsisService {
 
       const maxLineElCount = Math.max(...lineElements.map(el => el.length));
       if (maxLineElCount > 0) {
-        leafNode.alignedLineElements = [];
-        for (let col = 0; col < maxLineElCount; col++) {
-          const column: AlignedLineElement[] = [];
-          for (let docIdx = 0; docIdx < K; docIdx++) {
-            const el = lineElements[docIdx][col] || null;
-            if (el) {
-              column.push({
-                kind: el.kind === 'Clef' ? 'clef' as const : 'syllable' as const,
-                element: el
-              });
-            } else {
-              column.push({
-                kind: 'placeholder',
-                element: null
-              });
-            }
-          }
-          leafNode.alignedLineElements.push(column);
-        }
+        leafNode.alignedLineElements = this.alignElementSequences(lineElements, this.segmentAlignBy);
       }
 
       alignedNodes.push(leafNode);
@@ -402,10 +376,19 @@ export class SynopsisService {
   }
 
   alignMelody(rootContainers: VM.RootContainer[], mode: 'melody' | 'text' = 'melody'): AlignedLineElement[][] {
-    const K = rootContainers.length;
+    return this.alignElementSequences(rootContainers.map(r => extractFlatElements(r)), mode);
+  }
+
+  /**
+   * Progressive Needleman–Wunsch alignment of per-document element sequences into
+   * aligned columns. Shared by the flat melody/text synopsis and by the
+   * within-segment alignment of structure/sequential leaves.
+   */
+  alignElementSequences(seqs: (VM.Clef | VM.Syllable)[][], mode: 'melody' | 'text' = 'melody'): AlignedLineElement[][] {
+    const K = seqs.length;
     if (K === 0) return [];
 
-    const flatSeqs: (VM.Clef | VM.Syllable)[][] = rootContainers.map(r => extractFlatElements(r));
+    const flatSeqs = seqs;
     const seq0 = flatSeqs[0];
 
     let alignedCols: AlignedLineElement[][] = seq0.map(el => {

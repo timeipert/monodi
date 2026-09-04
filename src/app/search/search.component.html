@@ -885,6 +885,11 @@
           <input class="form-check-input" type="checkbox" id="singleLineToggle" [(ngModel)]="showSingleLineSynopsis" (change)="onSingleLineToggle()">
           <label class="form-check-label text-muted small fw-semibold" for="singleLineToggle">One line</label>
         </div>
+        <div class="btn-group btn-group-sm" *ngIf="alignmentMode === 'structure' || alignmentMode === 'sequential'" title="Align each structural segment by melody or by text">
+          <span class="input-group-text py-0 small text-muted">Align by</span>
+          <button class="btn" [class.btn-primary]="segmentAlignBy === 'melody'" [class.btn-outline-secondary]="segmentAlignBy !== 'melody'" (click)="onSegmentAlignByChange('melody')">Melody</button>
+          <button class="btn" [class.btn-primary]="segmentAlignBy === 'text'" [class.btn-outline-secondary]="segmentAlignBy !== 'text'" (click)="onSegmentAlignByChange('text')">Text</button>
+        </div>
       </div>
       <div class="d-flex align-items-center gap-2">
         <!-- Column Chooser Button -->
@@ -966,7 +971,7 @@
           <!-- Level 1 Block -->
           <div class="syn-sec syn-sec-1">
             <div class="syn-sec-head">
-              <span class="syn-sec-name">{{node.signature || node.name || 'Section'}}</span>
+              <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="node.path">{{node.path}}</span>{{node.signature || 'Section'}}</span>
               <span class="syn-sec-rule"></span>
               <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{selectedDocs.length}}</span>
             </div>
@@ -980,7 +985,7 @@
                 <!-- Level 2 Block -->
                 <div class="syn-sec syn-sec-2">
                   <div class="syn-sec-head">
-                    <span class="syn-sec-name">{{child2.signature || child2.name || 'Subsection'}}</span>
+                    <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="child2.path">{{child2.path}}</span>{{child2.signature || 'Subsection'}}</span>
                     <span class="syn-sec-rule"></span>
                     <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(child2)}}/{{selectedDocs.length}}</span>
                   </div>
@@ -994,7 +999,7 @@
                       <!-- Level 3 Block -->
                       <div class="syn-sec syn-sec-3">
                         <div class="syn-sec-head">
-                          <span class="syn-sec-name">{{child3.signature || child3.name || 'Passage'}}</span>
+                          <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="child3.path">{{child3.path}}</span>{{child3.signature || 'Passage'}}</span>
                           <span class="syn-sec-rule"></span>
                           <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(child3)}}/{{selectedDocs.length}}</span>
                         </div>
