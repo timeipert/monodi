@@ -38,10 +38,13 @@ export const COMMENT_TEMPLATES: CommentTemplate[] = [
     build: (originalCreator) => ({
       kind: 'CommentTreeGrid',
       id: UUID(),
+      // One row, three columns: lemma ] reading
       items: [
-        [ notesLeaf(originalCreator()) ],       // row 0 — the lemma (chant)
-        [ textLeaf(']') ],                      // row 1 — the bracket
-        [ notesLeaf(M.emptyZeileContainer()) ], // row 2 — the reading (chant)
+        [
+          notesLeaf(originalCreator()),      // col 0 — the lemma (chant)
+          textLeaf(']'),                     // col 1 — the bracket
+          notesLeaf(M.emptyZeileContainer()) // col 2 — the reading (chant)
+        ],
       ],
     }),
   },

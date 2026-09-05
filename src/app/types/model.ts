@@ -1137,10 +1137,13 @@ export function getAllLineParts(r: Container): LinePart[] {
 }
 
 export const emptyCommentTree = (): CommentTree => {
+  // A new comment opens as a single-cell grid ("one grid") so witnesses can be
+  // added side by side straight away; the cell itself is still undecided.
   return {
-    kind: "CommentTreeUndecided",
+    kind: "CommentTreeGrid",
     id: UUID(),
-  }
+    items: [[{ kind: "CommentTreeUndecided", id: UUID() }]],
+  };
 };
 
 export type Justification = {

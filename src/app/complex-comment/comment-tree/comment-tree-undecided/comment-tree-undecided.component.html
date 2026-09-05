@@ -1,4 +1,9 @@
 <ng-container *ngIf="!readOnly">
+  <button type="button" class="tile" (click)="becomeGrid()"
+          title="Grid — align witnesses side by side">
+    <i class="bi bi-table"></i>
+    <span class="tile-label">Grid</span>
+  </button>
   <button type="button" class="tile" (click)="becomeNotesLeaf()"
           title="Chant — a musical reading in notation">
     <i class="bi bi-music-note-beamed"></i>
@@ -8,11 +13,6 @@
           title="Text — a prose or textual reading">
     <i class="bi bi-fonts"></i>
     <span class="tile-label">Text</span>
-  </button>
-  <button type="button" class="tile" (click)="becomeGrid()"
-          title="Comparison — align witnesses side by side">
-    <i class="bi bi-table"></i>
-    <span class="tile-label">Compare</span>
   </button>
   <button type="button" class="tile" (click)="becomeBracketLeaf()"
           title="Editorial bracket">
