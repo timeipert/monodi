@@ -1,5 +1,5 @@
 import {
-  ChangeDetectorRef, Component, OnInit, QueryList, ViewChildren,
+  ChangeDetectorRef, Component, OnInit, OnChanges, QueryList, ViewChildren,
   OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, Output, Input, EventEmitter, AfterViewInit, HostListener
 } from '@angular/core';
 import * as VM from '../types/model';
@@ -41,7 +41,7 @@ const GLYPH_PATHS: { [key: string]: string } = {
   styleUrls: ['./notes.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewInit {
+export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, AfterViewInit {
   getGlyphDataUri(noteType: string, focused: boolean): string {
     const d = GLYPH_PATHS[noteType] || GLYPH_PATHS['Normal'];
     const fill = focused ? '#5bf186' : '#000000';
@@ -90,7 +90,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   focusedVoiceIndex = 0;
   timeoutF: any = undefined;
   drawablesCache: Drawable[][] = [];
-  lastModelString = '';
+  /** Drawables are rebuilt only when the model/comments change (input change via
+   *  ngOnChanges, or an in-place edit via recalculateWidths) — never per CD tick. */
+  private drawablesDirty = true;
 
   getVoices(): VM.Spaced[] {
     const voices = [this.model.notes];
@@ -917,14 +919,11 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   }
 
   getDrawables(voiceIndex: number): Drawable[] {
-    const newModelString = JSON.stringify([this.model, this.comments]);
-    if (this.lastModelString === newModelString) {
-      return this.drawablesCache[voiceIndex] || [];
-    } else {
-      this.lastModelString = newModelString;
+    if (this.drawablesDirty) {
       this.drawablesCache = fromSpaceds(this.getVoices(), this.comments);
-      return this.drawablesCache[voiceIndex] || [];
+      this.drawablesDirty = false;
     }
+    return this.drawablesCache[voiceIndex] || [];
   }
 
   textToNotes(voiceIndex: number): void {
@@ -934,7 +933,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     try {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
-      this.lastModelString = '';
+      this.drawablesDirty = true;
       const newNotes = musicLanguage.Spaced.tryParse(text);
       const uuidInfo = VM.copyUuids(voices[voiceIndex], newNotes);
       const commentsToUpdate = this.comments.filter(c => uuidInfo.lostUUIDs.find(u => c.startUUID === u || c.endUUID === u));
@@ -1249,7 +1248,14 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   }
 
   recalculateWidths(): void {
+    // An in-place edit changed the model — rebuild drawables on next read.
+    this.drawablesDirty = true;
     this.syllableWidth = this.calculateWidth();
+  }
+
+  ngOnChanges(): void {
+    // A new model/comments reference (e.g. synopsis, or a fresh clone) — invalidate.
+    this.drawablesDirty = true;
   }
 
   isNote: (d: Drawable) => boolean = d => d instanceof DNote;
@@ -1378,12 +1384,6 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     }
     if (this.showClef) baseW += NotesComponent.CLEF_WIDTH;
     return baseW * this.staffScale;
-  }
-
-  getWidth2(): number {
-    let t = this.getWidth();
-    console.log(t);
-    return t;
   }
 
   getSVGWidth(): number {
