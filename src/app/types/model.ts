@@ -539,11 +539,15 @@ export function mergeZeilenWithLineChanges(container: { children: any[] }): numb
 
   const mergedParts: LinePart[] = [];
   for (let i = 0; i < zeileIdxs.length; i++) {
-    const z = children[zeileIdxs[i]] as ZeileContainer;
-    mergedParts.push(...(z.children || []));
-    // A break marks the transition to the next line, so skip it after the last.
+    const parts = (children[zeileIdxs[i]] as ZeileContainer).children || [];
+    mergedParts.push(...parts);
     if (i < zeileIdxs.length - 1) {
-      mergedParts.push({ kind: LinePartKind.LineChange, uuid: UUID(), focus: false });
+      // Skip the line break if a folio break already sits at the boundary
+      // (end of this line): a folio change already implies the line changes.
+      const last = parts[parts.length - 1];
+      if (!last || last.kind !== LinePartKind.FolioChange) {
+        mergedParts.push({ kind: LinePartKind.LineChange, uuid: UUID(), focus: false });
+      }
     }
   }
 
