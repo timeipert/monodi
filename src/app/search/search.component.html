@@ -968,54 +968,7 @@
       <!-- 1. Tree / Structural Alignment Mode -->
       <div *ngIf="alignmentMode === 'structure' || alignmentMode === 'sequential'">
         <ng-container *ngFor="let node of alignedTree">
-          <!-- Level 1 Block -->
-          <div class="syn-sec syn-sec-1">
-            <div class="syn-sec-head">
-              <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="node.path">{{node.path}}</span>{{node.signature || 'Section'}}</span>
-              <span class="syn-sec-rule"></span>
-              <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{selectedDocs.length}}</span>
-            </div>
-
-            <div class="syn-sec-body">
-              <ng-container *ngIf="node.alignedLineElements">
-                <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: node }"></ng-container>
-              </ng-container>
-
-              <ng-container *ngFor="let child2 of node.children">
-                <!-- Level 2 Block -->
-                <div class="syn-sec syn-sec-2">
-                  <div class="syn-sec-head">
-                    <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="child2.path">{{child2.path}}</span>{{child2.signature || 'Subsection'}}</span>
-                    <span class="syn-sec-rule"></span>
-                    <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(child2)}}/{{selectedDocs.length}}</span>
-                  </div>
-
-                  <div class="syn-sec-body">
-                    <ng-container *ngIf="child2.alignedLineElements">
-                      <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: child2 }"></ng-container>
-                    </ng-container>
-
-                    <ng-container *ngFor="let child3 of child2.children">
-                      <!-- Level 3 Block -->
-                      <div class="syn-sec syn-sec-3">
-                        <div class="syn-sec-head">
-                          <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="child3.path">{{child3.path}}</span>{{child3.signature || 'Passage'}}</span>
-                          <span class="syn-sec-rule"></span>
-                          <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(child3)}}/{{selectedDocs.length}}</span>
-                        </div>
-
-                        <div class="syn-sec-body">
-                          <ng-container *ngIf="child3.alignedLineElements">
-                            <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: child3 }"></ng-container>
-                          </ng-container>
-                        </div>
-                      </div>
-                    </ng-container>
-                  </div>
-                </div>
-              </ng-container>
-            </div>
-          </div>
+          <ng-container *ngTemplateOutlet="synNode; context: { $implicit: node, level: 1 }"></ng-container>
         </ng-container>
       </div>
 
@@ -1081,6 +1034,25 @@
       </div>
     </div>
   </div>
+
+  <!-- Recursive structural section: renders its own aligned lines, then every child at any depth. -->
+  <ng-template #synNode let-node let-level="level">
+    <div class="syn-sec" [ngClass]="'syn-sec-' + (level > 3 ? 3 : level)">
+      <div class="syn-sec-head">
+        <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="node.path">{{node.path}}</span>{{node.signature || (node.kind === 'leaf' ? 'Line' : 'Section')}}</span>
+        <span class="syn-sec-rule"></span>
+        <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{selectedDocs.length}}</span>
+      </div>
+      <div class="syn-sec-body">
+        <ng-container *ngIf="node.alignedLineElements">
+          <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: node }"></ng-container>
+        </ng-container>
+        <ng-container *ngFor="let child of node.children">
+          <ng-container *ngTemplateOutlet="synNode; context: { $implicit: child, level: level + 1 }"></ng-container>
+        </ng-container>
+      </div>
+    </div>
+  </ng-template>
 
   <ng-template #leafContainer let-node>
     <!-- If the node has paratext -->
