@@ -178,9 +178,14 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     // Re-render this OnPush component whenever the globally-selected note
     // changes, so palette-coloured brackets in this syllable can light up
     // (or fade back to gray) without depending on local focus.
-    this.focusedNoteSub = this.focusService.focusedNoteUUID$.subscribe(() => {
-      this.cdr.markForCheck();
-    });
+    // Only needed for editable syllables (comment-bracket colouring). In the
+    // read-only synopsis there can be hundreds of these components, so skip the
+    // per-instance subscription there.
+    if (!this.readOnly) {
+      this.focusedNoteSub = this.focusService.focusedNoteUUID$.subscribe(() => {
+        this.cdr.markForCheck();
+      });
+    }
   }
 
   private focusedNoteSub?: Subscription;

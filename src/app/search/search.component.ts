@@ -1434,8 +1434,16 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return this.synopsisSvc.getElementWidth(item);
   }
 
+  // Column widths need canvas text measurement; memoise by column identity so the
+  // many width bindings don't re-measure every cell on every change-detection tick.
+  private _colWidthCache = new WeakMap<AlignedLineElement[], { key: string; w: number }>();
   getColumnWidth(col: AlignedLineElement[]): number {
-    return this.synopsisSvc.getColumnWidth(col, this.settings);
+    const key = (this.showConsensusText ? 'C' : 'N') + (this.settings?.pdfSynopsisScale || 1.0);
+    const hit = this._colWidthCache.get(col);
+    if (hit && hit.key === key) return hit.w;
+    const w = this.synopsisSvc.getColumnWidth(col, this.settings);
+    this._colWidthCache.set(col, { key, w });
+    return w;
   }
 
   hasParatext(items: any[]): boolean {
@@ -1471,8 +1479,14 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return count;
   }
 
+  private _consensusCache = new WeakMap<AlignedLineElement[], string[]>();
   getConsensusSyllableTexts(col: AlignedLineElement[]): string[] {
-    return this.synopsisSvc.getConsensusSyllableTexts(col);
+    let c = this._consensusCache.get(col);
+    if (c === undefined) {
+      c = this.synopsisSvc.getConsensusSyllableTexts(col);
+      this._consensusCache.set(col, c);
+    }
+    return c;
   }
 
   onSingleLineToggle() {
