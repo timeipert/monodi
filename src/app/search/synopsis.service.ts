@@ -540,10 +540,7 @@ export class SynopsisService {
                      this.cachedRootContainers.length === selectedDocs.length;
 
     if (isCached) {
-      this.runAlignment(this.cachedRootContainers);
-      onShow(true);
-      onComplete();
-      onLoading(false);
+      this.deferAlignment(this.cachedRootContainers, onShow, onLoading, onComplete);
       return;
     }
 
@@ -580,10 +577,7 @@ export class SynopsisService {
         this.cachedRootContainers = rootContainers;
         this.cachedDocIds = currentDocIds;
 
-        this.runAlignment(rootContainers);
-        onShow(true);
-        onComplete();
-        onLoading(false);
+        this.deferAlignment(rootContainers, onShow, onLoading, onComplete);
       },
       error: (err) => {
         console.error('Error entering synopsis:', err);
@@ -597,6 +591,27 @@ export class SynopsisService {
     this.cachedDocIds = [];
     this.alignedTree = [];
     this.chunkedMelodyRows = [];
+  }
+
+  /**
+   * Run the (potentially heavy) alignment after yielding to the browser, so the
+   * loading spinner paints and the click does not appear to freeze the app.
+   */
+  private deferAlignment(
+    rootContainers: VM.RootContainer[],
+    onShow: (show: boolean) => void,
+    onLoading: (loading: boolean) => void,
+    onComplete: () => void
+  ): void {
+    setTimeout(() => {
+      try {
+        this.runAlignment(rootContainers);
+        onShow(true);
+        onComplete();
+      } finally {
+        onLoading(false);
+      }
+    }, 0);
   }
 
   runAlignment(rootContainers: VM.RootContainer[]) {

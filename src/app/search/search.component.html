@@ -912,8 +912,9 @@
             </div>
           </div>
         </div>
-        <button class="btn btn-primary btn-sm" (click)="exportSynopsisPDF()">
-          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        <button class="btn btn-primary btn-sm" (click)="exportSynopsisPDF()" [disabled]="synopsisPdfExporting">
+          <span *ngIf="synopsisPdfExporting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+          <i *ngIf="!synopsisPdfExporting" class="bi bi-file-earmark-pdf me-1"></i>{{ synopsisPdfExporting ? 'Generating…' : 'Export PDF' }}
         </button>
       </div>
     </div>

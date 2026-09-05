@@ -390,6 +390,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   selectedDocs: Document[] = [];
   showSynopsis = false;
   synopsisLoading = false;
+  synopsisPdfExporting = false;
 
   // Selection analysis dashboard
   showDashboard = false;
@@ -1451,11 +1452,21 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   async exportSynopsisPDF() {
-    await this.synopsisSvc.exportSynopsisPDF(
-      this.selectedDocs,
-      this.settings,
-      this.visibleSynopsisCols
-    );
+    if (this.synopsisPdfExporting) return;
+    this.synopsisPdfExporting = true;
+    this.cdRef.markForCheck();
+    // Yield so the spinner paints before the heavy PDF build starts.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    try {
+      await this.synopsisSvc.exportSynopsisPDF(
+        this.selectedDocs,
+        this.settings,
+        this.visibleSynopsisCols
+      );
+    } finally {
+      this.synopsisPdfExporting = false;
+      this.cdRef.markForCheck();
+    }
   }
 
   onAlignmentModeChange(mode: 'signature' | 'structure' | 'sequential' | 'melody' | 'text') {
