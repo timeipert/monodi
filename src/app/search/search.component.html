@@ -871,6 +871,7 @@
           <i class="bi bi-arrow-left me-1"></i>Back
         </button>
         <div class="btn-group btn-group-sm">
+          <button class="btn" [class.btn-primary]="alignmentMode === 'signature'" [class.btn-outline-secondary]="alignmentMode !== 'signature'" (click)="onAlignmentModeChange('signature')" title="Align by composed signature reference (I-1, I-2, …)">Signature</button>
           <button class="btn" [class.btn-primary]="alignmentMode === 'melody'" [class.btn-outline-secondary]="alignmentMode !== 'melody'" (click)="onAlignmentModeChange('melody')">Melody</button>
           <button class="btn" [class.btn-primary]="alignmentMode === 'text'" [class.btn-outline-secondary]="alignmentMode !== 'text'" (click)="onAlignmentModeChange('text')">Text</button>
           <button class="btn" [class.btn-primary]="alignmentMode === 'structure'" [class.btn-outline-secondary]="alignmentMode !== 'structure'" (click)="onAlignmentModeChange('structure')">Structure</button>
@@ -885,7 +886,7 @@
           <input class="form-check-input" type="checkbox" id="singleLineToggle" [(ngModel)]="showSingleLineSynopsis" (change)="onSingleLineToggle()">
           <label class="form-check-label text-muted small fw-semibold" for="singleLineToggle">One line</label>
         </div>
-        <div class="btn-group btn-group-sm" *ngIf="alignmentMode === 'structure' || alignmentMode === 'sequential'" title="Align each structural segment by melody or by text">
+        <div class="btn-group btn-group-sm" *ngIf="alignmentMode === 'signature' || alignmentMode === 'structure' || alignmentMode === 'sequential'" title="Align each segment by melody or by text">
           <span class="input-group-text py-0 small text-muted">Align by</span>
           <button class="btn" [class.btn-primary]="segmentAlignBy === 'melody'" [class.btn-outline-secondary]="segmentAlignBy !== 'melody'" (click)="onSegmentAlignByChange('melody')">Melody</button>
           <button class="btn" [class.btn-primary]="segmentAlignBy === 'text'" [class.btn-outline-secondary]="segmentAlignBy !== 'text'" (click)="onSegmentAlignByChange('text')">Text</button>
@@ -966,7 +967,7 @@
     <!-- Synopsis Content -->
     <div *ngIf="!synopsisLoading">
       <!-- 1. Tree / Structural Alignment Mode -->
-      <div *ngIf="alignmentMode === 'structure' || alignmentMode === 'sequential'">
+      <div *ngIf="alignmentMode === 'signature' || alignmentMode === 'structure' || alignmentMode === 'sequential'">
         <ng-container *ngFor="let node of alignedTree">
           <ng-container *ngTemplateOutlet="synNode; context: { $implicit: node, level: 1 }"></ng-container>
         </ng-container>

@@ -200,7 +200,7 @@ function needlemanWunschProfile(
 export class SynopsisService {
   alignedTree: AlignedNode[] = [];
   docSigles: { [docId: string]: string } = {};
-  alignmentMode: 'structure' | 'sequential' | 'melody' | 'text' = 'melody';
+  alignmentMode: 'signature' | 'structure' | 'sequential' | 'melody' | 'text' = 'signature';
   showConsensusText = false;
   showSingleLineSynopsis = false;
   chunkedMelodyRows: AlignedLineElement[][][] = [];
@@ -320,6 +320,97 @@ export class SynopsisService {
     }
 
     return alignedNodes;
+  }
+
+  /**
+   * Signature reference of a container's `Signatur` data field, or ''.
+   */
+  private signatureOf(c: any): string {
+    return String((c && c.data || []).find((d: any) => d && d.name === 'Signatur')?.data ?? '').trim();
+  }
+
+  /**
+   * Flatten a witness into segments keyed by their *composed* signature
+   * reference. A container signed "I" whose signed children are 1, 2, 3 yields
+   * references "I-1", "I-2", "I-3" (and deeper). Where a level has no signature,
+   * its 1-based position is used so references stay unique. Consecutive lines
+   * (ZeileContainers) directly under a container form that container's segment.
+   */
+  private collectSignatureSegments(root: VM.RootContainer): { ref: string; elements: (VM.Clef | VM.Syllable)[] }[] {
+    const out: { ref: string; elements: (VM.Clef | VM.Syllable)[] }[] = [];
+
+    const walk = (node: any, stack: string[]) => {
+      if (!node || !node.children) return;
+      let pending: (VM.Clef | VM.Syllable)[] = [];
+      let idx = 0;
+      const flush = () => {
+        if (pending.length) {
+          out.push({ ref: stack.length ? stack.join('-') : '—', elements: pending });
+          pending = [];
+        }
+      };
+      const addLine = (zeile: any) => {
+        for (const el of (zeile.children || [])) {
+          if (el && (el.kind === 'Syllable' || el.kind === 'Clef')) pending.push(el);
+        }
+      };
+      const handle = (ch: any) => {
+        if (!ch) return;
+        if (ch.kind === 'ZeileContainer') {
+          addLine(ch);
+        } else if (ch.kind === 'FormteilContainer') {
+          flush();
+          idx++;
+          walk(ch, [...stack, this.signatureOf(ch) || String(idx)]);
+        } else if (ch.kind === 'MiscContainer') {
+          (ch.children || []).forEach(handle);
+        }
+      };
+      node.children.forEach(handle);
+      flush();
+    };
+
+    walk(root, []);
+    return out;
+  }
+
+  /**
+   * Align witnesses by composed signature reference: each segment is matched
+   * across pieces by its exact reference (I-1, I-2, …) rather than by tree
+   * position, and its lines are aligned within with the melody/text aligner.
+   */
+  alignBySignature(rootContainers: VM.RootContainer[]): AlignedNode[] {
+    const perDoc = rootContainers.map(r => this.collectSignatureSegments(r));
+
+    // Union of references in first-appearance order across all witnesses.
+    const order: string[] = [];
+    const seen = new Set<string>();
+    for (const segs of perDoc) {
+      for (const s of segs) {
+        if (!seen.has(s.ref)) { seen.add(s.ref); order.push(s.ref); }
+      }
+    }
+
+    const nodes: AlignedNode[] = [];
+    for (const ref of order) {
+      const seqs: (VM.Clef | VM.Syllable)[][] = perDoc.map(segs =>
+        segs.filter(s => s.ref === ref).reduce((acc, s) => acc.concat(s.elements), [] as (VM.Clef | VM.Syllable)[])
+      );
+      const node: AlignedNode = {
+        kind: 'leaf',
+        level: 1,
+        signature: ref,
+        path: ref,
+        containers: [],
+        children: [],
+        items: [],
+      };
+      if (Math.max(...seqs.map(s => s.length)) > 0) {
+        node.alignedLineElements = this.alignElementSequences(seqs, this.segmentAlignBy);
+      }
+      nodes.push(node);
+    }
+    return nodes;
   }
 
   alignSequential(rootContainers: VM.RootContainer[]): AlignedNode[] {
@@ -509,7 +600,9 @@ export class SynopsisService {
   }
 
   runAlignment(rootContainers: VM.RootContainer[]) {
-    if (this.alignmentMode === 'structure') {
+    if (this.alignmentMode === 'signature') {
+      this.alignedTree = this.alignBySignature(rootContainers);
+    } else if (this.alignmentMode === 'structure') {
       this.alignedTree = this.alignNodeChildren(rootContainers, 1);
     } else if (this.alignmentMode === 'sequential') {
       this.alignedTree = this.alignSequential(rootContainers);

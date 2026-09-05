@@ -403,8 +403,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   get docSigles(): { [docId: string]: string } { return this.synopsisSvc.docSigles; }
   set docSigles(v: { [docId: string]: string }) { this.synopsisSvc.docSigles = v; }
 
-  get alignmentMode(): 'structure' | 'sequential' | 'melody' | 'text' { return this.synopsisSvc.alignmentMode; }
-  set alignmentMode(v: 'structure' | 'sequential' | 'melody' | 'text') { this.synopsisSvc.alignmentMode = v; }
+  get alignmentMode(): 'signature' | 'structure' | 'sequential' | 'melody' | 'text' { return this.synopsisSvc.alignmentMode; }
+  set alignmentMode(v: 'signature' | 'structure' | 'sequential' | 'melody' | 'text') { this.synopsisSvc.alignmentMode = v; }
 
   get showConsensusText(): boolean { return this.synopsisSvc.showConsensusText; }
   set showConsensusText(v: boolean) { this.synopsisSvc.showConsensusText = v; }
@@ -1458,7 +1458,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     );
   }
 
-  onAlignmentModeChange(mode: 'structure' | 'sequential' | 'melody' | 'text') {
+  onAlignmentModeChange(mode: 'signature' | 'structure' | 'sequential' | 'melody' | 'text') {
     this.synopsisSvc.alignmentMode = mode;
     this.enterSynopsis();
   }
