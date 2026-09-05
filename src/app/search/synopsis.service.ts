@@ -202,7 +202,7 @@ export class SynopsisService {
   docSigles: { [docId: string]: string } = {};
   alignmentMode: 'signature' | 'structure' | 'sequential' | 'melody' | 'text' = 'signature';
   showConsensusText = false;
-  showSingleLineSynopsis = false;
+  showSingleLineSynopsis = true;
   chunkedMelodyRows: AlignedLineElement[][][] = [];
   /** Within-segment alignment basis for structure/sequential modes. */
   segmentAlignBy: 'melody' | 'text' = 'melody';

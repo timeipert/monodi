@@ -995,6 +995,19 @@
                   </div>
                 </div>
               </div>
+              <!-- Consensus text row -->
+              <div *ngIf="showConsensusText" class="synopsis-consensus-text-row d-flex align-items-center mt-0 pt-0.5 border-top" style="background-color: white;">
+                <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">Consensus</div>
+                <div class="d-flex flex-row">
+                  <div *ngFor="let seg of flatSegments" class="d-flex flex-row flex-shrink-0 border-start">
+                    <div *ngFor="let col of seg.alignedLineElements" class="synopsis-column text-center" [style.width.px]="getColumnWidth(col)">
+                      <div class="syllableText" style="font-family: 'Times New Roman', Times, serif; font-size: 15px; padding-left: 5px; min-height: 24px; line-height: 1.2; display: flex; flex-direction: column; align-items: center; white-space: nowrap;">
+                        <span *ngFor="let text of getConsensusSyllableTexts(col)">{{ text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1034,11 +1047,11 @@
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
                         <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                           <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                            <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
                           </g>
                         </svg>
                       </div>
@@ -1082,11 +1095,11 @@
       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
         <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
           <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-            <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
-            <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
-            <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
-            <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
-            <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
+            <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
           </g>
         </svg>
       </div>
@@ -1161,11 +1174,11 @@
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
                         <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                           <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                            <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
                           </g>
                         </svg>
                       </div>
@@ -1178,11 +1191,11 @@
                     <div class="synopsis-placeholder-stave" [style.width.px]="getParatextColumnWidth(node)">
                       <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                         <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                          <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
+                          <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
                           
                           <g *ngIf="node.items[docIdx] && node.items[docIdx]?.kind === 'ParatextContainer'" [attr.transform]="'translate(0, -35)'">
                             <text x="5" y="24" font-family="'Times New Roman', Times, serif" font-size="12px" fill="#b91c1c" font-weight="bold" style="font-style: italic;">
