@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -429,6 +429,57 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return this.alignmentMode === 'signature' || this.alignmentMode === 'structure' || this.alignmentMode === 'sequential';
   }
 
+  // ── One-line synopsis virtualisation (only render segments near the viewport) ──
+  @ViewChild('synScroll') synScrollRef?: ElementRef<HTMLElement>;
+  synVisibleSegments: AlignedNode[] = [];
+  synLeadWidth = 0;
+  synTailWidth = 0;
+  private _synWindowFor: AlignedNode[] | null = null;
+  private _synOffsets: number[] = [];
+  private _synOffsetsFor: AlignedNode[] | null = null;
+  private _synRaf = 0;
+
+  trackBySegment = (_: number, seg: AlignedNode) => seg;
+
+  /** Cumulative left offsets of each segment (length = segments + 1). */
+  private synOffsets(segs: AlignedNode[]): number[] {
+    if (this._synOffsetsFor === segs) return this._synOffsets;
+    const offs = [0];
+    for (const s of segs) offs.push(offs[offs.length - 1] + this.segmentWidth(s));
+    this._synOffsets = offs;
+    this._synOffsetsFor = segs;
+    return offs;
+  }
+
+  /** Recompute which segments to render for the current scroll position. */
+  private updateSynWindow(scrollLeft: number, viewport: number): void {
+    const segs = this.flatSegments;
+    if (segs.length === 0) { this.synVisibleSegments = []; this.synLeadWidth = 0; this.synTailWidth = 0; return; }
+    const offs = this.synOffsets(segs);
+    const total = offs[segs.length];
+    const buffer = Math.max(1000, viewport);
+    const min = scrollLeft - buffer;
+    const max = scrollLeft + viewport + buffer;
+    let start = 0;
+    while (start < segs.length && offs[start + 1] <= min) start++;
+    let end = start;
+    while (end < segs.length && offs[end] < max) end++;
+    if (end <= start) end = Math.min(segs.length, start + 1);
+    this.synVisibleSegments = segs.slice(start, end);
+    this.synLeadWidth = offs[start];
+    this.synTailWidth = Math.max(0, total - offs[end]);
+  }
+
+  onSynScroll(ev: Event): void {
+    const el = ev.target as HTMLElement;
+    if (this._synRaf) return;
+    this._synRaf = requestAnimationFrame(() => {
+      this._synRaf = 0;
+      this.updateSynWindow(el.scrollLeft, el.clientWidth);
+      this.cdRef.markForCheck();
+    });
+  }
+
   get docSigles(): { [docId: string]: string } { return this.synopsisSvc.docSigles; }
   set docSigles(v: { [docId: string]: string }) { this.synopsisSvc.docSigles = v; }
 
@@ -781,6 +832,18 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
    * guarantees the target card is mounted.
    */
   ngAfterViewChecked(): void {
+    // Initialise the one-line synopsis virtualisation window once the segments
+    // (and the scroll container) are available; refresh it when segments change.
+    if (this.isStructuralMode && this.showSingleLineSynopsis) {
+      const segs = this.flatSegments;
+      if (this._synWindowFor !== segs) {
+        this._synWindowFor = segs;
+        const el = this.synScrollRef?.nativeElement;
+        this.updateSynWindow(el ? el.scrollLeft : 0, el ? el.clientWidth : 1400);
+        this.cdRef.markForCheck();
+      }
+    }
+
     if (this.pendingPatternScrollId === null) return;
     const id = this.pendingPatternScrollId;
     const el = document.getElementById('pattern-group-' + id);
@@ -1496,9 +1559,15 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   async exportSynopsisPDF() {
     if (this.synopsisPdfExporting) return;
     this.synopsisPdfExporting = true;
+    // The one-line view is virtualised, so temporarily render EVERY segment
+    // (the PDF reads the DOM) — the window is restored afterwards.
+    this.synVisibleSegments = this.flatSegments;
+    this.synLeadWidth = 0;
+    this.synTailWidth = 0;
+    this._synWindowFor = this.flatSegments; // keep ngAfterViewChecked from re-windowing mid-export
     this.cdRef.markForCheck();
-    // Yield so the spinner paints before the heavy PDF build starts.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // Yield so the spinner paints and all segments render before the PDF build.
+    await new Promise(resolve => setTimeout(resolve, 60));
     try {
       await this.synopsisSvc.exportSynopsisPDF(
         this.selectedDocs,
@@ -1507,6 +1576,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       );
     } finally {
       this.synopsisPdfExporting = false;
+      this._synWindowFor = null; // force the virtualisation window to re-init
       this.cdRef.markForCheck();
     }
   }

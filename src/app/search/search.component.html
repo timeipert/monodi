@@ -971,15 +971,17 @@
       <div *ngIf="isStructuralMode">
         <!-- 1a. One line: all segments in a row, horizontally scrollable, label above each -->
         <div *ngIf="showSingleLineSynopsis" class="synopsis-leaf-container border rounded p-2 bg-white">
-          <div class="overflow-auto w-100" style="background-color: white;">
+          <div #synScroll (scroll)="onSynScroll($event)" class="overflow-auto w-100" style="background-color: white;">
             <div style="min-width: max-content; display: flex; flex-direction: column;">
               <!-- Segment labels -->
               <div class="d-flex flex-row align-items-end" style="background-color: white;">
                 <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white;"></div>
                 <div class="d-flex flex-row">
-                  <div *ngFor="let seg of flatSegments" class="flex-shrink-0 border-start ps-1 pb-1" [style.width.px]="segmentWidth(seg)">
+                  <div class="flex-shrink-0" [style.width.px]="synLeadWidth"></div>
+                  <div *ngFor="let seg of synVisibleSegments; trackBy: trackBySegment" class="flex-shrink-0 border-start ps-1 pb-1" [style.width.px]="segmentWidth(seg)">
                     <span class="badge bg-light text-secondary border me-1" *ngIf="seg.path">{{seg.path}}</span><span *ngIf="seg.signature && seg.signature !== seg.path" class="small text-muted">{{seg.signature}}</span>
                   </div>
+                  <div class="flex-shrink-0" [style.width.px]="synTailWidth"></div>
                 </div>
               </div>
               <!-- Witness stave rows -->
@@ -988,24 +990,28 @@
                   <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">{{docSigles[doc.id] || doc.dokumenten_id}}</span>
                 </div>
                 <div class="d-flex flex-row">
-                  <div *ngFor="let seg of flatSegments" class="d-flex flex-row flex-shrink-0 border-start">
+                  <div class="flex-shrink-0" [style.width.px]="synLeadWidth"></div>
+                  <div *ngFor="let seg of synVisibleSegments; trackBy: trackBySegment" class="d-flex flex-row flex-shrink-0 border-start">
                     <div *ngFor="let col of seg.alignedLineElements" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
                       <ng-container *ngTemplateOutlet="colCell; context: { $implicit: col, docIdx: docIdx }"></ng-container>
                     </div>
                   </div>
+                  <div class="flex-shrink-0" [style.width.px]="synTailWidth"></div>
                 </div>
               </div>
               <!-- Consensus text row -->
               <div *ngIf="showConsensusText" class="synopsis-consensus-text-row d-flex align-items-center mt-0 pt-0.5 border-top" style="background-color: white;">
                 <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">Consensus</div>
                 <div class="d-flex flex-row">
-                  <div *ngFor="let seg of flatSegments" class="d-flex flex-row flex-shrink-0 border-start">
+                  <div class="flex-shrink-0" [style.width.px]="synLeadWidth"></div>
+                  <div *ngFor="let seg of synVisibleSegments; trackBy: trackBySegment" class="d-flex flex-row flex-shrink-0 border-start">
                     <div *ngFor="let col of seg.alignedLineElements" class="synopsis-column text-center" [style.width.px]="getColumnWidth(col)">
                       <div class="syllableText" style="font-family: 'Times New Roman', Times, serif; font-size: 15px; padding-left: 5px; min-height: 24px; line-height: 1.2; display: flex; flex-direction: column; align-items: center; white-space: nowrap;">
                         <span *ngFor="let text of getConsensusSyllableTexts(col)">{{ text }}</span>
                       </div>
                     </div>
                   </div>
+                  <div class="flex-shrink-0" [style.width.px]="synTailWidth"></div>
                 </div>
               </div>
             </div>

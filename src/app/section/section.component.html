@@ -91,7 +91,7 @@
           </div>
 
         </div>
-        <div *ngIf=" ('' + data.kind) === 'ZeileContainer'" (contextmenu)="onContextMenu($event)">
+        <div *ngIf=" ('' + data.kind) === 'ZeileContainer'" (contextmenu)="onContextMenu($event)" [class.zeile-cv]="!readOnly">
           <ng-container *ngFor="let child of data.children; trackBy:getUUID">
             <app-notes #linechild *ngIf="child.kind === 'Syllable'" [readOnly]="readOnly" [model]="child"
               (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-notes>
