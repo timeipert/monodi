@@ -991,20 +991,20 @@
                 <div class="d-flex flex-row align-items-start">
                   <div *ngFor="let col of chunk" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
-                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-clef>
+                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-clef>
                     </ng-container>
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
-                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-notes>
+                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-notes>
                     </ng-container>
                     <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
-                        <svg width="100%" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+                        <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                           <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                            <line x1="0" y1="5" x2="100%" y2="5" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="15" x2="100%" y2="15" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="25" x2="100%" y2="25" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="35" x2="100%" y2="35" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="45" x2="100%" y2="45" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
                           </g>
                         </svg>
                       </div>
@@ -1095,20 +1095,20 @@
                 <ng-container *ngIf="hasLineElements(node, docIdx); else emptyStave">
                   <div *ngFor="let col of node.alignedLineElements" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
-                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-clef>
+                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-clef>
                     </ng-container>
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
-                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-notes>
+                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-notes>
                     </ng-container>
                     <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
-                        <svg width="100%" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+                        <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                           <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                            <line x1="0" y1="5" x2="100%" y2="5" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="15" x2="100%" y2="15" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="25" x2="100%" y2="25" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="35" x2="100%" y2="35" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="45" x2="100%" y2="45" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
                           </g>
                         </svg>
                       </div>
@@ -1119,13 +1119,13 @@
                   <!-- If this node has paratext in single line mode, we render it inline in the stave lines! -->
                   <ng-container *ngIf="hasParatext(node.items); else standardEmpty">
                     <div class="synopsis-placeholder-stave" [style.width.px]="getParatextColumnWidth(node)">
-                      <svg width="100%" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+                      <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                         <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                          <line x1="0" y1="5" x2="100%" y2="5" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="15" x2="100%" y2="15" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="25" x2="100%" y2="25" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="35" x2="100%" y2="35" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="45" x2="100%" y2="45" stroke="#cbd5e1" stroke-width="1"/>
+                          <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
+                          <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
+                          <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
+                          <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
+                          <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
                           
                           <g *ngIf="node.items[docIdx] && node.items[docIdx]?.kind === 'ParatextContainer'" [attr.transform]="'translate(0, -35)'">
                             <text x="5" y="24" font-family="'Times New Roman', Times, serif" font-size="12px" fill="#b91c1c" font-weight="bold" style="font-style: italic;">
@@ -1137,7 +1137,7 @@
                     </div>
                   </ng-container>
                   <ng-template #standardEmpty>
-                    <span class="synopsis-empty-line small ps-2 text-muted fst-italic" [style.line-height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: inline-block;">empty stave</span>
+                    <span class="synopsis-empty-line small ps-2 text-muted fst-italic" [style.line-height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: inline-block;">empty stave</span>
                   </ng-template>
                 </ng-template>
               </div>

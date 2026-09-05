@@ -1,7 +1,7 @@
 <div class="section" [style.width.px]="readOnly ? (35 * staffScale) : 35" [class.read-only]="readOnly">
 	<div #notesDiv class="notes" (keydown)="keyDown($event)" (click)="clicked()" (contextmenu)="onContextMenu($event)" tabindex="-1" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)">
-		<svg [attr.width]="(readOnly ? (35 * staffScale) : 35) + 'px'" [style.height.px]="readOnly ? (65 * staffScale) : 120">
-			<g (click)="clicked()" [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, -20)' : 'scale(' + staffScale + ') translate(0, 0)'">
+		<svg [attr.width]="(readOnly ? (35 * staffScale) : 35) + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
+			<g (click)="clicked()" [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
                           <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
                           <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
                           <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>

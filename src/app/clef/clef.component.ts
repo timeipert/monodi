@@ -39,6 +39,13 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   @Input()
   staffScale = 1.0;
 
+  /** Extra vertical room (internal units) above/below the staff in read-only
+   *  renders, matching app-notes so synopsis cells align. */
+  @Input()
+  readOnlyPadTop = 0;
+  @Input()
+  readOnlyPadBottom = 0;
+
   getActiveComments(): VM.Comment[] {
     if (this.model.focus) {
       return this.comments.filter(c => c.endUUID === this.model.uuid || c.startUUID === this.model.uuid);

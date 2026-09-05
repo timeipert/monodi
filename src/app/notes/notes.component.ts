@@ -75,6 +75,13 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   @Input()
   staffScale = 1.0;
 
+  /** Extra vertical room (internal units) above/below the staff in read-only
+   *  renders, so very high/low notes are not clipped (used by the synopsis). */
+  @Input()
+  readOnlyPadTop = 0;
+  @Input()
+  readOnlyPadBottom = 0;
+
   syllableWidth = 0;
   noteTextWidth = 0;
   syllTextWidth = 0;

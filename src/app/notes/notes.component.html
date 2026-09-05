@@ -2,8 +2,8 @@
 	<ng-container *ngFor="let voice of getVoices(); let i = index; trackBy: trackByIndex">
 	<div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
 		(focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
-		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? (65 * staffScale) : 120">
-			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, -20)' : 'scale(' + staffScale + ') translate(0, 0)'">
+		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
+			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
 				<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
 				<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
 				<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
