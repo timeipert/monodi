@@ -20,6 +20,10 @@ function notesLeaf(zeile: M.ZeileContainer): M.CommentTreeLeaf {
   return { kind: 'CommentTreeLeaf', id: UUID(), content: { kind: 'Notes', content: zeile } };
 }
 
+function bracketLeaf(): M.CommentTreeLeaf {
+  return { kind: 'CommentTreeLeaf', id: UUID(), content: { kind: 'Bracket' } };
+}
+
 function undecided(): M.CommentTreeUndecided {
   return { kind: 'CommentTreeUndecided', id: UUID() };
 }
@@ -42,7 +46,7 @@ export const COMMENT_TEMPLATES: CommentTemplate[] = [
       items: [
         [
           notesLeaf(originalCreator()),      // col 0 — the lemma (chant)
-          textLeaf(']'),                     // col 1 — the bracket
+          bracketLeaf(),                     // col 1 — the editorial bracket
           notesLeaf(M.emptyZeileContainer()) // col 2 — the reading (chant)
         ],
       ],
