@@ -171,8 +171,20 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       'Paste after (discard text)': () => { this.undo.beforeChange(); this.insert([], false, true) },
       'Fix Syllable Dashes': () => {
         this.onEvent.emit({ kind: 'FixSyllableDashesRequested' as any } as any);
-      }
+      },
+      'Merge lines (keep breaks as |)': () => this.mergeLines(),
     };
+  }
+
+  mergeLines(): void {
+    this.undo.beforeChange();
+    const n = Model.mergeZeilenWithLineChanges(this.data);
+    if (n > 0) {
+      this.toaster.success(`Merged ${n} lines into one; manuscript breaks kept as |.`, 'Lines merged');
+    } else {
+      this.toaster.info('No manuscript lines directly here to merge.');
+    }
+    this.cdr.detectChanges();
   }
 
   ngOnDestroy(): void {

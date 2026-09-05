@@ -518,6 +518,40 @@ export function emptyZeileContainer(voiceCount: number = 1): ZeileContainer {
   };
 }
 
+/**
+ * Turn every direct ZeileContainer child of a container into a single merged
+ * line, keeping the original manuscript line breaks as inline LineChange markers
+ * ("|") at the end of each former line. Mutates the container in place.
+ *
+ * Purpose: an ommr4all import makes one ZeileContainer per manuscript line, but
+ * the editor wants a single editorial line to re-split by their own criteria
+ * while the manuscript line breaks stay visible as "|".
+ *
+ * Returns the number of lines merged (0 if there was nothing to merge).
+ */
+export function mergeZeilenWithLineChanges(container: { children: any[] }): number {
+  const children = container.children;
+  const zeileIdxs: number[] = [];
+  for (let i = 0; i < children.length; i++) {
+    if (children[i] && children[i].kind === ContainerKind.ZeileContainer) zeileIdxs.push(i);
+  }
+  if (zeileIdxs.length === 0) return 0;
+
+  const mergedParts: LinePart[] = [];
+  for (const idx of zeileIdxs) {
+    const z = children[idx] as ZeileContainer;
+    mergedParts.push(...(z.children || []));
+    mergedParts.push({ kind: LinePartKind.LineChange, uuid: UUID(), focus: false });
+  }
+
+  // Reuse the first ZeileContainer as the merged line; drop the rest.
+  (children[zeileIdxs[0]] as ZeileContainer).children = mergedParts;
+  for (let k = zeileIdxs.length - 1; k >= 1; k--) {
+    children.splice(zeileIdxs[k], 1);
+  }
+  return zeileIdxs.length;
+}
+
 export function emptySyllable(voiceCount: number = 1): Syllable {
   const notes = {
     spaced: [{

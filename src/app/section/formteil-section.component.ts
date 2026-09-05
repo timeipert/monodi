@@ -144,6 +144,20 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     // 4. Add paratext (Additional metadata/text)
     this.actionHandlers['+ Text'] = () => { this.newAt(Model.emptyParatextContainer(), 0) };
 
+    // 5. Merge all manuscript lines (ommr4all) into one editorial line, keeping
+    //    the breaks as inline "|" markers to re-split by editorial criteria.
+    if (this.data.children.filter(c => c && c.kind === Model.ContainerKind.ZeileContainer).length >= 2) {
+      this.actionHandlers['Merge lines (keep breaks as |)'] = () => this.mergeLines();
+    }
+  }
+
+  mergeLines(): void {
+    this.undo.beforeChange();
+    const n = Model.mergeZeilenWithLineChanges(this.data);
+    if (n > 0) {
+      this.toastr.success(`Merged ${n} lines into one; manuscript breaks kept as |.`, 'Lines merged');
+    }
+    this.cdr.detectChanges();
   }
 
   getName(): string {
