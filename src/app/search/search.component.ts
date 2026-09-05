@@ -401,6 +401,34 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   get alignedTree(): AlignedNode[] { return this.synopsisSvc.alignedTree; }
   set alignedTree(v: AlignedNode[]) { this.synopsisSvc.alignedTree = v; }
 
+  private _flatSegCache: { tree: AlignedNode[]; segs: AlignedNode[] } | null = null;
+  /** Flat, in-order list of the staff-bearing segments across the aligned tree
+   *  (used by the one-line structural layout). Memoised by tree reference. */
+  get flatSegments(): AlignedNode[] {
+    const tree = this.alignedTree;
+    if (this._flatSegCache && this._flatSegCache.tree === tree) return this._flatSegCache.segs;
+    const out: AlignedNode[] = [];
+    const walk = (nodes: AlignedNode[]) => {
+      for (const n of nodes) {
+        if (n.alignedLineElements) out.push(n);
+        if (n.children && n.children.length) walk(n.children);
+      }
+    };
+    walk(tree);
+    this._flatSegCache = { tree, segs: out };
+    return out;
+  }
+
+  /** Total rendered width of a segment (sum of its column widths). */
+  segmentWidth(node: AlignedNode): number {
+    if (!node.alignedLineElements) return 0;
+    return node.alignedLineElements.reduce((sum, col) => sum + this.getColumnWidth(col), 0);
+  }
+
+  get isStructuralMode(): boolean {
+    return this.alignmentMode === 'signature' || this.alignmentMode === 'structure' || this.alignmentMode === 'sequential';
+  }
+
   get docSigles(): { [docId: string]: string } { return this.synopsisSvc.docSigles; }
   set docSigles(v: { [docId: string]: string }) { this.synopsisSvc.docSigles = v; }
 

@@ -752,7 +752,11 @@ export class SynopsisService {
   }
 
   onSingleLineToggle() {
-    this.runAlignment(this.cachedRootContainers);
+    // Only melody/text need re-chunking; structural modes just switch layout in
+    // the template over the same aligned tree, so no re-alignment is needed.
+    if (this.alignmentMode === 'melody' || this.alignmentMode === 'text') {
+      this.runAlignment(this.cachedRootContainers);
+    }
   }
 
   async exportSynopsisPDF(selectedDocs: Document[], settings: ProjectSettings | null, visibleSynopsisCols: any[]) {
@@ -943,7 +947,8 @@ export class SynopsisService {
           ensureSpace(22);
           y += level === 1 ? 4 : 2.5;
           doc.setFont('times', level === 3 ? 'italic' : 'bold');
-          doc.setFontSize(level === 1 ? 11 : level === 2 ? 10 : 9.5);
+          // Structural labels are secondary — keep them small.
+          doc.setFontSize(level === 1 ? 8 : level === 2 ? 7.5 : 7);
           doc.setTextColor(30, 41, 59);
           const nameX = contentX + indent;
           const shownName = level === 1 ? name.toUpperCase() : name;

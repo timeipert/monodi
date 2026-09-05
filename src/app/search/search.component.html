@@ -882,7 +882,7 @@
           <input class="form-check-input" type="checkbox" id="consensusTextToggle" [(ngModel)]="showConsensusText">
           <label class="form-check-label text-muted small fw-semibold" for="consensusTextToggle">Consensus text</label>
         </div>
-        <div class="form-check form-switch mb-0" *ngIf="alignmentMode === 'melody' || alignmentMode === 'text'">
+        <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" id="singleLineToggle" [(ngModel)]="showSingleLineSynopsis" (change)="onSingleLineToggle()">
           <label class="form-check-label text-muted small fw-semibold" for="singleLineToggle">One line</label>
         </div>
@@ -968,9 +968,42 @@
     <!-- Synopsis Content -->
     <div *ngIf="!synopsisLoading">
       <!-- 1. Tree / Structural Alignment Mode -->
-      <div *ngIf="alignmentMode === 'signature' || alignmentMode === 'structure' || alignmentMode === 'sequential'">
-        <ng-container *ngFor="let node of alignedTree">
-          <ng-container *ngTemplateOutlet="synNode; context: { $implicit: node, level: 1 }"></ng-container>
+      <div *ngIf="isStructuralMode">
+        <!-- 1a. One line: all segments in a row, horizontally scrollable, label above each -->
+        <div *ngIf="showSingleLineSynopsis" class="synopsis-leaf-container border rounded p-2 bg-white">
+          <div class="overflow-auto w-100" style="background-color: white;">
+            <div style="min-width: max-content; display: flex; flex-direction: column;">
+              <!-- Segment labels -->
+              <div class="d-flex flex-row align-items-end" style="background-color: white;">
+                <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white;"></div>
+                <div class="d-flex flex-row">
+                  <div *ngFor="let seg of flatSegments" class="flex-shrink-0 border-start ps-1 pb-1" [style.width.px]="segmentWidth(seg)">
+                    <span class="badge bg-light text-secondary border me-1" *ngIf="seg.path">{{seg.path}}</span><span *ngIf="seg.signature && seg.signature !== seg.path" class="small text-muted">{{seg.signature}}</span>
+                  </div>
+                </div>
+              </div>
+              <!-- Witness stave rows -->
+              <div *ngFor="let doc of selectedDocs; let docIdx = index" class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
+                <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">
+                  <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">{{docSigles[doc.id] || doc.dokumenten_id}}</span>
+                </div>
+                <div class="d-flex flex-row">
+                  <div *ngFor="let seg of flatSegments" class="d-flex flex-row flex-shrink-0 border-start">
+                    <div *ngFor="let col of seg.alignedLineElements" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
+                      <ng-container *ngTemplateOutlet="colCell; context: { $implicit: col, docIdx: docIdx }"></ng-container>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1b. Stacked blocks (default) -->
+        <ng-container *ngIf="!showSingleLineSynopsis">
+          <ng-container *ngFor="let node of alignedTree">
+            <ng-container *ngTemplateOutlet="synNode; context: { $implicit: node, level: 1 }"></ng-container>
+          </ng-container>
         </ng-container>
       </div>
 
@@ -1037,11 +1070,34 @@
     </div>
   </div>
 
+  <!-- One aligned cell (clef / notes / empty stave) for a given witness. -->
+  <ng-template #colCell let-col let-docIdx="docIdx">
+    <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
+      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-clef>
+    </ng-container>
+    <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
+      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-notes>
+    </ng-container>
+    <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
+      <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
+        <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+          <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
+            <line x1="0" y1="26" x2="100%" y2="26" stroke="#cbd5e1" stroke-width="1"/>
+            <line x1="0" y1="36" x2="100%" y2="36" stroke="#cbd5e1" stroke-width="1"/>
+            <line x1="0" y1="46" x2="100%" y2="46" stroke="#cbd5e1" stroke-width="1"/>
+            <line x1="0" y1="56" x2="100%" y2="56" stroke="#cbd5e1" stroke-width="1"/>
+            <line x1="0" y1="66" x2="100%" y2="66" stroke="#cbd5e1" stroke-width="1"/>
+          </g>
+        </svg>
+      </div>
+    </ng-container>
+  </ng-template>
+
   <!-- Recursive structural section: renders its own aligned lines, then every child at any depth. -->
   <ng-template #synNode let-node let-level="level">
     <div class="syn-sec" [ngClass]="'syn-sec-' + (level > 3 ? 3 : level)">
       <div class="syn-sec-head">
-        <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="node.path">{{node.path}}</span>{{node.signature || (node.kind === 'leaf' ? 'Line' : 'Section')}}</span>
+        <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="node.path">{{node.path}}</span><span *ngIf="node.signature && node.signature !== node.path">{{node.signature}}</span><span *ngIf="!node.path && !node.signature">{{node.kind === 'leaf' ? 'Line' : 'Section'}}</span></span>
         <span class="syn-sec-rule"></span>
         <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{selectedDocs.length}}</span>
       </div>
