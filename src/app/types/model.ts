@@ -521,7 +521,7 @@ export function emptyZeileContainer(voiceCount: number = 1): ZeileContainer {
 /**
  * Turn every direct ZeileContainer child of a container into a single merged
  * line, keeping the original manuscript line breaks as inline LineChange markers
- * ("|") at the end of each former line. Mutates the container in place.
+ * ("|") between the former lines (no trailing break). Mutates the container in place.
  *
  * Purpose: an ommr4all import makes one ZeileContainer per manuscript line, but
  * the editor wants a single editorial line to re-split by their own criteria
@@ -538,10 +538,13 @@ export function mergeZeilenWithLineChanges(container: { children: any[] }): numb
   if (zeileIdxs.length === 0) return 0;
 
   const mergedParts: LinePart[] = [];
-  for (const idx of zeileIdxs) {
-    const z = children[idx] as ZeileContainer;
+  for (let i = 0; i < zeileIdxs.length; i++) {
+    const z = children[zeileIdxs[i]] as ZeileContainer;
     mergedParts.push(...(z.children || []));
-    mergedParts.push({ kind: LinePartKind.LineChange, uuid: UUID(), focus: false });
+    // A break marks the transition to the next line, so skip it after the last.
+    if (i < zeileIdxs.length - 1) {
+      mergedParts.push({ kind: LinePartKind.LineChange, uuid: UUID(), focus: false });
+    }
   }
 
   // Reuse the first ZeileContainer as the merged line; drop the rest.
