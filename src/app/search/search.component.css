@@ -327,7 +327,10 @@ code {
 .synopsis-column {
   display: inline-flex;
   justify-content: center;
-  align-items: flex-end;
+  /* Top-align so the staff SVG (first child of both app-notes and the empty-stave
+     placeholder) lines up — bottom-aligning pushed note staves up by the height
+     of their syllable text, leaving gap staves sitting lower. */
+  align-items: flex-start;
   margin: 0 !important;
   padding: 0 !important;
 }
