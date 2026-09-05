@@ -435,6 +435,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   synLeadWidth = 0;
   synTailWidth = 0;
   private _synWindowFor: AlignedNode[] | null = null;
+  private _synWindowKey = '';
   private _synOffsets: number[] = [];
   private _synOffsetsFor: AlignedNode[] | null = null;
   private _synRaf = 0;
@@ -836,8 +837,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     // (and the scroll container) are available; refresh it when segments change.
     if (this.isStructuralMode && this.showSingleLineSynopsis) {
       const segs = this.flatSegments;
-      if (this._synWindowFor !== segs) {
+      const key = (this.showConsensusText ? 'C' : 'N') + (this.settings?.pdfSynopsisScale || 1.0);
+      if (this._synWindowFor !== segs || this._synWindowKey !== key) {
         this._synWindowFor = segs;
+        this._synWindowKey = key;
+        this._synOffsetsFor = null; // column widths (hence offsets) may have changed
         const el = this.synScrollRef?.nativeElement;
         this.updateSynWindow(el ? el.scrollLeft : 0, el ? el.clientWidth : 1400);
         this.cdRef.markForCheck();
