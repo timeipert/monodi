@@ -1,5 +1,5 @@
 import { FocusService } from '../focus.service';
-import { ViewChild, ElementRef, Component, OnInit, DoCheck, HostListener } from '@angular/core';
+import { ViewChild, ElementRef, Component, OnInit, HostListener } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
@@ -33,17 +33,13 @@ import autoTable from 'jspdf-autotable';
   templateUrl: './document.component.html',
   styleUrls: ['./document.component.css']
 })
-export class DocumentComponent implements OnInit, DoCheck {
-  /** Tracks the last `cont` reference for which we computed the first syllable. */
-  private _clefContRef: VM.RootContainer | null = null;
-
-  /** Keep FocusService.firstSyllableUuid in sync so the first syllable draws a clef. */
-  ngDoCheck(): void {
-    if (this.cont !== this._clefContRef) {
-      this._clefContRef = this.cont ?? null;
-      const sylls = this.cont ? VM.getSyllables(this.cont) : [];
-      this.focusService.firstSyllableUuid = sylls.length > 0 ? sylls[0].uuid : null;
-    }
+export class DocumentComponent implements OnInit {
+  /** Publish the first syllable's UUID (for the chant-start clef). Called when a
+   *  document is loaded — NOT during change detection — so it never mutates state
+   *  that a freshly-created child view reads in the same CD pass (NG0100). */
+  private setFirstSyllable(): void {
+    const sylls = this.cont ? VM.getSyllables(this.cont) : [];
+    this.focusService.firstSyllableUuid = sylls.length > 0 ? sylls[0].uuid : null;
   }
 
   getCategoryDetails = getCategoryDetails;
@@ -1584,6 +1580,7 @@ export class DocumentComponent implements OnInit, DoCheck {
         this.cont = VM.emptyRootContainer();
         this.currentFolioIndex = this.initialFolioIndex;
       }
+      this.setFirstSyllable();
 
       setTimeout(() => {
         this.updateToolbar();
@@ -1759,6 +1756,7 @@ export class DocumentComponent implements OnInit, DoCheck {
             // here, which made imported docs look permanently broken.
             this.cont = VM.emptyRootContainer();
             this.contJsonClone = JSON.stringify(this.cont);
+            this.setFirstSyllable();
             this.toastr.warning(
               'No transcription data was found for this document. Starting from an empty edition — re-import to restore the original notes.',
               'Notes missing'
@@ -1768,6 +1766,7 @@ export class DocumentComponent implements OnInit, DoCheck {
             this.cont = VM.normalizeDocumentComments(res.data);
             this.contJsonClone = JSON.stringify(this.cont);
             this.checkSecondVoiceComments(this.cont);
+            this.setFirstSyllable();
             break;
           default: assertNever(res);
         }
@@ -1975,6 +1974,7 @@ export class DocumentComponent implements OnInit, DoCheck {
               this.contJsonClone = JSON.stringify(this.cont);
               this.toastr.success("Upload successful!");
               this.checkSecondVoiceComments(this.cont);
+              this.setFirstSyllable();
               break;
 
             default: assertNever(res);
