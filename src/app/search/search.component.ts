@@ -842,9 +842,13 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
         this._synWindowFor = segs;
         this._synWindowKey = key;
         this._synOffsetsFor = null; // column widths (hence offsets) may have changed
-        const el = this.synScrollRef?.nativeElement;
-        this.updateSynWindow(el ? el.scrollLeft : 0, el ? el.clientWidth : 1400);
-        this.cdRef.markForCheck();
+        // Defer to a fresh CD cycle — mutating bindings during ngAfterViewChecked
+        // would raise ExpressionChangedAfterItHasBeenCheckedError.
+        requestAnimationFrame(() => {
+          const el = this.synScrollRef?.nativeElement;
+          this.updateSynWindow(el ? el.scrollLeft : 0, el ? el.clientWidth : 1400);
+          this.cdRef.markForCheck();
+        });
       }
     }
 
