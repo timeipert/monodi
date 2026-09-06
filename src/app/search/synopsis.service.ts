@@ -6,7 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { APIService, Document, ProjectSettings } from '../api.service';
 import { UserService, User } from '../user.service';
 import { textWidth } from '../../utils';
-import { registerNotoSans, isNotoFamily } from '../pdf-font';
+import { registerEmbeddedFont, embeddedFamily } from '../pdf-font';
 import * as VM from '../types/model';
 
 export interface AlignedLineElement {
@@ -808,9 +808,10 @@ export class SynopsisService {
       pageW = doc.internal.pageSize.getWidth();
       pageH = doc.internal.pageSize.getHeight();
 
-      // Use the embedded Unicode font when selected, so non-western text renders.
-      const font = isNotoFamily((settings as any)?.pdfFontFamily) ? 'NotoSans' : 'times';
-      if (font === 'NotoSans') { await registerNotoSans(doc); }
+      // Use the embedded Unicode/CJK font when selected, so non-western text renders.
+      const embFam = embeddedFamily((settings as any)?.pdfFontFamily);
+      const font = embFam || 'times';
+      if (embFam) { await registerEmbeddedFont(doc, embFam); }
 
       const contentX = margin;
       const contentW = pageW - margin * 2;

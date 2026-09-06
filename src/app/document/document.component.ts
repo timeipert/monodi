@@ -1,5 +1,5 @@
 import { FocusService } from '../focus.service';
-import { registerNotoSans, isNotoFamily } from '../pdf-font';
+import { registerEmbeddedFont, embeddedFamily } from '../pdf-font';
 import { ViewChild, ElementRef, Component, OnInit, HostListener } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -801,9 +801,9 @@ export class DocumentComponent implements OnInit {
       try {
         const s: any = this.settings || {};
         const doc = new jsPDF({ unit: 'pt', format: (s.pdfFormat || 'a4'), orientation: (s.pdfOrientation || 'portrait') });
-        const fontFamily = s.pdfFontFamily || 'times';
-        if (isNotoFamily(fontFamily)) {
-          await registerNotoSans(doc);
+        const fontFamily = embeddedFamily(s.pdfFontFamily) || s.pdfFontFamily || 'times';
+        if (embeddedFamily(fontFamily)) {
+          await registerEmbeddedFont(doc, fontFamily);
         }
         const pdfMarginLeft = Number(s.pdfMarginLeft ?? 40);
         const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
@@ -877,9 +877,13 @@ export class DocumentComponent implements OnInit {
 
           // Draw text word by word, wrapping at the right margin (and across pages)
           // so long values like the Comment break automatically.
+          // Tokenise into whitespace, Latin words, and individual CJK characters
+          // (CJK has no spaces, so it must be able to wrap mid-run).
+          const CJK = '\\u3000-\\u9fff\\u3400-\\u4dbf\\uf900-\\ufaff\\uff00-\\uffef';
+          const tokenRe = new RegExp(`[${CJK}]|\\s+|[^\\s${CJK}]+`, 'g');
           const drawWords = (text: string, style: 'bold' | 'normal') => {
             doc.setFont(fontFamily, style);
-            for (const w of text.split(/(\s+)/)) {
+            for (const w of (text.match(tokenRe) || [])) {
               if (!w) continue;
               const isSpace = /^\s+$/.test(w);
               const ww = doc.getTextWidth(w);

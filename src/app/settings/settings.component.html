@@ -441,9 +441,11 @@
                   <select class="form-select form-select-sm" [(ngModel)]="settings.pdfFontFamily" (ngModelChange)="onSettingsChange()">
                     <option value="times">Times (Classic Serif)</option>
                     <option value="helvetica">Helvetica (Modern Sans-Serif)</option>
-                    <option value="NotoSans">Noto Sans (Unicode — non-western text)</option>
+                    <option value="NotoSans">Noto Sans (Unicode — Latin/Greek/Cyrillic)</option>
+                    <option value="NotoSansTC">Noto Sans TC (Traditional Chinese + Latin)</option>
+                    <option value="NotoSansSC">Noto Sans SC (Simplified Chinese + Latin)</option>
                   </select>
-                  <div class="form-text small">Choose Noto Sans to render extended Latin, Greek, Cyrillic and many diacritics in the PDF. (The built-in Times/Helvetica only cover Western-European characters.)</div>
+                  <div class="form-text small">Noto Sans covers extended Latin, Greek, Cyrillic and diacritics. Choose a Chinese (TC/SC) variant to also render Chinese characters — these cover Latin too. (Times/Helvetica only cover Western-European characters.)</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
