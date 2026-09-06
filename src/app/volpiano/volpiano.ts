@@ -8,13 +8,13 @@
  * Pitch mapping (non-transposing treble clef `1`, which CANTUS always uses):
  *
  *   8 9 a b c d e f g h j k l m n o p q r s
- *   G A B C D E F G A B C D E F G A B C D E
- *   3 3 3 4 4 4 4 4 4 4 5 5 5 5 5 5 5 6 6 6   (scientific octave)
+ *   F G A B C D E F G A B C D E F G A B C D
+ *   3 3 3 3 4 4 4 4 4 4 4 5 5 5 5 5 5 5 6 6   (scientific octave)
  *
- *   → `b` is middle C (C4); `d` sits on the bottom treble line (E4); `m` on the top line (F5).
+ *   → `c` is middle C (C4); `b` is B3; the lowest letter `8` is F3.
  *
  * Uppercase letters ` ) A B C … S ` are the *liquescent* forms (small note-heads),
- * aligned one step up from `9` (`)` = liquescent A3, `A` = liquescent B3, …).
+ * aligned one step up from `8` (`)` = liquescent G3, `A` = liquescent A3, …).
  *
  * Spacing (protocol §5):
  *   -    single hyphen — between neumes sung to the same syllable
@@ -75,13 +75,13 @@ const INDEX_TO_STEP: BaseNote[] = [
   BaseNote.C, BaseNote.D, BaseNote.E, BaseNote.F, BaseNote.G, BaseNote.A, BaseNote.B,
 ];
 
-/** Volpiano pitch letters in ascending order, lowest = `8` (G3). */
+/** Volpiano pitch letters in ascending order, lowest = `8` (F3). */
 const VP_NORMAL_ORDER = '89abcdefghjklmnopqrs';
-/** Liquescent letters, aligned so index 0 (`)`) sits one step above `8`, i.e. A3. */
+/** Liquescent letters, aligned so index 0 (`)`) sits one step above `8`, i.e. G3. */
 const VP_LIQ_ORDER = ')ABCDEFGHJKLMNOPQRS';
-/** Diatonic index of `8` (G3) = 3*7 + STEP_TO_INDEX[G] = 25. */
-const VP_LOW_DI = 25;
-/** Diatonic index of the lowest liquescent glyph `)` (A3) = 26. */
+/** Diatonic index of `8` (F3) = 3*7 + STEP_TO_INDEX[F] = 24. */
+const VP_LOW_DI = 24;
+/** Diatonic index of the lowest liquescent glyph `)` (G3) = 25. */
 const VP_LIQ_LOW_DI = VP_LOW_DI + 1;
 
 /** Sign characters keyed by the diatonic index of the note they affect. */
@@ -102,7 +102,7 @@ function fromDiatonicIndex(di: number): { base: BaseNote; octave: number } {
 
 /**
  * Pitch → Volpiano letter. Returns `null` (with a reason) when the pitch lies
- * outside the Volpiano range (below G3 or above E6).
+ * outside the Volpiano range (below F3 or above D6).
  */
 export function pitchToVolpianoChar(
   base: BaseNote,
@@ -112,14 +112,14 @@ export function pitchToVolpianoChar(
   const di = diatonicIndex(base, octave);
   const normIdx = di - VP_LOW_DI;
   if (normIdx < 0 || normIdx >= VP_NORMAL_ORDER.length) {
-    return { char: null, reason: `pitch ${base}${octave} is outside the Volpiano range (G3–E6)` };
+    return { char: null, reason: `pitch ${base}${octave} is outside the Volpiano range (F3–D6)` };
   }
   if (liquescent) {
     const liqIdx = di - VP_LIQ_LOW_DI;
     if (liqIdx >= 0 && liqIdx < VP_LIQ_ORDER.length) {
       return { char: VP_LIQ_ORDER[liqIdx] };
     }
-    // Only G3 has no liquescent glyph — fall back to the normal note.
+    // Only F3 (the lowest letter) has no liquescent glyph — fall back to normal.
     return { char: VP_NORMAL_ORDER[normIdx] };
   }
   return { char: VP_NORMAL_ORDER[normIdx] };

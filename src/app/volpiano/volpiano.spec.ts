@@ -69,17 +69,18 @@ function docFromSyllables(syllables: Syllable[]): RootContainer {
 // ── pitch table ──────────────────────────────────────────────────────────────
 
 describe('Volpiano pitch table', () => {
-  it('anchors b to middle C (C4)', () => {
-    expect(pitchToVolpianoChar(BaseNote.C, 4, false)).toEqual({ char: 'b' });
-    expect(volpianoCharToPitch('b')).toEqual({ base: BaseNote.C, octave: 4, liquescent: false });
+  it('anchors c to middle C (C4) and b to B3', () => {
+    expect(pitchToVolpianoChar(BaseNote.C, 4, false)).toEqual({ char: 'c' });
+    expect(volpianoCharToPitch('c')).toEqual({ base: BaseNote.C, octave: 4, liquescent: false });
+    expect(volpianoCharToPitch('b')).toEqual({ base: BaseNote.B, octave: 3, liquescent: false });
   });
 
   it('maps the treble-staff anchors from the CANTUS protocol', () => {
-    // d = bottom treble line E4, m = top line F5, 8 = G3, s = E6
-    expect(pitchToVolpianoChar(BaseNote.E, 4, false)).toEqual({ char: 'd' });
-    expect(pitchToVolpianoChar(BaseNote.F, 5, false)).toEqual({ char: 'm' });
-    expect(pitchToVolpianoChar(BaseNote.G, 3, false)).toEqual({ char: '8' });
-    expect(pitchToVolpianoChar(BaseNote.E, 6, false)).toEqual({ char: 's' });
+    // 8 = F3, f = E4, n = F5, s = D6
+    expect(pitchToVolpianoChar(BaseNote.F, 3, false)).toEqual({ char: '8' });
+    expect(pitchToVolpianoChar(BaseNote.E, 4, false)).toEqual({ char: 'f' });
+    expect(pitchToVolpianoChar(BaseNote.F, 5, false)).toEqual({ char: 'n' });
+    expect(pitchToVolpianoChar(BaseNote.D, 6, false)).toEqual({ char: 's' });
   });
 
   it('is a bijection across the whole lowercase range', () => {
@@ -91,9 +92,9 @@ describe('Volpiano pitch table', () => {
   });
 
   it('maps uppercase letters to liquescent notes', () => {
-    // H = liquescent B4 (h)
-    expect(volpianoCharToPitch('H')).toEqual({ base: BaseNote.B, octave: 4, liquescent: true });
-    expect(pitchToVolpianoChar(BaseNote.B, 4, true)).toEqual({ char: 'H' });
+    // H = liquescent A4
+    expect(volpianoCharToPitch('H')).toEqual({ base: BaseNote.A, octave: 4, liquescent: true });
+    expect(pitchToVolpianoChar(BaseNote.A, 4, true)).toEqual({ char: 'H' });
   });
 
   it('reports pitches outside the Volpiano range', () => {
@@ -117,7 +118,7 @@ describe('rootToVolpiano', () => {
       syllable('de-', [[B4()]]),
       syllable('us', [[B4()]]),
     ]);
-    expect(rootToVolpiano(doc).volpiano).toBe('1---dh-k--h--h---h--h---');
+    expect(rootToVolpiano(doc).volpiano).toBe('1---fj-l--j--j---j--j---');
   });
 
   it('separates same-word syllables with -- and words with ---', () => {
@@ -128,7 +129,7 @@ describe('rootToVolpiano', () => {
       syllable('al', [[C4()]]),
     ]);
     // a- + men (same word, --) then al (new word, ---)
-    expect(rootToVolpiano(doc).volpiano).toBe('1---b--b---b---');
+    expect(rootToVolpiano(doc).volpiano).toBe('1---c--c---c---');
   });
 });
 
