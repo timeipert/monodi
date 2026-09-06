@@ -1,4 +1,5 @@
 import { FocusService } from '../focus.service';
+import { registerNotoSans, isNotoFamily } from '../pdf-font';
 import { ViewChild, ElementRef, Component, OnInit, HostListener } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -801,6 +802,9 @@ export class DocumentComponent implements OnInit {
         const s: any = this.settings || {};
         const doc = new jsPDF({ unit: 'pt', format: (s.pdfFormat || 'a4'), orientation: (s.pdfOrientation || 'portrait') });
         const fontFamily = s.pdfFontFamily || 'times';
+        if (isNotoFamily(fontFamily)) {
+          await registerNotoSans(doc);
+        }
         const pdfMarginLeft = Number(s.pdfMarginLeft ?? 40);
         const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
         const pdfMarginTop = Number(s.pdfMarginTop ?? 40);

@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { APIService, Document, ProjectSettings } from '../api.service';
 import { UserService, User } from '../user.service';
 import { textWidth } from '../../utils';
+import { registerNotoSans, isNotoFamily } from '../pdf-font';
 import * as VM from '../types/model';
 
 export interface AlignedLineElement {
@@ -807,6 +808,10 @@ export class SynopsisService {
       pageW = doc.internal.pageSize.getWidth();
       pageH = doc.internal.pageSize.getHeight();
 
+      // Use the embedded Unicode font when selected, so non-western text renders.
+      const font = isNotoFamily((settings as any)?.pdfFontFamily) ? 'NotoSans' : 'times';
+      if (font === 'NotoSans') { await registerNotoSans(doc); }
+
       const contentX = margin;
       const contentW = pageW - margin * 2;
       const topY = margin + 5;
@@ -821,11 +826,11 @@ export class SynopsisService {
       };
 
       if (showHeader) {
-        doc.setFont('times', 'bold');
+        doc.setFont(font, 'bold');
         doc.setFontSize(16);
         doc.setTextColor(15, 23, 42);
         doc.text('Synoptic Comparison', pageW / 2, y + 2, { align: 'center' });
-        doc.setFont('times', 'italic');
+        doc.setFont(font, 'italic');
         doc.setFontSize(9);
         doc.setTextColor(80, 80, 80);
         const modeLabel = this.alignmentMode.charAt(0).toUpperCase() + this.alignmentMode.slice(1);
@@ -844,7 +849,7 @@ export class SynopsisService {
       }
 
       if (showMeta && visibleSynopsisCols.length && selectedDocs.length) {
-        doc.setFont('times', 'bold');
+        doc.setFont(font, 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(80, 80, 80);
         doc.text('WITNESSES', contentX, y);
@@ -862,7 +867,7 @@ export class SynopsisService {
           theme: 'plain',
           tableWidth: Math.min(contentW, 190),
           styles: {
-            font: 'times', fontSize: 9, textColor: [15, 23, 42],
+            font: font, fontSize: 9, textColor: [15, 23, 42],
             cellPadding: { top: 1, bottom: 1, left: 0, right: 3 },
             lineColor: [226, 232, 240], lineWidth: 0
           },
@@ -922,7 +927,7 @@ export class SynopsisService {
           const fontPx = parseFloat(cs.fontSize) || 15;
           const italic = cs.fontStyle === 'italic';
           const bold = (parseInt(cs.fontWeight, 10) || 400) >= 600;
-          doc.setFont('times', bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal');
+          doc.setFont(font, bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal');
           doc.setFontSize(ptOf(fontPx));
           const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(cs.color);
           if (m) doc.setTextColor(+m[1], +m[2], +m[3]); else doc.setTextColor(0, 0, 0);
@@ -948,7 +953,7 @@ export class SynopsisService {
           const match = (block.querySelector('.syn-sec-match')?.textContent || '').trim();
           ensureSpace(22);
           y += level === 1 ? 4 : 2.5;
-          doc.setFont('times', level === 3 ? 'italic' : 'bold');
+          doc.setFont(font, level === 3 ? 'italic' : 'bold');
           // Structural labels are secondary — keep them small.
           doc.setFontSize(level === 1 ? 8 : level === 2 ? 7.5 : 7);
           doc.setTextColor(30, 41, 59);
@@ -956,7 +961,7 @@ export class SynopsisService {
           const shownName = level === 1 ? name.toUpperCase() : name;
           doc.text(shownName, nameX, y);
           const nameW = doc.getTextWidth(shownName);
-          doc.setFont('times', 'normal');
+          doc.setFont(font, 'normal');
           doc.setFontSize(7);
           doc.setTextColor(100, 116, 139);
           const matchW = doc.getTextWidth(match);
@@ -987,7 +992,7 @@ export class SynopsisService {
       for (let i = 1; i <= total; i++) {
         doc.setPage(i);
         if (showHeader && i > 1) {
-          doc.setFont('times', 'italic');
+          doc.setFont(font, 'italic');
           doc.setFontSize(9);
           doc.setTextColor(80, 80, 80);
           doc.text(`Synoptic Comparison \u2014 ${modeLbl} alignment`, contentX, margin - 3);
@@ -1000,7 +1005,7 @@ export class SynopsisService {
           doc.setDrawColor(90, 90, 90);
           doc.setLineWidth(0.2);
           doc.line(contentX, pageH - margin + 1, pageW - margin, pageH - margin + 1);
-          doc.setFont('times', 'normal');
+          doc.setFont(font, 'normal');
           doc.setFontSize(8);
           doc.setTextColor(80, 80, 80);
           if (showFooterIds && sigla) {
