@@ -852,12 +852,17 @@ export class DocumentComponent implements OnInit {
           }
         };
 
-        // Title
+        // Title (wrapped to the printable width)
         doc.setFontSize(titleFontSize);
         doc.setFont(fontFamily, "bold");
         const headerText = this.getMetadataFieldValue(headerSource) || (this.document?.textinitium || "New Document");
-        doc.text(headerText, pdfMarginLeft, cursorY);
-        cursorY += pdfTitleVerticalSpace;
+        const titleLineH = titleFontSize * 1.15;
+        for (const line of doc.splitTextToSize(headerText, printWidth)) {
+          checkPageOverflow(titleLineH);
+          doc.text(line, pdfMarginLeft, cursorY);
+          cursorY += titleLineH;
+        }
+        cursorY += Math.max(0, pdfTitleVerticalSpace - titleLineH);
         checkPageOverflow(0);
 
         // Metadata inline, styled & dense
@@ -867,33 +872,34 @@ export class DocumentComponent implements OnInit {
           const items = this.getInlineMetadataItems();
           let curX = pdfMarginLeft;
           let curY = cursorY;
-          const bullet = "   •   ";
-          
-          for (let k = 0; k < items.length; k++) {
-            const item = items[k];
-            const labelText = item.label + ": ";
-            const valText = item.val + (k < items.length - 1 ? bullet : "");
-            
-            doc.setFont(fontFamily, "bold");
-            const labelWidth = doc.getTextWidth(labelText);
-            doc.setFont(fontFamily, "normal");
-            const valWidth = doc.getTextWidth(valText);
-            
-            if (curX + labelWidth + valWidth > pageWidth - pdfMarginRight) {
-              curX = pdfMarginLeft;
-              curY += metaFontSize * 1.4;
-              checkPageOverflow(metaFontSize * 1.4);
+          const rightEdge = pageWidth - pdfMarginRight;
+          const lineH = metaFontSize * 1.4;
+
+          // Draw text word by word, wrapping at the right margin (and across pages)
+          // so long values like the Comment break automatically.
+          const drawWords = (text: string, style: 'bold' | 'normal') => {
+            doc.setFont(fontFamily, style);
+            for (const w of text.split(/(\s+)/)) {
+              if (!w) continue;
+              const isSpace = /^\s+$/.test(w);
+              const ww = doc.getTextWidth(w);
+              if (!isSpace && curX + ww > rightEdge && curX > pdfMarginLeft) {
+                curX = pdfMarginLeft;
+                curY += lineH;
+                if (curY > maxContentY) { doc.addPage(); curY = pdfMarginTop; }
+              }
+              if (isSpace && curX === pdfMarginLeft) continue; // no leading space on a wrapped line
+              doc.text(w, curX, curY);
+              curX += ww;
             }
-            
-            doc.setFont(fontFamily, "bold");
-            doc.text(labelText, curX, curY);
-            curX += labelWidth;
-            
-            doc.setFont(fontFamily, "normal");
-            doc.text(valText, curX, curY);
-            curX += valWidth;
+          };
+
+          for (let k = 0; k < items.length; k++) {
+            drawWords(items[k].label + ": ", 'bold');
+            drawWords(items[k].val, 'normal');
+            if (k < items.length - 1) drawWords("   •   ", 'normal');
           }
-          
+
           cursorY = curY + pdfMetadataVerticalSpace;
           checkPageOverflow(0);
         }
@@ -1009,8 +1015,10 @@ export class DocumentComponent implements OnInit {
                 const gap = 3;
                 const mx = cursorX + gap;
                 const h = lineMaxHeight > 0 ? lineMaxHeight : 24;
-                const tickTop = cursorY + (60 / 65) * h;      // bottom staff line
-                const tickBottom = tickTop + (22 / 65) * h;   // hangs below, ~half staff height
+                // Staff geometry of the read-only note SVG (65 + padTop 10 + padBottom 16
+                // = 91 tall; the bottom staff line sits at 70/91).
+                const tickTop = cursorY + (70 / 91) * h;      // bottom staff line
+                const tickBottom = tickTop + (20 / 91) * h;   // hangs below
                 const tickGap = Math.max(2, h * 0.08);
                 doc.setLineWidth(Math.max(0.7, h * 0.035));
                 doc.setDrawColor(0, 0, 0);
