@@ -799,8 +799,10 @@ export class SynopsisService {
 
       const doc = new jsPDF({
         unit: 'mm',
-        format: singleLine ? [pageW, pageH] : 'a4',
-        orientation: singleLine ? 'landscape' : 'portrait'
+        // One-line synopsis is auto-sized to its content; the stacked view uses
+        // the configured page format/orientation.
+        format: singleLine ? [pageW, pageH] : ((settings as any)?.pdfFormat || 'a4'),
+        orientation: singleLine ? 'landscape' : (((settings as any)?.pdfOrientation) || 'portrait')
       });
       pageW = doc.internal.pageSize.getWidth();
       pageH = doc.internal.pageSize.getHeight();

@@ -210,6 +210,36 @@
               <div class="settings-pane-sub">Page geometry, spacing, brackets, and typography of the vector PDF export — with live preview.</div>
             </div>
           </div>
+          <!-- Group 0: Page format -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-file-earmark me-2"></i>Page format</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small fw-medium text-muted mb-1">Format</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="settings.pdfFormat" (ngModelChange)="onSettingsChange()">
+                    <option value="a5">A5</option>
+                    <option value="a4">A4</option>
+                    <option value="a3">A3</option>
+                    <option value="letter">Letter (US / Canada)</option>
+                    <option value="legal">Legal (US / Canada)</option>
+                    <option value="tabloid">Tabloid / Ledger (US)</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-medium text-muted mb-1">Orientation</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="settings.pdfOrientation" (ngModelChange)="onSettingsChange()">
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-text small mt-2">Applies to the document PDF and the stacked synopsis PDF. The one-line synopsis auto-sizes to its content.</div>
+            </div>
+          </div>
+
           <!-- Group 1: Scaling & Zoom -->
           <div class="card shadow-sm border-light mb-4">
             <div class="card-header bg-light py-2">

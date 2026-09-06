@@ -379,6 +379,8 @@ export class APIService {
       customDocumentFields: [],
       customLists: {},
       pdfScale: 0.40,
+      pdfFormat: 'a4',
+      pdfOrientation: 'portrait',
       pdfSyllableSpacing: 10,
       pdfVerticalSpace: 15,
       pdfMarginLeft: 40,
@@ -475,6 +477,10 @@ export interface ProjectSettings {
   customLists?: { [key: string]: string[] };
   commentTemplates?: SavedCommentTemplate[];
   pdfScale?: number;
+  /** Page format for PDF export: 'a5' | 'a4' | 'a3' | 'letter' | 'legal' | 'tabloid'. */
+  pdfFormat?: string;
+  /** Page orientation for PDF export. */
+  pdfOrientation?: 'portrait' | 'landscape';
   pdfSynopsisScale?: number;
   pdfSynopsisShowHeader?: boolean;
   pdfSynopsisShowHeaderMetadata?: boolean;

@@ -745,8 +745,8 @@ export class DocumentComponent implements OnInit {
     // Wait for Angular to re-render the DOM
     setTimeout(async () => {
       try {
-        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
         const s: any = this.settings || {};
+        const doc = new jsPDF({ unit: 'pt', format: (s.pdfFormat || 'a4'), orientation: (s.pdfOrientation || 'portrait') });
         const fontFamily = s.pdfFontFamily || 'times';
         const pdfMarginLeft = Number(s.pdfMarginLeft ?? 40);
         const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
@@ -783,8 +783,8 @@ export class DocumentComponent implements OnInit {
         const pdfHeadlineMetadataFields = s.pdfHeadlineMetadataFields || [];
 
         let cursorY = pdfMarginTop;
-        const pageHeight = 842;
-        const pageWidth = 595;
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const pageWidth = doc.internal.pageSize.getWidth();
         const printWidth = pageWidth - pdfMarginLeft - pdfMarginRight;
         const maxContentY = pageHeight - pdfMarginBottom;
 
