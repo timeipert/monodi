@@ -559,6 +559,44 @@ export function mergeZeilenWithLineChanges(container: { children: any[] }): numb
   return zeileIdxs.length;
 }
 
+const INDEX_TO_BASE: BaseNote[] = [BaseNote.C, BaseNote.D, BaseNote.E, BaseNote.F, BaseNote.G, BaseNote.A, BaseNote.B];
+
+/** Shift one note by `steps` diatonic steps (7 = an octave), in place. */
+function transposeNote(note: Note, steps: number): void {
+  const di = note.octave * 7 + baseNoteIndexes[note.base] + steps;
+  note.base = INDEX_TO_BASE[((di % 7) + 7) % 7];
+  note.octave = Math.floor(di / 7);
+}
+
+/**
+ * Transpose every note within a container (recursively) by `steps` diatonic
+ * steps: +1 up a second, −1 down a second, ±7 an octave. Note pitches change
+ * (they move on the staff); clefs are left untouched. Mutates in place and
+ * returns how many notes were shifted.
+ */
+export function transposeContainer(container: { children?: any[] }, steps: number): number {
+  if (!steps) return 0;
+  let count = 0;
+  const walk = (node: any) => {
+    if (!node) return;
+    if (node.kind === LinePartKind.Syllable) {
+      const voices: (Spaced | undefined)[] = [node.notes, ...((node as Syllable).additionalMelodies || [])];
+      for (const sp of voices) {
+        if (!sp || !sp.spaced) continue;
+        for (const ns of sp.spaced) {
+          for (const g of (ns.nonSpaced || [])) {
+            for (const n of (g.grouped || [])) { transposeNote(n, steps); count++; }
+          }
+        }
+      }
+      return;
+    }
+    if (Array.isArray(node.children)) node.children.forEach(walk);
+  };
+  walk(container);
+  return count;
+}
+
 export function emptySyllable(voiceCount: number = 1): Syllable {
   const notes = {
     spaced: [{

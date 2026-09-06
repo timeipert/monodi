@@ -149,6 +149,25 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     if (this.data.children.filter(c => c && c.kind === Model.ContainerKind.ZeileContainer).length >= 2) {
       this.actionHandlers['Merge lines (keep breaks as |)'] = () => this.mergeLines();
     }
+
+    // 6. Transpose every note in this section (diatonic).
+    this.actionHandlers['↑ Transpose up (step)'] = () => this.transpose(1);
+    this.actionHandlers['↓ Transpose down (step)'] = () => this.transpose(-1);
+    this.actionHandlers['↑↑ Transpose up (octave)'] = () => this.transpose(7);
+    this.actionHandlers['↓↓ Transpose down (octave)'] = () => this.transpose(-7);
+  }
+
+  transpose(steps: number): void {
+    this.undo.beforeChange();
+    const n = Model.transposeContainer(this.data, steps);
+    if (n > 0) {
+      const dir = steps > 0 ? 'up' : 'down';
+      const amount = Math.abs(steps) === 7 ? 'an octave' : `${Math.abs(steps)} step(s)`;
+      this.toastr.success(`Transposed ${n} notes ${dir} ${amount}.`, 'Transposed');
+    } else {
+      this.toastr.info('No notes to transpose here.');
+    }
+    this.cdr.detectChanges();
   }
 
   mergeLines(): void {

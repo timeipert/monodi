@@ -173,7 +173,24 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
         this.onEvent.emit({ kind: 'FixSyllableDashesRequested' as any } as any);
       },
       'Merge lines (keep breaks as |)': () => this.mergeLines(),
+      '↑ Transpose up (step)': () => this.transpose(1),
+      '↓ Transpose down (step)': () => this.transpose(-1),
+      '↑↑ Transpose up (octave)': () => this.transpose(7),
+      '↓↓ Transpose down (octave)': () => this.transpose(-7),
     };
+  }
+
+  transpose(steps: number): void {
+    this.undo.beforeChange();
+    const n = Model.transposeContainer(this.data, steps);
+    if (n > 0) {
+      const dir = steps > 0 ? 'up' : 'down';
+      const amount = Math.abs(steps) === 7 ? 'an octave' : `${Math.abs(steps)} step(s)`;
+      this.toaster.success(`Transposed ${n} notes ${dir} ${amount}.`, 'Transposed');
+    } else {
+      this.toaster.info('No notes to transpose here.');
+    }
+    this.cdr.detectChanges();
   }
 
   mergeLines(): void {
