@@ -685,6 +685,59 @@ export class DocumentComponent implements OnInit {
     this.showPdfExportDialog = true;
   }
 
+  // ── Citation suggestions ────────────────────────────────────────────────────
+  showCiteDialog = false;
+
+  private citationBits(): { title: string; qualifier: string; source: string; id: string; url: string; date: string; year: string } {
+    const d: any = this.document || {};
+    const title = (d.textinitium || d.dokumenten_id || 'Chant').toString().trim();
+    const genre = (d.gattung1 || '').toString().trim();
+    const feast = (d.festtag || '').toString().trim();
+    const qualifier = [genre, feast].filter(Boolean).join(', ');
+    const sigle = (this.sourceSigle || '').toString().trim();
+    const id = (d.dokumenten_id || '').toString().trim();
+    const source = [sigle, id].filter(Boolean).join(', ');
+    const url = (typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://monodi.app');
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    return { title, qualifier, source, id, url, date, year: String(now.getFullYear()) };
+  }
+
+  /** A plain, copyable citation suggestion. */
+  citationText(): string {
+    const b = this.citationBits();
+    const q = b.qualifier ? ` (${b.qualifier})` : '';
+    const src = b.source ? ` Source: ${b.source}.` : '';
+    return `${b.title}${q}.${src} Corpus Monodicum, transcribed with monodi-zero. Retrieved ${b.date} from ${b.url}.`;
+  }
+
+  /** A BibTeX @misc entry for the same edition. */
+  citationBibtex(): string {
+    const b = this.citationBits();
+    const key = 'monodizero_' + (b.id || b.title).replace(/[^A-Za-z0-9]+/g, '').slice(0, 32).toLowerCase();
+    const note = [b.source ? `Source ${b.source}` : '', b.qualifier].filter(Boolean).join('; ');
+    return [
+      `@misc{${key},`,
+      `  author       = {{Corpus Monodicum}},`,
+      `  title        = {${b.title}},`,
+      `  howpublished = {Corpus Monodicum; transcribed with monodi-zero},`,
+      note ? `  note         = {${note}},` : '',
+      `  year         = {${b.year}},`,
+      `  url          = {${b.url}},`,
+      `  urldate      = {${b.date}}`,
+      `}`,
+    ].filter(Boolean).join('\n');
+  }
+
+  copyCitation(text: string): void {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => this.toastr.success('Citation copied to clipboard.'),
+        () => this.toastr.error('Could not copy to clipboard.')
+      );
+    }
+  }
+
   getMetadataFieldLabel(key: string): string {
     if (key === 'dokumenten_id') return 'ID';
     if (key === 'textinitium') return 'Initium';
