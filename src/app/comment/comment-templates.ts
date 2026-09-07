@@ -39,18 +39,23 @@ export const COMMENT_TEMPLATES: CommentTemplate[] = [
     key: 'lemma',
     label: 'Lemma | Reading',
     icon: 'bi-distribute-vertical',
-    build: (originalCreator) => ({
-      kind: 'CommentTreeGrid',
-      id: UUID(),
-      // One row, three columns: lemma ] reading
-      items: [
-        [
-          notesLeaf(originalCreator()),      // col 0 — the lemma (chant)
-          bracketLeaf(),                     // col 1 — the editorial bracket
-          notesLeaf(M.emptyZeileContainer()) // col 2 — the reading (chant)
+    build: (originalCreator) => {
+      const lemma = originalCreator();               // col 0 — the lemma (chant)
+      const reading = M.emptyZeileContainer();        // col 2 — the reading (chant)
+      reading.notation = lemma.notation;              // reading defaults to the lemma's notation
+      return {
+        kind: 'CommentTreeGrid',
+        id: UUID(),
+        // One row, three columns: lemma ] reading
+        items: [
+          [
+            notesLeaf(lemma),
+            bracketLeaf(),                            // col 1 — the editorial bracket
+            notesLeaf(reading),
+          ],
         ],
-      ],
-    }),
+      };
+    },
   },
 ];
 

@@ -14,7 +14,7 @@
     [class.valid-drop-zone]="isValidDrop"
     [class.is-drop-target]="isDragTarget"
     [class.is-drag-origin]="isDraggingSelf">
-    <div ngbDropdown placement="right" class="dropdown dropright" *ngIf="actions.length > 0">
+    <div ngbDropdown placement="right" container="body" class="dropdown dropright" *ngIf="actions.length > 0">
       <div ngbDropdownToggle class="my-dropdown"> </div>
       <div ngbDropdownMenu class="shadow border-0 py-1">
         <button class="dropdown-item d-flex align-items-center gap-2 py-2" (click)="actionRequested.emit(action)" *ngFor="let action of actions">

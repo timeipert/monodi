@@ -85,10 +85,25 @@ export interface EquivalentMetadata {
   notes?: string;
 }
 
+/**
+ * How a line's notation is rendered:
+ *  - 'diastematic' (default): pitched, on a staff with a clef (the classic view).
+ *  - 'adiastematic': contour-only neume heads, no staff lines and no clef; the
+ *    relation between neumes is shown as an "unclear" marker. The melody is
+ *    still stored with pitches (same text code) — only the drawing differs.
+ * Undefined is treated as 'diastematic' for backwards compatibility.
+ */
+export type NotationType = 'diastematic' | 'adiastematic';
+
 export interface ZeileContainer {
   "kind": ContainerKind.ZeileContainer;
   uuid: string;
   voiceCount?: number;
+  notation?: NotationType;
+  /** Snapshot of the exact diastematic melody (per syllable uuid), taken when
+   *  switching this line to adiastematic, so switching back restores the
+   *  original pitches unchanged. See setNotation in zeile-section. */
+  notesBackup?: { [syllableUuid: string]: { notes: Spaced; additionalMelodies?: Spaced[] } };
   children: LinePart[];
 }
 
@@ -562,7 +577,7 @@ export function mergeZeilenWithLineChanges(container: { children: any[] }): numb
 const INDEX_TO_BASE: BaseNote[] = [BaseNote.C, BaseNote.D, BaseNote.E, BaseNote.F, BaseNote.G, BaseNote.A, BaseNote.B];
 
 /** Shift one note by `steps` diatonic steps (7 = an octave), in place. */
-function transposeNote(note: Note, steps: number): void {
+export function transposeNote(note: Note, steps: number): void {
   const di = note.octave * 7 + baseNoteIndexes[note.base] + steps;
   note.base = INDEX_TO_BASE[((di % 7) + 7) % 7];
   note.octave = Math.floor(di / 7);
@@ -1160,7 +1175,32 @@ export function extractComment(r: RootContainer, c: Comment): ZeileContainer {
   const line = emptyZeileContainer();
   const isNotAnchor = (lp: LinePart) => lp.uuid !== c.endUUID && lp.uuid !== c.startUUID && !linePartContainsComments(lp, [c])
   line.children = _.dropRightWhile(_.dropWhile(getAllLineParts(r), isNotAnchor), isNotAnchor);
+  // A comment's staff inherits the notation of the line it comments on, so an
+  // adiastematic line yields an adiastematic lemma (still switchable per staff).
+  line.notation = notationOfContainingLine(r, c.startUUID) ?? notationOfContainingLine(r, c.endUUID);
   return line;
+}
+
+/** Notation of the ZeileContainer that holds the given syllable/note uuid (a
+ *  comment anchor), or undefined if not found. */
+export function notationOfContainingLine(r: Container, uuid: string | undefined): NotationType | undefined {
+  if (!uuid) return undefined;
+  let found: NotationType | undefined;
+  const walk = (node: Container) => {
+    if (found !== undefined) return;
+    if (node.kind === ContainerKind.ZeileContainer) {
+      const hit = node.children.some(lp =>
+        lp.uuid === uuid ||
+        (lp.kind === LinePartKind.Syllable &&
+          (allNotes(lp.notes).some(n => n.uuid === uuid) ||
+           (lp.additionalMelodies || []).some(m => allNotes(m).some(n => n.uuid === uuid)))));
+      if (hit) { found = node.notation || 'diastematic'; return; }
+      return;
+    }
+    for (const k of getContainerChildren(node)) walk(k);
+  };
+  walk(r);
+  return found;
 }
 
 export function getAllLineParts(r: Container): LinePart[] {

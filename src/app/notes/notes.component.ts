@@ -3,7 +3,8 @@ import {
   OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, Output, Input, EventEmitter, AfterViewInit, HostListener
 } from '@angular/core';
 import * as VM from '../types/model';
-import { fromSpaced, fromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { fromSpaced, fromSpaceds, adiastematicFromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { spacedToParsons, parsonsToSpaced } from './parsons';
 import { ToolsService } from '../tools.service';
 import { musicLanguage } from './language';
 import { assertNever, maxOf, textWidth, focusContentEditable } from '../../utils';
@@ -74,6 +75,11 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   @Input()
   staffScale = 1.0;
+
+  /** When true, render contour-only neume heads with no staff lines and no
+   *  clef (adiastematic notation). The melody model/text is unchanged. */
+  @Input()
+  adiastematic = false;
 
   /** Extra vertical room (internal units) above/below the staff in read-only
    *  renders, so very high/low notes are not clipped (used by the synopsis). */
@@ -160,7 +166,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     private router: Router) {
   }
 
-  refresh() { this.cdr.detectChanges(); this.notesToText(); }
+  refresh() { this.drawablesDirty = true; this.cdr.detectChanges(); this.notesToText(); this.recalculateWidths(); }
 
   ngOnInit() {
     this.notesToText();
@@ -338,7 +344,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   changeNoteText(event: KeyboardEvent, voiceIndex: number) {
     this.focusedVoiceIndex = voiceIndex;
     const voices = this.getVoices();
-    const oldNoteText = spacedToString(voices[voiceIndex]);
+    const oldNoteText = this.voiceToCode(voices[voiceIndex]);
     const el = this.noteTextElements.toArray()[voiceIndex].nativeElement as HTMLElement;
     const newNoteText = el.textContent || '';
     //Do not call function if nothing changes thus adding empty changes to undoService
@@ -639,7 +645,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     e.stopPropagation();
     if ((e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) && e.key === 'ArrowDown') { this.switchVoice(1); }
     else if ((e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) && e.key === 'ArrowUp') { this.switchVoice(-1); }
-    else if (e.key === 'ArrowUp') { this.changePitch(VM.nextNote); }
+    else if (e.key === 'ArrowUp') { this.adiastematic ? this.changeAdiaDirection(+1) : this.changePitch(VM.nextNote); }
     else if (e.altKey && e.key === 't') { this.request.emit({ kind: 'EditSyllableTextReqested' }); }
     else if (e.altKey && e.key === 'n') { this.request.emit({ kind: 'EditNotesTextReqested' }); }
     else if (e.altKey && e.key === 'ArrowRight') { this.insertOrShiftRight(); }
@@ -647,7 +653,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     else if (e.altKey && e.key === 'Enter') { this.splitLine(); }
     else if (e.ctrlKey && e.key === '.') { this.request.emit({ kind: 'ChangeToBoxRequested' }); }
     else if (e.altKey && e.key === '.') { this.request.emit({ kind: 'ChangeToBoxRequested' }); }
-    else if (e.key === 'ArrowDown') { this.changePitch(VM.previousNote); }
+    else if (e.key === 'ArrowDown') { this.adiastematic ? this.changeAdiaDirection(-1) : this.changePitch(VM.previousNote); }
     else if (e.key === 'ArrowLeft') {
       const focused = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
       if (focused && focused.isLatent) {
@@ -871,6 +877,45 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
 
 
+  /**
+   * Adiastematic pitch change: a note's only meaningful states are up / level /
+   * down relative to the previous note of its neume. Arrow up/down moves the
+   * focused note by one such step, clamped to [-1, +1] — so once it can't go
+   * any further in that direction it makes NO change (no silent runaway that
+   * you'd have to undo step by step). The focused note and everything after it
+   * shift together, keeping every other relationship intact.
+   */
+  changeAdiaDirection(dir: number): void {
+    const voice = this.getVoices()[this.focusedVoiceIndex];
+    const path = VM.getFocusedPath(voice);
+    if (!path) return;
+    const [, ns, , no] = path;
+    const neumeNotes: VM.Note[] = [];
+    for (const g of ns.nonSpaced) for (const n of g.grouped) neumeNotes.push(n);
+    const idx = neumeNotes.indexOf(no);
+    if (idx <= 0) return; // first note of the neume is the baseline — nothing relative to change
+    const prev = neumeNotes[idx - 1];
+    const rel = (no.octave * 7 + VM.baseNoteIndexes[no.base]) - (prev.octave * 7 + VM.baseNoteIndexes[prev.base]);
+    const clamped = Math.max(-1, Math.min(1, rel));
+    const target = Math.max(-1, Math.min(1, clamped + dir));
+    const delta = target - rel;
+    if (delta === 0) return; // already at the limit → don't change state
+    this.undoService.beforeChange('Edit Note');
+    this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+    // Shift the focused note and everything after it within this voice so all
+    // downstream directions are preserved.
+    let reached = false;
+    for (const sp of voice.spaced) {
+      for (const g2 of sp.nonSpaced) {
+        for (const n of g2.grouped) {
+          if (n === no) reached = true;
+          if (reached) VM.transposeNote(n, delta);
+        }
+      }
+    }
+    this.focusService.lastPitch = { base: no.base, octave: no.octave };
+  }
+
   changePitch(producer: (n: VM.Note) => VM.Note): void {
     this.withFocus(f => {
       this.undoService.beforeChange('Edit Note');
@@ -925,7 +970,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   getDrawables(voiceIndex: number): Drawable[] {
     if (this.drawablesDirty) {
-      this.drawablesCache = fromSpaceds(this.getVoices(), this.comments);
+      this.drawablesCache = this.adiastematic
+        ? adiastematicFromSpaceds(this.getVoices(), this.comments)
+        : fromSpaceds(this.getVoices(), this.comments);
       this.drawablesDirty = false;
     }
     return this.drawablesCache[voiceIndex] || [];
@@ -939,7 +986,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       this.drawablesDirty = true;
-      const newNotes = musicLanguage.Spaced.tryParse(text);
+      const newNotes = this.adiastematic ? parsonsToSpaced(text) : musicLanguage.Spaced.tryParse(text);
       const uuidInfo = VM.copyUuids(voices[voiceIndex], newNotes);
       const commentsToUpdate = this.comments.filter(c => uuidInfo.lostUUIDs.find(u => c.startUUID === u || c.endUUID === u));
 
@@ -976,7 +1023,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const voices = this.getVoices();
     for (let i = 0; i < voices.length; i++) {
       if (elements[i]) {
-        elements[i].nativeElement.textContent = spacedToString(voices[i]);
+        elements[i].nativeElement.textContent = this.voiceToCode(voices[i]);
       }
     }
   }
@@ -1269,6 +1316,12 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   isCommentEnd: (d: Drawable) => boolean = d => d instanceof DCommentEnd;
   isHelperLine: (d: Drawable) => boolean = d => d instanceof DHelperLine;
 
+  /** Text representation of a voice in the note-code field: Parsons for
+   *  adiastematic lines, the normal pitch code otherwise. */
+  private voiceToCode(voice: VM.Spaced): string {
+    return this.adiastematic ? spacedToParsons(voice) : spacedToString(voice);
+  }
+
   isHighlighted(d: Drawable): boolean {
     if (!this.highlightNoteUUIDs || !d.ref) return false;
     const ref = d.ref;
@@ -1373,7 +1426,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   /** True for the first syllable of the document — it draws a leading G-clef. */
   get showClef(): boolean {
-    return !!this.focusService.firstSyllableUuid && !!this.model && this.model.uuid === this.focusService.firstSyllableUuid;
+    return !this.adiastematic && !!this.focusService.firstSyllableUuid && !!this.model && this.model.uuid === this.focusService.firstSyllableUuid;
   }
 
   getWidth(): number {

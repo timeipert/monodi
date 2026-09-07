@@ -37,6 +37,10 @@ export class LineChangeComponent implements OnDestroy, OnInit {
   @Input()
   readOnly!: boolean;
 
+  /** Adiastematic line: hide the staff lines (there is no staff). */
+  @Input()
+  adiastematic = false;
+
   @Output()
   request = new EventEmitter<R.Request>();
   hasFocus = false;

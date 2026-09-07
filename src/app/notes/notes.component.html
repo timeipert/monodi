@@ -4,11 +4,14 @@
 		(focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
 		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
 			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
-				<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
-				<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
-				<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
-				<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
-				<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
+				<!-- Staff lines: only for diastematic notation. Adiastematic draws no staff. -->
+				<ng-container *ngIf="!adiastematic">
+					<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
+					<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
+					<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
+					<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
+					<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
+				</ng-container>
 
 				<!-- G-clef at the chant start: a G centred on the 2nd line from the bottom (y=70). -->
 				<text *ngIf="showClef" x="2" y="80" font-size="30" font-weight="bold" fill="black" style="font-family: serif;">G</text>

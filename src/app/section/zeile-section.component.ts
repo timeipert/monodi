@@ -99,44 +99,118 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
     this.toolsService.remove(this);
   }
 
+  isAdiastematic(): boolean {
+    return this.data.notation === 'adiastematic';
+  }
+
+  private syllablesOf(): Model.Syllable[] {
+    return this.data.children.filter(c => c.kind === 'Syllable') as Model.Syllable[];
+  }
+
+  hasNotesBackup(): boolean {
+    return !!this.data.notesBackup && Object.keys(this.data.notesBackup).length > 0;
+  }
+
+  setNotation(n: Model.NotationType): void {
+    if ((this.data.notation || 'diastematic') === n) return;
+    this.undo.beforeChange();
+
+    if (n === 'adiastematic') {
+      // Snapshot the melody as it is right now, so the exact pitches can be
+      // brought back on demand via "Restore original pitches".
+      const backup: NonNullable<Model.ZeileContainer['notesBackup']> = {};
+      for (const syl of this.syllablesOf()) {
+        backup[syl.uuid] = JSON.parse(JSON.stringify({
+          notes: syl.notes,
+          additionalMelodies: syl.additionalMelodies,
+        }));
+      }
+      this.data.notesBackup = backup;
+    }
+    // Going back to diastematic keeps the CURRENT pitches: if nothing was edited
+    // in adiastematic they are still the exact original; if the line was written
+    // (or edited) adiastematically, they are the direction-step staircase — the
+    // structure (note count + up/down/level) the editor then refines into real
+    // intervals. Use "Restore original pitches" to undo an adiastematic edit.
+
+    this.data.notation = n;
+    // Propagate the new [adiastematic] input to the child note components
+    // first, then refresh them so the code field and engraving both rebuild
+    // against the correct notation.
+    this.changeRef.detectChanges();
+    this.children.forEach(c => { if ((c as any).refresh) (c as any).refresh(); });
+    this.changeRef.detectChanges();
+  }
+
+  /** Restore the pitches captured at the last switch to adiastematic (an
+   *  explicit "undo my adiastematic edits" — not automatic on toggle). */
+  restoreOriginalPitches(): void {
+    if (!this.data.notesBackup) return;
+    this.undo.beforeChange();
+    for (const syl of this.syllablesOf()) {
+      const b = this.data.notesBackup[syl.uuid];
+      if (b) {
+        syl.notes = JSON.parse(JSON.stringify(b.notes));
+        syl.additionalMelodies = b.additionalMelodies
+          ? JSON.parse(JSON.stringify(b.additionalMelodies))
+          : undefined;
+      }
+    }
+    this.changeRef.detectChanges();
+    this.children.forEach(c => { if ((c as any).refresh) (c as any).refresh(); });
+    this.changeRef.detectChanges();
+  }
+
   onContextMenu(me: MouseEvent): void {
     me.preventDefault();
     me.stopPropagation();
 
-    const items = [
-      {
-        label: 'Edit Notes Text',
-        action: () => { this.editText({ kind: 'EditNotesTextReqested' }); }
-      },
-      {
-        label: 'Edit Syllables Text',
-        action: () => { this.editText({ kind: 'EditSyllableTextReqested' }); }
-      },
-      {
-        label: this.data.voiceCount === 2 ? 'Remove Voice 2' : 'Add Voice 2',
-        action: () => { this.toggleVoice2(); }
-      },
-      {
-        label: 'Add Line Break Below',
-        action: () => { this.onEvent.emit({ kind: 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }); }
-      },
-      {
-        label: 'Merge with Next Line',
-        action: () => { this.onEvent.emit({ kind: 'MergeWithNextLineRequested', uuid: this.data.uuid }); }
-      }
+    const items: any[] = [
+      { label: 'Edit', header: true, action: () => {} },
+      { label: 'Edit Notes Text', icon: 'bi bi-file-music text-primary',
+        action: () => { this.editText({ kind: 'EditNotesTextReqested' }); } },
+      { label: 'Edit Syllables Text', icon: 'bi bi-chat-left-text text-primary',
+        action: () => { this.editText({ kind: 'EditSyllableTextReqested' }); } },
+
+      { label: 'Notation', header: true, action: () => {} },
+      { label: 'Diastematic (staff & pitches)', icon: 'bi bi-music-note-beamed',
+        checked: !this.isAdiastematic(),
+        action: () => { this.setNotation('diastematic'); } },
+      { label: 'Adiastematic (contours only)', icon: 'bi bi-graph-up',
+        checked: this.isAdiastematic(),
+        action: () => { this.setNotation('adiastematic'); } },
+      ...(this.hasNotesBackup() ? [{
+        label: 'Restore original pitches', icon: 'bi bi-arrow-counterclockwise text-secondary',
+        action: () => { this.restoreOriginalPitches(); },
+      }] : []),
+
+      { label: 'Voices', header: true, action: () => {} },
+      { label: this.data.voiceCount === 2 ? 'Remove Voice 2' : 'Add Voice 2',
+        icon: 'bi bi-music-note',
+        action: () => { this.toggleVoice2(); } },
+
+      { label: 'Lines', header: true, action: () => {} },
+      { label: 'Add Line Break Below', icon: 'bi bi-plus-square text-success',
+        action: () => { this.onEvent.emit({ kind: 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }); } },
+      { label: 'Merge with Next Line', icon: 'bi bi-box-arrow-in-down text-warning',
+        action: () => { this.onEvent.emit({ kind: 'MergeWithNextLineRequested', uuid: this.data.uuid }); } }
     ];
 
     const docStruct = Model.getStructure(this.documentType);
     const K = this.documentType === 'Level0' ? 0 : (parseInt(this.documentType.replace(/level/i, ''), 10) || 0);
-    for (let i = 1; i <= K; i++) {
-      const desc = docStruct[i - 1];
-      const levelName = (desc && desc.name) || `L${i}`;
-      items.push({
-        label: `Split ${levelName} Section From Here`,
-        action: () => {
-          this.onEvent.emit({ kind: 'SplitSectionAtLineRequested', lineUuid: this.data.uuid, splitLevel: i } as any);
-        }
-      });
+    if (K > 0) {
+      items.push({ label: 'Structure', header: true, action: () => {} });
+      for (let i = 1; i <= K; i++) {
+        const desc = docStruct[i - 1];
+        const levelName = (desc && desc.name) || `L${i}`;
+        items.push({
+          label: `Split ${levelName} Section From Here`,
+          icon: 'bi bi-node-minus text-info',
+          action: () => {
+            this.onEvent.emit({ kind: 'SplitSectionAtLineRequested', lineUuid: this.data.uuid, splitLevel: i } as any);
+          }
+        });
+      }
     }
 
     this.contextMenuService.open(me, items, 'transcription', 'adding-a-folio-or-line-change');
@@ -602,6 +676,16 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       },
       icon: 'music-note text-info',
       title: this.data.voiceCount === 2 ? 'Remove Voice 2' : 'Add Voice 2'
+    });
+
+    // Notation type toggle (diastematic ↔ adiastematic)
+    tools.push({
+      callback: () => {
+        this.setNotation(this.isAdiastematic() ? 'diastematic' : 'adiastematic');
+        this.selectContainer(event); // Re-build toolbar with updated state
+      },
+      icon: (this.isAdiastematic() ? 'graph-up' : 'music-note-beamed') + ' text-primary',
+      title: this.isAdiastematic() ? 'Notation: Adiastematic (click for staff)' : 'Notation: Diastematic (click for contours)'
     });
 
     // Add Line Break Below

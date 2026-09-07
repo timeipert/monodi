@@ -143,3 +143,10 @@ body.is-dragging app-dragger .middle > * {
   }
 }
 
+
+/* Dropdown menus (ngb/bootstrap) must render above the sticky-top nav
+   (position: sticky; z-index: 1020) — e.g. the section drag-handle actions
+   menu, which otherwise slips underneath the top menu bar. */
+.dropdown-menu.show {
+  z-index: 1080;
+}

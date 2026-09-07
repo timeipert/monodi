@@ -204,6 +204,11 @@ export abstract class Section<T extends Model.Container> implements OnInit {
   kindIs(x: any, y: any) {
     return x.kind === y;
   }
+
+  /** True when this section's line is set to adiastematic (contour-only) notation. */
+  isAdiastematic(): boolean {
+    return (this.data as any)?.notation === 'adiastematic';
+  }
 }
 
 type EventHandlers = {

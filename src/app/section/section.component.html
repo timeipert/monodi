@@ -94,10 +94,13 @@
         <div *ngIf=" ('' + data.kind) === 'ZeileContainer'" (contextmenu)="onContextMenu($event)" [class.zeile-cv]="!readOnly">
           <ng-container *ngFor="let child of data.children; trackBy:getUUID">
             <app-notes #linechild *ngIf="child.kind === 'Syllable'" [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
+              [adiastematic]="isAdiastematic()"
               (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-notes>
             <app-line-change #linechild *ngIf="child.kind === 'LineChange'" [readOnly]="readOnly" [model]="child"
+              [adiastematic]="isAdiastematic()"
               (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-line-change>
             <app-folio-change #linechild *ngIf="child.kind === 'FolioChange'" [readOnly]="readOnly" [model]="child"
+              [adiastematic]="isAdiastematic()"
               (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-folio-change>
             <app-clef #linechild *ngIf="child.kind === 'Clef'" [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
               (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-clef>
