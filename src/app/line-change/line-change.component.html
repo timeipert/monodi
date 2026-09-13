@@ -2,12 +2,14 @@
 	<div class="notes">
 		<svg [attr.width]="20 + 'px'">
 			<g [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">
-        <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
-        <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
-        <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
-        <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
-        <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
-        <text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="bold" fill="black" style="user-select: none; pointer-events: none;">G</text>
+        <ng-container *ngIf="!adiastematic">
+          <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
+          <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
+          <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
+          <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
+          <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
+          <text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
+        </ng-container>
         <g [attr.transform]="'translate(' + (20/2) + ', 0)'">
           <rect x=0 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus? 'lightgreen': 'black'" />
         </g>

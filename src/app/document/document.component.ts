@@ -1,4 +1,5 @@
 import { FocusService } from '../focus.service';
+import { registerEmbeddedFont, embeddedFamily } from '../pdf-font';
 import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -23,6 +24,7 @@ import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
 import { MeiExportService } from '../mei-export.service';
 import { SearchExecService } from '../search/search-exec.service';
+import { VolpianoService } from '../volpiano.service';
 
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
@@ -37,6 +39,14 @@ import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './searc
   styleUrls: ['./document.component.css']
 })
 export class DocumentComponent implements OnInit {
+  /** Publish the first syllable's UUID (for the chant-start clef). Called when a
+   *  document is loaded — NOT during change detection — so it never mutates state
+   *  that a freshly-created child view reads in the same CD pass (NG0100). */
+  private setFirstSyllable(): void {
+    const sylls = this.cont ? VM.getSyllables(this.cont) : [];
+    this.focusService.firstSyllableUuid = sylls.length > 0 ? sylls[0].uuid : null;
+  }
+
   getCategoryDetails = getCategoryDetails;
   getInterventionLabel = getInterventionLabel;
   getInterventionIcon(key: string): string {
@@ -378,6 +388,7 @@ export class DocumentComponent implements OnInit {
     public dragState: DragStateService,
     private navService: NavigationService,
     private meiExport: MeiExportService,
+    private volpiano: VolpianoService,
     private pageTitle: PageTitleService, public focusService: FocusService,
     public searchExecSvc: SearchExecService,
     private searchReplaceSvc: SearchReplaceService,
@@ -565,7 +576,7 @@ export class DocumentComponent implements OnInit {
   deleteContainerAt(zipper: number[]): void {
     if (!this.cont) return;
     if (!this.canDeleteContainer(zipper)) {
-      this.toastr.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+      this.toastr.warning("This section cannot be deleted because it is the only one at this level.");
       return;
     }
     this.undoService.beforeChange();
@@ -668,7 +679,7 @@ export class DocumentComponent implements OnInit {
         this.save();
         this.cont = { ...this.cont } as VM.RootContainer;
       }
-      this.toastr.success("Silbentrennstriche wurden korrigiert.");
+      this.toastr.success("Syllable hyphens corrected.");
       return;
     }
     if (e.kind === 'DocumentUpdated') {
@@ -872,6 +883,59 @@ export class DocumentComponent implements OnInit {
     this.showPdfExportDialog = true;
   }
 
+  // ── Citation suggestions ────────────────────────────────────────────────────
+  showCiteDialog = false;
+
+  private citationBits(): { title: string; qualifier: string; source: string; id: string; url: string; date: string; year: string } {
+    const d: any = this.document || {};
+    const title = (d.textinitium || d.dokumenten_id || 'Chant').toString().trim();
+    const genre = (d.gattung1 || '').toString().trim();
+    const feast = (d.festtag || '').toString().trim();
+    const qualifier = [genre, feast].filter(Boolean).join(', ');
+    const sigle = (this.sourceSigle || '').toString().trim();
+    const id = (d.dokumenten_id || '').toString().trim();
+    const source = [sigle, id].filter(Boolean).join(', ');
+    const url = (typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://monodi.app');
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    return { title, qualifier, source, id, url, date, year: String(now.getFullYear()) };
+  }
+
+  /** A plain, copyable citation suggestion. */
+  citationText(): string {
+    const b = this.citationBits();
+    const q = b.qualifier ? ` (${b.qualifier})` : '';
+    const src = b.source ? ` Source: ${b.source}.` : '';
+    return `${b.title}${q}.${src} Corpus Monodicum, transcribed with monodi-zero. Retrieved ${b.date} from ${b.url}.`;
+  }
+
+  /** A BibTeX @misc entry for the same edition. */
+  citationBibtex(): string {
+    const b = this.citationBits();
+    const key = 'monodizero_' + (b.id || b.title).replace(/[^A-Za-z0-9]+/g, '').slice(0, 32).toLowerCase();
+    const note = [b.source ? `Source ${b.source}` : '', b.qualifier].filter(Boolean).join('; ');
+    return [
+      `@misc{${key},`,
+      `  author       = {{Corpus Monodicum}},`,
+      `  title        = {${b.title}},`,
+      `  howpublished = {Corpus Monodicum; transcribed with monodi-zero},`,
+      note ? `  note         = {${note}},` : '',
+      `  year         = {${b.year}},`,
+      `  url          = {${b.url}},`,
+      `  urldate      = {${b.date}}`,
+      `}`,
+    ].filter(Boolean).join('\n');
+  }
+
+  copyCitation(text: string): void {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => this.toastr.success('Citation copied to clipboard.'),
+        () => this.toastr.error('Could not copy to clipboard.')
+      );
+    }
+  }
+
   getMetadataFieldLabel(key: string): string {
     if (key === 'dokumenten_id') return 'ID';
     if (key === 'textinitium') return 'Initium';
@@ -932,9 +996,12 @@ export class DocumentComponent implements OnInit {
     // Wait for Angular to re-render the DOM
     setTimeout(async () => {
       try {
-        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
         const s: any = this.settings || {};
-        const fontFamily = s.pdfFontFamily || 'times';
+        const doc = new jsPDF({ unit: 'pt', format: (s.pdfFormat || 'a4'), orientation: (s.pdfOrientation || 'portrait') });
+        const fontFamily = embeddedFamily(s.pdfFontFamily) || s.pdfFontFamily || 'times';
+        if (embeddedFamily(fontFamily)) {
+          await registerEmbeddedFont(doc, fontFamily);
+        }
         const pdfMarginLeft = Number(s.pdfMarginLeft ?? 40);
         const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
         const pdfMarginTop = Number(s.pdfMarginTop ?? 40);
@@ -970,8 +1037,8 @@ export class DocumentComponent implements OnInit {
         const pdfHeadlineMetadataFields = s.pdfHeadlineMetadataFields || [];
 
         let cursorY = pdfMarginTop;
-        const pageHeight = 842;
-        const pageWidth = 595;
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const pageWidth = doc.internal.pageSize.getWidth();
         const printWidth = pageWidth - pdfMarginLeft - pdfMarginRight;
         const maxContentY = pageHeight - pdfMarginBottom;
 
@@ -982,12 +1049,17 @@ export class DocumentComponent implements OnInit {
           }
         };
 
-        // Title
+        // Title (wrapped to the printable width)
         doc.setFontSize(titleFontSize);
         doc.setFont(fontFamily, "bold");
         const headerText = this.getMetadataFieldValue(headerSource) || (this.document?.textinitium || "New Document");
-        doc.text(headerText, pdfMarginLeft, cursorY);
-        cursorY += pdfTitleVerticalSpace;
+        const titleLineH = titleFontSize * 1.15;
+        for (const line of doc.splitTextToSize(headerText, printWidth)) {
+          checkPageOverflow(titleLineH);
+          doc.text(line, pdfMarginLeft, cursorY);
+          cursorY += titleLineH;
+        }
+        cursorY += Math.max(0, pdfTitleVerticalSpace - titleLineH);
         checkPageOverflow(0);
 
         // Metadata inline, styled & dense
@@ -997,33 +1069,38 @@ export class DocumentComponent implements OnInit {
           const items = this.getInlineMetadataItems();
           let curX = pdfMarginLeft;
           let curY = cursorY;
-          const bullet = "   •   ";
-          
-          for (let k = 0; k < items.length; k++) {
-            const item = items[k];
-            const labelText = item.label + ": ";
-            const valText = item.val + (k < items.length - 1 ? bullet : "");
-            
-            doc.setFont(fontFamily, "bold");
-            const labelWidth = doc.getTextWidth(labelText);
-            doc.setFont(fontFamily, "normal");
-            const valWidth = doc.getTextWidth(valText);
-            
-            if (curX + labelWidth + valWidth > pageWidth - pdfMarginRight) {
-              curX = pdfMarginLeft;
-              curY += metaFontSize * 1.4;
-              checkPageOverflow(metaFontSize * 1.4);
+          const rightEdge = pageWidth - pdfMarginRight;
+          const lineH = metaFontSize * 1.4;
+
+          // Draw text word by word, wrapping at the right margin (and across pages)
+          // so long values like the Comment break automatically.
+          // Tokenise into whitespace, Latin words, and individual CJK characters
+          // (CJK has no spaces, so it must be able to wrap mid-run).
+          const CJK = '\\u3000-\\u9fff\\u3400-\\u4dbf\\uf900-\\ufaff\\uff00-\\uffef';
+          const tokenRe = new RegExp(`[${CJK}]|\\s+|[^\\s${CJK}]+`, 'g');
+          const drawWords = (text: string, style: 'bold' | 'normal') => {
+            doc.setFont(fontFamily, style);
+            for (const w of (text.match(tokenRe) || [])) {
+              if (!w) continue;
+              const isSpace = /^\s+$/.test(w);
+              const ww = doc.getTextWidth(w);
+              if (!isSpace && curX + ww > rightEdge && curX > pdfMarginLeft) {
+                curX = pdfMarginLeft;
+                curY += lineH;
+                if (curY > maxContentY) { doc.addPage(); curY = pdfMarginTop; }
+              }
+              if (isSpace && curX === pdfMarginLeft) continue; // no leading space on a wrapped line
+              doc.text(w, curX, curY);
+              curX += ww;
             }
-            
-            doc.setFont(fontFamily, "bold");
-            doc.text(labelText, curX, curY);
-            curX += labelWidth;
-            
-            doc.setFont(fontFamily, "normal");
-            doc.text(valText, curX, curY);
-            curX += valWidth;
+          };
+
+          for (let k = 0; k < items.length; k++) {
+            drawWords(items[k].label + ": ", 'bold');
+            drawWords(items[k].val, 'normal');
+            if (k < items.length - 1) drawWords("   •   ", 'normal');
           }
-          
+
           cursorY = curY + pdfMetadataVerticalSpace;
           checkPageOverflow(0);
         }
@@ -1066,7 +1143,7 @@ export class DocumentComponent implements OnInit {
         // Track the current Signatures to print before the next Zeile
         let currentSignatures: string[] = [];
         let wasLastElementParatext = false;
-        
+
         for (let i = 0; i < containers.length; i++) {
           const container = containers[i] as HTMLElement;
           
@@ -1131,34 +1208,39 @@ export class DocumentComponent implements OnInit {
               const tagName = part.tagName.toLowerCase();
               
               if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
-                // Wrap on editorial break
-                const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
-                for (const key in activeBrackets) {
-                    const b = activeBrackets[key];
-                    drawActiveBracket(b.startX, cursorX, bracketY, b.label);
+                // Manuscript line/folio breaks: a short vertical tick (or two, for a
+                // folio change) hanging just below the staff — matching the on-screen
+                // look. They must NOT wrap the PDF line; only ZeileContainer boundaries
+                // start a new staff line.
+                const isFolio = tagName === 'app-folio-change';
+                const gap = 3;
+                const mx = cursorX + gap;
+                const h = lineMaxHeight > 0 ? lineMaxHeight : 24;
+                // Staff geometry of the read-only note SVG (65 + padTop 10 + padBottom 16
+                // = 91 tall; the bottom staff line sits at 70/91).
+                const tickTop = cursorY + (70 / 91) * h;      // bottom staff line
+                const tickBottom = tickTop + (20 / 91) * h;   // hangs below
+                const tickGap = Math.max(2, h * 0.08);
+                doc.setLineWidth(Math.max(0.7, h * 0.035));
+                doc.setDrawColor(0, 0, 0);
+                doc.line(mx, tickTop, mx, tickBottom);
+                let rightEdge = mx;
+                if (isFolio) {
+                  doc.line(mx + tickGap, tickTop, mx + tickGap, tickBottom);
+                  rightEdge = mx + tickGap;
                 }
-                
-                let lineBottomY = lineStartY + lineMaxHeight;
-                if (lineHasBrackets) {
-                    lineBottomY = bracketY + pdfBracketTick + 8;
-                } else if (lineHasLyrics) {
-                    lineBottomY = lineStartY + lineMaxHeight + pdfSyllableTextOffset + pdfFontSize;
+                doc.setLineWidth(0.2);
+                if (isFolio) {
+                  const folioLabel = (part.textContent || '').trim();
+                  if (folioLabel) {
+                    doc.setFont(fontFamily, 'normal');
+                    doc.setFontSize(pdfFontSize * 0.85);
+                    doc.text(folioLabel, rightEdge + 3, tickBottom);
+                    rightEdge += 3 + doc.getTextWidth(folioLabel);
+                    doc.setFontSize(pdfFontSize);
+                  }
                 }
-                
-                cursorY = lineBottomY + pdfStaffSpacing;
-                checkPageOverflow(40); // check overflow for staff line height of at least 40pt
-                
-                lineStartY = cursorY;
-                cursorX = musicStartX;
-                lineMaxHeight = 0;
-                lineHasLyrics = false;
-                lineHasBrackets = Object.keys(activeBrackets).length > 0;
-                
-                for (const key in activeBrackets) {
-                    const b = activeBrackets[key];
-                    b.startX = musicStartX;
-                    b.startLineY = lineStartY;
-                }
+                cursorX = rightEdge + gap + 2;
                 continue;
               }
               
@@ -1227,7 +1309,7 @@ export class DocumentComponent implements OnInit {
               
               const svgWidth = maxRawWidth * SCALE;
               const secHeight = totalRawHeight * SCALE;
-              
+
               let txt = "";
               let textWidth = 0;
               if (textEl) {
@@ -1251,9 +1333,9 @@ export class DocumentComponent implements OnInit {
               if (!isLastOnLine && j + 1 < parts.length) {
                 const nextPart = parts[j + 1] as HTMLElement;
                 const nextTag = nextPart.tagName.toLowerCase();
-                if (nextTag === 'app-line-change' || nextTag === 'app-folio-change') {
-                  isLastOnLine = true;
-                } else if (nextTag === 'app-notes') {
+                // A following line/folio change is an inline marker, not a line end,
+                // so it must NOT stretch this syllable's staff to the margin.
+                if (nextTag === 'app-notes') {
                   // Peek at the next syllable's width to see if it would trigger a wrap
                   const nextSec = nextPart.querySelector('.section') as HTMLElement;
                   if (nextSec) {
@@ -1283,14 +1365,11 @@ export class DocumentComponent implements OnInit {
                 }
               }
               
-              // Extend the SVG width to fill up to the right margin for the last syllable on the line
-              if (isLastOnLine) {
-                const extendedWidth = pageWidth - pdfMarginRight - cursorX;
-                if (extendedWidth > finalSecWidth) {
-                  finalSecWidth = extendedWidth;
-                }
-              }
-              
+              // Staff lines end at the last note of the line (they are NOT stretched
+              // to the right page margin). `isLastOnLine` is kept for potential future
+              // use but intentionally no longer extends the width.
+              void isLastOnLine;
+
               const partUuid = part.getAttribute('data-uuid');
               const partUuids = partUuid ? (uuidMap[partUuid] || [partUuid]) : [];
               
@@ -1767,6 +1846,7 @@ export class DocumentComponent implements OnInit {
         this.cont = VM.emptyRootContainer();
         this.currentFolioIndex = this.initialFolioIndex;
       }
+      this.setFirstSyllable();
 
       setTimeout(() => {
         this.updateToolbar();
@@ -1847,6 +1927,11 @@ export class DocumentComponent implements OnInit {
         title: 'Export MEI'
       },
       {
+        callback: () => { this.exportVolpiano(); },
+        icon: 'music-note-beamed',
+        title: 'Export Volpiano'
+      },
+      {
         callback: () => { this.toggleReadOnly(); },
         icon: 'eye',
         title: 'Toggle Read-Only Mode'
@@ -1864,7 +1949,7 @@ export class DocumentComponent implements OnInit {
             this.save();
             this.cont = { ...this.cont } as VM.RootContainer;
           }
-          this.toastr.success("Silbentrennstriche wurden korrigiert.");
+          this.toastr.success("Syllable hyphens corrected.");
         },
         icon: 'type-strikethrough',
         title: 'Fix Syllable Dashes'
@@ -1946,6 +2031,7 @@ export class DocumentComponent implements OnInit {
             // here, which made imported docs look permanently broken.
             this.cont = VM.emptyRootContainer();
             this.contJsonClone = JSON.stringify(this.cont);
+            this.setFirstSyllable();
             this.toastr.warning(
               'No transcription data was found for this document. Starting from an empty edition — re-import to restore the original notes.',
               'Notes missing'
@@ -1955,6 +2041,7 @@ export class DocumentComponent implements OnInit {
             this.cont = VM.normalizeDocumentComments(res.data);
             this.contJsonClone = JSON.stringify(this.cont);
             this.checkSecondVoiceComments(this.cont);
+            this.setFirstSyllable();
             break;
           default: assertNever(res);
         }
@@ -1983,7 +2070,7 @@ export class DocumentComponent implements OnInit {
     if (Array.isArray(arr) && !arr.includes(val)) {
       arr.push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -1996,7 +2083,7 @@ export class DocumentComponent implements OnInit {
     if (!this.settings.customLists[category].includes(val)) {
       this.settings.customLists[category].push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -2025,7 +2112,7 @@ export class DocumentComponent implements OnInit {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
           case 'DocumentCreated': 
-            this.toastr.success("Erfolgreich gespeichert"); 
+            this.toastr.success("Saved successfully");
             this.document!.id = res.id;
             this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
             break;
@@ -2054,8 +2141,8 @@ export class DocumentComponent implements OnInit {
             // Removed toastr to prevent spamming on autosave
             this.resetClones(); 
             break;
-          case 'DocumentNotFound': this.toastr.error("Es sieht so aus, als wäre das Dokument zwischenzeitlich gelöscht worden"); break;
-          case 'InsufficientPermissions': this.toastr.error("Sie haben nicht genügend Rechte, um dieses Dokument zu speichern. Sie können das Dokument jedoch als JSON downloaden, um die Rechte bitten und es dann wieder hochladen um Datenverlust zu vermeiden.", "Fehler beim Speichern."); break;
+          case 'DocumentNotFound': this.toastr.error("It looks like this document was deleted in the meantime."); break;
+          case 'InsufficientPermissions': this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
           default: assertNever(res);
         }
         if (this.savePending) {
@@ -2071,6 +2158,31 @@ export class DocumentComponent implements OnInit {
 
   openJsonExport(): void {
     this.showJsonExportDialog = true;
+  }
+
+  /** Export the current document as a Volpiano string: download a .txt and copy to clipboard. */
+  exportVolpiano(): void {
+    if (!this.cont) {
+      this.toastr.error('No document open to export.');
+      return;
+    }
+    try {
+      const baseId = (this.document && this.document.dokumenten_id) ? this.document.dokumenten_id : 'document';
+      const result = this.volpiano.exportAndDownload(this.cont, baseId + '.volpiano.txt');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(result.volpiano).then(
+          () => this.toastr.success('Volpiano copied to clipboard and downloaded as .txt.'),
+          () => this.toastr.success('Volpiano downloaded as .txt.')
+        );
+      } else {
+        this.toastr.success('Volpiano downloaded as .txt.');
+      }
+      if (result.warnings.length > 0) {
+        this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano export warnings');
+      }
+    } catch (e) {
+      this.toastr.error('Volpiano export failed: ' + e);
+    }
   }
 
   confirmJsonExport(): void {
@@ -2131,12 +2243,13 @@ export class DocumentComponent implements OnInit {
         this.api.verifyNotes(this.user.token, newCont).subscribe(res => {
           switch (res.kind) {
             case 'LoginRequired': this.userService.logout(); break;
-            case 'Failed': this.toastr.error("Invalides Format", "Upload gescheitert!"); break;
+            case 'Failed': this.toastr.error("Invalid format", "Upload failed!"); break;
             case 'NotesRetrieved':
               this.cont = VM.normalizeDocumentComments(res.data);
               this.contJsonClone = JSON.stringify(this.cont);
-              this.toastr.success("Upload erfolgreich!");
+              this.toastr.success("Upload successful!");
               this.checkSecondVoiceComments(this.cont);
+              this.setFirstSyllable();
               break;
 
             default: assertNever(res);
@@ -2408,7 +2521,7 @@ export class DocumentComponent implements OnInit {
         this.modalService.dismissAll();
       } else {
         console.log(result);
-        this.toastr.error("Technische details können in der Konsole gesehen werden", "Text konnte nicht geparst werden");
+        this.toastr.error("Technical details are available in the console.", "Could not parse text");
         this.modalService.dismissAll();
       }
     }
@@ -2440,19 +2553,19 @@ export class DocumentComponent implements OnInit {
     if (!result) {
       if (errors.length > 0) {
         if (errors[0].length > 0) {
-          this.textImportErrors.push('Es wurden mehr als Zwei Tabstops in folgenden Zeilen erkannt: ' + errors[0]);
+          this.textImportErrors.push('More than two tab stops were found in these lines: ' + errors[0]);
         }
         if (errors[1].length > 0) {
-          this.textImportErrors.push('Es wurden Zwei oder mehr Leerzeichen hintereinander in folgenden Zeilen erkannt: ' + errors[1]);
+          this.textImportErrors.push('Two or more consecutive spaces were found in these lines: ' + errors[1]);
         }
         if (errors[2].length > 0) {
-          this.textImportErrors.push('Es wurden Leerzeichen in der ersten Spalte in folgenden Zeilen erkannt: ' + errors[2]);
+          this.textImportErrors.push('Spaces in the first column were found in these lines: ' + errors[2]);
         }
         if (errors[3].length > 0) {
-          this.textImportErrors.push('Es wurden Zwei Tabs in Zeilen ohne Seitenumbruch in folgenden Zeilen erkannt: ' + errors[3]);
+          this.textImportErrors.push('Two tabs in lines without a page break were found in these lines: ' + errors[3]);
         }
       }
-      this.toastr.error('Es wurden Fehler in der Eingabe erkannt.');
+      this.toastr.error('Errors were found in the input.');
     }
     return result;
   }

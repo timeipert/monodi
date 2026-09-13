@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, ElementRef } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { Router } from '@angular/router';
 import { ContextMenuService, ContextMenuState, ContextMenuItem } from './context-menu.service';
@@ -14,10 +14,20 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
 
   constructor(
     private contextMenuService: ContextMenuService,
-    private router: Router
+    private router: Router,
+    private el: ElementRef
   ) {}
 
   ngOnInit() {
+    // Re-parent the host to <body> so the fixed-position menu escapes every
+    // ancestor stacking context (e.g. the sticky-top nav, page headers) and can
+    // never be painted underneath other chrome, regardless of where it's used.
+    try {
+      const host = this.el.nativeElement as HTMLElement;
+      if (host.parentElement !== document.body) {
+        document.body.appendChild(host);
+      }
+    } catch { /* SSR / detached DOM: ignore */ }
     this.sub = this.contextMenuService.state$.subscribe(state => {
       this.state = state;
       if (state.isOpen) {
@@ -52,6 +62,12 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.sub?.unsubscribe();
+    try {
+      const host = this.el.nativeElement as HTMLElement;
+      if (host.parentElement === document.body) {
+        document.body.removeChild(host);
+      }
+    } catch { /* ignore */ }
   }
 
   // Close when clicking anywhere outside

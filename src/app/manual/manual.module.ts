@@ -17,6 +17,7 @@ import { CommentsComponent } from './pages/comments/comments.component';
 import { ManualSettingsComponent } from './pages/settings/settings.component';
 import { ManualAnalysisComponent } from './pages/analysis/analysis.component';
 import { ManualWorkspaceComponent } from './pages/workspace/workspace.component';
+import { ManualImportExportComponent } from './pages/import-export/import-export.component';
 
 const routes: Routes = [
   {
@@ -33,6 +34,7 @@ const routes: Routes = [
       { path: 'comments', component: CommentsComponent },
       { path: 'settings', component: ManualSettingsComponent },
       { path: 'workspace', component: ManualWorkspaceComponent },
+      { path: 'import-export', component: ManualImportExportComponent },
       { path: 'use-cases', component: UseCasesComponent },
     ]
   }
@@ -51,7 +53,8 @@ const routes: Routes = [
     CommentsComponent,
     ManualSettingsComponent,
     ManualAnalysisComponent,
-    ManualWorkspaceComponent
+    ManualWorkspaceComponent,
+    ManualImportExportComponent
   ],
   imports: [
     CommonModule,

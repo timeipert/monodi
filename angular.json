@@ -25,7 +25,8 @@
               "src/favicon.ico",
               "src/favicon.svg",
               "src/assets",
-              "src/manifest.webmanifest"
+              "src/manifest.webmanifest",
+              "src/CNAME"
             ],
             "styles": [
               "./node_modules/bootstrap/dist/css/bootstrap.min.css",

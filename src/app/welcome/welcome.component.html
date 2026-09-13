@@ -176,7 +176,11 @@
     </main>
 
     <footer class="welcome-footer mt-auto">
-      <span>Developed by <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a>, a project funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
+      <span>Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure, funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
+      <span class="footer-sister-links">
+        <a href="https://directions.monodi.app" target="_blank" rel="noopener">Contour Search <i class="bi bi-box-arrow-up-right"></i></a>
+        <a href="https://neume.monodi.app" target="_blank" rel="noopener">Neume Mapping <i class="bi bi-box-arrow-up-right"></i></a>
+      </span>
       <button class="btn-credits" (click)="openCredits(creditsModal)">Credits</button>
     </footer>
   </ng-container>
@@ -284,9 +288,40 @@
       </div>
     </section>
 
+    <!-- Corpus Monodicum infrastructure: sibling tools -->
+    <section class="infra-section">
+      <div class="infra-inner">
+        <p class="infra-kicker">Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure</p>
+        <div class="infra-cards">
+          <a class="infra-card" href="https://directions.monodi.app" target="_blank" rel="noopener">
+            <div class="infra-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0Zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 4.032a.5.5 0 1 1-.74-.672l4-4.412a.5.5 0 0 1 .733-.001l2.588 2.588 3.128-3.83a.5.5 0 0 1 .704-.07Z"/></svg>
+            </div>
+            <div class="infra-text">
+              <h3>Contour Search <i class="bi bi-box-arrow-up-right"></i></h3>
+              <p>Search chant melodies by their melodic contour at <span class="infra-host">directions.monodi.app</span></p>
+            </div>
+          </a>
+          <a class="infra-card" href="https://neume.monodi.app" target="_blank" rel="noopener">
+            <div class="infra-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5v-1ZM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1ZM0 11.5A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5v-1Zm6 0A1.5 1.5 0 0 1 7.5 10h1A1.5 1.5 0 0 1 10 11.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5v-1Zm6 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5v-1Z"/></svg>
+            </div>
+            <div class="infra-text">
+              <h3>Neume Mapping <i class="bi bi-box-arrow-up-right"></i></h3>
+              <p>Map and explore neume shapes and transcriptions at <span class="infra-host">neume.monodi.app</span></p>
+            </div>
+          </a>
+        </div>
+      </div>
+    </section>
+
     <!-- Footer -->
     <footer class="welcome-footer">
-      <span>Developed by <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a>, a project funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
+      <span>Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure, funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
+      <span class="footer-sister-links">
+        <a href="https://directions.monodi.app" target="_blank" rel="noopener">Contour Search <i class="bi bi-box-arrow-up-right"></i></a>
+        <a href="https://neume.monodi.app" target="_blank" rel="noopener">Neume Mapping <i class="bi bi-box-arrow-up-right"></i></a>
+      </span>
       <button class="btn-credits" (click)="openCredits(creditsModal)">Credits</button>
     </footer>
   </ng-template>
@@ -312,6 +347,9 @@
       <hr class="my-3 text-muted opacity-25">
       <p class="mb-0 small text-muted" style="line-height: 1.6;">
         The software is copyrighted by <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">Corpus Monodicum</a> and <a href="https://www.adwmainz.de/" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">ADW Mainz</a>, but is delivered as Open Source with <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 500;">MIT license</a>.
+      </p>
+      <p class="mb-0 small text-muted mt-2" style="line-height: 1.6;">
+        <a href="https://corpus-monodicum.de/impressum" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 500;">Impressum</a>
       </p>
     </div>
     <div class="modal-body pt-0 border-0">

@@ -40,6 +40,10 @@ export class LineChangeComponent implements OnDestroy, OnInit {
   @Input()
   showGClef = false;
 
+  /** Adiastematic line: hide the staff lines (there is no staff). */
+  @Input()
+  adiastematic = false;
+
   @Output()
   request = new EventEmitter<R.Request>();
   hasFocus = false;
@@ -182,12 +186,12 @@ export class LineChangeComponent implements OnDestroy, OnInit {
         {
           callback: () => { this.showComments(); },
           icon: 'comment',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         },
         {
           callback: () => { this.request.emit({ kind: "DeletionRequested", focusLast: false }); },
           icon: 'delete',
-          title: 'Löschen'
+          title: 'Delete'
         }
       ]
     });

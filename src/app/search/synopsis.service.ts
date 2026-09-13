@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { APIService, Document, ProjectSettings } from '../api.service';
 import { UserService, User } from '../user.service';
 import { textWidth } from '../../utils';
+import { registerEmbeddedFont, embeddedFamily } from '../pdf-font';
 import * as VM from '../types/model';
 
 export interface AlignedLineElement {
@@ -17,6 +18,8 @@ export interface AlignedNode {
   kind: 'container' | 'leaf';
   level: number;
   signature: string;
+  /** Structural index path of this node, e.g. "1-1-2" (1-based). */
+  path?: string;
   containers: (VM.FormteilContainer | null)[];
   children: AlignedNode[];
   items: (VM.FormteilChildren | null)[];
@@ -198,10 +201,12 @@ function needlemanWunschProfile(
 export class SynopsisService {
   alignedTree: AlignedNode[] = [];
   docSigles: { [docId: string]: string } = {};
-  alignmentMode: 'structure' | 'sequential' | 'melody' | 'text' = 'melody';
+  alignmentMode: 'signature' | 'structure' | 'sequential' | 'melody' | 'text' = 'signature';
   showConsensusText = false;
-  showSingleLineSynopsis = false;
+  showSingleLineSynopsis = true;
   chunkedMelodyRows: AlignedLineElement[][][] = [];
+  /** Within-segment alignment basis for structure/sequential modes. */
+  segmentAlignBy: 'melody' | 'text' = 'melody';
   cachedRootContainers: VM.RootContainer[] = [];
   cachedDocIds: string[] = [];
 
@@ -218,7 +223,7 @@ export class SynopsisService {
     }));
   }
 
-  alignNodeChildren(parentNodes: (VM.FormteilContainer | VM.RootContainer | null)[], depth: number): AlignedNode[] {
+  alignNodeChildren(parentNodes: (VM.FormteilContainer | VM.RootContainer | null)[], depth: number, pathPrefix: number[] = []): AlignedNode[] {
     const K = parentNodes.length;
 
     const childLists: VM.FormteilChildren[][] = parentNodes.map(node => {
@@ -253,6 +258,7 @@ export class SynopsisService {
         kind: 'leaf',
         level: depth,
         signature: '',
+        path: [...pathPrefix, alignedNodes.length + 1].join('-'),
         containers: [],
         children: [],
         items: items
@@ -267,25 +273,9 @@ export class SynopsisService {
 
       const maxLineElCount = Math.max(...lineElements.map(el => el.length));
       if (maxLineElCount > 0) {
-        leafNode.alignedLineElements = [];
-        for (let col = 0; col < maxLineElCount; col++) {
-          const column: AlignedLineElement[] = [];
-          for (let docIdx = 0; docIdx < K; docIdx++) {
-            const el = lineElements[docIdx][col] || null;
-            if (el) {
-              column.push({
-                kind: el.kind === 'Clef' ? 'clef' : 'syllable',
-                element: el
-              });
-            } else {
-              column.push({
-                kind: 'placeholder',
-                element: null
-              });
-            }
-          }
-          leafNode.alignedLineElements.push(column);
-        }
+        // Align the segment's syllables/clefs across witnesses with the same
+        // Needleman–Wunsch aligner used by the flat melody/text synopsis.
+        leafNode.alignedLineElements = this.alignElementSequences(lineElements, this.segmentAlignBy);
       }
 
       alignedNodes.push(leafNode);
@@ -316,12 +306,14 @@ export class SynopsisService {
         }
       }
 
-      const subChildren = this.alignNodeChildren(matchedContainers, depth + 1);
+      const childPrefix = [...pathPrefix, alignedNodes.length + 1];
+      const subChildren = this.alignNodeChildren(matchedContainers, depth + 1, childPrefix);
 
       alignedNodes.push({
         kind: 'container',
         level: depth,
         signature: sig,
+        path: childPrefix.join('-'),
         containers: matchedContainers,
         children: subChildren,
         items: []
@@ -329,6 +321,97 @@ export class SynopsisService {
     }
 
     return alignedNodes;
+  }
+
+  /**
+   * Signature reference of a container's `Signatur` data field, or ''.
+   */
+  private signatureOf(c: any): string {
+    return String((c && c.data || []).find((d: any) => d && d.name === 'Signatur')?.data ?? '').trim();
+  }
+
+  /**
+   * Flatten a witness into segments keyed by their *composed* signature
+   * reference. A container signed "I" whose signed children are 1, 2, 3 yields
+   * references "I-1", "I-2", "I-3" (and deeper). Where a level has no signature,
+   * its 1-based position is used so references stay unique. Consecutive lines
+   * (ZeileContainers) directly under a container form that container's segment.
+   */
+  private collectSignatureSegments(root: VM.RootContainer): { ref: string; elements: (VM.Clef | VM.Syllable)[] }[] {
+    const out: { ref: string; elements: (VM.Clef | VM.Syllable)[] }[] = [];
+
+    const walk = (node: any, stack: string[]) => {
+      if (!node || !node.children) return;
+      let pending: (VM.Clef | VM.Syllable)[] = [];
+      let idx = 0;
+      const flush = () => {
+        if (pending.length) {
+          out.push({ ref: stack.length ? stack.join('-') : '—', elements: pending });
+          pending = [];
+        }
+      };
+      const addLine = (zeile: any) => {
+        for (const el of (zeile.children || [])) {
+          if (el && (el.kind === 'Syllable' || el.kind === 'Clef')) pending.push(el);
+        }
+      };
+      const handle = (ch: any) => {
+        if (!ch) return;
+        if (ch.kind === 'ZeileContainer') {
+          addLine(ch);
+        } else if (ch.kind === 'FormteilContainer') {
+          flush();
+          idx++;
+          walk(ch, [...stack, this.signatureOf(ch) || String(idx)]);
+        } else if (ch.kind === 'MiscContainer') {
+          (ch.children || []).forEach(handle);
+        }
+      };
+      node.children.forEach(handle);
+      flush();
+    };
+
+    walk(root, []);
+    return out;
+  }
+
+  /**
+   * Align witnesses by composed signature reference: each segment is matched
+   * across pieces by its exact reference (I-1, I-2, …) rather than by tree
+   * position, and its lines are aligned within with the melody/text aligner.
+   */
+  alignBySignature(rootContainers: VM.RootContainer[]): AlignedNode[] {
+    const perDoc = rootContainers.map(r => this.collectSignatureSegments(r));
+
+    // Union of references in first-appearance order across all witnesses.
+    const order: string[] = [];
+    const seen = new Set<string>();
+    for (const segs of perDoc) {
+      for (const s of segs) {
+        if (!seen.has(s.ref)) { seen.add(s.ref); order.push(s.ref); }
+      }
+    }
+
+    const nodes: AlignedNode[] = [];
+    for (const ref of order) {
+      const seqs: (VM.Clef | VM.Syllable)[][] = perDoc.map(segs =>
+        segs.filter(s => s.ref === ref).reduce((acc, s) => acc.concat(s.elements), [] as (VM.Clef | VM.Syllable)[])
+      );
+      const node: AlignedNode = {
+        kind: 'leaf',
+        level: 1,
+        signature: ref,
+        path: ref,
+        containers: [],
+        children: [],
+        items: [],
+      };
+      if (Math.max(...seqs.map(s => s.length)) > 0) {
+        node.alignedLineElements = this.alignElementSequences(seqs, this.segmentAlignBy);
+      }
+      nodes.push(node);
+    }
+    return nodes;
   }
 
   alignSequential(rootContainers: VM.RootContainer[]): AlignedNode[] {
@@ -360,6 +443,7 @@ export class SynopsisService {
         kind: 'leaf',
         level: 1,
         signature: '',
+        path: String(idx + 1),
         containers: [],
         children: [],
         items: items
@@ -374,25 +458,7 @@ export class SynopsisService {
 
       const maxLineElCount = Math.max(...lineElements.map(el => el.length));
       if (maxLineElCount > 0) {
-        leafNode.alignedLineElements = [];
-        for (let col = 0; col < maxLineElCount; col++) {
-          const column: AlignedLineElement[] = [];
-          for (let docIdx = 0; docIdx < K; docIdx++) {
-            const el = lineElements[docIdx][col] || null;
-            if (el) {
-              column.push({
-                kind: el.kind === 'Clef' ? 'clef' as const : 'syllable' as const,
-                element: el
-              });
-            } else {
-              column.push({
-                kind: 'placeholder',
-                element: null
-              });
-            }
-          }
-          leafNode.alignedLineElements.push(column);
-        }
+        leafNode.alignedLineElements = this.alignElementSequences(lineElements, this.segmentAlignBy);
       }
 
       alignedNodes.push(leafNode);
@@ -402,10 +468,19 @@ export class SynopsisService {
   }
 
   alignMelody(rootContainers: VM.RootContainer[], mode: 'melody' | 'text' = 'melody'): AlignedLineElement[][] {
-    const K = rootContainers.length;
+    return this.alignElementSequences(rootContainers.map(r => extractFlatElements(r)), mode);
+  }
+
+  /**
+   * Progressive Needleman–Wunsch alignment of per-document element sequences into
+   * aligned columns. Shared by the flat melody/text synopsis and by the
+   * within-segment alignment of structure/sequential leaves.
+   */
+  alignElementSequences(seqs: (VM.Clef | VM.Syllable)[][], mode: 'melody' | 'text' = 'melody'): AlignedLineElement[][] {
+    const K = seqs.length;
     if (K === 0) return [];
 
-    const flatSeqs: (VM.Clef | VM.Syllable)[][] = rootContainers.map(r => extractFlatElements(r));
+    const flatSeqs = seqs;
     const seq0 = flatSeqs[0];
 
     let alignedCols: AlignedLineElement[][] = seq0.map(el => {
@@ -466,10 +541,7 @@ export class SynopsisService {
                      this.cachedRootContainers.length === selectedDocs.length;
 
     if (isCached) {
-      this.runAlignment(this.cachedRootContainers);
-      onShow(true);
-      onComplete();
-      onLoading(false);
+      this.deferAlignment(this.cachedRootContainers, onShow, onLoading, onComplete);
       return;
     }
 
@@ -506,10 +578,7 @@ export class SynopsisService {
         this.cachedRootContainers = rootContainers;
         this.cachedDocIds = currentDocIds;
 
-        this.runAlignment(rootContainers);
-        onShow(true);
-        onComplete();
-        onLoading(false);
+        this.deferAlignment(rootContainers, onShow, onLoading, onComplete);
       },
       error: (err) => {
         console.error('Error entering synopsis:', err);
@@ -525,8 +594,31 @@ export class SynopsisService {
     this.chunkedMelodyRows = [];
   }
 
+  /**
+   * Run the (potentially heavy) alignment after yielding to the browser, so the
+   * loading spinner paints and the click does not appear to freeze the app.
+   */
+  private deferAlignment(
+    rootContainers: VM.RootContainer[],
+    onShow: (show: boolean) => void,
+    onLoading: (loading: boolean) => void,
+    onComplete: () => void
+  ): void {
+    setTimeout(() => {
+      try {
+        this.runAlignment(rootContainers);
+        onShow(true);
+        onComplete();
+      } finally {
+        onLoading(false);
+      }
+    }, 0);
+  }
+
   runAlignment(rootContainers: VM.RootContainer[]) {
-    if (this.alignmentMode === 'structure') {
+    if (this.alignmentMode === 'signature') {
+      this.alignedTree = this.alignBySignature(rootContainers);
+    } else if (this.alignmentMode === 'structure') {
       this.alignedTree = this.alignNodeChildren(rootContainers, 1);
     } else if (this.alignmentMode === 'sequential') {
       this.alignedTree = this.alignSequential(rootContainers);
@@ -661,7 +753,11 @@ export class SynopsisService {
   }
 
   onSingleLineToggle() {
-    this.runAlignment(this.cachedRootContainers);
+    // Only melody/text need re-chunking; structural modes just switch layout in
+    // the template over the same aligned tree, so no re-alignment is needed.
+    if (this.alignmentMode === 'melody' || this.alignmentMode === 'text') {
+      this.runAlignment(this.cachedRootContainers);
+    }
   }
 
   async exportSynopsisPDF(selectedDocs: Document[], settings: ProjectSettings | null, visibleSynopsisCols: any[]) {
@@ -704,11 +800,18 @@ export class SynopsisService {
 
       const doc = new jsPDF({
         unit: 'mm',
-        format: singleLine ? [pageW, pageH] : 'a4',
-        orientation: singleLine ? 'landscape' : 'portrait'
+        // One-line synopsis is auto-sized to its content; the stacked view uses
+        // the configured page format/orientation.
+        format: singleLine ? [pageW, pageH] : ((settings as any)?.pdfFormat || 'a4'),
+        orientation: singleLine ? 'landscape' : (((settings as any)?.pdfOrientation) || 'portrait')
       });
       pageW = doc.internal.pageSize.getWidth();
       pageH = doc.internal.pageSize.getHeight();
+
+      // Use the embedded Unicode/CJK font when selected, so non-western text renders.
+      const embFam = embeddedFamily((settings as any)?.pdfFontFamily);
+      const font = embFam || 'times';
+      if (embFam) { await registerEmbeddedFont(doc, embFam); }
 
       const contentX = margin;
       const contentW = pageW - margin * 2;
@@ -724,11 +827,11 @@ export class SynopsisService {
       };
 
       if (showHeader) {
-        doc.setFont('times', 'bold');
+        doc.setFont(font, 'bold');
         doc.setFontSize(16);
         doc.setTextColor(15, 23, 42);
         doc.text('Synoptic Comparison', pageW / 2, y + 2, { align: 'center' });
-        doc.setFont('times', 'italic');
+        doc.setFont(font, 'italic');
         doc.setFontSize(9);
         doc.setTextColor(80, 80, 80);
         const modeLabel = this.alignmentMode.charAt(0).toUpperCase() + this.alignmentMode.slice(1);
@@ -747,7 +850,7 @@ export class SynopsisService {
       }
 
       if (showMeta && visibleSynopsisCols.length && selectedDocs.length) {
-        doc.setFont('times', 'bold');
+        doc.setFont(font, 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(80, 80, 80);
         doc.text('WITNESSES', contentX, y);
@@ -765,7 +868,7 @@ export class SynopsisService {
           theme: 'plain',
           tableWidth: Math.min(contentW, 190),
           styles: {
-            font: 'times', fontSize: 9, textColor: [15, 23, 42],
+            font: font, fontSize: 9, textColor: [15, 23, 42],
             cellPadding: { top: 1, bottom: 1, left: 0, right: 3 },
             lineColor: [226, 232, 240], lineWidth: 0
           },
@@ -825,7 +928,7 @@ export class SynopsisService {
           const fontPx = parseFloat(cs.fontSize) || 15;
           const italic = cs.fontStyle === 'italic';
           const bold = (parseInt(cs.fontWeight, 10) || 400) >= 600;
-          doc.setFont('times', bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal');
+          doc.setFont(font, bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal');
           doc.setFontSize(ptOf(fontPx));
           const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(cs.color);
           if (m) doc.setTextColor(+m[1], +m[2], +m[3]); else doc.setTextColor(0, 0, 0);
@@ -851,14 +954,15 @@ export class SynopsisService {
           const match = (block.querySelector('.syn-sec-match')?.textContent || '').trim();
           ensureSpace(22);
           y += level === 1 ? 4 : 2.5;
-          doc.setFont('times', level === 3 ? 'italic' : 'bold');
-          doc.setFontSize(level === 1 ? 11 : level === 2 ? 10 : 9.5);
+          doc.setFont(font, level === 3 ? 'italic' : 'bold');
+          // Structural labels are secondary — keep them small.
+          doc.setFontSize(level === 1 ? 8 : level === 2 ? 7.5 : 7);
           doc.setTextColor(30, 41, 59);
           const nameX = contentX + indent;
           const shownName = level === 1 ? name.toUpperCase() : name;
           doc.text(shownName, nameX, y);
           const nameW = doc.getTextWidth(shownName);
-          doc.setFont('times', 'normal');
+          doc.setFont(font, 'normal');
           doc.setFontSize(7);
           doc.setTextColor(100, 116, 139);
           const matchW = doc.getTextWidth(match);
@@ -889,7 +993,7 @@ export class SynopsisService {
       for (let i = 1; i <= total; i++) {
         doc.setPage(i);
         if (showHeader && i > 1) {
-          doc.setFont('times', 'italic');
+          doc.setFont(font, 'italic');
           doc.setFontSize(9);
           doc.setTextColor(80, 80, 80);
           doc.text(`Synoptic Comparison \u2014 ${modeLbl} alignment`, contentX, margin - 3);
@@ -902,7 +1006,7 @@ export class SynopsisService {
           doc.setDrawColor(90, 90, 90);
           doc.setLineWidth(0.2);
           doc.line(contentX, pageH - margin + 1, pageW - margin, pageH - margin + 1);
-          doc.setFont('times', 'normal');
+          doc.setFont(font, 'normal');
           doc.setFontSize(8);
           doc.setTextColor(80, 80, 80);
           if (showFooterIds && sigla) {

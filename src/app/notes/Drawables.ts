@@ -66,6 +66,72 @@ export function fromSpaceds(sds: Spaced[], comments: Comment[]): Drawable[][] {
   return aligned.map(a => flatten(a));
 }
 
+// --- Adiastematic (contour-only) layout ---------------------------------
+// No staff, no clef, no interval scaling: only the *direction* between
+// consecutive notes of a neume matters (Parsons-style patterns). Each note
+// steps a fixed amount up/down/level from the previous one; every neume
+// restarts at the baseline because the pitch relation between neumes is
+// unknown ("unclear"). Neumes are separated by plain whitespace.
+const ADIA_BASE_Y = 30;   // baseline (first note of every neume)
+const ADIA_STEP = 8;      // uniform vertical step per direction
+const ADIA_MIN_Y = 6;
+const ADIA_MAX_Y = 58;
+const ADIA_NOTE_DX = 13;  // uniform horizontal gap between heads within a neume
+const ADIA_NEUME_GAP = 26; // whitespace gap between neumes
+
+function diatonic(n: Note): number {
+  return n.octave * 7 + baseNotes.indexOf(n.base);
+}
+
+export function adiastematicFromSpaceds(sds: Spaced[], comments: Comment[]): Drawable[][] {
+  return sds.map(sd => {
+    const out: Drawable[] = [];
+    let x = 0;
+    for (const ns of sd.spaced) {           // each neume
+      let y = ADIA_BASE_Y;
+      let prev: Note | undefined;
+      for (const g of ns.nonSpaced) {       // each group (slurred run)
+        const groupNotes: DNote[] = [];
+        for (const n of g.grouped) {
+          if (prev) {
+            const d = diatonic(n) - diatonic(prev);
+            if (d > 0) y -= ADIA_STEP;
+            else if (d < 0) y += ADIA_STEP;
+            // level (d === 0): keep y
+          } else {
+            y = ADIA_BASE_Y;                // neume start (unclear relation)
+          }
+          y = Math.max(ADIA_MIN_Y, Math.min(ADIA_MAX_Y, y));
+          // A liquescent renders in a shorter (40px vs 60px) glyph box, whose
+          // head sits ~10px higher — offset the draw y so it lands on the same
+          // contour step as a normal note (mirrors the diastematic layout).
+          const drawY = n.liquescent ? y + 10 : y;
+          const dn = new DNote(x, drawY, n);
+          out.push(dn);
+          groupNotes.push(dn);
+          const sc = comments.find(c => c.startUUID === n.uuid);
+          const ec = comments.find(c => c.endUUID === n.uuid);
+          if (sc) out.push(new DCommentStart(x - 4, drawY - 7, n, sc.text));
+          if (ec) out.push(new DCommentEnd(x + 11, drawY - 7, n, ec.text));
+          prev = n;
+          x += ADIA_NOTE_DX;
+        }
+        // Slur connecting a multi-note group.
+        if (groupNotes.length > 1) {
+          const minY = Math.min(...groupNotes.map(d => d.y));
+          const firstX = groupNotes[0].x;
+          const lastX = groupNotes[groupNotes.length - 1].x;
+          out.push(new DTie(firstX + 2, minY + 20, g, (lastX - firstX) + 12));
+        }
+        // No extra gap between groups: slurred and unslurred notes within a
+        // neume are spaced identically — only the slur line differs.
+      }
+      x += ADIA_NEUME_GAP;                  // whitespace between neumes
+    }
+    return out;
+  });
+}
+
 function fromNonSpaced(ns: NonSpaced, comments: Comment[]): Drawable[] {
   const mapped = ns.nonSpaced.map(x => fromGrouped(x, comments));
   return flatten(spacedWith(17, mapped));

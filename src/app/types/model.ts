@@ -85,10 +85,25 @@ export interface EquivalentMetadata {
   notes?: string;
 }
 
+/**
+ * How a line's notation is rendered:
+ *  - 'diastematic' (default): pitched, on a staff with a clef (the classic view).
+ *  - 'adiastematic': contour-only neume heads, no staff lines and no clef; the
+ *    relation between neumes is shown as an "unclear" marker. The melody is
+ *    still stored with pitches (same text code) — only the drawing differs.
+ * Undefined is treated as 'diastematic' for backwards compatibility.
+ */
+export type NotationType = 'diastematic' | 'adiastematic';
+
 export interface ZeileContainer {
   "kind": ContainerKind.ZeileContainer;
   uuid: string;
   voiceCount?: number;
+  notation?: NotationType;
+  /** Snapshot of the exact diastematic melody (per syllable uuid), taken when
+   *  switching this line to adiastematic, so switching back restores the
+   *  original pitches unchanged. See setNotation in zeile-section. */
+  notesBackup?: { [syllableUuid: string]: { notes: Spaced; additionalMelodies?: Spaced[] } };
   children: LinePart[];
 }
 
@@ -518,6 +533,85 @@ export function emptyZeileContainer(voiceCount: number = 1): ZeileContainer {
   };
 }
 
+/**
+ * Turn every direct ZeileContainer child of a container into a single merged
+ * line, keeping the original manuscript line breaks as inline LineChange markers
+ * ("|") between the former lines (no trailing break). Mutates the container in place.
+ *
+ * Purpose: an ommr4all import makes one ZeileContainer per manuscript line, but
+ * the editor wants a single editorial line to re-split by their own criteria
+ * while the manuscript line breaks stay visible as "|".
+ *
+ * Returns the number of lines merged (0 if there was nothing to merge).
+ */
+export function mergeZeilenWithLineChanges(container: { children: any[] }): number {
+  const children = container.children;
+  const zeileIdxs: number[] = [];
+  for (let i = 0; i < children.length; i++) {
+    if (children[i] && children[i].kind === ContainerKind.ZeileContainer) zeileIdxs.push(i);
+  }
+  if (zeileIdxs.length === 0) return 0;
+
+  const mergedParts: LinePart[] = [];
+  for (let i = 0; i < zeileIdxs.length; i++) {
+    const parts = (children[zeileIdxs[i]] as ZeileContainer).children || [];
+    mergedParts.push(...parts);
+    if (i < zeileIdxs.length - 1) {
+      // Skip the line break if a folio break already sits at the boundary
+      // (end of this line): a folio change already implies the line changes.
+      const last = parts[parts.length - 1];
+      if (!last || last.kind !== LinePartKind.FolioChange) {
+        mergedParts.push({ kind: LinePartKind.LineChange, uuid: UUID(), focus: false });
+      }
+    }
+  }
+
+  // Reuse the first ZeileContainer as the merged line; drop the rest.
+  (children[zeileIdxs[0]] as ZeileContainer).children = mergedParts;
+  for (let k = zeileIdxs.length - 1; k >= 1; k--) {
+    children.splice(zeileIdxs[k], 1);
+  }
+  return zeileIdxs.length;
+}
+
+const INDEX_TO_BASE: BaseNote[] = [BaseNote.C, BaseNote.D, BaseNote.E, BaseNote.F, BaseNote.G, BaseNote.A, BaseNote.B];
+
+/** Shift one note by `steps` diatonic steps (7 = an octave), in place. */
+export function transposeNote(note: Note, steps: number): void {
+  const di = note.octave * 7 + baseNoteIndexes[note.base] + steps;
+  note.base = INDEX_TO_BASE[((di % 7) + 7) % 7];
+  note.octave = Math.floor(di / 7);
+}
+
+/**
+ * Transpose every note within a container (recursively) by `steps` diatonic
+ * steps: +1 up a second, −1 down a second, ±7 an octave. Note pitches change
+ * (they move on the staff); clefs are left untouched. Mutates in place and
+ * returns how many notes were shifted.
+ */
+export function transposeContainer(container: { children?: any[] }, steps: number): number {
+  if (!steps) return 0;
+  let count = 0;
+  const walk = (node: any) => {
+    if (!node) return;
+    if (node.kind === LinePartKind.Syllable) {
+      const voices: (Spaced | undefined)[] = [node.notes, ...((node as Syllable).additionalMelodies || [])];
+      for (const sp of voices) {
+        if (!sp || !sp.spaced) continue;
+        for (const ns of sp.spaced) {
+          for (const g of (ns.nonSpaced || [])) {
+            for (const n of (g.grouped || [])) { transposeNote(n, steps); count++; }
+          }
+        }
+      }
+      return;
+    }
+    if (Array.isArray(node.children)) node.children.forEach(walk);
+  };
+  walk(container);
+  return count;
+}
+
 export function emptySyllable(voiceCount: number = 1): Syllable {
   const notes = {
     spaced: [{
@@ -737,13 +831,13 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
   const moved = resolve(root, movedZ);
   const after = resolve(root, afterZ);
   if (!moved || !after) {
-    return "Die angegeben Pfade konnten nicht zu Container gehören";
+    return "The given paths do not point to containers.";
   }
 
   const movedDepth = movedZ.length;
   const afterDepth = afterZ.length;
 
-  if (after === moved) { return "Etwas kann nicht zu sich selbst verschoben werden"; }
+  if (after === moved) { return "An item cannot be moved onto itself."; }
 
   switch (after.kind) {
     case ContainerKind.RootContainer: switch (moved.kind) {
@@ -752,11 +846,11 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
         root.children.splice(root.children.indexOf(moved), 1);
         root.children.unshift(moved); return undefined;
       } else {
-        return "Diese Operation würde die Hierarchiestufen verletzen. Bitte legen Sie Container von Hand an und ziehen Sie das Objekt dann in den passenden Container.";
+        return "This operation would violate the hierarchy levels. Please create containers manually and then drag the item into the appropriate container.";
       }
-      case ContainerKind.ParatextContainer: return "Ein Paratext kann nur in einen Formteil gezogen werden.";
-      case ContainerKind.ZeileContainer: return "Eine Zeile kann nur in einen Formteil gezogen werden.";
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.ParatextContainer: return "A paratext can only be dragged into a Formteil.";
+      case ContainerKind.ZeileContainer: return "A line can only be dragged into a Formteil.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.FormteilContainer: switch (moved.kind) {
@@ -774,7 +868,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
           children.splice(afterIndex + 1, 0, moved);
           return undefined;
         } else {
-          return "Diese Operation würde die Hierarchiestufen verletzen. Bitte legen Sie Container von Hand an und ziehen Sie das Objekt dann in den passenden Container.";
+          return "This operation would violate the hierarchy levels. Please create containers manually and then drag the item into the appropriate container.";
         }
       }
       case ContainerKind.ParatextContainer: remove(root, moved); after.children.unshift(moved); return undefined;
@@ -789,15 +883,15 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
           return "In Edition units of this type, no note lines can be moved to this level. Please create additional intermediate containers and drop the lines there.";
         }
       }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.ZeileContainer: switch (moved.kind) {
       case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
-      case ContainerKind.FormteilContainer: return "Ein Formteil kann nicht hinter einer Zeile eingefügt werden.";
+      case ContainerKind.FormteilContainer: return "A Formteil cannot be inserted after a line.";
       case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.ParatextContainer: switch (moved.kind) {
@@ -810,12 +904,12 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
           children.splice(children.indexOf(after) + 1, 0, moved);
           return undefined;
         } else {
-          return "Diese Operation würde die Hierarchiestufen verletzen.";
+          return "This operation would violate the hierarchy levels.";
         }
       }
       case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     case ContainerKind.MiscContainer: switch (moved.kind) {
@@ -827,7 +921,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
         after.children.unshift(moved);
         return undefined;
       }
-      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      case ContainerKind.MiscContainer: return "The Misc container cannot be moved.";
       default: return assertNever(moved);
     }
     default: assertNever(after);
@@ -1081,7 +1175,32 @@ export function extractComment(r: RootContainer, c: Comment): ZeileContainer {
   const line = emptyZeileContainer();
   const isNotAnchor = (lp: LinePart) => lp.uuid !== c.endUUID && lp.uuid !== c.startUUID && !linePartContainsComments(lp, [c])
   line.children = _.dropRightWhile(_.dropWhile(getAllLineParts(r), isNotAnchor), isNotAnchor);
+  // A comment's staff inherits the notation of the line it comments on, so an
+  // adiastematic line yields an adiastematic lemma (still switchable per staff).
+  line.notation = notationOfContainingLine(r, c.startUUID) ?? notationOfContainingLine(r, c.endUUID);
   return line;
+}
+
+/** Notation of the ZeileContainer that holds the given syllable/note uuid (a
+ *  comment anchor), or undefined if not found. */
+export function notationOfContainingLine(r: Container, uuid: string | undefined): NotationType | undefined {
+  if (!uuid) return undefined;
+  let found: NotationType | undefined;
+  const walk = (node: Container) => {
+    if (found !== undefined) return;
+    if (node.kind === ContainerKind.ZeileContainer) {
+      const hit = node.children.some(lp =>
+        lp.uuid === uuid ||
+        (lp.kind === LinePartKind.Syllable &&
+          (allNotes(lp.notes).some(n => n.uuid === uuid) ||
+           (lp.additionalMelodies || []).some(m => allNotes(m).some(n => n.uuid === uuid)))));
+      if (hit) { found = node.notation || 'diastematic'; return; }
+      return;
+    }
+    for (const k of getContainerChildren(node)) walk(k);
+  };
+  walk(r);
+  return found;
 }
 
 export function getAllLineParts(r: Container): LinePart[] {
@@ -1096,10 +1215,13 @@ export function getAllLineParts(r: Container): LinePart[] {
 }
 
 export const emptyCommentTree = (): CommentTree => {
+  // A new comment opens as a single-cell grid ("one grid") so witnesses can be
+  // added side by side straight away; the cell itself is still undecided.
   return {
-    kind: "CommentTreeUndecided",
+    kind: "CommentTreeGrid",
     id: UUID(),
-  }
+    items: [[{ kind: "CommentTreeUndecided", id: UUID() }]],
+  };
 };
 
 export type Justification = {

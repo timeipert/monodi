@@ -1,10 +1,11 @@
 import {
-  ChangeDetectorRef, Component, OnInit, QueryList, ViewChildren,
+  ChangeDetectorRef, Component, OnInit, OnChanges, QueryList, ViewChildren,
   OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, TemplateRef, Output, Input, EventEmitter, AfterViewInit, HostListener,
-  OnChanges, SimpleChanges
+  SimpleChanges
 } from '@angular/core';
 import * as VM from '../types/model';
-import { fromSpaced, fromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { fromSpaced, fromSpaceds, adiastematicFromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { spacedToParsons, parsonsToSpaced } from './parsons';
 import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from './editor-shortcuts.service';
 import { ToolsService } from '../tools.service';
 import { musicLanguage } from './language';
@@ -78,8 +79,22 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   @Input()
   staffScale = 1.0;
 
+  /** Draw a leading G-clef on this element because it is the first element of
+   *  its staff line (set per-line from the template). OR-ed into `showClef`. */
   @Input()
   showGClef = false;
+
+  /** When true, render contour-only neume heads with no staff lines and no
+   *  clef (adiastematic notation). The melody model/text is unchanged. */
+  @Input()
+  adiastematic = false;
+
+  /** Extra vertical room (internal units) above/below the staff in read-only
+   *  renders, so very high/low notes are not clipped (used by the synopsis). */
+  @Input()
+  readOnlyPadTop = 0;
+  @Input()
+  readOnlyPadBottom = 0;
 
   syllableWidth = 0;
   noteTextWidth = 0;
@@ -89,7 +104,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   focusedVoiceIndex = 0;
   timeoutF: any = undefined;
   drawablesCache: Drawable[][] = [];
-  lastModelString = '';
+  /** Drawables are rebuilt only when the model/comments change (input change via
+   *  ngOnChanges, or an in-place edit via recalculateWidths) — never per CD tick. */
+  private drawablesDirty = true;
 
   getVoices(): VM.Spaced[] {
     const voices = [this.model.notes];
@@ -191,6 +208,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   refresh() {
+    this.drawablesDirty = true;
     if (this.syllableTextElement?.nativeElement) {
       (this.syllableTextElement.nativeElement as HTMLElement).textContent = this.model?.text || '';
     }
@@ -200,6 +218,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    this.drawablesDirty = true;
     if (this.syllableTextElement?.nativeElement) {
       const currentDomText = (this.syllableTextElement.nativeElement as HTMLElement).textContent || '';
       const modelText = this.model?.text || '';
@@ -230,9 +249,14 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     // Re-render this OnPush component whenever the globally-selected note
     // changes, so palette-coloured brackets in this syllable can light up
     // (or fade back to gray) without depending on local focus.
-    this.focusedNoteSub = this.focusService.focusedNoteUUID$.subscribe(() => {
-      this.cdr.markForCheck();
-    });
+    // Only needed for editable syllables (comment-bracket colouring). In the
+    // read-only synopsis there can be hundreds of these components, so skip the
+    // per-instance subscription there.
+    if (!this.readOnly) {
+      this.focusedNoteSub = this.focusService.focusedNoteUUID$.subscribe(() => {
+        this.cdr.markForCheck();
+      });
+    }
   }
 
   private focusedNoteSub?: Subscription;
@@ -385,7 +409,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   changeNoteText(event: KeyboardEvent, voiceIndex: number) {
     this.focusedVoiceIndex = voiceIndex;
     const voices = this.getVoices();
-    const oldNoteText = spacedToString(voices[voiceIndex]);
+    const oldNoteText = this.voiceToCode(voices[voiceIndex]);
     const el = this.noteTextElements.toArray()[voiceIndex].nativeElement as HTMLElement;
     const newNoteText = el.textContent || '';
     //Do not call function if nothing changes thus adding empty changes to undoService
@@ -723,7 +747,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     e.stopPropagation();
     if ((e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) && e.key === 'ArrowDown') { this.switchVoice(1); }
     else if ((e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) && e.key === 'ArrowUp') { this.switchVoice(-1); }
-    else if (e.key === 'ArrowUp') { this.changePitch(VM.nextNote); }
+    else if (e.key === 'ArrowUp') { this.adiastematic ? this.changeAdiaDirection(+1) : this.changePitch(VM.nextNote); }
     else if (e.altKey && e.key === 't') { this.request.emit({ kind: 'EditSyllableTextReqested' }); }
     else if (e.altKey && e.key === 'n') { this.request.emit({ kind: 'EditNotesTextReqested' }); }
     else if (e.altKey && e.key === 'ArrowRight') { this.insertOrShiftRight(); }
@@ -731,7 +755,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     else if (e.altKey && e.key === 'Enter') { this.splitLine(); }
     else if (e.ctrlKey && e.key === '.') { this.request.emit({ kind: 'ChangeToBoxRequested' }); }
     else if (e.altKey && e.key === '.') { this.request.emit({ kind: 'ChangeToBoxRequested' }); }
-    else if (e.key === 'ArrowDown') { this.changePitch(VM.previousNote); }
+    else if (e.key === 'ArrowDown') { this.adiastematic ? this.changeAdiaDirection(-1) : this.changePitch(VM.previousNote); }
     else if (e.key === 'ArrowLeft') {
       const focused = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
       if (focused && focused.isLatent) {
@@ -901,7 +925,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   deleteNote(focusLast: boolean): void {
     if (this.getActiveComments().length > 0) {
-      this.toastr.info('Bitte löschen Sie zunächst den Kommentar, bevor Sie das Symbol löschen');
+      this.toastr.info('Please delete the comment before deleting the symbol.');
     } else {
       const nextNote = this.withPath((s, ns, gr, no) => {
         this.undoService.beforeChange('Edit Note');
@@ -970,6 +994,45 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
 
 
+  /**
+   * Adiastematic pitch change: a note's only meaningful states are up / level /
+   * down relative to the previous note of its neume. Arrow up/down moves the
+   * focused note by one such step, clamped to [-1, +1] — so once it can't go
+   * any further in that direction it makes NO change (no silent runaway that
+   * you'd have to undo step by step). The focused note and everything after it
+   * shift together, keeping every other relationship intact.
+   */
+  changeAdiaDirection(dir: number): void {
+    const voice = this.getVoices()[this.focusedVoiceIndex];
+    const path = VM.getFocusedPath(voice);
+    if (!path) return;
+    const [, ns, , no] = path;
+    const neumeNotes: VM.Note[] = [];
+    for (const g of ns.nonSpaced) for (const n of g.grouped) neumeNotes.push(n);
+    const idx = neumeNotes.indexOf(no);
+    if (idx <= 0) return; // first note of the neume is the baseline — nothing relative to change
+    const prev = neumeNotes[idx - 1];
+    const rel = (no.octave * 7 + VM.baseNoteIndexes[no.base]) - (prev.octave * 7 + VM.baseNoteIndexes[prev.base]);
+    const clamped = Math.max(-1, Math.min(1, rel));
+    const target = Math.max(-1, Math.min(1, clamped + dir));
+    const delta = target - rel;
+    if (delta === 0) return; // already at the limit → don't change state
+    this.undoService.beforeChange('Edit Note');
+    this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+    // Shift the focused note and everything after it within this voice so all
+    // downstream directions are preserved.
+    let reached = false;
+    for (const sp of voice.spaced) {
+      for (const g2 of sp.nonSpaced) {
+        for (const n of g2.grouped) {
+          if (n === no) reached = true;
+          if (reached) VM.transposeNote(n, delta);
+        }
+      }
+    }
+    this.focusService.lastPitch = { base: no.base, octave: no.octave };
+  }
+
   changePitch(producer: (n: VM.Note) => VM.Note): void {
     this.withFocus(f => {
       this.undoService.beforeChange('Edit Note');
@@ -1023,14 +1086,13 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   getDrawables(voiceIndex: number): Drawable[] {
-    const newModelString = JSON.stringify([this.model, this.comments]);
-    if (this.lastModelString === newModelString) {
-      return this.drawablesCache[voiceIndex] || [];
-    } else {
-      this.lastModelString = newModelString;
-      this.drawablesCache = fromSpaceds(this.getVoices(), this.comments);
-      return this.drawablesCache[voiceIndex] || [];
+    if (this.drawablesDirty) {
+      this.drawablesCache = this.adiastematic
+        ? adiastematicFromSpaceds(this.getVoices(), this.comments)
+        : fromSpaceds(this.getVoices(), this.comments);
+      this.drawablesDirty = false;
     }
+    return this.drawablesCache[voiceIndex] || [];
   }
 
   textToNotes(voiceIndex: number): void {
@@ -1040,13 +1102,13 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     try {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
-      this.lastModelString = '';
-      const newNotes = musicLanguage.Spaced.tryParse(text);
+      this.drawablesDirty = true;
+      const newNotes = this.adiastematic ? parsonsToSpaced(text) : musicLanguage.Spaced.tryParse(text);
       const uuidInfo = VM.copyUuids(voices[voiceIndex], newNotes);
       const commentsToUpdate = this.comments.filter(c => uuidInfo.lostUUIDs.find(u => c.startUUID === u || c.endUUID === u));
 
       if (commentsToUpdate.length > 0 && uuidInfo.fallbackUUID === undefined) {
-        window.alert('Sie können diese Note nicht löschen, weil dabei ein Kommentar verloren gehen würde. Bitte entfernen Sie zunächst den Kommentar');
+        window.alert('You cannot delete this note because a comment would be lost. Please remove the comment first.');
         this.notesToText();
         return;
       } else if (uuidInfo.fallbackUUID) {
@@ -1078,7 +1140,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const voices = this.getVoices();
     for (let i = 0; i < voices.length; i++) {
       if (elements[i]) {
-        elements[i].nativeElement.textContent = spacedToString(voices[i]);
+        elements[i].nativeElement.textContent = this.voiceToCode(voices[i]);
       }
     }
   }
@@ -1091,7 +1153,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         {
           callback: () => { this.showComments(true); },
           icon: 'chat-text',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         }
       ]
     });
@@ -1291,17 +1353,17 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         {
           callback: () => { this.showComments(false); },
           icon: 'chat-text',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         },
         {
           callback: () => { this.changeType(); this.cdr.markForCheck(); },
           icon: 'music-note-list',
-          title: 'Silbenart ändern'
+          title: 'Change syllable type'
         },
         {
           callback: () => { this.deleteNote(false); this.cdr.markForCheck(); },
           icon: 'trash',
-          title: 'Löschen'
+          title: 'Delete'
         }
       ]
     });
@@ -1365,6 +1427,8 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   recalculateWidths(): void {
+    // An in-place edit changed the model — rebuild drawables on next read.
+    this.drawablesDirty = true;
     this.syllableWidth = this.calculateWidth();
   }
 
@@ -1373,6 +1437,12 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   isCommentStart: (d: Drawable) => boolean = d => d instanceof DCommentStart;
   isCommentEnd: (d: Drawable) => boolean = d => d instanceof DCommentEnd;
   isHelperLine: (d: Drawable) => boolean = d => d instanceof DHelperLine;
+
+  /** Text representation of a voice in the note-code field: Parsons for
+   *  adiastematic lines, the normal pitch code otherwise. */
+  private voiceToCode(voice: VM.Spaced): string {
+    return this.adiastematic ? spacedToParsons(voice) : spacedToString(voice);
+  }
 
   isHighlighted(d: Drawable): boolean {
     if (!d.ref) return false;
@@ -1491,6 +1561,18 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   isSourceEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.SourceEllipsis; }
   isEditorEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.EditorialEllipsis; }
 
+  /** Internal-unit width reserved for the G-clef at the chant start. */
+  static readonly CLEF_WIDTH = 32;
+
+  /** Draw a leading G-clef when this is the first element of its staff line
+   *  (`showGClef`, set per-line by the template) or the first syllable of the
+   *  whole document. Never on adiastematic lines (no staff). */
+  get showClef(): boolean {
+    if (this.adiastematic) return false;
+    if (this.showGClef) return true;
+    return !!this.focusService.firstSyllableUuid && !!this.model && this.model.uuid === this.focusService.firstSyllableUuid;
+  }
+
   getWidth(): number {
     const isEdit = !this.readOnly;
     const minW = isEdit ? 40 : (this.hideSyllableText ? 12 : 30);
@@ -1502,13 +1584,8 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     } else {
       baseW += Math.max(minW, activeSyllTextWidth);
     }
+    if (this.showClef) baseW += NotesComponent.CLEF_WIDTH;
     return baseW * this.staffScale;
-  }
-
-  getWidth2(): number {
-    let t = this.getWidth();
-    console.log(t);
-    return t;
   }
 
   getSVGWidth(): number {

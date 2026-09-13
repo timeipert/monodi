@@ -16,8 +16,39 @@
       </datalist>
     </ng-container>
     <div class="row mb-4">
-      <div class="col">
+      <div class="col d-flex align-items-center justify-content-between flex-wrap gap-2">
         <h2 class="page-title mb-0">{{document.textinitium || document.dokumenten_id || 'Untitled Chant'}} <app-help-button topic="transcription"></app-help-button></h2>
+        <button type="button" class="btn btn-outline-secondary btn-sm d-print-none" (click)="showCiteDialog = true" title="Citation suggestions">
+          <i class="bi bi-quote me-1"></i>Cite
+        </button>
+      </div>
+    </div>
+
+    <!-- Cite Modal -->
+    <div class="modal fade show d-block d-print-none" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showCiteDialog">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-quote me-2 text-primary"></i>Cite this chant</h5>
+            <button type="button" class="btn-close" (click)="showCiteDialog = false"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small">Rudimentary citation suggestions — please adapt to your style guide.</p>
+            <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+              <span>Citation</span>
+              <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationText())"><i class="bi bi-clipboard me-1"></i>Copy</button>
+            </label>
+            <textarea class="form-control form-control-sm mb-3" rows="3" readonly>{{ citationText() }}</textarea>
+            <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+              <span>BibTeX</span>
+              <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationBibtex())"><i class="bi bi-clipboard me-1"></i>Copy</button>
+            </label>
+            <textarea class="form-control form-control-sm font-monospace" rows="9" readonly style="font-family: monospace;">{{ citationBibtex() }}</textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary px-3" (click)="showCiteDialog = false">Close</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -60,7 +91,7 @@
          style="position: absolute; left: -9999px; top: 0; width: 1000px; background: white;">
        <!-- Global Comment first -->
        <div *ngIf="cont?.globalComment" class="pdf-comment-block pdf-global-comment" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
-           <h4 class="app-index" style="margin-bottom: 5px;">Allgemeiner Kommentar</h4>
+           <h4 class="app-index" style="margin-bottom: 5px;">Global comment</h4>
            <app-comment-tree [tree]="cont.globalComment" [readOnly]="true"></app-comment-tree>
        </div>
        <!-- Numbered comments -->
@@ -641,6 +672,13 @@
     </div>
   </div>
 </ng-template>
+
+<!-- PDF generation spinner overlay (never printed) -->
+<div class="d-print-none position-fixed top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center"
+     style="background: rgba(255,255,255,0.75); z-index: 2000;" *ngIf="isPrinting">
+  <div class="spinner-border text-danger" role="status"></div>
+  <p class="mt-3 fw-medium text-muted">Generating PDF…</p>
+</div>
 
 <!-- PDF Export Modal -->
 <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showPdfExportDialog">

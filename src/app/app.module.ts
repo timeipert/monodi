@@ -19,7 +19,6 @@ import { SettingsComponent } from './settings/settings.component';
 import { SourcesOverviewComponent } from './sources-overview/sources-overview.component';
 import { SourceComponent } from './source/source.component';
 import { DocumentComponent } from './document/document.component';
-import { UsersOverviewComponent } from './users-overview/users-overview.component';
 import { SmartTableComponent } from './smart-table/smart-table.component';
 import { SselectComponent } from './sselect/sselect.component';
 import { ConfirmDeactivateGuard } from './ConfirmDeactivateGuard';
@@ -37,11 +36,14 @@ import { SharedEditorModule } from './shared-editor.module';
 
 import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selector/subcorpora-selector.component';
 import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
+import { ImportExportComponent } from './import-export/import-export.component';
+import { SelectionDashboardComponent } from './search/selection-dashboard/selection-dashboard.component';
+import { ChartBarsComponent } from './search/charts/chart-bars.component';
+import { ChartScatterComponent } from './search/charts/chart-scatter.component';
 
 @NgModule({ declarations: [
         AppComponent,
         WelcomeComponent,
-        UsersOverviewComponent,
         SourcesOverviewComponent,
         SubcorporaSelectorComponent,
         SourceComponent,
@@ -57,7 +59,11 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
         DragMapComponent,
         HelpButtonComponent,
         ContextMenuComponent,
-        MeiMappingEditorComponent
+        MeiMappingEditorComponent,
+        ImportExportComponent,
+        SelectionDashboardComponent,
+        ChartBarsComponent,
+        ChartScatterComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
@@ -74,9 +80,6 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
                 path: 'login',
                 redirectTo: '/sources',
                 pathMatch: 'full'
-            }, {
-                path: 'users',
-                component: UsersOverviewComponent,
             }, {
                 path: 'sources',
                 component: SourcesOverviewComponent,
@@ -102,6 +105,9 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
             }, {
                 path: 'settings',
                 component: SettingsComponent,
+            }, {
+                path: 'import-export',
+                component: ImportExportComponent,
             }, {
                 path: 'zip-upload',
                 component: ZipUploadComponent,

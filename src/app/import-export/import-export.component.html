@@ -1,0 +1,181 @@
+<div class="container py-4" style="max-width: 960px;">
+  <div class="d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-arrow-down-up text-primary fs-4"></i>
+    <h3 class="fw-bold mb-0">Import / Export</h3>
+  </div>
+  <p class="text-muted mb-4">Everything for getting chant data in and out of your workspace, in one place.</p>
+
+  <!-- ── Import ─────────────────────────────────────────────────────────── -->
+  <h5 class="fw-semibold text-secondary mb-3"><i class="bi bi-box-arrow-in-down me-2"></i>Import</h5>
+  <div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-4">
+      <button type="button" class="card h-100 border-0 shadow-sm text-start w-100 io-card" (click)="openCantusDialog()">
+        <div class="card-body">
+          <i class="bi bi-cloud-arrow-down text-primary fs-4"></i>
+          <div class="fw-semibold mt-2">Import chant by Cantus ID</div>
+          <div class="text-muted small">Fetch a melody from cantusindex.org and open it as a new document</div>
+        </div>
+      </button>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-workspace' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
+        <div class="card-body">
+          <i class="bi bi-upload text-secondary fs-4"></i>
+          <div class="fw-semibold mt-2 text-dark">Import Workspace JSON</div>
+          <div class="text-muted small">Restore a <code>.monodijson</code> backup</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-zip' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
+        <div class="card-body">
+          <i class="bi bi-file-zip text-secondary fs-4"></i>
+          <div class="fw-semibold mt-2 text-dark">Import ZIP</div>
+          <div class="text-muted small">monodi or OMMR4all export folder</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-csv' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
+        <div class="card-body">
+          <i class="bi bi-filetype-csv text-secondary fs-4"></i>
+          <div class="fw-semibold mt-2 text-dark">Import CSV</div>
+          <div class="text-muted small">Rows become sources &amp; documents</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Export ─────────────────────────────────────────────────────────── -->
+  <h5 class="fw-semibold text-secondary mb-3"><i class="bi bi-box-arrow-up me-2"></i>Export</h5>
+  <div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-4">
+      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-workspace' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
+        <div class="card-body">
+          <i class="bi bi-download text-success fs-4"></i>
+          <div class="fw-semibold mt-2 text-dark">Export Workspace JSON</div>
+          <div class="text-muted small">Single <code>.monodijson</code> backup</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-csv' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
+        <div class="card-body">
+          <i class="bi bi-filetype-csv text-success fs-4"></i>
+          <div class="fw-semibold mt-2 text-dark">Export CSV</div>
+          <div class="text-muted small">Metadata + melody (Volpiano) + text</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-zip' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
+        <div class="card-body">
+          <i class="bi bi-file-earmark-zip text-info fs-4"></i>
+          <div class="fw-semibold mt-2 text-dark">Export ZIP</div>
+          <div class="text-muted small">ZIP for monodi+ / OMMR</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-html' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
+        <div class="card-body">
+          <i class="bi bi-globe text-warning fs-4"></i>
+          <div class="fw-semibold mt-2 text-dark">Export HTML Edition</div>
+          <div class="text-muted small">Browse offline as a static site</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <div class="alert alert-light border small text-muted">
+    <i class="bi bi-info-circle me-1"></i>
+    Per-document exports — <strong>MEI</strong>, <strong>Volpiano</strong>, <strong>PDF</strong> and JSON — live on each document's toolbar.
+    <strong>Import Volpiano</strong> and <strong>Import Text</strong> are on the source and document pages.
+  </div>
+</div>
+
+<!-- ── Cantus Index import dialog ───────────────────────────────────────── -->
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showCantusDialog">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 12px;">
+      <div class="modal-header border-0 pb-2">
+        <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-cloud-arrow-down text-primary"></i><span>Import chant by Cantus ID</span>
+        </h5>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closeCantusDialog()"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="text-muted small mb-2">
+          Enter a Cantus ID (or paste a <code>cantusindex.org/id/…</code> link). Melodies are read live from
+          the Cantus Index and imported as new documents (notation only; the full text goes into the metadata).
+        </p>
+
+        <form class="input-group mb-3" (ngSubmit)="fetchCantus()">
+          <input class="form-control" [(ngModel)]="cantusId" name="cantusId" placeholder="e.g. 501001"
+                 [disabled]="cantusLoading">
+          <button class="btn btn-primary" type="submit" [disabled]="cantusLoading">
+            <span *ngIf="cantusLoading" class="spinner-border spinner-border-sm me-1"></span>
+            <i *ngIf="!cantusLoading" class="bi bi-search me-1"></i>Fetch
+          </button>
+        </form>
+
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="cantusSyllabify" [(ngModel)]="cantusSyllabify" name="cantusSyllabify">
+          <label class="form-check-label small" for="cantusSyllabify">
+            <span class="fw-semibold">Split text into syllables <span class="badge bg-warning-subtle text-warning border">experimental</span></span>
+            <span class="text-muted d-block">
+              Uses the melody's syllable structure to split the Latin text and place it under the notes.
+              Best-effort — the databases don't provide a pre-split text, so mismatches are flagged for you to check.
+            </span>
+          </label>
+        </div>
+
+        <div *ngIf="cantusError" class="alert alert-warning py-2 small mb-3">{{ cantusError }}</div>
+
+        <div *ngIf="cantusInfo && cantusChants.length > 0">
+          <div class="mb-2 small">
+            <span *ngIf="cantusInfo.field_incipit" class="fw-semibold">{{ cantusInfo.field_incipit }}</span>
+            <span *ngIf="cantusInfo.field_genre" class="badge bg-light text-dark border ms-2">{{ cantusInfo.field_genre }}</span>
+            <span *ngIf="cantusInfo.field_feast" class="badge bg-light text-dark border ms-1">{{ cantusInfo.field_feast }}</span>
+          </div>
+
+          <div class="list-group">
+            <label class="list-group-item d-flex gap-2" *ngFor="let c of cantusChants">
+              <input class="form-check-input flex-shrink-0 mt-1" type="checkbox" [(ngModel)]="c.selected" [name]="'c_' + c.chantlink">
+              <div class="flex-grow-1 min-width-0">
+                <div class="d-flex justify-content-between">
+                  <span class="fw-semibold">{{ c.siglum || 'Unknown source' }}</span>
+                  <span class="text-muted small flex-shrink-0 ms-2">
+                    <span *ngIf="c.folio">f. {{ c.folio }}</span>
+                    <span *ngIf="c.mode" class="ms-2">Mode {{ c.mode }}</span>
+                  </span>
+                </div>
+                <div class="text-muted small text-truncate" *ngIf="c.fulltext">{{ c.fulltext }}</div>
+                <div class="volpiano-preview text-muted small">{{ melodyPreview(c.melody) }}</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeCantusDialog()">
+          <i class="bi bi-x-lg me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-sm btn-success"
+                *ngIf="cantusChants.length > 0"
+                [disabled]="cantusImporting || selectedCantusCount === 0"
+                (click)="importSelectedCantus()">
+          <span *ngIf="cantusImporting" class="spinner-border spinner-border-sm me-1"></span>
+          <i *ngIf="!cantusImporting" class="bi bi-download me-1"></i>
+          Import {{ selectedCantusCount }} chant{{ selectedCantusCount === 1 ? '' : 's' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

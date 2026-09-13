@@ -1,8 +1,10 @@
-import { ChangeDetectorRef, DoCheck, Component, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, DoCheck, Component, OnInit, OnDestroy, ViewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UserService, User } from '../user.service';
 import { APIService, UserInfo, Source, Document } from '../api.service'
+import { VolpianoService } from '../volpiano.service';
 import { ToastrService } from 'ngx-toastr';
 import { ToolsService, Tool } from '../tools.service';
 import { assertNever } from '../../utils';
@@ -51,6 +53,13 @@ export class SourceComponent implements OnInit {
   user: User | null = null;
   settings: ProjectSettings | null = null;
   isSaving = false;
+
+  // Volpiano import
+  @ViewChild('volpianoImport', { static: false }) volpianoImportModal!: TemplateRef<any>;
+  volpianoImportText = '';
+  volpianoImportAlignedText = '';
+  volpianoImportDocId = '';
+  volpianoImportWarnings: string[] = [];
 
   // Tab state
   activeTab: 'documents' | 'notation' = 'documents';
@@ -103,6 +112,8 @@ export class SourceComponent implements OnInit {
     private location: Location,
     private toolService: ToolsService,
     private cdr: ChangeDetectorRef,
+    private modalService: NgbModal,
+    private volpiano: VolpianoService,
     private pageTitle: PageTitleService) {
     this.loadDocCols();
   }
@@ -237,7 +248,7 @@ export class SourceComponent implements OnInit {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
           case 'SourceCreated': 
-            this.toastr.success("Erfolgreich gespeichert.");
+            this.toastr.success("Saved successfully.");
             if (this.source) this.source.id = res.id;
             this.location.replaceState('/source/' + res.id);
             break;
@@ -260,7 +271,7 @@ export class SourceComponent implements OnInit {
               this.updateQuellensigle(this.source.quellensigle);
             }
             break;
-          case 'SourceNotFound': this.toastr.error("Es sieht so aus, als wäre die Quelle zwischenzeitlich gelöscht worden"); break;
+          case 'SourceNotFound': this.toastr.error("It looks like this source was deleted in the meantime."); break;
           default: assertNever(res);
         }
       });
@@ -268,11 +279,11 @@ export class SourceComponent implements OnInit {
   }
 
   deleteDocument(d: Document): void {
-    if (confirm(`Möchten Sie das Dokument ${d.dokumenten_id} wirklich löschen?`)) {
+    if (confirm(`Delete document ${d.dokumenten_id}?`)) {
       if (this.user) {
         this.api.removeDocument(this.user.token, d.id).subscribe(res => {
           if (res.kind === 'Ok') {
-            this.toastr.success("Dokument gelöscht.");
+            this.toastr.success("Document deleted.");
             if (this.source?.id) {
               this.retrieveForId(this.source.id);
             }
@@ -282,6 +293,66 @@ export class SourceComponent implements OnInit {
     }
   }
 
+  openVolpianoImport(): void {
+    this.volpianoImportText = '';
+    this.volpianoImportAlignedText = '';
+    this.volpianoImportDocId = '';
+    this.volpianoImportWarnings = [];
+    this.modalService.open(this.volpianoImportModal, { size: 'lg' });
+  }
+
+  /** Create a new document under this source from a pasted Volpiano string. */
+  doVolpianoImport(): void {
+    if (!this.user || !this.source || !this.source.id) return;
+    const raw = this.volpianoImportText.trim();
+    if (!raw) {
+      this.toastr.error('Please paste a Volpiano string.');
+      return;
+    }
+
+    let result;
+    try {
+      result = this.volpiano.import(raw, this.volpianoImportAlignedText.trim() || undefined);
+    } catch (e) {
+      this.toastr.error('Could not read Volpiano: ' + e);
+      return;
+    }
+    this.volpianoImportWarnings = result.warnings;
+
+    const doc: Document = {
+      id: '',
+      quelle_id: this.source.id,
+      dokumenten_id: this.volpianoImportDocId.trim(),
+      gattung1: '',
+      gattung2: '',
+      festtag: '',
+      feier: '',
+      textinitium: '',
+      bibliographischerverweis: '',
+      druckausgabe: '',
+      zeilenstart: '',
+      foliostart: '',
+      kommentar: '',
+      editionsstatus: '',
+      custom: {},
+    };
+
+    this.api.createDocument(this.user.token, { document: doc, notes: result.root }).subscribe(res => {
+      switch (res.kind) {
+        case 'LoginRequired': this.userService.logout(); break;
+        case 'DocumentCreated':
+          if (result.warnings.length > 0) {
+            this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano import warnings');
+          }
+          this.toastr.success('Document created from Volpiano.');
+          this.modalService.dismissAll();
+          this.router.navigate(['/document', this.source!.id, res.id]);
+          break;
+        default: assertNever(res);
+      }
+    });
+  }
+
   addToSettings(category: keyof ProjectSettings, value: string | undefined) {
     if (!value || !value.trim() || !this.settings || !this.user) return;
     const val = value.trim();
@@ -289,7 +360,7 @@ export class SourceComponent implements OnInit {
     if (Array.isArray(arr) && !arr.includes(val)) {
       arr.push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -385,7 +456,7 @@ export class SourceComponent implements OnInit {
     if (!this.settings.customLists[category].includes(val)) {
       this.settings.customLists[category].push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`${val} zu ${category} hinzugefügt`);
+        this.toastr.success(`Added ${val} to ${category}`);
       });
     }
   }

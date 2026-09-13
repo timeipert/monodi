@@ -99,7 +99,7 @@
                 <li>
                   <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'zeile'" [class.text-muted]="!activeProfile.entities.zeile.enabled" (click)="selectNode('zeile')">
                     <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.zeile.enabled" (ngModelChange)="emitChange()">
-                    <span class="me-auto">Zeile</span>
+                    <span class="me-auto">Line</span>
                     <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.zeile.tag}}&gt;</span>
                 <span class="modified-dot ms-2" *ngIf="entityDiffers('zeile')" title="Modified from default"></span>
                   </div>

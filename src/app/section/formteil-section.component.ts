@@ -99,7 +99,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     if (child && child.kind === Model.ContainerKind.FormteilContainer) {
       const formteilCount = this.data.children.filter(c => c.kind === Model.ContainerKind.FormteilContainer).length;
       if (formteilCount <= 1) {
-        this.toastr.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+        this.toastr.warning("This section cannot be deleted because it is the only one at this level.");
         return;
       }
     }
@@ -145,11 +145,44 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     // 4. Add paratext (Additional metadata/text)
     this.actionHandlers['+ Text'] = () => { this.newAt(Model.emptyParatextContainer(), 0) };
 
-    // 5. Merge all lines inside this section
+    // 5. Merge all lines inside this section (recursive, via root handler)
     this.actionHandlers['Merge All Lines'] = () => {
       this.onEvent.emit({ kind: 'MergeAllLinesRequested', containerUuid: this.data.uuid } as any);
     };
 
+    // 5b. Merge all manuscript lines (ommr4all) into one editorial line, keeping
+    //    the breaks as inline "|" markers to re-split by editorial criteria.
+    if (this.data.children.filter(c => c && c.kind === Model.ContainerKind.ZeileContainer).length >= 2) {
+      this.actionHandlers['Merge lines (keep breaks as |)'] = () => this.mergeLines();
+    }
+
+    // 6. Transpose every note in this section (diatonic).
+    this.actionHandlers['↑ Transpose up (step)'] = () => this.transpose(1);
+    this.actionHandlers['↓ Transpose down (step)'] = () => this.transpose(-1);
+    this.actionHandlers['↑↑ Transpose up (octave)'] = () => this.transpose(7);
+    this.actionHandlers['↓↓ Transpose down (octave)'] = () => this.transpose(-7);
+  }
+
+  transpose(steps: number): void {
+    this.undo.beforeChange();
+    const n = Model.transposeContainer(this.data, steps);
+    if (n > 0) {
+      const dir = steps > 0 ? 'up' : 'down';
+      const amount = Math.abs(steps) === 7 ? 'an octave' : `${Math.abs(steps)} step(s)`;
+      this.toastr.success(`Transposed ${n} notes ${dir} ${amount}.`, 'Transposed');
+    } else {
+      this.toastr.info('No notes to transpose here.');
+    }
+    this.cdr.detectChanges();
+  }
+
+  mergeLines(): void {
+    this.undo.beforeChange();
+    const n = Model.mergeZeilenWithLineChanges(this.data);
+    if (n > 0) {
+      this.toastr.success(`Merged ${n} lines into one; manuscript breaks kept as |.`, 'Lines merged');
+    }
+    this.cdr.detectChanges();
   }
 
 

@@ -42,6 +42,13 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   @Input()
   staffScale = 1.0;
 
+  /** Extra vertical room (internal units) above/below the staff in read-only
+   *  renders, matching app-notes so synopsis cells align. */
+  @Input()
+  readOnlyPadTop = 0;
+  @Input()
+  readOnlyPadBottom = 0;
+
   getActiveComments(): VM.Comment[] {
     if (this.model.focus) {
       return this.comments.filter(c => c.endUUID === this.model.uuid || c.startUUID === this.model.uuid);
@@ -133,7 +140,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
 
   deleteClef(focusLast: boolean) {
     if (this.getActiveComments().length > 0) {
-      this.toastr.info("Bitte löschen Sie zunächst den Kommentar, bevor Sie das Symbol löschen");
+      this.toastr.info("Please delete the comment before deleting the symbol.");
     } else {
       this.request.emit({ kind: "DeletionRequested", focusLast });
     }
@@ -215,12 +222,12 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
         {
           callback: () => { this.showComments() },
           icon: 'comment',
-          title: 'Kommentare anzeigen'
+          title: 'Show comments'
         },
         {
           callback: () => { this.request.emit({ kind: "DeletionRequested", focusLast: false }); },
           icon: 'delete',
-          title: 'Löschen'
+          title: 'Delete'
         }
       ]
     });

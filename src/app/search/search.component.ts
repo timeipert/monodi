@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -407,15 +407,102 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   selectedDocs: Document[] = [];
   showSynopsis = false;
   synopsisLoading = false;
+  synopsisPdfExporting = false;
+
+  // Selection analysis dashboard
+  showDashboard = false;
+  dashboardLoading = false;
+  dashboardRoots: (VM.RootContainer | null)[] = [];
+  dashboardSources: (Source | null)[] = [];
 
   get alignedTree(): AlignedNode[] { return this.synopsisSvc.alignedTree; }
   set alignedTree(v: AlignedNode[]) { this.synopsisSvc.alignedTree = v; }
 
+  private _flatSegCache: { tree: AlignedNode[]; segs: AlignedNode[] } | null = null;
+  /** Flat, in-order list of the staff-bearing segments across the aligned tree
+   *  (used by the one-line structural layout). Memoised by tree reference. */
+  get flatSegments(): AlignedNode[] {
+    const tree = this.alignedTree;
+    if (this._flatSegCache && this._flatSegCache.tree === tree) return this._flatSegCache.segs;
+    const out: AlignedNode[] = [];
+    const walk = (nodes: AlignedNode[]) => {
+      for (const n of nodes) {
+        if (n.alignedLineElements) out.push(n);
+        if (n.children && n.children.length) walk(n.children);
+      }
+    };
+    walk(tree);
+    this._flatSegCache = { tree, segs: out };
+    return out;
+  }
+
+  /** Total rendered width of a segment (sum of its column widths). */
+  segmentWidth(node: AlignedNode): number {
+    if (!node.alignedLineElements) return 0;
+    return node.alignedLineElements.reduce((sum, col) => sum + this.getColumnWidth(col), 0);
+  }
+
+  get isStructuralMode(): boolean {
+    return this.alignmentMode === 'signature' || this.alignmentMode === 'structure' || this.alignmentMode === 'sequential';
+  }
+
+  // ── One-line synopsis virtualisation (only render segments near the viewport) ──
+  @ViewChild('synScroll') synScrollRef?: ElementRef<HTMLElement>;
+  synVisibleSegments: AlignedNode[] = [];
+  synLeadWidth = 0;
+  synTailWidth = 0;
+  private _synWindowFor: AlignedNode[] | null = null;
+  private _synWindowKey = '';
+  private _synOffsets: number[] = [];
+  private _synOffsetsFor: AlignedNode[] | null = null;
+  private _synRaf = 0;
+
+  trackBySegment = (_: number, seg: AlignedNode) => seg;
+
+  /** Cumulative left offsets of each segment (length = segments + 1). */
+  private synOffsets(segs: AlignedNode[]): number[] {
+    if (this._synOffsetsFor === segs) return this._synOffsets;
+    const offs = [0];
+    for (const s of segs) offs.push(offs[offs.length - 1] + this.segmentWidth(s));
+    this._synOffsets = offs;
+    this._synOffsetsFor = segs;
+    return offs;
+  }
+
+  /** Recompute which segments to render for the current scroll position. */
+  private updateSynWindow(scrollLeft: number, viewport: number): void {
+    const segs = this.flatSegments;
+    if (segs.length === 0) { this.synVisibleSegments = []; this.synLeadWidth = 0; this.synTailWidth = 0; return; }
+    const offs = this.synOffsets(segs);
+    const total = offs[segs.length];
+    const buffer = Math.max(1000, viewport);
+    const min = scrollLeft - buffer;
+    const max = scrollLeft + viewport + buffer;
+    let start = 0;
+    while (start < segs.length && offs[start + 1] <= min) start++;
+    let end = start;
+    while (end < segs.length && offs[end] < max) end++;
+    if (end <= start) end = Math.min(segs.length, start + 1);
+    this.synVisibleSegments = segs.slice(start, end);
+    this.synLeadWidth = offs[start];
+    this.synTailWidth = Math.max(0, total - offs[end]);
+  }
+
+  onSynScroll(ev: Event): void {
+    const el = ev.target as HTMLElement;
+    if (this._synRaf) return;
+    this._synRaf = requestAnimationFrame(() => {
+      this._synRaf = 0;
+      this.updateSynWindow(el.scrollLeft, el.clientWidth);
+      this.cdRef.markForCheck();
+    });
+  }
+
   get docSigles(): { [docId: string]: string } { return this.synopsisSvc.docSigles; }
   set docSigles(v: { [docId: string]: string }) { this.synopsisSvc.docSigles = v; }
 
-  get alignmentMode(): 'structure' | 'sequential' | 'melody' | 'text' { return this.synopsisSvc.alignmentMode; }
-  set alignmentMode(v: 'structure' | 'sequential' | 'melody' | 'text') { this.synopsisSvc.alignmentMode = v; }
+  get alignmentMode(): 'signature' | 'structure' | 'sequential' | 'melody' | 'text' { return this.synopsisSvc.alignmentMode; }
+  set alignmentMode(v: 'signature' | 'structure' | 'sequential' | 'melody' | 'text') { this.synopsisSvc.alignmentMode = v; }
 
   get showConsensusText(): boolean { return this.synopsisSvc.showConsensusText; }
   set showConsensusText(v: boolean) { this.synopsisSvc.showConsensusText = v; }
@@ -795,6 +882,25 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
    * guarantees the target card is mounted.
    */
   ngAfterViewChecked(): void {
+    // Initialise the one-line synopsis virtualisation window once the segments
+    // (and the scroll container) are available; refresh it when segments change.
+    if (this.isStructuralMode && this.showSingleLineSynopsis) {
+      const segs = this.flatSegments;
+      const key = (this.showConsensusText ? 'C' : 'N') + (this.settings?.pdfSynopsisScale || 1.0);
+      if (this._synWindowFor !== segs || this._synWindowKey !== key) {
+        this._synWindowFor = segs;
+        this._synWindowKey = key;
+        this._synOffsetsFor = null; // column widths (hence offsets) may have changed
+        // Defer to a fresh CD cycle — mutating bindings during ngAfterViewChecked
+        // would raise ExpressionChangedAfterItHasBeenCheckedError.
+        requestAnimationFrame(() => {
+          const el = this.synScrollRef?.nativeElement;
+          this.updateSynWindow(el ? el.scrollLeft : 0, el ? el.clientWidth : 1400);
+          this.cdRef.markForCheck();
+        });
+      }
+    }
+
     if (this.pendingPatternScrollId === null) return;
     const id = this.pendingPatternScrollId;
     const el = document.getElementById('pattern-group-' + id);
@@ -1480,8 +1586,16 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return this.synopsisSvc.getElementWidth(item);
   }
 
+  // Column widths need canvas text measurement; memoise by column identity so the
+  // many width bindings don't re-measure every cell on every change-detection tick.
+  private _colWidthCache = new WeakMap<AlignedLineElement[], { key: string; w: number }>();
   getColumnWidth(col: AlignedLineElement[]): number {
-    return this.synopsisSvc.getColumnWidth(col, this.settings);
+    const key = (this.showConsensusText ? 'C' : 'N') + (this.settings?.pdfSynopsisScale || 1.0);
+    const hit = this._colWidthCache.get(col);
+    if (hit && hit.key === key) return hit.w;
+    const w = this.synopsisSvc.getColumnWidth(col, this.settings);
+    this._colWidthCache.set(col, { key, w });
+    return w;
   }
 
   hasParatext(items: any[]): boolean {
@@ -1504,8 +1618,27 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return this.synopsisSvc.hasLineElements(node, docIdx);
   }
 
+  /** How many of the selected witnesses actually contain this aligned section. */
+  getMatchedCount(node: AlignedNode): number {
+    const total = this.selectedDocs.length;
+    let count = 0;
+    for (let i = 0; i < total; i++) {
+      const hasContainer = !!(node.containers && node.containers[i]);
+      const hasItem = !!(node.items && node.items[i]);
+      const hasLeaf = !!node.alignedLineElements && this.synopsisSvc.hasLineElements(node, i);
+      if (hasContainer || hasItem || hasLeaf) count++;
+    }
+    return count;
+  }
+
+  private _consensusCache = new WeakMap<AlignedLineElement[], string[]>();
   getConsensusSyllableTexts(col: AlignedLineElement[]): string[] {
-    return this.synopsisSvc.getConsensusSyllableTexts(col);
+    let c = this._consensusCache.get(col);
+    if (c === undefined) {
+      c = this.synopsisSvc.getConsensusSyllableTexts(col);
+      this._consensusCache.set(col, c);
+    }
+    return c;
   }
 
   onSingleLineToggle() {
@@ -1513,15 +1646,41 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   async exportSynopsisPDF() {
-    await this.synopsisSvc.exportSynopsisPDF(
-      this.selectedDocs,
-      this.settings,
-      this.visibleSynopsisCols
-    );
+    if (this.synopsisPdfExporting) return;
+    this.synopsisPdfExporting = true;
+    // The one-line view is virtualised, so temporarily render EVERY segment
+    // (the PDF reads the DOM) — the window is restored afterwards.
+    this.synVisibleSegments = this.flatSegments;
+    this.synLeadWidth = 0;
+    this.synTailWidth = 0;
+    this._synWindowFor = this.flatSegments; // keep ngAfterViewChecked from re-windowing mid-export
+    this.cdRef.markForCheck();
+    // Yield so the spinner paints and all segments render before the PDF build.
+    await new Promise(resolve => setTimeout(resolve, 60));
+    try {
+      await this.synopsisSvc.exportSynopsisPDF(
+        this.selectedDocs,
+        this.settings,
+        this.visibleSynopsisCols
+      );
+    } finally {
+      this.synopsisPdfExporting = false;
+      this._synWindowFor = null; // force the virtualisation window to re-init
+      this.cdRef.markForCheck();
+    }
   }
 
-  onAlignmentModeChange(mode: 'structure' | 'sequential' | 'melody' | 'text') {
+  onAlignmentModeChange(mode: 'signature' | 'structure' | 'sequential' | 'melody' | 'text') {
     this.synopsisSvc.alignmentMode = mode;
+    this.enterSynopsis();
+  }
+
+  get segmentAlignBy(): 'melody' | 'text' { return this.synopsisSvc.segmentAlignBy; }
+  set segmentAlignBy(v: 'melody' | 'text') { this.synopsisSvc.segmentAlignBy = v; }
+
+  /** Change the within-segment alignment basis (structure/sequential modes) and re-align. */
+  onSegmentAlignByChange(mode: 'melody' | 'text') {
+    this.synopsisSvc.segmentAlignBy = mode;
     this.enterSynopsis();
   }
 
@@ -1535,6 +1694,41 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       (loading) => { this.synopsisLoading = loading; this.cdRef.markForCheck(); },
       () => { this.updateUrl(); this.cdRef.markForCheck(); }
     );
+  }
+
+  // ── Selection analysis dashboard ──────────────────────────────────────────
+
+  openDashboard() {
+    if (!this.user || this.selectedDocs.length < 1) return;
+    const token = this.user.token;
+    this.dashboardLoading = true;
+    this.cdRef.markForCheck();
+    forkJoin({
+      sources: this.api.listSources(token),
+      notes: forkJoin(this.selectedDocs.map(d => this.api.getDocumentNotes(token, d.id))),
+    }).subscribe({
+      next: ({ sources, notes }) => {
+        const srcList = sources.kind === 'SourcesRetrieved' ? sources.sources : [];
+        const srcMap = new Map(srcList.filter(s => s.id).map(s => [s.id!, s] as [string, Source]));
+        this.dashboardSources = this.selectedDocs.map(d => srcMap.get(d.quelle_id) || null);
+        this.dashboardRoots = notes.map(n => (n.kind === 'NotesRetrieved' ? n.data : null));
+        this.dashboardLoading = false;
+        this.showDashboard = true;
+        this.cdRef.markForCheck();
+      },
+      error: () => {
+        this.dashboardLoading = false;
+        this.toastr.error('Could not load the selected documents for analysis.');
+        this.cdRef.markForCheck();
+      },
+    });
+  }
+
+  exitDashboard() {
+    this.showDashboard = false;
+    this.dashboardRoots = [];
+    this.dashboardSources = [];
+    this.cdRef.markForCheck();
   }
 
   // ── Pattern Analysis Methods ──────────────────────────────────────────────

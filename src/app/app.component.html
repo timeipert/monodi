@@ -1,5 +1,5 @@
 <div class="sticky-top shadow-sm">
-    <nav class="navbar navbar-expand-sm navbar-light bg-white px-4 border-bottom">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white px-3 px-md-4 border-bottom">
         <a class="navbar-brand d-flex align-items-center gap-2" [routerLink]="['/']" style="text-decoration: none;">
             <div class="d-flex align-items-baseline" style="font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.5px;">
                 <span style="color: #fff;">Monodi</span>
@@ -8,23 +8,28 @@
             <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">zero</span>
         </a>
 
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <button class="navbar-toggler" type="button"
+                (click)="isNavCollapsed = !isNavCollapsed"
+                [attr.aria-expanded]="!isNavCollapsed" aria-controls="navbarSupportedContent" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
 
-        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <div class="collapse navbar-collapse" id="navbarSupportedContent" [ngbCollapse]="isNavCollapsed">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['sources']">Sources</a>
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['sources']" (click)="isNavCollapsed = true">Sources</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']">Search</a>
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']" (click)="isNavCollapsed = true">Search</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['stats']">Stats</a>
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['stats']" (click)="isNavCollapsed = true">Stats</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['import-export']" (click)="isNavCollapsed = true">Import / Export</a>
                 </li>
             </ul>
-            <ul class="navbar-nav ms-auto align-items-center">
+            <ul class="navbar-nav ms-auto align-items-lg-center mt-2 mt-lg-0 gap-2 gap-lg-0">
                 <li class="nav-item me-3" *ngIf="github.isConnected">
                     <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-success d-flex align-items-center gap-1" (click)="sync('pull')" [disabled]="isSyncing" title="Pull from GitHub">
@@ -47,19 +52,45 @@
                     <span class="small text-muted fw-medium d-none d-sm-inline" style="font-size: 0.85rem;">{{ isOnline ? 'Online' : 'Offline' }}</span>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']">
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']" (click)="isNavCollapsed = true">
                         <i class="bi bi-gear-fill me-1"></i>Settings
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link fw-medium text-primary" [routerLink]="['/manual']">
+                    <a class="nav-link fw-medium text-primary" [routerLink]="['/manual']" (click)="isNavCollapsed = true">
                         <i class="bi bi-book-fill me-1"></i>Manual
                     </a>
                 </li>
             </ul>
         </div>
     </nav>
-    <div *ngIf="tools && tools.tools.length > 0" class="monodi-tool-bar bg-light border-bottom px-3 py-2 d-flex align-items-center shadow-sm">
+
+    <!-- Backup reminder: data is local-first and lost if browser storage is cleared -->
+    <div *ngIf="showBackupReminder" class="backup-reminder border-bottom px-3 py-2">
+        <div class="d-flex align-items-start gap-2 flex-wrap">
+            <i class="bi bi-shield-exclamation fs-5 text-warning flex-shrink-0"></i>
+            <div class="flex-grow-1" style="min-width: 220px;">
+                <div class="fw-semibold">Changes not backed up</div>
+                <div class="small text-muted">
+                    Your data lives only in this browser. If the browser's storage is cleared, it is gone for
+                    good. Back it up to be safe — via <strong>Export</strong> or <strong>GitHub</strong>.
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <button class="btn btn-sm btn-warning" (click)="goToBackup()">
+                    <i class="bi bi-download me-1"></i>Back up now
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" (click)="snoozeBackup()" title="Hide for 30 minutes">
+                    Later
+                </button>
+                <button class="btn btn-sm btn-link text-muted text-decoration-none px-1" (click)="dismissBackupReminder()">
+                    Don't show again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div *ngIf="tools && tools.tools.length > 0" class="monodi-tool-bar bg-light border-bottom px-3 py-2 d-flex align-items-center flex-wrap gap-2 shadow-sm">
         <!-- Left: Back to Source button -->
         <button *ngIf="tools.tools[0]?.icon === 'to-source'"
                 class="btn btn-sm btn-back-source d-flex align-items-center gap-1 me-3"

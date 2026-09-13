@@ -2,21 +2,27 @@
 	<ng-container *ngFor="let voice of getVoices(); let i = index; trackBy: trackByIndex">
 	<div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
 		(focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
-		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? (80 * staffScale) : 120">
-			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, -20)' : 'scale(' + staffScale + ') translate(0, 0)'">
-				<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
-				<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
-				<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
-				<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
-				<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
-				<text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="bold" fill="black" style="user-select: none; pointer-events: none;">G</text>
+		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
+			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
+				<!-- Staff lines: only for diastematic notation. Adiastematic draws no staff. -->
+				<ng-container *ngIf="!adiastematic">
+					<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
+					<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
+					<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
+					<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
+					<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
+				</ng-container>
+
+				<!-- G-clef at a staff-line start: light grey, spaced from the first note. -->
+				<text *ngIf="showClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
 
 				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="2px"
 					height="60px" [attr.fill]="syllableBracketColor('start')" />
 				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="10px"
 					height="2px" [attr.fill]="syllableBracketColor('start')" />
 
-				<g *ngIf="isNormal()" [attr.transform]="showGClef ? 'translate(34, 0)' : 'translate(12, 0)'">
+				<g *ngIf="isNormal()" [attr.transform]="'translate(' + (showClef ? 44 : 12) + ', 0)'">
+
 					<g *ngFor="let drawable of getDrawables(i);trackBy:refOfDrawable"
 						[style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
 						(click)="drawableClicked(drawable, $event, i)"

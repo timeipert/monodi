@@ -1,6 +1,6 @@
 .custom-context-menu {
   position: fixed;
-  z-index: 99999;
+  z-index: 2147483647;
   background-color: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.15);
   min-width: 220px;
@@ -38,6 +38,25 @@
   font-size: 16px;
   width: 20px;
   text-align: center;
+}
+
+.menu-header {
+  padding: 6px 16px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #868e96;
+  user-select: none;
+}
+.menu-header:not(:first-child) {
+  margin-top: 4px;
+  border-top: 1px solid #e9ecef;
+  padding-top: 8px;
+}
+
+.menu-item .bi-check-lg {
+  font-size: 14px;
 }
 
 .menu-divider {

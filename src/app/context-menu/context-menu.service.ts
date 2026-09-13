@@ -4,6 +4,11 @@ import { Subject } from 'rxjs';
 export interface ContextMenuItem {
   label: string;
   icon?: string;
+  /** When true, render as a non-clickable section header (groups items without
+   *  needing nested submenus). `action` is ignored. */
+  header?: boolean;
+  /** When true, show a checkmark to mark the currently-active choice. */
+  checked?: boolean;
   action: () => void;
   disabled?: boolean;
 }

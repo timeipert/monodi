@@ -81,7 +81,7 @@ export function buildWorkspaceExport(
 
 export function parseWorkspaceImport(json: any): WorkspaceImportResult {
   if (!json || typeof json !== 'object') {
-    throw new Error('Ungültiges Workspace-Format: JSON ist kein Objekt.');
+    throw new Error('Invalid workspace format: JSON is not an object.');
   }
   const schemaVersion = json.schemaVersion !== undefined ? json.schemaVersion : 1;
   const notesDict = json.notes;

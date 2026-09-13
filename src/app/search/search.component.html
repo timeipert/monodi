@@ -1,5 +1,5 @@
 <div *ngIf="!showPatternAnalysis">
-<div class="search-page container-fluid px-4 py-4" style="max-width: 1200px;" *ngIf="!showSynopsis">
+<div class="search-page container-fluid px-4 py-4" style="max-width: 1200px;" *ngIf="!showSynopsis && !showDashboard">
 
   <!-- Page header -->
   <div class="d-flex align-items-center justify-content-between mb-4">
@@ -146,6 +146,10 @@
             <span class="text-primary small ms-2"><i class="bi bi-info-circle me-1"></i>Check multiple documents below to compare them side-by-side (Synopse).</span>
           </div>
           <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-outline-primary" *ngIf="selectedDocs.length >= 1" (click)="openDashboard()">
+              <span *ngIf="dashboardLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
+            </button>
             <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
               <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
               Open Synopsis ({{selectedDocs.length}})
@@ -512,6 +516,10 @@
           <span *ngIf="documentsTotalPages > 1">· page {{documentsPage}} / {{documentsTotalPages}}</span>
         </span>
         <div class="d-flex gap-2 align-items-center">
+          <button class="btn btn-sm btn-outline-primary" *ngIf="selectedDocs.length >= 1" (click)="openDashboard()">
+            <span *ngIf="dashboardLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
+          </button>
           <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
             <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
             Open Synopsis ({{selectedDocs.length}})
@@ -938,6 +946,10 @@
             <span class="text-primary small"><i class="bi bi-info-circle me-1"></i>Select multiple chants below to compare them side-by-side.</span>
           </div>
           <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-outline-primary" *ngIf="selectedDocs.length >= 1" (click)="openDashboard()">
+              <span *ngIf="dashboardLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
+            </button>
             <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
               <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
               Open Synopsis ({{selectedDocs.length}})
@@ -1131,6 +1143,7 @@
           <i class="bi bi-arrow-left me-1"></i>Back
         </button>
         <div class="btn-group btn-group-sm">
+          <button class="btn" [class.btn-primary]="alignmentMode === 'signature'" [class.btn-outline-secondary]="alignmentMode !== 'signature'" (click)="onAlignmentModeChange('signature')" title="Align by composed signature reference (I-1, I-2, …)">Signature</button>
           <button class="btn" [class.btn-primary]="alignmentMode === 'melody'" [class.btn-outline-secondary]="alignmentMode !== 'melody'" (click)="onAlignmentModeChange('melody')">Melody</button>
           <button class="btn" [class.btn-primary]="alignmentMode === 'text'" [class.btn-outline-secondary]="alignmentMode !== 'text'" (click)="onAlignmentModeChange('text')">Text</button>
           <button class="btn" [class.btn-primary]="alignmentMode === 'structure'" [class.btn-outline-secondary]="alignmentMode !== 'structure'" (click)="onAlignmentModeChange('structure')">Structure</button>
@@ -1141,9 +1154,14 @@
           <input class="form-check-input" type="checkbox" id="consensusTextToggle" [(ngModel)]="showConsensusText">
           <label class="form-check-label text-muted small fw-semibold" for="consensusTextToggle">Consensus text</label>
         </div>
-        <div class="form-check form-switch mb-0" *ngIf="alignmentMode === 'melody' || alignmentMode === 'text'">
+        <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" id="singleLineToggle" [(ngModel)]="showSingleLineSynopsis" (change)="onSingleLineToggle()">
           <label class="form-check-label text-muted small fw-semibold" for="singleLineToggle">One line</label>
+        </div>
+        <div class="btn-group btn-group-sm" *ngIf="alignmentMode === 'signature' || alignmentMode === 'structure' || alignmentMode === 'sequential'" title="Align each segment by melody or by text">
+          <span class="input-group-text py-0 small text-muted">Align by</span>
+          <button class="btn" [class.btn-primary]="segmentAlignBy === 'melody'" [class.btn-outline-secondary]="segmentAlignBy !== 'melody'" (click)="onSegmentAlignByChange('melody')">Melody</button>
+          <button class="btn" [class.btn-primary]="segmentAlignBy === 'text'" [class.btn-outline-secondary]="segmentAlignBy !== 'text'" (click)="onSegmentAlignByChange('text')">Text</button>
         </div>
       </div>
       <div class="d-flex align-items-center gap-2">
@@ -1166,8 +1184,9 @@
             </div>
           </div>
         </div>
-        <button class="btn btn-primary btn-sm" (click)="exportSynopsisPDF()">
-          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        <button class="btn btn-primary btn-sm" (click)="exportSynopsisPDF()" [disabled]="synopsisPdfExporting">
+          <span *ngIf="synopsisPdfExporting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+          <i *ngIf="!synopsisPdfExporting" class="bi bi-file-earmark-pdf me-1"></i>{{ synopsisPdfExporting ? 'Generating…' : 'Export PDF' }}
         </button>
       </div>
     </div>
@@ -1221,56 +1240,61 @@
     <!-- Synopsis Content -->
     <div *ngIf="!synopsisLoading">
       <!-- 1. Tree / Structural Alignment Mode -->
-      <div *ngIf="alignmentMode === 'structure' || alignmentMode === 'sequential'">
-        <ng-container *ngFor="let node of alignedTree">
-          <!-- Level 1 Block -->
-          <div class="syn-sec syn-sec-1">
-            <div class="syn-sec-head">
-              <span class="syn-sec-name">{{node.signature || node.name || 'Section'}}</span>
-              <span class="syn-sec-rule"></span>
-              <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{selectedDocs.length}}</span>
-            </div>
-
-            <div class="syn-sec-body">
-              <ng-container *ngIf="node.alignedLineElements">
-                <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: node }"></ng-container>
-              </ng-container>
-
-              <ng-container *ngFor="let child2 of node.children">
-                <!-- Level 2 Block -->
-                <div class="syn-sec syn-sec-2">
-                  <div class="syn-sec-head">
-                    <span class="syn-sec-name">{{child2.signature || child2.name || 'Subsection'}}</span>
-                    <span class="syn-sec-rule"></span>
-                    <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(child2)}}/{{selectedDocs.length}}</span>
+      <div *ngIf="isStructuralMode">
+        <!-- 1a. One line: all segments in a row, horizontally scrollable, label above each -->
+        <div *ngIf="showSingleLineSynopsis" class="synopsis-leaf-container border rounded p-2 bg-white">
+          <div #synScroll (scroll)="onSynScroll($event)" class="overflow-auto w-100" style="background-color: white;">
+            <div style="min-width: max-content; display: flex; flex-direction: column;">
+              <!-- Segment labels -->
+              <div class="d-flex flex-row align-items-end" style="background-color: white;">
+                <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white;"></div>
+                <div class="d-flex flex-row">
+                  <div class="flex-shrink-0" [style.width.px]="synLeadWidth"></div>
+                  <div *ngFor="let seg of synVisibleSegments; trackBy: trackBySegment" class="flex-shrink-0 border-start ps-1 pb-1" [style.width.px]="segmentWidth(seg)">
+                    <span class="badge bg-light text-secondary border me-1" *ngIf="seg.path">{{seg.path}}</span><span *ngIf="seg.signature && seg.signature !== seg.path" class="small text-muted">{{seg.signature}}</span>
                   </div>
-
-                  <div class="syn-sec-body">
-                    <ng-container *ngIf="child2.alignedLineElements">
-                      <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: child2 }"></ng-container>
-                    </ng-container>
-
-                    <ng-container *ngFor="let child3 of child2.children">
-                      <!-- Level 3 Block -->
-                      <div class="syn-sec syn-sec-3">
-                        <div class="syn-sec-head">
-                          <span class="syn-sec-name">{{child3.signature || child3.name || 'Passage'}}</span>
-                          <span class="syn-sec-rule"></span>
-                          <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(child3)}}/{{selectedDocs.length}}</span>
-                        </div>
-
-                        <div class="syn-sec-body">
-                          <ng-container *ngIf="child3.alignedLineElements">
-                            <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: child3 }"></ng-container>
-                          </ng-container>
-                        </div>
-                      </div>
-                    </ng-container>
-                  </div>
+                  <div class="flex-shrink-0" [style.width.px]="synTailWidth"></div>
                 </div>
-              </ng-container>
+              </div>
+              <!-- Witness stave rows -->
+              <div *ngFor="let doc of selectedDocs; let docIdx = index" class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
+                <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">
+                  <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">{{docSigles[doc.id] || doc.dokumenten_id}}</span>
+                </div>
+                <div class="d-flex flex-row">
+                  <div class="flex-shrink-0" [style.width.px]="synLeadWidth"></div>
+                  <div *ngFor="let seg of synVisibleSegments; trackBy: trackBySegment" class="d-flex flex-row flex-shrink-0 border-start">
+                    <div *ngFor="let col of seg.alignedLineElements" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
+                      <ng-container *ngTemplateOutlet="colCell; context: { $implicit: col, docIdx: docIdx }"></ng-container>
+                    </div>
+                  </div>
+                  <div class="flex-shrink-0" [style.width.px]="synTailWidth"></div>
+                </div>
+              </div>
+              <!-- Consensus text row -->
+              <div *ngIf="showConsensusText" class="synopsis-consensus-text-row d-flex align-items-center mt-0 pt-0.5 border-top" style="background-color: white;">
+                <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">Consensus</div>
+                <div class="d-flex flex-row">
+                  <div class="flex-shrink-0" [style.width.px]="synLeadWidth"></div>
+                  <div *ngFor="let seg of synVisibleSegments; trackBy: trackBySegment" class="d-flex flex-row flex-shrink-0 border-start">
+                    <div *ngFor="let col of seg.alignedLineElements" class="synopsis-column text-center" [style.width.px]="getColumnWidth(col)">
+                      <div class="syllableText" style="font-family: 'Times New Roman', Times, serif; font-size: 15px; padding-left: 5px; min-height: 24px; line-height: 1.2; display: flex; flex-direction: column; align-items: center; white-space: nowrap;">
+                        <span *ngFor="let text of getConsensusSyllableTexts(col)">{{ text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex-shrink-0" [style.width.px]="synTailWidth"></div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- 1b. Stacked blocks (default) -->
+        <ng-container *ngIf="!showSingleLineSynopsis">
+          <ng-container *ngFor="let node of alignedTree">
+            <ng-container *ngTemplateOutlet="synNode; context: { $implicit: node, level: 1 }"></ng-container>
+          </ng-container>
         </ng-container>
       </div>
 
@@ -1292,20 +1316,20 @@
                 <div class="d-flex flex-row align-items-start">
                   <div *ngFor="let col of chunk; let colIdx = index" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
-                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-clef>
+                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-clef>
                     </ng-container>
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
-                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [showGClef]="colIdx === 0"></app-notes>
+                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [showGClef]="colIdx === 0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-notes>
                     </ng-container>
                     <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
-                        <svg width="100%" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+                        <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                           <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                            <line x1="0" y1="5" x2="100%" y2="5" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="15" x2="100%" y2="15" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="25" x2="100%" y2="25" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="35" x2="100%" y2="35" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="45" x2="100%" y2="45" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
                           </g>
                         </svg>
                       </div>
@@ -1336,6 +1360,48 @@
       </div>
     </div>
   </div>
+
+  <!-- One aligned cell (clef / notes / empty stave) for a given witness. -->
+  <ng-template #colCell let-col let-docIdx="docIdx">
+    <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
+      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-clef>
+    </ng-container>
+    <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
+      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-notes>
+    </ng-container>
+    <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
+      <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
+        <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+          <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
+            <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+            <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
+          </g>
+        </svg>
+      </div>
+    </ng-container>
+  </ng-template>
+
+  <!-- Recursive structural section: renders its own aligned lines, then every child at any depth. -->
+  <ng-template #synNode let-node let-level="level">
+    <div class="syn-sec" [ngClass]="'syn-sec-' + (level > 3 ? 3 : level)">
+      <div class="syn-sec-head">
+        <span class="syn-sec-name"><span class="badge bg-light text-secondary border me-2" *ngIf="node.path">{{node.path}}</span><span *ngIf="node.signature && node.signature !== node.path">{{node.signature}}</span><span *ngIf="!node.path && !node.signature">{{node.kind === 'leaf' ? 'Line' : 'Section'}}</span></span>
+        <span class="syn-sec-rule"></span>
+        <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{selectedDocs.length}}</span>
+      </div>
+      <div class="syn-sec-body">
+        <ng-container *ngIf="node.alignedLineElements">
+          <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: node }"></ng-container>
+        </ng-container>
+        <ng-container *ngFor="let child of node.children">
+          <ng-container *ngTemplateOutlet="synNode; context: { $implicit: child, level: level + 1 }"></ng-container>
+        </ng-container>
+      </div>
+    </div>
+  </ng-template>
 
   <ng-template #leafContainer let-node>
     <!-- If the node has paratext -->
@@ -1377,20 +1443,20 @@
                 <ng-container *ngIf="hasLineElements(node, docIdx); else emptyStave">
                   <div *ngFor="let col of node.alignedLineElements; let colIdx = index" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
-                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-clef>
+                      <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-clef>
                     </ng-container>
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
-                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [showGClef]="colIdx === 0"></app-notes>
+                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [showGClef]="colIdx === 0" [readOnlyPadTop]="6" [readOnlyPadBottom]="14"></app-notes>
                     </ng-container>
                     <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
-                        <svg width="100%" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+                        <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                           <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                            <line x1="0" y1="5" x2="100%" y2="5" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="15" x2="100%" y2="15" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="25" x2="100%" y2="25" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="35" x2="100%" y2="35" stroke="#cbd5e1" stroke-width="1"/>
-                            <line x1="0" y1="45" x2="100%" y2="45" stroke="#cbd5e1" stroke-width="1"/>
+                            <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+                            <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
                           </g>
                         </svg>
                       </div>
@@ -1401,13 +1467,13 @@
                   <!-- If this node has paratext in single line mode, we render it inline in the stave lines! -->
                   <ng-container *ngIf="hasParatext(node.items); else standardEmpty">
                     <div class="synopsis-placeholder-stave" [style.width.px]="getParatextColumnWidth(node)">
-                      <svg width="100%" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
+                      <svg width="100%" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: block;">
                         <g [attr.transform]="'scale(' + (settings?.pdfSynopsisScale || 1.0) + ')'">
-                          <line x1="0" y1="5" x2="100%" y2="5" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="15" x2="100%" y2="15" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="25" x2="100%" y2="25" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="35" x2="100%" y2="35" stroke="#cbd5e1" stroke-width="1"/>
-                          <line x1="0" y1="45" x2="100%" y2="45" stroke="#cbd5e1" stroke-width="1"/>
+                          <line x1="0" y1="26" x2="100%" y2="26" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="36" x2="100%" y2="36" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="46" x2="100%" y2="46" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="56" x2="100%" y2="56" stroke="black" stroke-width="1"/>
+                          <line x1="0" y1="66" x2="100%" y2="66" stroke="black" stroke-width="1"/>
                           
                           <g *ngIf="node.items[docIdx] && node.items[docIdx]?.kind === 'ParatextContainer'" [attr.transform]="'translate(0, -35)'">
                             <text x="5" y="24" font-family="'Times New Roman', Times, serif" font-size="12px" fill="#b91c1c" font-weight="bold" style="font-style: italic;">
@@ -1419,7 +1485,7 @@
                     </div>
                   </ng-container>
                   <ng-template #standardEmpty>
-                    <span class="synopsis-empty-line small ps-2 text-muted fst-italic" [style.line-height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" [style.height.px]="50 * (settings?.pdfSynopsisScale || 1.0)" style="display: inline-block;">empty stave</span>
+                    <span class="synopsis-empty-line small ps-2 text-muted fst-italic" [style.line-height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" [style.height.px]="85 * (settings?.pdfSynopsisScale || 1.0)" style="display: inline-block;">empty stave</span>
                   </ng-template>
                 </ng-template>
               </div>
@@ -1446,6 +1512,20 @@
       </div>
     </ng-container>
   </ng-template>
+
+  <!-- Selection analysis dashboard -->
+  <div *ngIf="showDashboard" class="dashboard-view container-fluid px-4 py-4" style="max-width: 1200px;">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary btn-sm" (click)="exitDashboard()" title="Back to search">
+          <i class="bi bi-arrow-left"></i>
+        </button>
+        <h5 class="fw-bold mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>Selection analysis</h5>
+        <span class="text-muted small">{{ selectedDocs.length }} document(s)</span>
+      </div>
+    </div>
+    <app-selection-dashboard [documents]="selectedDocs" [sources]="dashboardSources" [roots]="dashboardRoots"></app-selection-dashboard>
+  </div>
 
 </div>
 

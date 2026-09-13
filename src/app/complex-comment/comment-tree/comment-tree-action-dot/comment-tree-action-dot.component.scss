@@ -65,3 +65,21 @@ svg {
     color: #dc3545;
   }
 }
+
+/* JS-controlled open state (mouseenter opens; mouseleave closes after a grace
+   delay) so the pointer can travel from the dot to the panel without dropping. */
+:host(.is-open) {
+  .menu-panel { display: flex; }
+  svg .center { display: none; }
+}
+
+/* Invisible bridge above the panel so the diagonal path from the dot stays
+   within a hoverable area. */
+.menu-panel::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  height: 12px;
+}

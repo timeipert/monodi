@@ -283,3 +283,11 @@ span.segment-type {
     box-shadow: inset 2px 0 6px rgba(59, 130, 246, 0.02);
     transition: background-color 0.2s ease, border-left-color 0.2s ease;
 }
+
+/* Skip rendering/layout for off-screen manuscript lines (native "virtualisation").
+   The DOM stays intact, so editing, focus and cursor keep working; the browser
+   just avoids painting/laying out lines that are scrolled out of view. */
+.zeile-cv {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 90px;
+}

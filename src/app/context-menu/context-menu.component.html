@@ -4,13 +4,19 @@
      [style.top.px]="state.y"
      (click)="onMenuClick($event)">
   <div class="menu-items-container">
-    <div *ngFor="let item of state.items" 
-         class="menu-item" 
-         [class.disabled]="item.disabled"
-         (click)="executeAction(item, $event)">
-      <i *ngIf="item.icon" class="bi" [ngClass]="item.icon"></i>
-      <span>{{ item.label }}</span>
-    </div>
+    <ng-container *ngFor="let item of state.items">
+      <!-- Section header: non-clickable group label, no submenu nesting needed. -->
+      <div *ngIf="item.header" class="menu-header">{{ item.label }}</div>
+      <div *ngIf="!item.header"
+           class="menu-item"
+           [class.disabled]="item.disabled"
+           [class.checked]="item.checked"
+           (click)="executeAction(item, $event)">
+        <i *ngIf="item.icon" class="bi" [ngClass]="item.icon"></i>
+        <span>{{ item.label }}</span>
+        <i *ngIf="item.checked" class="bi bi-check-lg ms-auto text-success"></i>
+      </div>
+    </ng-container>
   </div>
   
   <div class="menu-divider" *ngIf="state.items.length > 0 && state.helpTopic"></div>

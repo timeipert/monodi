@@ -58,7 +58,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
         if (child && child.kind === Model.ContainerKind.FormteilContainer) {
           const formteilCount = this.data.children.filter(c => c.kind === Model.ContainerKind.FormteilContainer).length;
           if (formteilCount <= 1) {
-            this.toaster.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+            this.toaster.warning("This section cannot be deleted because it is the only one at this level.");
             return;
           }
         }
@@ -82,7 +82,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
           Model.removeStaleComments(this.data);
           this.cdr.detectChanges();
         } else {
-          this.toaster.warning("Es gibt keine folgende Zeile zum Zusammenführen");
+          this.toaster.warning("There is no following line to merge with.");
         }
       },
       MergeAllLinesRequested: (e: any, oldIndex: number) => {
@@ -117,7 +117,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
             Model.removeStaleComments(this.data);
             this.cdr.detectChanges();
           } else {
-            this.toaster.warning("Es gibt keinen folgenden Abschnitt zum Zusammenführen");
+            this.toaster.warning("There is no following section to merge with.");
           }
         }
       },
@@ -129,7 +129,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
           const parentContainer = parent as any;
           const formteilCount = parentContainer.children.filter((c: any) => c.kind === Model.ContainerKind.FormteilContainer).length;
           if (formteilCount <= 1) {
-            this.toaster.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+            this.toaster.warning("This section cannot be deleted because it is the only one at this level.");
             return;
           }
           const node = parentContainer.children[index];
@@ -193,10 +193,38 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       'Paste after (discard text)': () => { this.undo.beforeChange(); this.insert([], false, true) },
       'Fix Syllable Dashes': () => {
         this.onEvent.emit({ kind: 'FixSyllableDashesRequested' as any } as any);
-      }
+      },
+      'Merge lines (keep breaks as |)': () => this.mergeLines(),
+      '↑ Transpose up (step)': () => this.transpose(1),
+      '↓ Transpose down (step)': () => this.transpose(-1),
+      '↑↑ Transpose up (octave)': () => this.transpose(7),
+      '↓↓ Transpose down (octave)': () => this.transpose(-7),
     };
   }
 
+  transpose(steps: number): void {
+    this.undo.beforeChange();
+    const n = Model.transposeContainer(this.data, steps);
+    if (n > 0) {
+      const dir = steps > 0 ? 'up' : 'down';
+      const amount = Math.abs(steps) === 7 ? 'an octave' : `${Math.abs(steps)} step(s)`;
+      this.toaster.success(`Transposed ${n} notes ${dir} ${amount}.`, 'Transposed');
+    } else {
+      this.toaster.info('No notes to transpose here.');
+    }
+    this.cdr.detectChanges();
+  }
+
+  mergeLines(): void {
+    this.undo.beforeChange();
+    const n = Model.mergeZeilenWithLineChanges(this.data);
+    if (n > 0) {
+      this.toaster.success(`Merged ${n} lines into one; manuscript breaks kept as |.`, 'Lines merged');
+    } else {
+      this.toaster.info('No manuscript lines directly here to merge.');
+    }
+    this.cdr.detectChanges();
+  }
 
   ngOnDestroy(): void {
     this.mapDropSub.unsubscribe();
@@ -231,7 +259,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
     this.undo.beforeChange();
     const error = MS.insert(this.data, at, withoutNotes, withoutText);
     if (error === null) {
-      this.toaster.success("Erfolgreich eingefügt");
+      this.toaster.success("Inserted successfully");
     } else {
       this.toaster.error(error);
     }
