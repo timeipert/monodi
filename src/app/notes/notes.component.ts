@@ -1,9 +1,11 @@
 import {
   ChangeDetectorRef, Component, OnInit, QueryList, ViewChildren,
-  OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, Output, Input, EventEmitter, AfterViewInit, HostListener
+  OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, TemplateRef, Output, Input, EventEmitter, AfterViewInit, HostListener,
+  OnChanges, SimpleChanges
 } from '@angular/core';
 import * as VM from '../types/model';
 import { fromSpaced, fromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from './editor-shortcuts.service';
 import { ToolsService } from '../tools.service';
 import { musicLanguage } from './language';
 import { assertNever, maxOf, textWidth, focusContentEditable } from '../../utils';
@@ -42,7 +44,7 @@ const GLYPH_PATHS: { [key: string]: string } = {
   styleUrls: ['./notes.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewInit {
+export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, AfterViewInit {
   getGlyphDataUri(noteType: string, focused: boolean): string {
     const d = GLYPH_PATHS[noteType] || GLYPH_PATHS['Normal'];
     const fill = focused ? '#5bf186' : '#000000';
@@ -146,6 +148,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   @Input()
   docId?: string;
 
+  @ViewChild('shortcutsConfigModal') shortcutsConfigModal!: TemplateRef<any>;
+  editingShortcuts: ShortcutConfig = { ...DEFAULT_SHORTCUTS };
+
   constructor(
     private focusService: FocusService,
     private cdr: ChangeDetectorRef,
@@ -156,14 +161,62 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     private modalService: NgbModal,
     private contextMenuService: ContextMenuService,
     private router: Router,
-    private searchExecSvc: SearchExecService) {
+    private searchExecSvc: SearchExecService,
+    public shortcutsService: EditorShortcutsService) {
   }
 
-  refresh() { this.cdr.detectChanges(); this.notesToText(); }
+  openShortcutsModal(): void {
+    this.editingShortcuts = { ...this.shortcutsService.getShortcuts() };
+    if (this.shortcutsConfigModal) {
+      this.modalService.open(this.shortcutsConfigModal, { centered: true });
+    }
+  }
+
+  updateShortcutKey(key: keyof ShortcutConfig, event: any): void {
+    const val = event.target.value;
+    if (val !== undefined) {
+      this.editingShortcuts[key] = val;
+    }
+  }
+
+  saveShortcutsModal(): void {
+    this.shortcutsService.saveShortcuts(this.editingShortcuts);
+    this.toastr.success('Keyboard shortcuts updated.');
+  }
+
+  resetShortcutsModal(): void {
+    this.shortcutsService.resetToDefaults();
+    this.editingShortcuts = { ...this.shortcutsService.getShortcuts() };
+    this.toastr.info('Keyboard shortcuts reset to defaults.');
+  }
+
+  refresh() {
+    if (this.syllableTextElement?.nativeElement) {
+      (this.syllableTextElement.nativeElement as HTMLElement).textContent = this.model?.text || '';
+    }
+    this.notesToText();
+    this.recalculateWidths();
+    this.cdr.detectChanges();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (this.syllableTextElement?.nativeElement) {
+      const currentDomText = (this.syllableTextElement.nativeElement as HTMLElement).textContent || '';
+      const modelText = this.model?.text || '';
+      if (currentDomText !== modelText) {
+        (this.syllableTextElement.nativeElement as HTMLElement).textContent = modelText;
+      }
+    }
+    this.notesToText();
+    this.recalculateWidths();
+    this.cdr.markForCheck();
+  }
 
   ngOnInit() {
     this.notesToText();
-    (this.syllableTextElement.nativeElement as HTMLElement).textContent = this.model.text;
+    if (this.syllableTextElement?.nativeElement) {
+      (this.syllableTextElement.nativeElement as HTMLElement).textContent = this.model?.text || '';
+    }
     this.recalculateWidths();
   }
 
@@ -620,6 +673,43 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     }
   }
 
+  isShortcutMatch(e: KeyboardEvent, configuredKey: string, defaultKey: string): boolean {
+    if (!configuredKey) return false;
+    const parts = configuredKey.trim().toLowerCase().split('+').map(p => p.trim());
+    if (parts.length === 0) return false;
+
+    const mainKey = parts[parts.length - 1];
+    const requiredCtrl = parts.includes('ctrl') || parts.includes('control');
+    const requiredAlt = parts.includes('alt') || parts.includes('option');
+    const requiredShift = parts.includes('shift') && parts.length > 1; // only modifier if combined with other key
+    const requiredMeta = parts.includes('cmd') || parts.includes('meta');
+
+    if (requiredCtrl !== (e.ctrlKey || (requiredCtrl && e.metaKey))) return false;
+    if (requiredAlt !== e.altKey) return false;
+    if (requiredShift !== e.shiftKey) return false;
+    if (requiredMeta && !e.metaKey) return false;
+
+    if (mainKey === 'shift') {
+      return e.key === 'Shift' || e.key === 'shift' || (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey);
+    }
+    if (mainKey === 'space' || mainKey === ' ' || mainKey === 'spacebar') {
+      return e.key === ' ' || e.code === 'Space';
+    }
+    if (mainKey === 'enter' || mainKey === 'return') {
+      return e.key === 'Enter';
+    }
+    if (mainKey === 'tab') {
+      return e.key === 'Tab';
+    }
+    if (mainKey === 'alt' || mainKey === 'option') {
+      return e.key === 'Alt' || e.altKey;
+    }
+    if (mainKey === 'control' || mainKey === 'ctrl') {
+      return e.key === 'Control' || e.ctrlKey;
+    }
+    return e.key.toLowerCase() === mainKey;
+  }
+
   keyDown(e: KeyboardEvent, voiceIndex: number): void {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       return;
@@ -660,26 +750,41 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
       }
       this.focusOther(VM.getRightOf, () => this.requestFocusShift(undefined, false, +1));
     }
-    else if (e.key === 's') { this.toggleNoteType(VM.NoteType.Sharp); }
-    else if (e.key === 'n') { this.toggleNoteType(VM.NoteType.Natural); }
-    else if (e.key === 'f') { this.toggleNoteType(VM.NoteType.Flat); }
-    else if (e.key === 'o') { this.toggleNoteType(VM.NoteType.Oriscus); }
-    else if (e.key === 'a') { this.toggleNoteType(VM.NoteType.Ascending); }
-    else if (e.key === 'd') { this.toggleNoteType(VM.NoteType.Descending); }
-    else if (e.key === ',') { this.toggleNoteType(VM.NoteType.Strophicus); }
-    else if (e.key === 'q') { this.toggleNoteType(VM.NoteType.Quilisma); }
-    else if (e.key === 'l') { this.toggleLiquescent(); }
-    else if (e.key === 'Shift') { this.insertNoteSlur(); }
-    else if (e.key === ' ') { this.insertNear(); }
-    else if (e.key === 'Enter') { this.insertFar(); }
-    else if (e.key === 'j') { this.request.emit({ kind: 'LineChangeRequested', after: true }); }
-    else if (e.key === 'c') { this.request.emit({ kind: 'NewClefRequested' }); }
-    else if (e.key === '-') { this.request.emit({ kind: 'NewSegmentRequested', syllableType: this.model.syllableType, text: '' }); }
-    else if (e.key === 'i') { this.request.emit({ kind: 'LineChangeRequested', after: false }); }
-    else if (e.key === 'Delete') { this.deleteNote(false); }
-    else if (e.key === 'Backspace') { this.deleteNote(true); }
-    else if (e.ctrlKey && e.key === 'z') {
-      this.undoService.undo();
+    else {
+      const sc = this.shortcutsService.getShortcuts();
+      const k = e.key.toLowerCase();
+
+      if (k === sc.setSharp.toLowerCase()) { this.toggleNoteType(VM.NoteType.Sharp); }
+      else if (k === sc.setNatural.toLowerCase()) { this.toggleNoteType(VM.NoteType.Natural); }
+      else if (k === sc.setFlat.toLowerCase()) { this.toggleNoteType(VM.NoteType.Flat); }
+      else if (k === sc.setOriscus.toLowerCase()) { this.toggleNoteType(VM.NoteType.Oriscus); }
+      else if (k === sc.setAscending.toLowerCase()) { this.toggleNoteType(VM.NoteType.Ascending); }
+      else if (k === sc.setDescending.toLowerCase()) { this.toggleNoteType(VM.NoteType.Descending); }
+      else if (k === sc.setStrophicus.toLowerCase()) { this.toggleNoteType(VM.NoteType.Strophicus); }
+      else if (k === sc.setQuilisma.toLowerCase()) { this.toggleNoteType(VM.NoteType.Quilisma); }
+      else if (k === sc.toggleLiquescent.toLowerCase()) { this.toggleLiquescent(); }
+      else if (this.isShortcutMatch(e, sc.insertConnectedNote, 'Shift')) { this.insertNoteSlur(); }
+      else if (this.isShortcutMatch(e, sc.insertNearNote, 'Space')) { this.insertNear(); }
+      else if (this.isShortcutMatch(e, sc.insertFarNote, 'Enter')) { this.insertFar(); }
+      else if (k === sc.newClef.toLowerCase()) { this.request.emit({ kind: 'NewClefRequested' }); }
+      else if (k === sc.newSegment.toLowerCase()) { this.request.emit({ kind: 'NewSegmentRequested', syllableType: this.model.syllableType, text: '' }); }
+      else if (this.isShortcutMatch(e, sc.splitLine, 'Alt+Enter')) { this.splitLine(); }
+      else if (this.isShortcutMatch(e, sc.mergeWithNextLine, 'Alt+m')) {
+        document.dispatchEvent(new CustomEvent('monodi-shortcut', { detail: { action: 'mergeWithNextLine' } }));
+      }
+      else if (this.isShortcutMatch(e, sc.mergeSection, 'Alt+Shift+m')) {
+        document.dispatchEvent(new CustomEvent('monodi-shortcut', { detail: { action: 'mergeSection' } }));
+      }
+      else if (this.isShortcutMatch(e, sc.mergeAllLines, 'Ctrl+Alt+m')) {
+        document.dispatchEvent(new CustomEvent('monodi-shortcut', { detail: { action: 'mergeAllLines' } }));
+      }
+      else if (e.key === 'j') { this.request.emit({ kind: 'LineChangeRequested', after: true }); }
+      else if (e.key === 'i') { this.request.emit({ kind: 'LineChangeRequested', after: false }); }
+      else if (e.key === 'Delete') { this.deleteNote(false); }
+      else if (e.key === 'Backspace') { this.deleteNote(true); }
+      else if (e.ctrlKey && e.key === 'z') {
+        this.undoService.undo();
+      }
     }
     this.notesToText();
     this.recalculateWidths();
@@ -1086,21 +1191,22 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     // First, select the note
     this.drawableClicked(d, me, voiceIndex);
 
+    const sc = this.shortcutsService.getShortcuts();
     const items = [
       {
-        label: 'Set to Flat (f)',
+        label: `Set to Flat (${sc.setFlat})`,
         action: () => { this.toggleNoteType(VM.NoteType.Flat); }
       },
       {
-        label: 'Set to Sharp (s)',
+        label: `Set to Sharp (${sc.setSharp})`,
         action: () => { this.toggleNoteType(VM.NoteType.Sharp); }
       },
       {
-        label: 'Set to Natural (n)',
+        label: `Set to Natural (${sc.setNatural})`,
         action: () => { this.toggleNoteType(VM.NoteType.Normal); }
       },
       {
-        label: 'Toggle Liquescent (l)',
+        label: `Toggle Liquescent (${sc.toggleLiquescent})`,
         action: () => { this.toggleLiquescent(); }
       },
       {
@@ -1108,8 +1214,12 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
       },
       {
-        label: 'Add Comment (Ctrl+K)',
-        action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); }
+        label: `Add Comment (Ctrl+${sc.addComment.toUpperCase()})`,
+        action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: sc.addComment, ctrlKey: true })); }
+      },
+      {
+        label: '⚙️ Keyboard Shortcuts Settings...',
+        action: () => { this.openShortcutsModal(); }
       }
     ];
 
@@ -1133,6 +1243,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     me.stopPropagation();
     this.setTextAsPreferredFocus();
     
+    const sc = this.shortcutsService.getShortcuts();
     const items = [
       {
         label: 'Clear Syllable Text',
@@ -1148,8 +1259,12 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
       },
       {
-        label: 'Add Comment (Ctrl+K)',
-        action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); }
+        label: `Add Comment (Ctrl+${sc.addComment.toUpperCase()})`,
+        action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: sc.addComment, ctrlKey: true })); }
+      },
+      {
+        label: '⚙️ Keyboard Shortcuts Settings...',
+        action: () => { this.openShortcutsModal(); }
       }
     ];
 

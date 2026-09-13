@@ -10,6 +10,16 @@ export class GlobalErrorHandler implements ErrorHandler {
   handleError(error: any): void {
     console.error(error);
 
+    // NG0100 (ExpressionChangedAfterItHasBeenCheckedError) is a dev-mode-only
+    // change-detection warning — Angular strips the double-check from production
+    // builds, so it can never occur for real users. It should not be surfaced
+    // as a scary "Unexpected error" toast or recorded in the user-facing error
+    // log; log it to the console (above) for developers and stop here.
+    const msgText = String(error?.message ?? error);
+    if (msgText.includes('NG0100') || msgText.includes('ExpressionChangedAfterItHasBeenChecked')) {
+      return;
+    }
+
     try {
       const logStr = localStorage.getItem('monodi_error_log');
       const log = logStr ? JSON.parse(logStr) : [];

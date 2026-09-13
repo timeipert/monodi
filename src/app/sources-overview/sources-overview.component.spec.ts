@@ -15,6 +15,7 @@ describe('SourcesOverviewComponent', () => {
 
   const mockAPIService = {
     listSources: () => of({ kind: 'SourcesRetrieved', sources: [] }),
+    listDocuments: () => of({ kind: 'DocumentsRetrieved', documents: [] }),
     createSource: () => of({ kind: 'SourceCreated', id: 'mock-id' }),
     removeSource: () => of({ kind: 'Ok' })
   };

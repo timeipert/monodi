@@ -8,8 +8,15 @@ import * as VM from '../../types/model';
 import { v4 as UUID } from 'uuid';
 import { NavigationService } from '../navigation.service';
 import { AnalyzedPattern } from '../../transcription-analyzer.service';
+import { LayoutAnalysisService } from '../layout-analysis.service';
 
+const MAX_MANIFEST_CACHE_SIZE = 20;
 const manifestCache = new Map<string, any>();
+
+/** Width (px) requested for IIIF Image API renditions. Big enough to annotate
+ *  comfortably, small enough to load an order of magnitude faster than the
+ *  raw full-resolution scan. */
+const IIIF_IMAGE_WIDTH = 2500;
 
 export interface GalleryItem {
   item: VM.AnnotationItem;
@@ -166,15 +173,46 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   // True once the user explicitly clicks a canvas — prevents auto-snap from overriding
   private userHasNavigated = false;
 
+  isAnalyzingLayout = false;
+
   constructor(
     private http: HttpClient,
     private navService: NavigationService,
-    private zone: NgZone
+    private zone: NgZone,
+    private layoutAnalysisService: LayoutAnalysisService
   ) {}
+
+  async runAutoLayoutAnalysis() {
+    const imageUrl = this.currentCanvasImage;
+    if (!imageUrl || !this.source) return;
+
+    this.isAnalyzingLayout = true;
+    try {
+      const blocks = await this.layoutAnalysisService.analyzeImage(imageUrl, this.currentCanvasIndex);
+      if (blocks && blocks.length > 0) {
+        this.triggerBeforeChange();
+        if (!this.source.annotationRegions) this.source.annotationRegions = [];
+
+        const newRegions = this.layoutAnalysisService.blocksToAnnotationRegions(blocks, this.currentCanvasIndex);
+        this.source.annotationRegions.push(...newRegions);
+        this.save();
+      }
+    } catch (err) {
+      console.error('Layout analysis failed:', err);
+    } finally {
+      this.isAnalyzingLayout = false;
+    }
+  }
 
   @HostListener('document:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
-    const isInput = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+    const target = event.target as HTMLElement;
+    const isInput = target instanceof HTMLInputElement ||
+                    target instanceof HTMLTextAreaElement ||
+                    target?.isContentEditable ||
+                    target?.tagName === 'INPUT' ||
+                    target?.tagName === 'TEXTAREA';
+    if (isInput) return;
 
     if (event.key === 'Enter') {
       if (this.activeLayer === 'transcription' && this.activeTranscriptionTool === 'line' && this.pendingTranscriptionPoints.length > 0) {
@@ -317,11 +355,23 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   // ── manifest ──────────────────────────────────────────────────────────────
+  manifestLoading = false;
+
   loadManifest(url: string) {
     if (manifestCache.has(url)) { this.manifest = manifestCache.get(url); this.parseCanvases(); return; }
+    this.manifestLoading = true;
     this.http.get<any>(url).subscribe(
-      m => { manifestCache.set(url, m); this.manifest = m; this.parseCanvases(); },
-      err => console.error('Failed to load IIIF manifest', err)
+      m => {
+        if (manifestCache.size >= MAX_MANIFEST_CACHE_SIZE) {
+          const firstKey = manifestCache.keys().next().value;
+          if (firstKey) manifestCache.delete(firstKey);
+        }
+        manifestCache.set(url, m);
+        this.manifest = m;
+        this.manifestLoading = false;
+        this.parseCanvases();
+      },
+      err => { this.manifestLoading = false; console.error('Failed to load IIIF manifest', err); }
     );
   }
 
@@ -373,6 +423,23 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     this.backToRegions();
   }
 
+  private preloadedImageUrls = new Set<string>();
+
+  private preloadAdjacentImages() {
+    if (!this.canvases || !this.canvases.length) return;
+    const targets = [this.currentCanvasIndex + 1, this.currentCanvasIndex - 1];
+    for (const idx of targets) {
+      if (idx >= 0 && idx < this.canvases.length) {
+        const url = this.canvasImageAt(idx);
+        if (url && !this.preloadedImageUrls.has(url)) {
+          this.preloadedImageUrls.add(url);
+          const img = new Image();
+          img.src = url;
+        }
+      }
+    }
+  }
+
   get currentCanvasImage(): string | null { return this.canvasImageAt(this.currentCanvasIndex); }
 
   canvasImageAt(i: number): string | null {
@@ -380,17 +447,37 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     let url: string | null = null;
     if (c.images?.length > 0) url = c.images[0].resource?.['@id'] || c.images[0].resource?.id || null;
     else if (c.items?.length > 0) url = c.items[0]?.items?.[0]?.body?.id || null;
-    return url ? url.replace(/\/native\.(jpg|png|webp)$/i, '/default.$1') : null;
+    if (!url) return null;
+    url = url.replace(/\/native\.(jpg|png|webp)$/i, '/default.$1');
+    // Request a bounded-width rendition so full manuscript scans (often
+    // 5000-7000px, several MB) load fast. Only rewrites genuine IIIF Image API
+    // URLs (region=full, size=full|max); anything else is left untouched.
+    url = url.replace(
+      /\/full\/(?:full|max)\/(\d+)\/(default|native)\.(jpg|png|webp)/i,
+      `/full/${IIIF_IMAGE_WIDTH},/$1/$2.$3`
+    );
+    return url;
   }
 
   onImageError() { this.imageLoading = false; this.imageError = true; }
-  onImageLoad()  { this.imageLoading = false; this.imageError = false; }
+  onImageLoad()  {
+    this.imageLoading = false;
+    this.imageError = false;
+    this.preloadAdjacentImages();
+  }
   retryImage()   { this.imageError = false; this.imageLoading = true; }
 
   // ── zoom / pan ────────────────────────────────────────────────────────────
   private resetView() { this.scale = 1; this.translateX = 0; this.translateY = 0; }
 
   get contentTransform() { return `translate(${this.translateX}px,${this.translateY}px) scale(${this.scale})`; }
+
+  /** Push the current transform straight to the DOM so pan/zoom feel instant,
+   *  without waiting for a change-detection pass to update the style binding. */
+  private applyTransformDirect(): void {
+    const el = this.contentRef?.nativeElement;
+    if (el) el.style.transform = this.contentTransform;
+  }
 
   onWheel(e: WheelEvent) {
     const vp = this._viewportRef?.nativeElement; if (!vp) return;
@@ -401,6 +488,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     this.translateX = mx - (mx - this.translateX) * (next / old);
     this.translateY = my - (my - this.translateY) * (next / old);
     this.scale = next;
+    this.applyTransformDirect();
   }
 
 
@@ -429,6 +517,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   private getPct(e: MouseEvent) {
     const el = this.contentRef?.nativeElement; if (!el) return { x: 0, y: 0 };
     const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return { x: 0, y: 0 };
     return {
       x: Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)),
       y: Math.max(0, Math.min(100, (e.clientY - r.top)  / r.height * 100))
@@ -487,6 +576,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
       this.translateY += e.clientY - this.panStartY;
       this.panStartX = e.clientX;
       this.panStartY = e.clientY;
+      this.applyTransformDirect();
       return;
     }
     if (this.draggingAnnotationId && this.source?.transcriptionAnnotations) {
@@ -945,8 +1035,24 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     return false;
   }
 
+  // Memoized so panning/zooming (which fire change detection on every mouse
+  // move) don't re-run the O(canvases × folios) regex matching each time. The
+  // cache is keyed on the references these getters actually depend on; none of
+  // them change during a pan, so the work runs once per real data change.
+  private _dciCache?: Set<number>;
+  private _dciKey?: any[];
+  private _vcCache?: { canvas: any; originalIndex: number }[];
+  private _vcKey?: any[];
+
+  private keyEquals(a: any[] | undefined, b: any[]): boolean {
+    return !!a && a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+
   /** Set of canvas indices that have at least one document folio match */
   get documentCanvasIndices(): Set<number> {
+    const key = [this.canvases, this.documentFolios, this.allPatterns, this.simpleMode];
+    if (this._dciCache && this.keyEquals(this._dciKey, key)) return this._dciCache;
+
     // Collect target folios either from pattern occurrences (global view) or explicit documentFolios (simpleMode)
     let targetFolios: string[] = [];
     if (this.documentFolios && this.documentFolios.length > 0) {
@@ -954,7 +1060,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     } else {
       targetFolios = this.allPatterns.map(p => String(p.folio));
     }
-    
+
     const s = new Set<number>();
     this.canvases.forEach((c, i) => {
       const label = String(c.label || '');
@@ -964,15 +1070,25 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
         if (this.simpleMode && i > 0) s.add(i - 1);
       }
     });
+
+    this._dciCache = s;
+    this._dciKey = key;
     return s;
   }
 
   /** Canvases list, optionally filtered to document folios */
   get visibleCanvases(): { canvas: any; originalIndex: number }[] {
     const dci = this.documentCanvasIndices;
-    return this.canvases
+    const key = [this.canvases, this.onlyDocumentFolios, dci];
+    if (this._vcCache && this.keyEquals(this._vcKey, key)) return this._vcCache;
+
+    const result = this.canvases
       .map((canvas, i) => ({ canvas, originalIndex: i }))
       .filter(entry => !this.onlyDocumentFolios || dci.size === 0 || dci.has(entry.originalIndex));
+
+    this._vcCache = result;
+    this._vcKey = key;
+    return result;
   }
 
   trackByOriginalIndex(index: number, entry: { canvas: any; originalIndex: number }): number {

@@ -1,5 +1,5 @@
 import { FocusService } from '../focus.service';
-import { ViewChild, ElementRef, Component, OnInit, HostListener } from '@angular/core';
+import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
@@ -27,6 +27,9 @@ import { SearchExecService } from '../search/search-exec.service';
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
 import autoTable from 'jspdf-autotable';
+import { FileSystemService } from '../file-system.service';
+
+import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
 
 @Component({
   selector: 'app-document',
@@ -42,6 +45,7 @@ export class DocumentComponent implements OnInit {
   }
   @ViewChild('textImport', { static: true }) textImportModal!: ElementRef;
   @ViewChild('globalComment', { static: true }) globalCommentModal!: ElementRef;
+  @ViewChild('searchInputEl') searchInputEl?: ElementRef<HTMLInputElement>;
   subs: Subscription[] = [];
   document: Document | undefined = undefined;
   user: User | null = null;
@@ -52,6 +56,170 @@ export class DocumentComponent implements OnInit {
     if (v) {
       this.dragState.setRootData(v);
       this.applyPendingFocus();
+      if (this.isSearchReplaceOpen && this.searchQuery) {
+        this.onSearchQueryChange();
+      }
+    }
+  }
+
+  // --- Search & Replace State ---
+  isSearchReplaceOpen = false;
+  searchQuery = '';
+  replaceQuery = '';
+  searchScopeSyllables = true;
+  searchScopeNotes = true;
+  searchScopeParatext = true;
+  searchMatchCase = false;
+  searchMatchWholeWord = false;
+  currentMatches: SearchMatch[] = [];
+  currentMatchIndex = -1;
+
+  get matchCountsByScope(): { syllables: number; notes: number; paratext: number } {
+    let syllables = 0;
+    let notes = 0;
+    let paratext = 0;
+    for (const m of this.currentMatches) {
+      if (m.scope === 'syllables') syllables++;
+      else if (m.scope === 'notes') notes++;
+      else if (m.scope === 'paratext') paratext++;
+    }
+    return { syllables, notes, paratext };
+  }
+
+  openSearchReplace(): void {
+    this.isSearchReplaceOpen = true;
+    setTimeout(() => {
+      if (this.searchInputEl) {
+        this.searchInputEl.nativeElement.focus();
+        this.searchInputEl.nativeElement.select();
+      }
+      this.onSearchQueryChange();
+    }, 50);
+  }
+
+  closeSearchReplace(): void {
+    this.isSearchReplaceOpen = false;
+    this.currentMatches = [];
+    this.currentMatchIndex = -1;
+  }
+
+  toggleSearchReplace(): void {
+    if (this.isSearchReplaceOpen) {
+      this.closeSearchReplace();
+    } else {
+      this.openSearchReplace();
+    }
+  }
+
+  onSearchQueryChange(): void {
+    if (!this.cont || !this.searchQuery) {
+      this.currentMatches = [];
+      this.currentMatchIndex = -1;
+      return;
+    }
+
+    const opts: SearchReplaceOptions = {
+      query: this.searchQuery,
+      replaceWith: this.replaceQuery,
+      matchCase: this.searchMatchCase,
+      matchWholeWord: this.searchMatchWholeWord,
+      scope: {
+        syllables: this.searchScopeSyllables,
+        notes: this.searchScopeNotes,
+        paratext: this.searchScopeParatext
+      }
+    };
+
+    this.currentMatches = this.searchReplaceSvc.findMatches(this.cont, opts);
+    if (this.currentMatches.length > 0) {
+      if (this.currentMatchIndex < 0 || this.currentMatchIndex >= this.currentMatches.length) {
+        this.currentMatchIndex = 0;
+      }
+    } else {
+      this.currentMatchIndex = -1;
+    }
+  }
+
+  nextSearchMatch(): void {
+    if (this.currentMatches.length === 0) return;
+    this.currentMatchIndex = (this.currentMatchIndex + 1) % this.currentMatches.length;
+    this.scrollToCurrentMatch();
+  }
+
+  prevSearchMatch(): void {
+    if (this.currentMatches.length === 0) return;
+    this.currentMatchIndex = (this.currentMatchIndex - 1 + this.currentMatches.length) % this.currentMatches.length;
+    this.scrollToCurrentMatch();
+  }
+
+  scrollToCurrentMatch(): void {
+    if (this.currentMatchIndex < 0 || this.currentMatchIndex >= this.currentMatches.length) return;
+    const match = this.currentMatches[this.currentMatchIndex];
+    if (match?.targetUuid) {
+      try {
+        const el = document.querySelector(`[data-uuid="${match.targetUuid}"]`) ||
+                   document.getElementById(match.targetUuid);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } catch (e) {
+        // ignore scrolling errors
+      }
+    }
+  }
+
+  replaceCurrentMatch(): void {
+    if (!this.cont || this.currentMatchIndex < 0 || this.currentMatchIndex >= this.currentMatches.length) return;
+    const match = this.currentMatches[this.currentMatchIndex];
+
+    this.undoService.beforeChange();
+    const result = this.searchReplaceSvc.replaceSingleMatch(this.cont, match, this.replaceQuery);
+
+    if (result.success) {
+      this.cont = JSON.parse(JSON.stringify(this.cont));
+      this.save();
+      this.cdr.detectChanges();
+      this.cdr.markForCheck();
+      this.toastr.success('Replaced 1 occurrence.');
+      this.onSearchQueryChange();
+    } else {
+      this.toastr.error(result.error || 'Failed to replace occurrence.');
+    }
+  }
+
+  replaceAllMatches(): void {
+    if (!this.cont || !this.searchQuery) return;
+
+    const opts: SearchReplaceOptions = {
+      query: this.searchQuery,
+      replaceWith: this.replaceQuery,
+      matchCase: this.searchMatchCase,
+      matchWholeWord: this.searchMatchWholeWord,
+      scope: {
+        syllables: this.searchScopeSyllables,
+        notes: this.searchScopeNotes,
+        paratext: this.searchScopeParatext
+      }
+    };
+
+    this.undoService.beforeChange();
+    const result = this.searchReplaceSvc.replaceAll(this.cont, opts);
+
+    if (result.replacedCount > 0) {
+      this.cont = JSON.parse(JSON.stringify(this.cont));
+      this.save();
+      this.cdr.detectChanges();
+      this.cdr.markForCheck();
+      this.toastr.success(`Replaced ${result.replacedCount} occurrence(s).`);
+      this.onSearchQueryChange();
+    } else {
+      this.toastr.info('No occurrences found to replace.');
+    }
+
+    if (result.errors && result.errors.length > 0) {
+      for (const err of result.errors) {
+        this.toastr.warning(err);
+      }
     }
   }
 
@@ -211,7 +379,10 @@ export class DocumentComponent implements OnInit {
     private navService: NavigationService,
     private meiExport: MeiExportService,
     private pageTitle: PageTitleService, public focusService: FocusService,
-    public searchExecSvc: SearchExecService) {
+    public searchExecSvc: SearchExecService,
+    private searchReplaceSvc: SearchReplaceService,
+    private cdr: ChangeDetectorRef,
+    private fsService: FileSystemService) {
   }
 
   get activeHighlight() {
@@ -474,6 +645,18 @@ export class DocumentComponent implements OnInit {
         queryParamsHandling: 'merge'
       });
     }
+  }
+
+  /** Switch the right-hand sidebar tab and keep it in the URL (?stab=) so a
+   *  reload returns to the same panel. */
+  setSidebarTab(tab: 'metadata' | 'structure' | 'comments') {
+    this.sidebarTab = tab;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { stab: tab },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   /** Receives events bubbled up from app-root-section (via the Section base class onEvent output). */
@@ -1595,6 +1778,9 @@ export class DocumentComponent implements OnInit {
       if (params['view'] && ['transcription', 'split', 'iiif'].includes(params['view'])) {
         this.setViewMode(params['view'] as any, false);
       }
+      if (params['stab'] && ['metadata', 'structure', 'comments'].includes(params['stab'])) {
+        this.sidebarTab = params['stab'];
+      }
       if (params['focus']) {
         this.pendingFocusNoteUuid = params['focus'];
         this.applyPendingFocus();
@@ -1682,6 +1868,12 @@ export class DocumentComponent implements OnInit {
         },
         icon: 'type-strikethrough',
         title: 'Fix Syllable Dashes'
+      },
+      {
+        callback: () => { this.toggleSearchReplace(); },
+        icon: 'search',
+        title: 'Search and Replace (Ctrl+H)',
+        active: this.isSearchReplaceOpen
       },
       {
         callback: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); },
@@ -1981,6 +2173,29 @@ export class DocumentComponent implements OnInit {
     this.showSecondVoiceImportDialog = false;
   }
 
+  /**
+   * Saves the document with clear feedback and syncs to OS file if Chromium File System handle is linked.
+   */
+  async saveWithFeedbackAndSync(): Promise<void> {
+    if (!this.document || !this.cont) return;
+
+    this.save();
+
+    // Check and trigger OS backup file sync if handle is configured
+    try {
+      const syncRes = await this.fsService.syncWorkspaceToOsFile();
+      if (syncRes.synced) {
+        this.toastr.success(`Document saved and synced to ${syncRes.filename || 'OS file'}.`, 'Saved & Synced');
+      } else if (syncRes.error) {
+        this.toastr.info('Document saved locally. (OS backup file: ' + syncRes.error + ')', 'Saved');
+      } else {
+        this.toastr.success('Document saved successfully.', 'Saved');
+      }
+    } catch (e) {
+      this.toastr.success('Document saved successfully.', 'Saved');
+    }
+  }
+
   @HostListener('window:unload', ['$event'])
   unloadHandler($event: any) {
     this.hasChanges();
@@ -1991,18 +2206,172 @@ export class DocumentComponent implements OnInit {
     return !this.hasChanges();
   }
 
+  @HostListener('window:monodi-shortcut', ['$event'])
+  handleCustomShortcut(event: any) {
+    const action = event?.detail?.action;
+    if (!action) return;
+    if (action === 'mergeWithNextLine') {
+      this.executeMergeWithNextLine();
+    } else if (action === 'mergeSection') {
+      this.executeMergeSection();
+    } else if (action === 'mergeAllLines') {
+      this.executeMergeAllLines();
+    }
+  }
+
   @HostListener('window:keydown', ['$event'])
   keyEvent(event: KeyboardEvent) {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      this.saveWithFeedbackAndSync();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       this.startCommentCreation();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'h' || event.key.toLowerCase() === 'f')) {
+      // Don't intercept browser search if inside standard textareas unless user wants editor search
+      event.preventDefault();
+      this.toggleSearchReplace();
+      this.updateToolbar();
+      return;
     }
     if (event.ctrlKey && event.key === 'z') {
       this.undoService.undo();
+      return;
     }
-    if (event.key === 'Escape' && this.isCommentCreationMode) {
+    // Global merge & split shortcuts in document view
+    if (event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'm') {
       event.preventDefault();
-      this.cancelCommentCreation();
+      this.executeMergeWithNextLine();
+      return;
+    }
+    if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'm') {
+      event.preventDefault();
+      this.executeMergeSection();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'm') {
+      event.preventDefault();
+      this.executeMergeAllLines();
+      return;
+    }
+    if (event.key === 'Escape') {
+      if (this.isCommentCreationMode) {
+        event.preventDefault();
+        this.cancelCommentCreation();
+      } else if (this.isSearchReplaceOpen) {
+        event.preventDefault();
+        this.closeSearchReplace();
+        this.updateToolbar();
+      }
+    }
+  }
+
+  executeMergeWithNextLine(): void {
+    if (!this.cont) return;
+    const lines = VM.getAllLineContainers(this.cont);
+    if (lines.length === 0) return;
+    
+    let targetIdx = -1;
+    if (this.focusService.focusedContainerUUID) {
+      targetIdx = lines.findIndex(l => l.uuid === this.focusService.focusedContainerUUID);
+    }
+    if (targetIdx === -1 && this.focusService.focusedNoteUUID) {
+      const sylUuid = this.findSyllableUuidForNoteUuid(this.cont, this.focusService.focusedNoteUUID);
+      if (sylUuid) {
+        targetIdx = lines.findIndex(l => (l.children || []).some((c: any) => c.uuid === sylUuid));
+      }
+    }
+    if (targetIdx === -1) {
+      targetIdx = 0;
+    }
+
+    if (targetIdx >= 0 && lines[targetIdx + 1]) {
+      this.undoService.beforeChange();
+      const current = lines[targetIdx];
+      const next = lines[targetIdx + 1];
+      current.children.push(...next.children);
+      VM.remove(this.cont, next);
+      VM.removeStaleComments(this.cont);
+      this.save();
+      this.cont = { ...this.cont };
+      this.toastr.success('Zeile mit nächster Zeile zusammengeführt.');
+    } else {
+      this.toastr.warning('Es gibt keine folgende Zeile zum Zusammenführen.');
+    }
+  }
+
+  executeMergeSection(): void {
+    if (!this.cont) return;
+    let targetUuid = this.focusService.focusedContainerUUID;
+    if (!targetUuid && this.focusService.focusedNoteUUID) {
+      const sylUuid = this.findSyllableUuidForNoteUuid(this.cont, this.focusService.focusedNoteUUID);
+      if (sylUuid) {
+        const parentRes = VM.findParentContainer(this.cont, sylUuid);
+        if (parentRes) {
+          targetUuid = parentRes.parent.uuid;
+        }
+      }
+    }
+    if (!targetUuid) {
+      // Find first section
+      const findFirstFormteil = (c: VM.Container): string | undefined => {
+        if (c.kind === VM.ContainerKind.FormteilContainer) return c.uuid;
+        const children = VM.getContainerChildren(c);
+        if (children) {
+          for (const child of children) {
+            const found = findFirstFormteil(child);
+            if (found) return found;
+          }
+        }
+        return undefined;
+      };
+      targetUuid = findFirstFormteil(this.cont);
+    }
+
+    if (targetUuid) {
+      const res = VM.findParentContainer(this.cont, targetUuid);
+      if (res) {
+        const { parent, index } = res;
+        const parentContainer = parent as any;
+        const current = parentContainer.children[index];
+        const next = parentContainer.children[index + 1];
+        if (current && next && current.kind === VM.ContainerKind.FormteilContainer && next.kind === VM.ContainerKind.FormteilContainer) {
+          this.undoService.beforeChange();
+          current.children.push(...next.children);
+          parentContainer.children.splice(index + 1, 1);
+          VM.removeStaleComments(this.cont);
+          this.save();
+          this.cont = { ...this.cont };
+          this.toastr.success('Abschnitt mit nächstem Abschnitt zusammengeführt.');
+          return;
+        }
+      }
+    }
+    this.toastr.warning('Es gibt keinen folgenden Abschnitt zum Zusammenführen.');
+  }
+
+  executeMergeAllLines(): void {
+    if (!this.cont) return;
+    this.undoService.beforeChange();
+    let targetContainer: VM.Container = this.cont;
+    if (this.focusService.focusedContainerUUID) {
+      const found = VM.findContainerByUUID(this.cont, this.focusService.focusedContainerUUID);
+      if (found && found.kind === VM.ContainerKind.FormteilContainer) {
+        targetContainer = found;
+      }
+    }
+    const count = VM.mergeAllLinesPerSection(targetContainer);
+    VM.removeStaleComments(this.cont);
+    this.save();
+    this.cont = { ...this.cont };
+    if (count > 0) {
+      this.toastr.success(`${count} Zeile(n) erfolgreich innerhalb der Abschnitte zusammengeführt.`);
+    } else {
+      this.toastr.info('Keine Zeilen zum Zusammenführen vorhanden.');
     }
   }
 

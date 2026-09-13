@@ -145,7 +145,13 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     // 4. Add paratext (Additional metadata/text)
     this.actionHandlers['+ Text'] = () => { this.newAt(Model.emptyParatextContainer(), 0) };
 
+    // 5. Merge all lines inside this section
+    this.actionHandlers['Merge All Lines'] = () => {
+      this.onEvent.emit({ kind: 'MergeAllLinesRequested', containerUuid: this.data.uuid } as any);
+    };
+
   }
+
 
   getName(): string {
     const docStruct = Model.getStructure(this.documentType);
@@ -231,13 +237,21 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
       }
     });
 
-    // Merge option
+    // Merge options
+    items.push({
+      label: 'Merge All Lines in Section',
+      action: () => {
+        this.onEvent.emit({ kind: 'MergeAllLinesRequested', containerUuid: this.data.uuid } as any);
+      }
+    });
+
     items.push({
       label: 'Merge with Next Section',
       action: () => {
         this.onEvent.emit({ kind: 'MergeSectionRequested', uuid: this.data.uuid } as any);
       }
     });
+
 
     // Delete options:
     items.push({

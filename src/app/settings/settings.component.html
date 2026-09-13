@@ -1025,6 +1025,66 @@
             </div>
           </div>
 
+          <!-- ───────────── Direct OS File Backup / Sync (Chromium) ───────────── -->
+          <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <h5 class="fw-bold mb-0">
+                  <i class="bi bi-hdd-network me-2 text-primary"></i>Direct OS File Sync & Live Backup
+                </h5>
+                <span class="badge bg-primary-subtle text-primary border" *ngIf="isFileSystemSupported">
+                  <i class="bi bi-check2-circle me-1"></i>Chromium File System API Ready
+                </span>
+                <span class="badge bg-secondary-subtle text-secondary border" *ngIf="!isFileSystemSupported">
+                  <i class="bi bi-info-circle me-1"></i>Fallback Mode (Chrome / Edge recommended)
+                </span>
+              </div>
+              <p class="text-muted small mb-3">
+                Link your workspace directly to a designated <code>.monodijson</code> file on your computer's hard drive. Save directly to your OS file system with 1 click.
+              </p>
+
+              <div *ngIf="isFileSystemSupported">
+                <div *ngIf="linkedBackupFileName" class="p-3 bg-light border rounded mb-3">
+                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                      <div class="fw-semibold text-dark">
+                        <i class="bi bi-file-earmark-check text-success me-2 fs-5"></i>
+                        Linked File: <code class="text-primary">{{ linkedBackupFileName }}</code>
+                      </div>
+                      <div class="text-muted small mt-1" *ngIf="lastBackupTime">
+                        Last backed up to disk: <strong>{{ lastBackupTime }}</strong>
+                      </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                      <button type="button" class="btn btn-sm btn-primary" (click)="syncWorkspaceToOsFile()" [disabled]="isSavingBackup">
+                        <span *ngIf="isSavingBackup" class="spinner-border spinner-border-sm me-1"></span>
+                        <i *ngIf="!isSavingBackup" class="bi bi-arrow-repeat me-1"></i>
+                        Sync Now to Disk
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="unlinkOsBackupFile()" [disabled]="isSavingBackup">
+                        <i class="bi bi-x-circle me-1"></i>Unlink
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div *ngIf="!linkedBackupFileName" class="text-center p-4 bg-light border rounded mb-2">
+                  <i class="bi bi-folder-symlink text-secondary" style="font-size: 2rem;"></i>
+                  <h6 class="fw-semibold mt-2 mb-1">No OS backup file currently linked</h6>
+                  <p class="text-muted small mb-3">Choose a location on your hard drive to create or link an active workspace backup file.</p>
+                  <button type="button" class="btn btn-sm btn-outline-primary px-3" (click)="linkOsBackupFile()">
+                    <i class="bi bi-link-45deg me-1"></i>Pick & Link OS Backup File
+                  </button>
+                </div>
+              </div>
+
+              <div *ngIf="!isFileSystemSupported" class="alert alert-info small mb-0">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                Direct OS File System linking is supported in Chromium-based browsers (Google Chrome, Microsoft Edge, Opera, Brave). On Safari and Firefox, please use <strong>Export Workspace JSON</strong> above to download backups.
+              </div>
+            </div>
+          </div>
+
           <!-- ─────────────────── Cleanup / soft resets ─────────────────── -->
           <div class="card shadow-sm border-0 mb-4">
             <div class="card-body">
@@ -1519,6 +1579,273 @@
             </div>
           </div>
         </div>
+
+        <!-- 9. Shortcuts Tab -->
+        <div class="tab-pane fade show active" *ngIf="activeTab === 'shortcuts'">
+          <div class="settings-pane-head">
+            <i class="bi bi-keyboard"></i>
+            <div>
+              <div class="settings-pane-title">Keyboard Shortcuts</div>
+              <div class="settings-pane-sub">Customize key bindings for building blocks and note modifications in the transcription editor.</div>
+            </div>
+          </div>
+
+          <!-- Note Creation & Building Blocks Card -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-bricks me-2"></i>Note Creation & Building Blocks</h6>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                      <th style="width: 50%;" class="ps-3">Action & Description</th>
+                      <th style="width: 30%;">Shortcut Key</th>
+                      <th style="width: 20%;" class="pe-3">Default</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">Connected Note (Ligature)</div>
+                        <div class="text-muted small">Connects next note graphically without space</div>
+                      </td>
+                      <td>
+                        <select class="form-select form-select-sm font-monospace fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.insertConnectedNote" style="max-width: 140px;">
+                          <option value="Shift">Shift</option>
+                          <option value="Alt">Alt</option>
+                          <option value="Control">Control</option>
+                          <option value="Tab">Tab</option>
+                          <option value="c">c</option>
+                          <option value="s">s</option>
+                        </select>
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">Shift</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">Spaced Note (Near)</div>
+                        <div class="text-muted small">Inserts a near note in the current syllable</div>
+                      </td>
+                      <td>
+                        <select class="form-select form-select-sm font-monospace fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.insertNearNote" style="max-width: 140px;">
+                          <option value="Space">Space</option>
+                          <option value="Enter">Enter</option>
+                          <option value="Tab">Tab</option>
+                        </select>
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">Space</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">Far Note (New Syllable Group)</div>
+                        <div class="text-muted small">Inserts a far note / creates a new group</div>
+                      </td>
+                      <td>
+                        <select class="form-select form-select-sm font-monospace fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.insertFarNote" style="max-width: 140px;">
+                          <option value="Enter">Enter</option>
+                          <option value="Space">Space</option>
+                          <option value="Tab">Tab</option>
+                        </select>
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">Enter</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">New Segment / Syllable</div>
+                        <div class="text-muted small">Creates a new segment block</div>
+                      </td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.newSegment" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">-</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">New Clef</div>
+                        <div class="text-muted small">Inserts a clef change</div>
+                      </td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.newClef" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">c</kbd></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Note Type Modifications Card -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-music-note-beamed me-2"></i>Note Type Modifications</h6>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                      <th style="width: 50%;" class="ps-3">Action</th>
+                      <th style="width: 30%;">Shortcut Key</th>
+                      <th style="width: 20%;" class="pe-3">Default</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="ps-3 fw-medium">Set Note to Flat</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.setFlat" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">f</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 fw-medium">Set Note to Sharp</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.setSharp" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">s</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 fw-medium">Set Note to Natural</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.setNatural" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">n</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 fw-medium">Toggle Liquescent Note</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.toggleLiquescent" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">l</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 fw-medium">Set Note to Oriscus</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.setOriscus" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">o</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 fw-medium">Set Note to Ascending</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.setAscending" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">a</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 fw-medium">Set Note to Descending</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.setDescending" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">d</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 fw-medium">Add Comment</td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.addComment" style="max-width: 100px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">k</kbd> <span class="text-muted small">(Ctrl+k)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Structure & Merge Operations Card -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-diagram-3 me-2"></i>Structure & Merge Operations</h6>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                      <th style="width: 50%;" class="ps-3">Action</th>
+                      <th style="width: 30%;">Shortcut Key</th>
+                      <th style="width: 20%;" class="pe-3">Default</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">Split Line (at active syllable / note)</div>
+                        <div class="text-muted small">Splits the staff line at the cursor position</div>
+                      </td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.splitLine" style="max-width: 140px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">Alt+Enter</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">Merge with Next Line</div>
+                        <div class="text-muted small">Merges current line with the next line below</div>
+                      </td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.mergeWithNextLine" style="max-width: 140px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">Alt+m</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">Merge Section with Next</div>
+                        <div class="text-muted small">Merges current section with following section</div>
+                      </td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.mergeSection" style="max-width: 140px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">Alt+Shift+m</kbd></td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3">
+                        <div class="fw-semibold text-dark">Merge All Lines (in Section / Doc)</div>
+                        <div class="text-muted small">Merges all lines inside the active section or document</div>
+                      </td>
+                      <td>
+                        <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold border-primary-subtle"
+                          [(ngModel)]="shortcutsConfig.mergeAllLines" style="max-width: 140px;">
+                      </td>
+                      <td class="pe-3"><kbd class="bg-secondary px-2 py-1">Ctrl+Alt+m</kbd></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions Footer -->
+          <div class="d-flex justify-content-between align-items-center pt-2 pb-4">
+            <button type="button" class="btn btn-outline-secondary btn-sm" (click)="resetShortcutsConfig()">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Defaults
+            </button>
+            <button type="button" class="btn btn-primary btn-sm px-4 shadow-sm" (click)="saveShortcutsConfig()">
+              <i class="bi bi-check2 me-1"></i>Save Shortcuts Settings
+            </button>
+          </div>
+
+        </div>
+
       </div>
     </div>
   </div>

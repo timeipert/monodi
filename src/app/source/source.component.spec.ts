@@ -16,7 +16,13 @@ describe('SourceComponent', () => {
   let fixture: ComponentFixture<SourceComponent>;
 
   const mockActivatedRoute = {
-    paramMap: of(convertToParamMap({ id: 'mock-source-id' }))
+    paramMap: of(convertToParamMap({ id: 'mock-source-id' })),
+    queryParamMap: of(convertToParamMap({})),
+    queryParams: of({}),
+    snapshot: {
+      paramMap: convertToParamMap({ id: 'mock-source-id' }),
+      queryParamMap: convertToParamMap({})
+    }
   };
 
   const mockAPIService = {

@@ -628,3 +628,23 @@ ul {
 .structure-row {
   cursor: default;
 }
+
+/* ── Search and Replace Panel ────────────────────────────────────────────── */
+.search-replace-panel {
+  border-radius: 10px;
+  background-color: #ffffff;
+  border: 1px solid #c7d8f5 !important;
+  box-shadow: 0 4px 16px rgba(13, 110, 253, 0.08) !important;
+  animation: srp-appear 0.15s ease-out;
+}
+
+@keyframes srp-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

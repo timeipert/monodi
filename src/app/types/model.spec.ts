@@ -14,6 +14,8 @@ import {
   getSyllables,
   getAllLineParts,
   getAllLineContainers,
+  findContainerByUUID,
+  mergeAllLinesPerSection,
   remove,
   comparePositions,
   nextNote,
@@ -116,7 +118,64 @@ describe('Model Pure Functions Characterization Tests', () => {
     });
   });
 
+  describe('findContainerByUUID', () => {
+    it('should find container by UUID at root level or nested level', () => {
+      expect(findContainerByUUID(root, root.uuid)).toBe(root);
+      expect(findContainerByUUID(root, formteil.uuid)).toBe(formteil);
+      expect(findContainerByUUID(root, 'non-existent-uuid')).toBeUndefined();
+    });
+  });
+
+  describe('mergeAllLinesPerSection', () => {
+    it('should merge all lines within each section together into a single line', () => {
+      const section1 = emptyFormteilContainer(DocumentType.Level1, [0]);
+      const z1 = emptyZeileContainer(1);
+      const s1 = emptySyllable(1); s1.text = 'Ky-';
+      z1.children = [s1];
+
+      const z2 = emptyZeileContainer(1);
+      const s2 = emptySyllable(1); s2.text = 'ri-';
+      z2.children = [s2];
+
+      const z3 = emptyZeileContainer(1);
+      const s3 = emptySyllable(1); s3.text = 'e';
+      z3.children = [s3];
+
+      section1.children = [z1, z2, z3];
+
+      const section2 = emptyFormteilContainer(DocumentType.Level1, [1]);
+      const z4 = emptyZeileContainer(1);
+      const s4 = emptySyllable(1); s4.text = 'E-';
+      z4.children = [s4];
+
+      const z5 = emptyZeileContainer(1);
+      const s5 = emptySyllable(1); s5.text = 'le-';
+      z5.children = [s5];
+
+      section2.children = [z4, z5];
+
+      const testRoot = emptyRootContainer();
+      testRoot.children = [section1, section2];
+
+      const mergedCount = mergeAllLinesPerSection(testRoot);
+
+      // Total lines removed by merging: (3-1) in sec1 + (2-1) in sec2 = 3
+      expect(mergedCount).toBe(3);
+
+      // Section 1 should now have only 1 line with all 3 syllables
+      expect(section1.children.length).toBe(1);
+      const mergedLine1 = section1.children[0] as any;
+      expect(mergedLine1.children.map((c: any) => c.text)).toEqual(['Ky-', 'ri-', 'e']);
+
+      // Section 2 should now have only 1 line with both syllables
+      expect(section2.children.length).toBe(1);
+      const mergedLine2 = section2.children[0] as any;
+      expect(mergedLine2.children.map((c: any) => c.text)).toEqual(['E-', 'le-']);
+    });
+  });
+
   describe('remove', () => {
+
     it('should delete a direct child container in-place', () => {
       remove(root, formteil);
       expect(root.children).toEqual([]);

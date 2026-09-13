@@ -1045,8 +1045,8 @@
                     <td>
                       <div class="melody-preview-container overflow-auto py-1">
                         <div class="d-flex flex-nowrap align-items-center gap-0 p-1 bg-light rounded" style="min-height: 70px;">
-                          <div *ngFor="let syl of r.matchingSyllables" style="flex-shrink: 0;">
-                            <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="r.matchNoteSet"></app-notes>
+                          <div *ngFor="let syl of r.matchingSyllables; let first = first" style="flex-shrink: 0;">
+                            <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="r.matchNoteSet" [showGClef]="first"></app-notes>
                           </div>
                         </div>
                       </div>
@@ -1290,12 +1290,12 @@
                 </div>
                 
                 <div class="d-flex flex-row align-items-start">
-                  <div *ngFor="let col of chunk" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
+                  <div *ngFor="let col of chunk; let colIdx = index" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
                       <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-clef>
                     </ng-container>
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
-                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-notes>
+                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [showGClef]="colIdx === 0"></app-notes>
                     </ng-container>
                     <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
@@ -1375,12 +1375,12 @@
               
               <div class="d-flex flex-row align-items-start">
                 <ng-container *ngIf="hasLineElements(node, docIdx); else emptyStave">
-                  <div *ngFor="let col of node.alignedLineElements" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
+                  <div *ngFor="let col of node.alignedLineElements; let colIdx = index" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
                       <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-clef>
                     </ng-container>
                     <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
-                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0"></app-notes>
+                      <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]" [hideSyllableText]="showConsensusText" [staffScale]="settings?.pdfSynopsisScale || 1.0" [showGClef]="colIdx === 0"></app-notes>
                     </ng-container>
                     <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
                       <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">

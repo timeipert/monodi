@@ -17,6 +17,7 @@ import * as localforage from 'localforage';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import 'svg2pdf.js';
+import { FileSystemService } from '../file-system.service';
 import {
   LoadedDoc,
   PatternOccurrence,
@@ -730,6 +731,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     private patternSvc: PatternAnalysisService,
     private synopsisSvc: SynopsisService,
     private searchExecSvc: SearchExecService,
+    private fsService: FileSystemService,
   ) {
     this.loadCols();
     this.loadRecentSearches();
@@ -1239,18 +1241,21 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     ], 'melody-results.csv');
   }
 
-  private exportCSV(data: any[], cols: ColDef<any>[], filename: string) {
+  private async exportCSV(data: any[], cols: ColDef<any>[], filename: string) {
     const visCols = cols.filter(c => c.visible);
     const header  = visCols.map(c => `"${c.label}"`).join(',');
     const rows    = data.map(row =>
       visCols.map(c => `"${String((row as any)[c.key] ?? '').replace(/"/g, '""')}"`).join(',')
     );
     const csv  = [header, ...rows].join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
+    await this.fsService.saveFile('\ufeff' + csv, {
+      suggestedName: filename,
+      types: [{
+        description: 'CSV File',
+        accept: { 'text/csv': ['.csv'] }
+      }],
+      fallbackMimeType: 'text/csv;charset=utf-8;'
+    });
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -2000,7 +2005,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.cdRef.markForCheck();
   }
 
-  exportPatternSessionJSON() {
+  async exportPatternSessionJSON() {
     try {
       const sessionData = {
         patternGroups: this.patternSvc.patternGroups,
@@ -2018,21 +2023,36 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       };
 
       const filename = `pattern-analysis-${this.patternSvc.patternType}-${this.patternSvc.patternLength}.json`;
-      const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      this.toastr.success('JSON file exported');
+      const res = await this.fsService.saveFile(JSON.stringify(sessionData, null, 2), {
+        suggestedName: filename,
+        types: [{
+          description: 'JSON File',
+          accept: { 'application/json': ['.json'] }
+        }],
+        fallbackMimeType: 'application/json'
+      });
+      if (res.saved) {
+        this.toastr.success('JSON file exported');
+      }
     } catch (e) {
       console.error('Failed to export JSON:', e);
       this.toastr.error('Failed to export JSON file');
     }
   }
 
-  triggerImportJSON() {
+  async triggerImportJSON() {
+    if (this.fsService.isSupported()) {
+      const res = await this.fsService.openFile({
+        types: [{
+          description: 'Pattern Analysis JSON',
+          accept: { 'application/json': ['.json'] }
+        }]
+      });
+      if (res && res.file) {
+        this.processPatternSessionFile(res.file);
+        return;
+      }
+    }
     const input = document.getElementById('patternImportJsonInput');
     if (input) {
       input.click();
@@ -2042,6 +2062,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   importPatternSessionJSON(event: any) {
     const file = event.target.files?.[0];
     if (!file) return;
+    this.processPatternSessionFile(file);
+    event.target.value = '';
+  }
+
+  private processPatternSessionFile(file: File) {
 
     const reader = new FileReader();
     reader.onload = async (e: any) => {
@@ -2080,7 +2105,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       }
     };
     reader.readAsText(file);
-    event.target.value = '';
   }
 
 

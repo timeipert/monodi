@@ -143,3 +143,28 @@ body.is-dragging app-dragger .middle > * {
   }
 }
 
+
+/* ── Clickable affordance ──────────────────────────────────────────────────
+   Buttons, tabs, pills and anything wired as a click target should show the
+   pointer cursor. Bootstrap 5 drops it on hrefless <a>/.nav-link, and many
+   tabs in this app are click handlers on <a>/<div>, so make it global. */
+button:not(:disabled),
+.btn:not(:disabled),
+.nav-link,
+.nav-item > .nav-link,
+a[role="button"],
+[role="button"],
+[role="tab"],
+.cursor-pointer,
+label.form-check-label,
+summary {
+  cursor: pointer;
+}
+
+/* Disabled controls must not look clickable. */
+button:disabled,
+.btn:disabled,
+.btn.disabled,
+[disabled] {
+  cursor: not-allowed;
+}

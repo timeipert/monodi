@@ -3,12 +3,13 @@ import { RootContainer, ContainerKind, LinePartKind, ZeileContainer, Syllable, C
 import { ProjectSettings, MeiMappingSettings, Document as MonodiDocument } from './api.service';
 import { emitMei } from './mei/mei-emitter';
 import { defaultMeiProfile } from './mei/mei-mapping.model';
+import { FileSystemService } from './file-system.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class MeiExportService {
-  constructor() {}
+  constructor(private fsService: FileSystemService) {}
 
   exportToMei(root: RootContainer, settings: ProjectSettings | null, documentMeta?: MonodiDocument, sourceSiglum?: string): string {
     const profile = settings?.meiProfiles?.find(p => p.id === settings.activeMeiProfileId) || defaultMeiProfile();
@@ -379,9 +380,23 @@ export class MeiExportService {
     if (syllable.notes && syllable.notes.spaced) {
       // syllable.notes.spaced is an array of NonSpaced.
       // Each NonSpaced corresponds to exactly one <neume> element!
-      for (const neumeData of syllable.notes.spaced) {
+      const spacedArrL = syllable.notes.spaced;
+      // A graphical gap (space) is the boundary BETWEEN spaced units, so con="g"
+      // ("gapped") belongs on the last note of a spaced unit that is followed by
+      // another non-empty unit — e.g. "a bc" → the 'a' nc gets con="g".
+      let lastNonEmptySpacedL = -1;
+      for (let s = spacedArrL.length - 1; s >= 0; s--) {
+        if (spacedArrL[s].nonSpaced && spacedArrL[s].nonSpaced.some((ns: any) => ns.grouped && ns.grouped.length > 0)) { lastNonEmptySpacedL = s; break; }
+      }
+      for (let sIndex = 0; sIndex < spacedArrL.length; sIndex++) {
+        const neumeData = spacedArrL[sIndex];
         if (!neumeData.nonSpaced || neumeData.nonSpaced.length === 0) continue;
-        
+
+        let lastGroupIdxL = -1;
+        for (let g = neumeData.nonSpaced.length - 1; g >= 0; g--) {
+          if (neumeData.nonSpaced[g].grouped && neumeData.nonSpaced[g].grouped.length > 0) { lastGroupIdxL = g; break; }
+        }
+
         const neumeTag = mappings.neume?.tag || 'neume';
         const neume = doc.createElementNS('http://www.music-encoding.org/ns/mei', neumeTag);
         
@@ -427,9 +442,9 @@ export class MeiExportService {
                nc.setAttribute(liquescentAttr, liquescentValue);
             }
             
-            // Graphical connection: if this is the last note in a grouped component (ligature), 
-            // AND there is a subsequent grouped component within this same neume (NonSpaced)
-            if (nIndex === groupedData.grouped.length - 1 && gIndex < neumeData.nonSpaced.length - 1) {
+            // Graphical connection ("gapped"): the last note of a spaced unit
+            // that is followed by another unit gets con="g".
+            if ((gIndex === lastGroupIdxL && nIndex === groupedData.grouped.length - 1) && sIndex < lastNonEmptySpacedL) {
                 const connectionAttr = mappings.note?.connectionAttr || 'con';
                 const gapValue = mappings.note?.connectionGapValue || 'g';
                 if (connectionAttr) {
@@ -448,15 +463,16 @@ export class MeiExportService {
     layer.appendChild(meiSyllable);
   }
 
-  exportAndDownload(root: RootContainer, filename: string = 'export.mei', settings: ProjectSettings | null = null, documentMeta?: MonodiDocument, sourceSiglum?: string) {
+  async exportAndDownload(root: RootContainer, filename: string = 'export.mei', settings: ProjectSettings | null = null, documentMeta?: MonodiDocument, sourceSiglum?: string) {
     const xml = this.exportToMei(root, settings, documentMeta, sourceSiglum);
-    const blob = new Blob([xml], { type: 'application/xml' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    await this.fsService.saveFile(xml, {
+      suggestedName: filename,
+      types: [{
+        description: 'MEI XML File',
+        accept: { 'application/xml': ['.mei', '.xml'] }
+      }],
+      fallbackMimeType: 'application/xml;charset=utf-8'
+    });
   }
 
   private generateCommentTreeDOM(

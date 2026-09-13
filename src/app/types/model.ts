@@ -1540,10 +1540,62 @@ export function getAllLineContainers(c: Container): ZeileContainer[] {
       return [c];
     case ContainerKind.ParatextContainer:
       return [];
-    default:
-      return assertNever(c);
   }
 }
+
+export function findContainerByUUID(root: Container, targetUuid: string): Container | undefined {
+
+  if (root.uuid === targetUuid) return root;
+  if (root.kind === ContainerKind.RootContainer || root.kind === ContainerKind.FormteilContainer || root.kind === ContainerKind.MiscContainer) {
+    for (const child of root.children) {
+      const found = findContainerByUUID(child, targetUuid);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+export function mergeAllLinesPerSection(c: Container): number {
+  let mergedCount = 0;
+  if (
+    c.kind === ContainerKind.RootContainer ||
+    c.kind === ContainerKind.FormteilContainer ||
+    c.kind === ContainerKind.MiscContainer
+  ) {
+    for (const child of c.children) {
+      if (
+        child.kind === ContainerKind.FormteilContainer ||
+        child.kind === ContainerKind.MiscContainer
+      ) {
+        mergedCount += mergeAllLinesPerSection(child);
+      }
+    }
+
+    const zeileIndices: number[] = [];
+    c.children.forEach((child, index) => {
+      if (child.kind === ContainerKind.ZeileContainer) {
+        zeileIndices.push(index);
+      }
+    });
+
+    if (zeileIndices.length > 1) {
+      const firstZeileIndex = zeileIndices[0];
+      const firstZeile = c.children[firstZeileIndex] as ZeileContainer;
+
+      for (let i = 1; i < zeileIndices.length; i++) {
+        const nextZeile = c.children[zeileIndices[i]] as ZeileContainer;
+        firstZeile.children.push(...nextZeile.children);
+        mergedCount++;
+      }
+
+      for (let i = zeileIndices.length - 1; i >= 1; i--) {
+        c.children.splice(zeileIndices[i], 1);
+      }
+    }
+  }
+  return mergedCount;
+}
+
 
 export function findParentContainer(root: Container, targetUuid: string): { parent: Container; index: number } | undefined {
   if (root.kind === ContainerKind.ZeileContainer || root.kind === ContainerKind.ParatextContainer) {

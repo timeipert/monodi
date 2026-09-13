@@ -103,7 +103,7 @@
                         [class.active]="sidebarTab === 'metadata'"
                         [style.background-color]="sidebarTab === 'metadata' ? '#0d6efd' : 'transparent'"
                         [style.color]="sidebarTab === 'metadata' ? '#fff' : '#495057'"
-                        (click)="sidebarTab = 'metadata'" type="button">
+                        (click)="setSidebarTab('metadata')" type="button">
                   <i class="bi bi-info-circle me-1"></i>Meta
                 </button>
               </li>
@@ -112,7 +112,7 @@
                         [class.active]="sidebarTab === 'structure'"
                         [style.background-color]="sidebarTab === 'structure' ? '#0d6efd' : 'transparent'"
                         [style.color]="sidebarTab === 'structure' ? '#fff' : '#495057'"
-                        (click)="sidebarTab = 'structure'" type="button">
+                        (click)="setSidebarTab('structure')" type="button">
                   <i class="bi bi-diagram-3 me-1"></i>Struct
                 </button>
               </li>
@@ -121,7 +121,7 @@
                         [class.active]="sidebarTab === 'comments'"
                         [style.background-color]="sidebarTab === 'comments' ? '#0d6efd' : 'transparent'"
                         [style.color]="sidebarTab === 'comments' ? '#fff' : '#495057'"
-                        (click)="sidebarTab = 'comments'" type="button">
+                        (click)="setSidebarTab('comments')" type="button">
                   <i class="bi bi-chat-text me-1"></i>Comm
                   <span class="badge rounded-pill ms-1"
                         [class.bg-light]="sidebarTab === 'comments'" [class.text-dark]="sidebarTab === 'comments'"
@@ -452,6 +452,128 @@
             <i class="bi bi-x-lg me-1"></i>Cancel
             <kbd class="ms-2">Esc</kbd>
           </button>
+        </div>
+
+        <!-- Search and Replace Panel -->
+        <div *ngIf="isSearchReplaceOpen" class="search-replace-panel card shadow border-primary border-opacity-25 mb-3">
+          <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center justify-content-between py-2 px-3">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-search text-primary"></i>
+              <strong class="small text-dark">Search &amp; Replace</strong>
+              <span class="badge bg-white text-dark border ms-2" *ngIf="searchQuery && currentMatches.length > 0">
+                Match {{ currentMatchIndex + 1 }} of {{ currentMatches.length }}
+              </span>
+              <span class="badge bg-white text-muted border ms-2" *ngIf="searchQuery && currentMatches.length === 0">
+                0 matches
+              </span>
+            </div>
+            <button type="button" class="btn-close btn-close-sm" (click)="closeSearchReplace()" aria-label="Close" title="Close (Esc)"></button>
+          </div>
+          <div class="card-body p-3">
+            <!-- Scopes and Options -->
+            <div class="d-flex align-items-center flex-wrap gap-3 mb-2">
+              <span class="small text-muted fw-semibold">Target Scope:</span>
+              <div class="form-check form-check-inline m-0">
+                <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeSyllables" [(ngModel)]="searchScopeSyllables" (ngModelChange)="onSearchQueryChange()">
+                <label class="form-check-label small cursor-pointer" for="srScopeSyllables">
+                  <i class="bi bi-fonts me-1 text-primary"></i>Syllable text
+                </label>
+              </div>
+              <div class="form-check form-check-inline m-0">
+                <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeNotes" [(ngModel)]="searchScopeNotes" (ngModelChange)="onSearchQueryChange()">
+                <label class="form-check-label small cursor-pointer" for="srScopeNotes">
+                  <i class="bi bi-music-note-beamed me-1 text-success"></i>Notes
+                </label>
+              </div>
+              <div class="form-check form-check-inline m-0">
+                <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeParatext" [(ngModel)]="searchScopeParatext" (ngModelChange)="onSearchQueryChange()">
+                <label class="form-check-label small cursor-pointer" for="srScopeParatext">
+                  <i class="bi bi-paragraph me-1 text-info"></i>Paratext
+                </label>
+              </div>
+
+              <div class="vr mx-1 d-none d-md-block"></div>
+
+              <!-- Matching flags -->
+              <div class="form-check form-check-inline m-0">
+                <input class="form-check-input cursor-pointer" type="checkbox" id="srMatchCase" [(ngModel)]="searchMatchCase" (ngModelChange)="onSearchQueryChange()">
+                <label class="form-check-label small cursor-pointer" for="srMatchCase" title="Match upper/lower case strictly">
+                  Match case (Aa)
+                </label>
+              </div>
+              <div class="form-check form-check-inline m-0">
+                <input class="form-check-input cursor-pointer" type="checkbox" id="srMatchWholeWord" [(ngModel)]="searchMatchWholeWord" (ngModelChange)="onSearchQueryChange()">
+                <label class="form-check-label small cursor-pointer" for="srMatchWholeWord" title="Match whole words only">
+                  Whole word
+                </label>
+              </div>
+            </div>
+
+            <!-- Inputs & Action Buttons Row -->
+            <div class="row g-2 align-items-center">
+              <div class="col-lg-5 col-md-6">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                  <input type="text" 
+                         class="form-control" 
+                         placeholder="Search for text, notes (e.g. G a b), or paratext..." 
+                         [(ngModel)]="searchQuery" 
+                         (ngModelChange)="onSearchQueryChange()" 
+                         (keydown.enter)="nextSearchMatch()"
+                         #searchInputEl>
+                  <button class="btn btn-outline-secondary" type="button" *ngIf="searchQuery" (click)="searchQuery = ''; onSearchQueryChange()">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="col-lg-4 col-md-6">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-white text-muted"><i class="bi bi-arrow-left-right"></i></span>
+                  <input type="text" 
+                         class="form-control" 
+                         placeholder="Replace with..." 
+                         [(ngModel)]="replaceQuery" 
+                         (keydown.enter)="replaceCurrentMatch()">
+                </div>
+              </div>
+
+              <div class="col-lg-3 col-md-12 d-flex align-items-center gap-1 justify-content-lg-end mt-2 mt-lg-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-2" (click)="prevSearchMatch()" [disabled]="currentMatches.length === 0" title="Previous match">
+                  <i class="bi bi-chevron-up"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary px-2" (click)="nextSearchMatch()" [disabled]="currentMatches.length === 0" title="Next match (Enter)">
+                  <i class="bi bi-chevron-down"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" (click)="replaceCurrentMatch()" [disabled]="currentMatches.length === 0 || currentMatchIndex < 0" title="Replace current match">
+                  Replace
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" (click)="replaceAllMatches()" [disabled]="currentMatches.length === 0" title="Replace all matches">
+                  Replace All
+                </button>
+              </div>
+            </div>
+
+            <!-- Scope Breakdown & Current Match Context Snippet -->
+            <div *ngIf="searchQuery && currentMatches.length > 0" class="mt-2 pt-2 border-top d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
+              <div>
+                <span>Found in: </span>
+                <span *ngIf="matchCountsByScope.syllables > 0" class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">
+                  {{ matchCountsByScope.syllables }} Syllable{{ matchCountsByScope.syllables > 1 ? 's' : '' }}
+                </span>
+                <span *ngIf="matchCountsByScope.notes > 0" class="badge bg-success-subtle text-success border border-success-subtle me-1">
+                  {{ matchCountsByScope.notes }} Note{{ matchCountsByScope.notes > 1 ? 's' : '' }}
+                </span>
+                <span *ngIf="matchCountsByScope.paratext > 0" class="badge bg-info-subtle text-info border border-info-subtle">
+                  {{ matchCountsByScope.paratext }} Paratext
+                </span>
+              </div>
+              <div *ngIf="currentMatches[currentMatchIndex] as cur" class="text-truncate" style="max-width: 450px;">
+                <span class="text-dark fw-medium">Match #{{ currentMatchIndex + 1 }}: </span>
+                <code class="bg-light px-1 py-0.5 rounded border text-dark">{{ cur.contextSnippet }}</code>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="border rounded-3 bg-white mb-5" [ngClass]="viewMode === 'split' ? 'p-1' : 'p-3'" [class.comment-create-target]="isCommentCreationMode">

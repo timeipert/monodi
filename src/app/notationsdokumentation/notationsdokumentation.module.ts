@@ -8,6 +8,7 @@ import { IiifViewerComponent } from './iiif-viewer/iiif-viewer.component';
 import { SvgPatternComponent } from './svg-pattern/svg-pattern.component';
 import { NotationViewerComponent } from './notation-viewer/notation-viewer.component';
 import { AnnotationCutoutComponent } from './annotation-cutout/annotation-cutout.component';
+import { ManuscriptLinePopupComponent } from './manuscript-line-popup/manuscript-line-popup.component';
 
 
 @NgModule({
@@ -17,6 +18,7 @@ import { AnnotationCutoutComponent } from './annotation-cutout/annotation-cutout
     SvgPatternComponent,
     NotationViewerComponent,
     AnnotationCutoutComponent,
+    ManuscriptLinePopupComponent,
   ],
   imports: [
     CommonModule,
@@ -28,6 +30,7 @@ import { AnnotationCutoutComponent } from './annotation-cutout/annotation-cutout
     IiifViewerComponent,
     NotationViewerComponent,
     SvgPatternComponent,
+    ManuscriptLinePopupComponent,
   ]
 })
 export class NotationsdokumentationModule { }

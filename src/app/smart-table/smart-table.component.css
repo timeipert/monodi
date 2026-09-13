@@ -20,12 +20,14 @@ th:last-child {
     cursor: pointer;
 }
 
-tbody tr:hover {
-    background-color: #cfe6f0;
+tbody tr.table-active {
+    background-color: #e8f4fc !important;
 }
 
-.cell-empty {
-    color: #9ca3af;
-    font-size: 0.9em;
-    user-select: none;
+tbody tr.table-active:hover {
+    background-color: #d2eafa !important;
+}
+
+.cursor-pointer {
+    cursor: pointer;
 }

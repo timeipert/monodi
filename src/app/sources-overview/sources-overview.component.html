@@ -60,10 +60,14 @@
       <app-smart-table
         *ngIf="sources.length > 0"
         (onDelete)="delete($event)"
+        (onBatchDelete)="onBatchDeleteSources($event)"
+        (onBatchEdit)="onBatchEditSources($event)"
         (onRowClick)="goToSource($event)"
         [canDelete]="true"
         [headers]="headers"
         [objects]="sources"
+        [batchFields]="sourceBatchFields"
+        storageKey="sources_overview_table"
       ></app-smart-table>
     </div>
   </div>

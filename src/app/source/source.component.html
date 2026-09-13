@@ -219,12 +219,16 @@
         <app-smart-table
           [objects]="documents"
           [headers]="docHeaders"
+          [batchFields]="docBatchFields"
           [canDelete]="true"
           [filterable]="true"
           [paginated]="true"
           [pageSize]="10"
+          storageKey="source_documents_table"
           (onRowClick)="goToDocument($event)"
-          (onDelete)="deleteDocument($event)">
+          (onDelete)="deleteDocument($event)"
+          (onBatchDelete)="onBatchDeleteDocuments($event)"
+          (onBatchEdit)="onBatchEditDocuments($event)">
         </app-smart-table>
       </div>
 
@@ -235,19 +239,19 @@
         <ul class="nav nav-pills mb-4">
           <li class="nav-item">
             <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'select'"
-               (click)="activeNotationTab = 'select'">
+               (click)="setNotationTab('select')">
               Select Patterns
             </a>
           </li>
           <li class="nav-item" *ngIf="source.iiifManifestUrl">
             <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'annotate'"
-               (click)="activeNotationTab = 'annotate'">
+               (click)="setNotationTab('annotate')">
               Annotate Scans
             </a>
           </li>
           <li class="nav-item" *ngIf="source.iiifManifestUrl">
             <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'view'"
-               (click)="activeNotationTab = 'view'">
+               (click)="setNotationTab('view')">
               View Documentation
             </a>
           </li>

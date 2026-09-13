@@ -4,7 +4,7 @@ import { UserService, User } from '../user.service';
 import { APIService, UserInfo, Source } from '../api.service'
 import { assertNever } from '../../utils';
 import { Subscription, firstValueFrom } from 'rxjs';
-import { Header } from '../smart-table/smart-table.component';
+import { Header, BatchField } from '../smart-table/smart-table.component';
 import { ToastrService } from 'ngx-toastr';
 import { ContextMenuService } from '../context-menu/context-menu.service';
 import { ToolsService } from '../tools.service';
@@ -23,6 +23,7 @@ import {
 } from '../types/model';
 import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
+import { FileSystemService } from '../file-system.service';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -38,6 +39,7 @@ const DEFAULT_SOURCE_COLS: SourceColDef[] = [
   { key: 'herkunftsinstitution', label: 'Institution',         visible: true  },
   { key: 'ordenstradition',      label: 'Order Tradition',     visible: false },
   { key: 'quellentyp',           label: 'Source Type',         visible: true  },
+  { key: 'docCounts',            label: 'Docs',                visible: true  },
   { key: 'bibliotheksort',       label: 'Library Location',    visible: false },
   { key: 'bibliothek',           label: 'Library',             visible: false },
   { key: 'bibliothekssignatur',  label: 'Library Signature',   visible: false },
@@ -55,6 +57,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   subs: Subscription[] = [];
   sources: Source[] = [];
   user: User | null = null;
+  docCountsMap = new Map<string, { transcribed: number; total: number }>();
 
   showColPicker = false;
   cols: SourceColDef[] = [];
@@ -97,12 +100,46 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   headers: Header<Source>[] = [];
 
+  get sourceBatchFields(): BatchField[] {
+    return [
+      { key: 'quellensigle', label: 'Source Siglum' },
+      { key: 'datierung', label: 'Dating' },
+      { key: 'herkunftsregion', label: 'Region of Origin' },
+      { key: 'herkunftsort', label: 'Place of Origin' },
+      { key: 'herkunftsinstitution', label: 'Institution' },
+      { key: 'ordenstradition', label: 'Order Tradition' },
+      { key: 'quellentyp', label: 'Source Type' },
+      { key: 'bibliotheksort', label: 'Library Location' },
+      { key: 'bibliothek', label: 'Library' },
+      { key: 'bibliothekssignatur', label: 'Library Signature' },
+      { key: 'kommentar', label: 'Comment' },
+    ];
+  }
+
   updateHeaders() {
     this.headers = this.cols
       .filter(c => c.visible)
       .map(c => ({
         name: c.label,
-        makeCell: (x: Source) => ({ kind: 'text' as const, text: (x as any)[c.key] ?? '' })
+        key: c.key as string,
+        makeCell: (x: Source) => {
+          if (c.key === 'docCounts') {
+            const counts = this.docCountsMap.get(x.id ?? '') ?? { transcribed: 0, total: 0 };
+            const isSame = counts.transcribed === counts.total;
+            const text = isSame ? `${counts.total}` : `${counts.transcribed}/${counts.total}`;
+            const title = isSame
+              ? `${counts.total} total documents (all ${counts.transcribed} transcribed)`
+              : `${counts.transcribed} transcribed / ${counts.total} total documents`;
+
+            return {
+              kind: 'text' as const,
+              text,
+              title,
+              sortValue: counts.total
+            };
+          }
+          return { kind: 'text' as const, text: (x as any)[c.key] ?? '' };
+        }
       }));
   }
 
@@ -116,6 +153,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     private cdRef: ChangeDetectorRef,
     private zone: NgZone,
     private route: ActivatedRoute,
+    private fsService: FileSystemService,
   ) {}
 
   ngOnInit() {
@@ -190,10 +228,69 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       this.api.listSources(this.user.token).subscribe(res => {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
-          case 'SourcesRetrieved': this.sources = res.sources; break;
+          case 'SourcesRetrieved':
+            this.sources = res.sources;
+            this.loadDocumentCounts();
+            break;
           default: assertNever(res);
         }
       });
+    }
+  }
+
+  private static cachedDocCountsMap: Map<string, { transcribed: number; total: number }> | null = null;
+
+  async loadDocumentCounts(): Promise<void> {
+    if (!this.user) return;
+    try {
+      // 1. Immediately apply in-memory or persisted cache so UI renders instantly (0ms)
+      if (SourcesOverviewComponent.cachedDocCountsMap) {
+        this.docCountsMap = SourcesOverviewComponent.cachedDocCountsMap;
+      } else {
+        const persisted = await localforage.getItem<{ [sId: string]: { transcribed: number; total: number } }>('monodi_doc_counts_cache');
+        if (persisted && typeof persisted === 'object') {
+          this.docCountsMap = new Map(Object.entries(persisted));
+          SourcesOverviewComponent.cachedDocCountsMap = this.docCountsMap;
+          this.updateHeaders();
+          this.cdRef.markForCheck();
+        }
+      }
+
+      // 2. Perform fast background refresh using document metadata and lightweight note index
+      const docsRes = await firstValueFrom(this.api.listDocuments(this.user.token));
+      if (docsRes.kind === 'DocumentsRetrieved') {
+        const docs = docsRes.documents;
+        const notesIndex = await NotesStore.getIndex();
+        const notesIndexSet = new Set(notesIndex);
+
+        const countsMap = new Map<string, { transcribed: number; total: number }>();
+        const plainObjectCache: { [sId: string]: { transcribed: number; total: number } } = {};
+
+        for (const d of docs) {
+          const sId = d.quelle_id;
+          if (!sId) continue;
+
+          let entry = countsMap.get(sId);
+          if (!entry) {
+            entry = { transcribed: 0, total: 0 };
+            countsMap.set(sId, entry);
+            plainObjectCache[sId] = entry;
+          }
+
+          entry.total++;
+          if (notesIndexSet.has(d.id)) {
+            entry.transcribed++;
+          }
+        }
+
+        this.docCountsMap = countsMap;
+        SourcesOverviewComponent.cachedDocCountsMap = countsMap;
+        localforage.setItem('monodi_doc_counts_cache', plainObjectCache).catch(() => {});
+        this.updateHeaders();
+        this.cdRef.markForCheck();
+      }
+    } catch (e) {
+      console.warn('Failed to load document counts:', e);
     }
   }
 
@@ -204,7 +301,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
   goToSource(s: Source) {
-    this.router.navigate(['/source', s.id]);
+    if (s?.id) {
+      this.router.navigate(['/source', s.id]);
+    }
   }
 
   delete(s: Source): void {
@@ -222,6 +321,41 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     }
   }
 
+  onBatchDeleteSources(sources: Source[]): void {
+    const ids = sources.map(s => s.id).filter((id): id is string => !!id);
+    if (ids.length === 0 || !this.user) return;
+
+    this.api.deleteSources(this.user.token, JSON.stringify(ids)).subscribe(res => {
+      if (res.kind === 'UploadFinished') {
+        this.toastr.success(`${ids.length} source(s) successfully deleted.`);
+        this.updateList();
+      } else {
+        this.toastr.error("Error deleting sources.");
+      }
+    });
+  }
+
+  async onBatchEditSources(evt: { items: Source[]; key: string; value: string }): Promise<void> {
+    if (!this.user || evt.items.length === 0) return;
+    let count = 0;
+    for (const source of evt.items) {
+      if (!source.id) continue;
+      if (source.custom && Object.prototype.hasOwnProperty.call(source.custom, evt.key)) {
+        source.custom[evt.key] = evt.value;
+      } else {
+        (source as any)[evt.key] = evt.value;
+      }
+      try {
+        await firstValueFrom(this.api.updateSource(this.user.token, source));
+        count++;
+      } catch (e) {
+        console.warn('Failed to update source:', source.id, e);
+      }
+    }
+    this.toastr.success(`Updated ${count} source(s).`);
+    this.updateList();
+  }
+
   async exportWorkspace() {
     try {
       const sources = await localforage.getItem('monodi_sources');
@@ -233,29 +367,46 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       
       const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode);
       
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `workspace_export_${new Date().toISOString().split('T')[0]}.monodijson`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      this.toastr.success("Workspace erfolgreich exportiert.");
+      const res = await this.fsService.saveFile(JSON.stringify(data, null, 2), {
+        suggestedName: `workspace_export_${new Date().toISOString().split('T')[0]}.monodijson`,
+        types: [{
+          description: 'Monodi Workspace Export',
+          accept: { 'application/json': ['.monodijson', '.json'] }
+        }],
+        fallbackMimeType: 'application/json;charset=utf-8'
+      });
+      if (res.saved) {
+        this.toastr.success("Workspace erfolgreich exportiert.");
+      }
     } catch (e) {
       this.toastr.error("Fehler beim Exportieren: " + e);
     }
   }
 
-
-
-  triggerImport() {
-    document.getElementById('importFile')?.click();
+  async triggerImport() {
+    if (this.fsService.isSupported()) {
+      const res = await this.fsService.openFile({
+        types: [{
+          description: 'Monodi Workspace Export',
+          accept: { 'application/json': ['.monodijson', '.json'] }
+        }]
+      });
+      if (res && res.file) {
+        this.processImportFile(res.file);
+      }
+    } else {
+      document.getElementById('importFile')?.click();
+    }
   }
 
   importWorkspace(event: any) {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file) return;
+    this.processImportFile(file);
+    event.target.value = '';
+  }
 
+  private processImportFile(file: File) {
     const reader = new FileReader();
     reader.onload = (e) => {
       this.zone.run(async () => {
@@ -266,7 +417,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           
           if (data.schemaVersion > WORKSPACE_SCHEMA_VERSION) {
             this.toastr.error("Fehler beim Importieren: Die Schemaversion der Importdatei (" + data.schemaVersion + ") ist neuer als die vom Programm unterstützte Version (" + WORKSPACE_SCHEMA_VERSION + ").");
-            event.target.value = '';
             return;
           }
           
@@ -283,8 +433,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         } catch (err) {
           this.toastr.error("Fehler beim Importieren: " + err);
         }
-        
-        event.target.value = '';
       });
     };
     reader.readAsText(file);
@@ -910,14 +1058,18 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       
       this.exportStatusMessage = "Creating ZIP package...";
       const blob = await zip.generateAsync({ type: "blob" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `monodi_workspace_export_${new Date().toISOString().split('T')[0]}.zip`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const res = await this.fsService.saveFile(blob, {
+        suggestedName: `monodi_workspace_export_${new Date().toISOString().split('T')[0]}.zip`,
+        types: [{
+          description: 'ZIP Archive',
+          accept: { 'application/zip': ['.zip'] }
+        }],
+        fallbackMimeType: 'application/zip'
+      });
       
-      this.toastr.success("Workspace successfully exported as ZIP.");
+      if (res.saved) {
+        this.toastr.success("Workspace successfully exported as ZIP.");
+      }
       this.closeExportDialog();
     } catch (e) {
       this.toastr.error("Error exporting workspace ZIP: " + e);
@@ -1151,14 +1303,18 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       zip.file(`index.html`, idxHtml);
       
       const blob = await zip.generateAsync({ type: "blob" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `monodi_static_edition_${new Date().toISOString().split('T')[0]}.zip`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const res = await this.fsService.saveFile(blob, {
+        suggestedName: `monodi_static_edition_${new Date().toISOString().split('T')[0]}.zip`,
+        types: [{
+          description: 'ZIP Archive',
+          accept: { 'application/zip': ['.zip'] }
+        }],
+        fallbackMimeType: 'application/zip'
+      });
       
-      this.toastr.success("HTML Edition exported successfully!");
+      if (res.saved) {
+        this.toastr.success("HTML Edition exported successfully!");
+      }
       this.closeExportDialog();
     } catch (e) {
       this.toastr.error("Error generating HTML export: " + e);

@@ -85,6 +85,24 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
           this.toaster.warning("Es gibt keine folgende Zeile zum Zusammenführen");
         }
       },
+      MergeAllLinesRequested: (e: any, oldIndex: number) => {
+        this.undo.beforeChange();
+        let targetContainer: Model.Container = this.data;
+        if (e.containerUuid) {
+          const found = Model.findContainerByUUID(this.data, e.containerUuid);
+          if (found) {
+            targetContainer = found;
+          }
+        }
+        const count = Model.mergeAllLinesPerSection(targetContainer);
+        Model.removeStaleComments(this.data);
+        this.cdr.detectChanges();
+        if (count > 0) {
+          this.toaster.success(`${count} Zeile(n) erfolgreich innerhalb der Abschnitte zusammengeführt.`);
+        } else {
+          this.toaster.info("Keine Zeilen zum Zusammenführen vorhanden.");
+        }
+      },
       MergeSectionRequested: (e: any, oldIndex: number) => {
         this.undo.beforeChange();
         const res = Model.findParentContainer(this.data, e.uuid);
@@ -167,6 +185,9 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
     this.actionHandlers = {
       '+ L1': () => this.newFormteilAt(0),
       '+ Text': () => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), 0); },
+      'Merge All Lines': () => {
+        this.onEvent.emit({ kind: 'MergeAllLinesRequested' } as any);
+      },
       'Paste after': () => { this.undo.beforeChange(); this.insert([], false, false) },
       'Paste after (discard notes)': () => { this.undo.beforeChange(); this.insert([], true, false) },
       'Paste after (discard text)': () => { this.undo.beforeChange(); this.insert([], false, true) },
@@ -175,6 +196,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       }
     };
   }
+
 
   ngOnDestroy(): void {
     this.mapDropSub.unsubscribe();

@@ -83,3 +83,235 @@
 	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isSourceEllipsis()" class="syllableText">...</div>
 	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isEditorEllipsis()" class="syllableText">&lt;...&gt;</div>
 </div>
+
+<ng-template #shortcutsConfigModal let-modal>
+  <div class="modal-header bg-light py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+    <h5 class="modal-title fw-bold text-primary d-flex align-items-center gap-2 m-0 fs-6">
+      <i class="bi bi-keyboard"></i> Transcription Editor Keyboard Shortcuts
+    </h5>
+    <button type="button" class="btn-close btn-sm" (click)="modal.dismiss()"></button>
+  </div>
+  <div class="modal-body p-3">
+    <p class="text-muted small mb-3">Customize single-key and modifier shortcuts for building blocks and note actions:</p>
+
+    <h6 class="fw-bold text-secondary mb-2 small text-uppercase">🧱 Note Creation & Building Blocks</h6>
+    <div class="table-responsive border rounded mb-3">
+      <table class="table table-sm table-hover align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 45%;">Action</th>
+            <th style="width: 35%;">Custom Shortcut Key</th>
+            <th style="width: 20%;">Default</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="fw-bold">Connected Note (Ligature)</div>
+              <div class="text-muted extra-small">Connects next note graphically without space</div>
+            </td>
+            <td>
+              <select class="form-select form-select-sm font-monospace fw-bold"
+                [(ngModel)]="editingShortcuts.insertConnectedNote" style="max-width: 130px;">
+                <option value="Shift">Shift</option>
+                <option value="Alt">Alt</option>
+                <option value="Control">Control</option>
+                <option value="Tab">Tab</option>
+                <option value="c">c</option>
+                <option value="s">s</option>
+              </select>
+            </td>
+            <td><kbd class="bg-secondary">Shift</kbd></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="fw-bold">Spaced Note (Near)</div>
+              <div class="text-muted extra-small">Inserts a near note in the current syllable</div>
+            </td>
+            <td>
+              <select class="form-select form-select-sm font-monospace fw-bold"
+                [(ngModel)]="editingShortcuts.insertNearNote" style="max-width: 130px;">
+                <option value="Space">Space</option>
+                <option value="Enter">Enter</option>
+                <option value="Tab">Tab</option>
+              </select>
+            </td>
+            <td><kbd class="bg-secondary">Space</kbd></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="fw-bold">Far Note (New Syllable Group)</div>
+              <div class="text-muted extra-small">Inserts a far note / creates a new group</div>
+            </td>
+            <td>
+              <select class="form-select form-select-sm font-monospace fw-bold"
+                [(ngModel)]="editingShortcuts.insertFarNote" style="max-width: 130px;">
+                <option value="Enter">Enter</option>
+                <option value="Space">Space</option>
+                <option value="Tab">Tab</option>
+              </select>
+            </td>
+            <td><kbd class="bg-secondary">Enter</kbd></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="fw-bold">New Segment / Syllable</div>
+              <div class="text-muted extra-small">Creates a new segment block</div>
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.newSegment" (input)="updateShortcutKey('newSegment', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">-</kbd></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="fw-bold">New Clef</div>
+              <div class="text-muted extra-small">Inserts a clef change</div>
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.newClef" (input)="updateShortcutKey('newClef', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">c</kbd></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h6 class="fw-bold text-secondary mb-2 small text-uppercase">🎼 Note Type Modifications</h6>
+    <div class="table-responsive border rounded mb-3">
+      <table class="table table-sm table-hover align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 45%;">Action</th>
+            <th style="width: 35%;">Custom Shortcut Key</th>
+            <th style="width: 20%;">Default</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Set Note to Flat</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.setFlat" (input)="updateShortcutKey('setFlat', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">f</kbd></td>
+          </tr>
+          <tr>
+            <td>Set Note to Sharp</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.setSharp" (input)="updateShortcutKey('setSharp', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">s</kbd></td>
+          </tr>
+          <tr>
+            <td>Set Note to Natural</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.setNatural" (input)="updateShortcutKey('setNatural', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">n</kbd></td>
+          </tr>
+          <tr>
+            <td>Toggle Liquescent Note</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.toggleLiquescent" (input)="updateShortcutKey('toggleLiquescent', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">l</kbd></td>
+          </tr>
+          <tr>
+            <td>Set Note to Oriscus</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.setOriscus" (input)="updateShortcutKey('setOriscus', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">o</kbd></td>
+          </tr>
+          <tr>
+            <td>Set Note to Ascending</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.setAscending" (input)="updateShortcutKey('setAscending', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">a</kbd></td>
+          </tr>
+          <tr>
+            <td>Set Note to Descending</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.setDescending" (input)="updateShortcutKey('setDescending', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">d</kbd></td>
+          </tr>
+          <tr>
+            <td>Add Comment</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.addComment" (input)="updateShortcutKey('addComment', $event)" style="max-width: 80px;">
+            </td>
+            <td><kbd class="bg-secondary">k</kbd> (Ctrl+k)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h6 class="fw-bold text-secondary mb-2 small text-uppercase">📐 Structure & Merge Operations</h6>
+    <div class="table-responsive border rounded mb-3">
+      <table class="table table-sm table-hover align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 45%;">Action</th>
+            <th style="width: 35%;">Custom Shortcut Key</th>
+            <th style="width: 20%;">Default</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Split Line (at active syllable / note)</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.splitLine" (input)="updateShortcutKey('splitLine', $event)" style="max-width: 120px;">
+            </td>
+            <td><kbd class="bg-secondary">Alt+Enter</kbd></td>
+          </tr>
+          <tr>
+            <td>Merge with Next Line</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.mergeWithNextLine" (input)="updateShortcutKey('mergeWithNextLine', $event)" style="max-width: 120px;">
+            </td>
+            <td><kbd class="bg-secondary">Alt+m</kbd></td>
+          </tr>
+          <tr>
+            <td>Merge Section with Next</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.mergeSection" (input)="updateShortcutKey('mergeSection', $event)" style="max-width: 120px;">
+            </td>
+            <td><kbd class="bg-secondary">Alt+Shift+m</kbd></td>
+          </tr>
+          <tr>
+            <td>Merge All Lines (in Section / Doc)</td>
+            <td>
+              <input type="text" class="form-control form-control-sm font-monospace text-center fw-bold"
+                [value]="editingShortcuts.mergeAllLines" (input)="updateShortcutKey('mergeAllLines', $event)" style="max-width: 120px;">
+            </td>
+            <td><kbd class="bg-secondary">Ctrl+Alt+m</kbd></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center">
+      <button type="button" class="btn btn-outline-secondary btn-sm" (click)="resetShortcutsModal()">
+        Reset Defaults
+      </button>
+      <button type="button" class="btn btn-primary btn-sm px-4" (click)="saveShortcutsModal(); modal.close();">
+        Save Changes
+      </button>
+    </div>
+  </div>
+</ng-template>

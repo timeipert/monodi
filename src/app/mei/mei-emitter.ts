@@ -314,13 +314,19 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   rootEl.setAttribute('xml:id', 'm-' + root.uuid);
   skeletonEnd.appendChild(rootEl);
 
-  // Walk Root Container
+  // Walk Root Container. RootChildren = FormteilContainer | MiscContainer |
+  // ZeileContainer | ParatextContainer — a document whose lines sit directly
+  // under the root (no Formteil wrapper) must still emit its content.
   if (root.children) {
     for (const child of root.children) {
       if (child.kind === ContainerKind.FormteilContainer) {
         walkFormteil(child, rootEl, doc, profile);
       } else if (child.kind === ContainerKind.MiscContainer) {
         walkMisc(child, rootEl, doc, profile);
+      } else if (child.kind === ContainerKind.ZeileContainer) {
+        walkZeile(child as any, rootEl, doc, profile);
+      } else if (child.kind === ContainerKind.ParatextContainer) {
+        walkLinePart(child, rootEl, doc, profile);
       }
     }
   }
@@ -607,8 +613,32 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
 function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
   if (!syllable.notes || !syllable.notes.spaced) return;
 
-  for (const neumeData of syllable.notes.spaced) {
+  const spacedArr = syllable.notes.spaced;
+  // A graphical gap (space) is the boundary BETWEEN spaced units. con="g"
+  // ("gapped") therefore belongs on the LAST note of a spaced unit that is
+  // followed by another non-empty unit — e.g. "a bc" → the 'a' nc gets con="g".
+  // Notes inside a unit are graphically connected and carry no con.
+  let lastNonEmptySpaced = -1;
+  for (let s = spacedArr.length - 1; s >= 0; s--) {
+    if (spacedArr[s].nonSpaced && spacedArr[s].nonSpaced.some(ns => ns.grouped && ns.grouped.length > 0)) {
+      lastNonEmptySpaced = s;
+      break;
+    }
+  }
+
+  for (let sIndex = 0; sIndex < spacedArr.length; sIndex++) {
+    const neumeData = spacedArr[sIndex];
     if (!neumeData.nonSpaced || neumeData.nonSpaced.length === 0) continue;
+
+    // Last group in THIS unit that actually holds notes — the note after which
+    // (if the unit isn't the last one) the graphical gap occurs.
+    let lastGroupIdx = -1;
+    for (let g = neumeData.nonSpaced.length - 1; g >= 0; g--) {
+      if (neumeData.nonSpaced[g].grouped && neumeData.nonSpaced[g].grouped.length > 0) {
+        lastGroupIdx = g;
+        break;
+      }
+    }
 
     const neumeRule = profile.entities.neume;
     let targetParent = parentElement;
@@ -654,7 +684,8 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         const nc = doc.createElementNS('http://www.music-encoding.org/ns/mei', noteRule.tag);
         nc.setAttribute('xml:id', 'm-' + note.uuid);
 
-        const isConnectionGap = (nIndex === groupedData.grouped.length - 1 && gIndex < neumeData.nonSpaced.length - 1);
+        const isLastNoteOfUnit = (gIndex === lastGroupIdx && nIndex === groupedData.grouped.length - 1);
+        const isConnectionGap = isLastNoteOfUnit && sIndex < lastNonEmptySpaced;
         
         // Find custom attribute name mappings for curve/con rules to perform proper conditional checks
         const liquescentRule = noteRule.attributes[2];

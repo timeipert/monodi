@@ -10,7 +10,16 @@
         <i class="bi" [class.bi-funnel-fill]="onlyDocumentFolios" [class.bi-funnel]="!onlyDocumentFolios"></i>
       </button>
     </div>
-    <div *ngIf="!canvases.length" class="text-muted small px-2 py-2">
+    <div *ngIf="manifestLoading" class="px-2 py-2">
+      <div class="d-flex align-items-center gap-2 text-muted small mb-1">
+        <span class="spinner-border spinner-border-sm" role="status"></span>
+        Loading manifest…
+      </div>
+      <div class="progress" style="height: 3px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 100%;"></div>
+      </div>
+    </div>
+    <div *ngIf="!manifestLoading && !canvases.length" class="text-muted small px-2 py-2">
       No canvases — add a IIIF Manifest URL.
     </div>
     <ul class="list-group list-group-flush">
@@ -44,6 +53,14 @@
           <input type="radio" class="btn-check" name="layer" id="layer3" autocomplete="off" [checked]="activeLayer === 'none'" (change)="activeLayer = 'none'">
           <label class="btn btn-outline-secondary" for="layer3" title="Without Annotation"><i class="bi bi-eye-slash"></i></label>
         </div>
+
+        <button class="btn btn-sm btn-outline-primary me-3"
+                [disabled]="isAnalyzingLayout || !currentCanvasImage"
+                (click)="runAutoLayoutAnalysis()"
+                title="Automatically detect staff regions and text fields on this page">
+          <span *ngIf="isAnalyzingLayout" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+          <i *ngIf="!isAnalyzingLayout" class="bi bi-magic me-1"></i>Auto-Detect Layout
+        </button>
 
         <ng-container *ngIf="activeLayer === 'transcription'">
           <!-- Tools are now floating -->
@@ -167,7 +184,6 @@
            (mousemove)="onMouseMove($event)"
            (mouseup)="onMouseUp($event)"
            (mouseleave)="onMouseLeave($event)"
-           (wheel)="onWheel($event)"
            [class.panning]="isPanning">
 
         <!-- Floating Transcription Toolbar -->

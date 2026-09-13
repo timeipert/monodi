@@ -8,6 +8,10 @@ import { PageTitleService } from '../page-title.service';
 import { ToastrService } from 'ngx-toastr';
 import { NotesStore } from '../notes-store';
 import * as localforage from 'localforage';
+import { FileSystemService } from '../file-system.service';
+import { buildWorkspaceExport } from '../workspace-io';
+
+import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from '../notes/editor-shortcuts.service';
 
 export interface FieldDef { key: string, label: string, isCustom: boolean }
 
@@ -17,7 +21,9 @@ export interface FieldDef { key: string, label: string, isCustom: boolean }
   styleUrls: ['./settings.component.css']
 })
 export class SettingsComponent implements OnInit, OnDestroy {
-  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' | 'workspace' = 'metadata';
+  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' | 'workspace' | 'shortcuts' = 'metadata';
+
+  shortcutsConfig: ShortcutConfig = { ...DEFAULT_SHORTCUTS };
 
   /** Grouped sidebar navigation. Single source of truth for the nav —
    *  the template loops over this instead of hardcoding eight buttons. */
@@ -31,6 +37,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         { id: 'metadata',   icon: 'bi-card-list',          label: 'Metadata Schemas' },
         { id: 'containers', icon: 'bi-diagram-3',          label: 'Container Names' },
         { id: 'editor',     icon: 'bi-pencil-square',      label: 'Editor' },
+        { id: 'shortcuts',  icon: 'bi-keyboard',           label: 'Shortcuts' },
       ]
     },
     {
@@ -58,7 +65,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
    *  linkable / reload-safe (the ?tab= param was previously only read). */
   selectTab(tab: SettingsComponent['activeTab']): void {
     this.activeTab = tab;
-    if (tab === 'workspace') this.loadCachedStats();
+    if (tab === 'workspace') {
+      this.loadCachedStats();
+      this.loadLinkedBackupInfo();
+    }
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { tab },
@@ -183,10 +193,23 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private cdRef: ChangeDetectorRef,
     private route: ActivatedRoute,
     private router: Router,
+    public shortcutsService: EditorShortcutsService,
+    public fsService: FileSystemService,
   ) {
     if (this.github.config) {
       this.githubConfig = { ...this.github.config };
     }
+  }
+
+  saveShortcutsConfig() {
+    this.shortcutsService.saveShortcuts(this.shortcutsConfig);
+    this.toastr.success('Editor shortcuts updated.');
+  }
+
+  resetShortcutsConfig() {
+    this.shortcutsService.resetToDefaults();
+    this.shortcutsConfig = { ...this.shortcutsService.getShortcuts() };
+    this.toastr.info('Editor shortcuts reset to defaults.');
   }
 
   get htmlExportSourceFields() {
@@ -217,14 +240,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.pageTitle.set('Settings');
+    this.shortcutsConfig = { ...this.shortcutsService.getShortcuts() };
     // Allow deep-linking to a specific tab via ?tab=workspace etc.
     // Used by the Sources page gear button to land directly on Workspace.
     this.subs.push(this.route.queryParamMap.subscribe(params => {
       const tab = params.get('tab');
-      const allowed = ['metadata', 'github', 'pdf', 'containers', 'editor', 'mei', 'htmlExport', 'workspace'];
+      const allowed = ['metadata', 'github', 'pdf', 'containers', 'editor', 'mei', 'htmlExport', 'workspace', 'shortcuts'];
       if (tab && allowed.includes(tab)) {
         this.activeTab = tab as any;
-        if (tab === 'workspace') this.loadCachedStats();
+        if (tab === 'workspace') {
+          this.loadCachedStats();
+          this.loadLinkedBackupInfo();
+        }
       }
     }));
     this.subs.push(this.userService.user.subscribe(user => {
@@ -502,6 +529,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   openWorkspaceTab(): void {
     this.activeTab = 'workspace';
     this.loadCachedStats();
+    this.loadLinkedBackupInfo();
   }
 
   loadCachedStats(): void {
@@ -855,5 +883,91 @@ export class SettingsComponent implements OnInit, OnDestroy {
    *  reset everywhere. */
   reloadPage(): void {
     window.location.reload();
+  }
+
+  // ── OS Live Backup State ───────────────────────────────────────────────
+  linkedBackupFileName: string | null = null;
+  linkedBackupHandle: any = null;
+  lastBackupTime: string | null = null;
+  isSavingBackup = false;
+
+  get isFileSystemSupported(): boolean {
+    return this.fsService.isSupported();
+  }
+
+  async loadLinkedBackupInfo() {
+    this.linkedBackupFileName = localStorage.getItem('monodi_os_backup_name');
+    this.lastBackupTime = localStorage.getItem('monodi_os_backup_time');
+    this.linkedBackupHandle = await this.fsService.getStoredHandle('monodi_os_backup_handle');
+    this.cdRef.markForCheck();
+  }
+
+  async linkOsBackupFile() {
+    try {
+      const handle = await this.fsService.pickAndStoreBackupHandle(
+        'monodi_os_backup_handle',
+        `monodi_workspace_backup_${new Date().toISOString().split('T')[0]}.monodijson`
+      );
+      if (handle) {
+        this.linkedBackupHandle = handle;
+        const name = handle.name || 'monodi_workspace_backup.monodijson';
+        this.linkedBackupFileName = name;
+        localStorage.setItem('monodi_os_backup_name', name);
+        this.toastr.success(`Linked to ${name}`, 'OS File Linked');
+        await this.syncWorkspaceToOsFile();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        this.toastr.error(`Failed to link OS file: ${err?.message || err}`);
+      }
+    }
+  }
+
+  async unlinkOsBackupFile() {
+    await this.fsService.removeStoredHandle('monodi_os_backup_handle');
+    localStorage.removeItem('monodi_os_backup_name');
+    localStorage.removeItem('monodi_os_backup_time');
+    this.linkedBackupHandle = null;
+    this.linkedBackupFileName = null;
+    this.lastBackupTime = null;
+    this.toastr.info('OS backup file unlinked.', 'Unlinked');
+    this.cdRef.markForCheck();
+  }
+
+  async syncWorkspaceToOsFile() {
+    if (!this.linkedBackupHandle) {
+      this.linkedBackupHandle = await this.fsService.getStoredHandle('monodi_os_backup_handle');
+    }
+    if (!this.linkedBackupHandle) {
+      this.toastr.warning('No OS file linked. Please link a file first.', 'Backup File Needed');
+      return;
+    }
+
+    this.isSavingBackup = true;
+    this.cdRef.markForCheck();
+
+    try {
+      const sources = await localforage.getItem('monodi_sources');
+      const documents = await localforage.getItem('monodi_documents');
+      const notes = await NotesStore.getAll();
+      const settings = await localforage.getItem('monodi_settings');
+      const data = buildWorkspaceExport(sources, documents, notes, settings, 'none');
+      const content = JSON.stringify(data, null, 2);
+
+      const success = await this.fsService.saveToHandle(this.linkedBackupHandle, content);
+      if (success) {
+        const now = new Date().toLocaleTimeString();
+        this.lastBackupTime = now;
+        localStorage.setItem('monodi_os_backup_time', now);
+        this.toastr.success(`Workspace saved directly to ${this.linkedBackupFileName || 'OS file'}.`, 'OS Backup Complete');
+      } else {
+        this.toastr.warning('Permission required or write failed. Please re-link or permit access to your backup file.', 'Write Access Needed');
+      }
+    } catch (e: any) {
+      this.toastr.error(`Failed to sync to OS file: ${e?.message || e}`);
+    } finally {
+      this.isSavingBackup = false;
+      this.cdRef.markForCheck();
+    }
   }
 }

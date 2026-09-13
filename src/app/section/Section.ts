@@ -128,9 +128,13 @@ export abstract class Section<T extends Model.Container> implements OnInit {
     if (a.includes('delete') || a.startsWith('x ')) {
       return 'bi bi-trash text-danger';
     }
+    if (a.includes('merge')) {
+      return 'bi bi-intersect text-warning';
+    }
     if (a.includes('line')) {
       return 'bi bi-music-note-list text-success';
     }
+
     if (a.includes('text')) {
       return 'bi bi-file-earmark-text text-primary';
     }

@@ -6,13 +6,15 @@ import { APIService, UserInfo, Source, Document } from '../api.service'
 import { ToastrService } from 'ngx-toastr';
 import { ToolsService, Tool } from '../tools.service';
 import { assertNever } from '../../utils';
-import { Subscription, combineLatest } from 'rxjs';
+import { Subscription, combineLatest, firstValueFrom } from 'rxjs';
 import * as S from '../sselect/sselect.component';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
 import { PageTitleService } from '../page-title.service';
-import { Header } from '../smart-table/smart-table.component';
+import { Header, BatchField } from '../smart-table/smart-table.component';
+import { NotesStore } from '../notes-store';
+import { ContainerKind, RootContainer } from '../types/model';
 
 export interface DocColDef {
   key: keyof Document | string;
@@ -106,16 +108,24 @@ export class SourceComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.subs.push(combineLatest(this.userService.user, this.route.paramMap, (user, params) => ({ user, params })).subscribe(pair => {
-      this.user = pair.user;
+    // Restore panel state from the URL so a reload keeps you on the same tab.
+    const q = this.route.snapshot.queryParamMap;
+    const tab = q.get('tab');
+    if (tab === 'documents' || tab === 'notation') this.activeTab = tab;
+    const ntab = q.get('ntab');
+    if (ntab === 'select' || ntab === 'annotate' || ntab === 'view') this.activeNotationTab = ntab;
+
+    this.subs.push(combineLatest([this.userService.user, this.route.paramMap]).subscribe(([user, params]) => {
+      this.user = user;
       if (this.user) {
         this.api.getSettings(this.user.token).subscribe(res => {
           if (res.kind === 'SettingsRetrieved') {
             this.settings = res.settings;
+            this.cdr.markForCheck();
           }
         });
       }
-      const id = pair.params.get("id");
+      const id = params.get("id");
       if (id !== null) {
         this.retrieveForId(id);
       } else {
@@ -136,6 +146,7 @@ export class SourceComponent implements OnInit {
           datierung: "",
           custom: {}
         };
+        this.cdr.markForCheck();
       }
 
     }));
@@ -169,7 +180,10 @@ export class SourceComponent implements OnInit {
       this.api.getSource(this.user.token, id).subscribe(res => {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
-          case 'SourceNotFound': this.source = undefined; break;
+          case 'SourceNotFound':
+            this.source = undefined;
+            this.cdr.markForCheck();
+            break;
           case 'SourceRetrieved':
             this.source = res.source;
             if (!this.source.custom) this.source.custom = {};
@@ -181,6 +195,11 @@ export class SourceComponent implements OnInit {
             this.notationLoaded = false;
             this.allPatterns = [];
             this.sourceFolios = [];
+            // Reload landed directly on the notation tab (?tab=notation): load it now.
+            if (this.activeTab === 'notation' && this.source?.id) {
+              this.loadNotation();
+            }
+            this.cdr.markForCheck();
             break;
           case 'InsufficientPermissions': this.userService.logout(); break;
           default: assertNever(res);
@@ -190,7 +209,10 @@ export class SourceComponent implements OnInit {
       this.api.listDocuments(this.user.token).subscribe(res => {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
-          case 'DocumentsRetrieved': this.documents = res.documents.filter(d => d.quelle_id === id); break;
+          case 'DocumentsRetrieved':
+            this.documents = res.documents.filter(d => d.quelle_id === id);
+            this.cdr.markForCheck();
+            break;
           default: assertNever(res);
         }
       });
@@ -280,15 +302,32 @@ export class SourceComponent implements OnInit {
   openPatternInGallery(event: { patternId: string; folio: string }) {
     this.iiifGalleryPattern = event.patternId;
     this.activeNotationTab = 'annotate';
-    this.switchTab('notation');
+    this.switchTab('notation'); // syncs URL (tab + ntab)
   }
 
   switchTab(tab: 'documents' | 'notation') {
     this.activeTab = tab;
+    this.syncTabUrl();
     // Eagerly load notation when switching to notation tab — patterns feed the annotator and viewer
     if (tab === 'notation' && !this.notationLoaded && this.source?.id) {
       this.loadNotation();
     }
+  }
+
+  setNotationTab(tab: 'select' | 'annotate' | 'view') {
+    this.activeNotationTab = tab;
+    this.syncTabUrl();
+  }
+
+  /** Mirror the current panel state into the URL query string so the exact
+   *  tab is linkable and survives a reload. */
+  private syncTabUrl() {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: this.activeTab, ntab: this.activeNotationTab },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   loadNotation() {
@@ -360,9 +399,26 @@ export class SourceComponent implements OnInit {
 
   docHeaders: Header<Document>[] = [];
 
+  get docBatchFields(): BatchField[] {
+    return [
+      { key: 'textinitium', label: 'Text Initium' },
+      { key: 'gattung1', label: 'Genre 1' },
+      { key: 'gattung2', label: 'Genre 2' },
+      { key: 'festtag', label: 'Feast Day' },
+      { key: 'feier', label: 'Celebration' },
+      { key: 'foliostart', label: 'Folio Start' },
+      { key: 'zeilenstart', label: 'Line Start' },
+      { key: 'druckausgabe', label: 'Print Edition' },
+      { key: 'bibliographischerverweis', label: 'Bibliographic Ref.' },
+      { key: 'editionsstatus', label: 'Edition Status' },
+      { key: 'kommentar', label: 'Comment' },
+    ];
+  }
+
   updateDocHeaders() {
     this.docHeaders = this.visibleDocCols.map(col => ({
       name: col.label,
+      key: col.key as string,
       makeCell: (d: Document) => {
         const text = d[col.key as keyof Document] || '';
         if (col.key === 'gattung1' || col.key === 'gattung2') {
@@ -371,6 +427,49 @@ export class SourceComponent implements OnInit {
         return { kind: 'text' as const, text: text.toString() };
       }
     }));
+  }
+
+  onBatchDeleteDocuments(docs: Document[]): void {
+    const ids = docs.map(d => d.id).filter((id): id is string => !!id);
+    if (ids.length === 0 || !this.user) return;
+
+    this.api.deleteDocuments(this.user.token, JSON.stringify(ids)).subscribe(res => {
+      if (res.kind === 'UploadFinished') {
+        this.toastr.success(`${ids.length} document(s) successfully deleted.`);
+        if (this.source?.id) {
+          this.retrieveForId(this.source.id);
+        }
+      } else {
+        this.toastr.error('Error deleting documents.');
+      }
+    });
+  }
+
+  async onBatchEditDocuments(evt: { items: Document[]; key: string; value: string }): Promise<void> {
+    if (!this.user || evt.items.length === 0) return;
+    let count = 0;
+    for (const doc of evt.items) {
+      if (!doc.id) continue;
+      (doc as any)[evt.key] = evt.value;
+      try {
+        const existingNotes = await NotesStore.get(doc.id);
+        const notes: RootContainer = existingNotes || {
+          kind: ContainerKind.RootContainer,
+          uuid: doc.id,
+          children: [],
+          comments: [],
+          documentType: 'Antiphon'
+        };
+        await firstValueFrom(this.api.updateDocument(this.user.token, { document: doc, notes }));
+        count++;
+      } catch (e) {
+        console.warn('Failed to update document:', doc.id, e);
+      }
+    }
+    this.toastr.success(`Updated ${count} document(s).`);
+    if (this.source?.id) {
+      this.retrieveForId(this.source.id);
+    }
   }
 
   goToDocument(d: Document) {

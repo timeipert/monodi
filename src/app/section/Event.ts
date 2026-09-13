@@ -16,11 +16,18 @@ export type Event =
   HighlightRegionRequested |
   OpenCommentModalRequested |
   MergeWithNextLineRequested |
+  MergeAllLinesRequested |
   MergeSectionRequested |
   DeleteSectionKeepContentRequested |
   SplitSectionAtLineRequested |
   FixSyllableDashesRequested |
   DocumentUpdated;
+
+export interface MergeAllLinesRequested {
+  kind: "MergeAllLinesRequested";
+  containerUuid?: string;
+}
+
 
 export interface FixSyllableDashesRequested {
   kind: "FixSyllableDashesRequested";

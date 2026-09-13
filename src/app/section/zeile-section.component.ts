@@ -28,6 +28,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   @ViewChildren('linechild')
   children!: QueryList<Focusable>;
   subscription!: Observable<string>;
+  hoveredLineUUID: string | null = null;
   private focusSub?: Subscription;
 
   constructor(
@@ -127,8 +128,13 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       {
         label: 'Merge with Next Line',
         action: () => { this.onEvent.emit({ kind: 'MergeWithNextLineRequested', uuid: this.data.uuid }); }
+      },
+      {
+        label: 'Merge All Lines',
+        action: () => { this.onEvent.emit({ kind: 'MergeAllLinesRequested' } as any); }
       }
     ];
+
 
     const docStruct = Model.getStructure(this.documentType);
     const K = this.documentType === 'Level0' ? 0 : (parseInt(this.documentType.replace(/level/i, ''), 10) || 0);
@@ -622,6 +628,16 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       icon: 'box-arrow-in-down text-warning',
       title: 'Merge with Next'
     });
+
+    // Merge All Lines
+    tools.push({
+      callback: () => {
+        this.onEvent.emit({ kind: 'MergeAllLinesRequested' } as any);
+      },
+      icon: 'intersect text-warning',
+      title: 'Merge All Lines'
+    });
+
 
     // Delete Line Action
     tools.push({
