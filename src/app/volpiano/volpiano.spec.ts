@@ -76,9 +76,9 @@ describe('Volpiano pitch table', () => {
   });
 
   it('maps the treble-staff anchors from the CANTUS protocol', () => {
-    // 8 = F3, f = E4, n = F5, s = D6
+    // 8 = F3, f = F4, n = F5, s = D6
     expect(pitchToVolpianoChar(BaseNote.F, 3, false)).toEqual({ char: '8' });
-    expect(pitchToVolpianoChar(BaseNote.E, 4, false)).toEqual({ char: 'f' });
+    expect(pitchToVolpianoChar(BaseNote.F, 4, false)).toEqual({ char: 'f' });
     expect(pitchToVolpianoChar(BaseNote.F, 5, false)).toEqual({ char: 'n' });
     expect(pitchToVolpianoChar(BaseNote.D, 6, false)).toEqual({ char: 's' });
   });
@@ -118,7 +118,7 @@ describe('rootToVolpiano', () => {
       syllable('de-', [[B4()]]),
       syllable('us', [[B4()]]),
     ]);
-    expect(rootToVolpiano(doc).volpiano).toBe('1---fj-l--j--j---j--j---');
+    expect(rootToVolpiano(doc).volpiano).toBe('1---ej-l--j--j---j--j---');
   });
 
   it('separates same-word syllables with -- and words with ---', () => {
@@ -141,11 +141,11 @@ describe('volpianoToRoot', () => {
     expect(warnings).toEqual([]);
     const syls = getSyllables(root);
     expect(syls.length).toBe(2);
-    // first syllable: ligature [E4,B4] then separate neume [D5]
+    // first syllable: ligature [D4,A4] then separate neume [C5]
     expect(syls[0].notes.spaced.length).toBe(2);
-    expect(syls[0].notes.spaced[0].nonSpaced[0].grouped.map((n) => n.base + '' + n.octave)).toEqual(['E4', 'B4']);
-    expect(syls[0].notes.spaced[1].nonSpaced[0].grouped.map((n) => n.base + '' + n.octave)).toEqual(['D5']);
-    expect(allNotes(syls[1].notes).map((n) => n.base + '' + n.octave)).toEqual(['B4']);
+    expect(syls[0].notes.spaced[0].nonSpaced[0].grouped.map((n) => n.base + '' + n.octave)).toEqual(['D4', 'A4']);
+    expect(syls[0].notes.spaced[1].nonSpaced[0].grouped.map((n) => n.base + '' + n.octave)).toEqual(['C5']);
+    expect(allNotes(syls[1].notes).map((n) => n.base + '' + n.octave)).toEqual(['A4']);
   });
 
   it('distributes aligned text over syllables', () => {
@@ -187,8 +187,8 @@ describe('Volpiano round trip', () => {
   });
 
   it('round-trips a B-flat with running natural cancellation', () => {
-    // i = b-flat sign for B4, I cancels it. Text keeps the two syllables in one word (--).
-    const vol = '1---ih-h--Ih---';
+    // i = b-flat sign for B4 (j), I cancels it. Text keeps the two syllables in one word (--).
+    const vol = '1---ij-j--Ij---';
     const { root } = volpianoToRoot(vol, 'a-men');
     const notes = getSyllables(root).flatMap((s) => allNotes(s.notes));
     // first two B4 flat, last B4 natural

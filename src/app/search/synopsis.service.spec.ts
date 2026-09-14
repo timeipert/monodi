@@ -82,11 +82,26 @@ describe('SynopsisService', () => {
       expect(result.length).toBe(1);
       expect(result[0].kind).toBe('leaf');
       
+      // A clef-only line (doc1) and a syllable-only line (doc2) are different
+      // element kinds, so the aligner does not force them into one shared column:
+      // each gets its own column, with a placeholder in the other document.
       const lineElements = result[0].alignedLineElements;
       expect(lineElements).toBeTruthy();
-      expect(lineElements!.length).toBe(1);
-      expect(lineElements![0][0].kind).toBe('clef');
-      expect(lineElements![0][1].kind).toBe('syllable');
+      expect(lineElements!.length).toBe(2);
+
+      // doc1 (index 0) contributes exactly the clef; doc2 (index 1) the syllable.
+      const doc1Kinds = lineElements!.map(col => col[0].kind);
+      const doc2Kinds = lineElements!.map(col => col[1].kind);
+      expect(doc1Kinds.filter(k => k === 'clef').length).toBe(1);
+      expect(doc1Kinds.filter(k => k === 'placeholder').length).toBe(1);
+      expect(doc2Kinds.filter(k => k === 'syllable').length).toBe(1);
+      expect(doc2Kinds.filter(k => k === 'placeholder').length).toBe(1);
+
+      // In any given column, only one document has a real element.
+      lineElements!.forEach(col => {
+        const real = col.filter(el => el.kind !== 'placeholder');
+        expect(real.length).toBe(1);
+      });
     });
   });
 

@@ -46,3 +46,6 @@ Thumbs.db
 
 # Electron release output
 /release
+
+# Build output (GitHub Pages) — regenerated, not tracked
+/docs/

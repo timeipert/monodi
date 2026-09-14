@@ -34,11 +34,11 @@ describe('analyzeSelection', () => {
     expect(a.totalNotes).toBe(3);
     expect(a.avgNotesPerSyllable).toBeCloseTo(1.5, 5);
 
-    // Pitch labels present (E4 from 'd', B4 from 'h', D5 from 'k')
+    // Pitch labels present (D4 from 'd', A4 from 'h', C5 from 'k')
     const pitchLabels = a.pitchDistribution.map((b) => b.label);
-    expect(pitchLabels).toContain('E4');
-    expect(pitchLabels).toContain('B4');
-    expect(pitchLabels).toContain('D5');
+    expect(pitchLabels).toContain('D4');
+    expect(pitchLabels).toContain('A4');
+    expect(pitchLabels).toContain('C5');
 
     // notes-per-syllable: one syllable with 2, one with 1
     const nps = new Map(a.notesPerSyllable.map((b) => [b.label, b.count]));
@@ -71,9 +71,9 @@ describe('analyzeSelection', () => {
     };
     const g = pitchGroups(input, 'doc:gattung1');
     expect(g.groups.map((x) => x.group).sort()).toEqual(['A', 'B']);
-    // shared axis holds both pitches (E4 from 'd', D5 from 'k')
-    expect(g.axis).toContain('E4');
-    expect(g.axis).toContain('D5');
+    // shared axis holds both pitches (D4 from 'd', C5 from 'k')
+    expect(g.axis).toContain('D4');
+    expect(g.axis).toContain('C5');
     g.groups.forEach((gr) => expect(gr.percent.length).toBe(g.axis.length));
   });
 

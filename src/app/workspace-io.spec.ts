@@ -46,8 +46,8 @@ describe('WorkspaceIO Tests', () => {
   });
 
   it('parse rejects null and non-object inputs by throwing an error', () => {
-    expect(() => parseWorkspaceImport(null)).toThrowError(/JSON ist kein Objekt/);
-    expect(() => parseWorkspaceImport(undefined)).toThrowError(/JSON ist kein Objekt/);
-    expect(() => parseWorkspaceImport("string")).toThrowError(/JSON ist kein Objekt/);
+    expect(() => parseWorkspaceImport(null)).toThrowError(/JSON is not an object/);
+    expect(() => parseWorkspaceImport(undefined)).toThrowError(/JSON is not an object/);
+    expect(() => parseWorkspaceImport("string")).toThrowError(/JSON is not an object/);
   });
 });
