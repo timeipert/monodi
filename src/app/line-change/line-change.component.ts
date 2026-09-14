@@ -12,9 +12,10 @@ import { ReplaySubject } from 'rxjs';
 import { UndoService } from '../undoService';
 
 @Component({
-  selector: 'app-line-change',
-  templateUrl: './line-change.component.html',
-  styleUrls: ['./line-change.component.scss']
+    selector: 'app-line-change',
+    templateUrl: './line-change.component.html',
+    styleUrls: ['./line-change.component.scss'],
+    standalone: false
 })
 export class LineChangeComponent implements OnDestroy, OnInit {
   @ViewChild('mainDiv', { static: true }) mainDiv!: ElementRef;

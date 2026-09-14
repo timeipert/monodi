@@ -8,9 +8,10 @@ import { FocusShiftRequested, DeletionRequested } from "../types/CommonEvent";
 import { UndoService } from '../undoService';
 
 @Component({
-  selector: 'app-misc-section',
-  templateUrl: './section.component.html',
-  styleUrls: ['./section.component.scss']
+    selector: 'app-misc-section',
+    templateUrl: './section.component.html',
+    styleUrls: ['./section.component.scss'],
+    standalone: false
 })
 export class MiscSectionComponent extends S.Section<Model.MiscContainer> implements OnChanges, Focusable {
   @ViewChildren("sub")

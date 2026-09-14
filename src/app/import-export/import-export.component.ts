@@ -12,9 +12,10 @@ import { CantusIndexService, CantusChant, CantusInfo } from '../cantus-index.ser
 type SelectableChant = CantusChant & { selected: boolean };
 
 @Component({
-  selector: 'app-import-export',
-  templateUrl: './import-export.component.html',
-  styleUrls: ['./import-export.component.css'],
+    selector: 'app-import-export',
+    templateUrl: './import-export.component.html',
+    styleUrls: ['./import-export.component.css'],
+    standalone: false
 })
 export class ImportExportComponent implements OnInit, OnDestroy {
   user: User | null = null;

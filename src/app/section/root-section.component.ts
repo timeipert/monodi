@@ -13,9 +13,10 @@ import { DragStateService } from '../dragger/drag-state.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
 
 @Component({
-  selector: 'app-root-section',
-  templateUrl: './section.component.html',
-  styleUrls: ['./section.component.scss']
+    selector: 'app-root-section',
+    templateUrl: './section.component.html',
+    styleUrls: ['./section.component.scss'],
+    standalone: false
 })
 export class RootSectionComponent extends S.Section<Model.RootContainer> implements OnInit, OnDestroy {
   @ViewChildren("sub")

@@ -12,9 +12,10 @@ import { ReplaySubject } from 'rxjs';
 import { UndoService } from '../undoService';
 
 @Component({
-  selector: 'app-folio-change',
-  templateUrl: './folio-change.component.html',
-  styleUrls: ['./folio-change.component.scss']
+    selector: 'app-folio-change',
+    templateUrl: './folio-change.component.html',
+    styleUrls: ['./folio-change.component.scss'],
+    standalone: false
 })
 export class FolioChangeComponent implements OnDestroy, OnInit {
   @ViewChild('changeText', { static: true }) changeText!: ElementRef;

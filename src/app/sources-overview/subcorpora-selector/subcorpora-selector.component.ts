@@ -41,9 +41,10 @@ const STANDARD_FIELDS: MetaField[] = [
 ];
 
 @Component({
-  selector: 'app-subcorpora-selector',
-  templateUrl: './subcorpora-selector.component.html',
-  styleUrls: ['./subcorpora-selector.component.css']
+    selector: 'app-subcorpora-selector',
+    templateUrl: './subcorpora-selector.component.html',
+    styleUrls: ['./subcorpora-selector.component.css'],
+    standalone: false
 })
 export class SubcorporaSelectorComponent implements OnInit, OnChanges {
   @Input() sources: Source[] = [];

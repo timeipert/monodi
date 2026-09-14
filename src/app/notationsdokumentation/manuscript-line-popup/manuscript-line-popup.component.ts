@@ -3,9 +3,10 @@ import { Source } from '../../api.service';
 import * as VM from '../../types/model';
 
 @Component({
-  selector: 'app-manuscript-line-popup',
-  templateUrl: './manuscript-line-popup.component.html',
-  styleUrls: ['./manuscript-line-popup.component.css']
+    selector: 'app-manuscript-line-popup',
+    templateUrl: './manuscript-line-popup.component.html',
+    styleUrls: ['./manuscript-line-popup.component.css'],
+    standalone: false
 })
 export class ManuscriptLinePopupComponent implements OnChanges {
   @Input() source: Source | null = null;

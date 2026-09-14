@@ -2,9 +2,10 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import * as M from '../../../../types/model';
 
 @Component({
-  selector: 'app-comment-tree-text',
-  templateUrl: './comment-tree-text.component.html',
-  styleUrls: ['./comment-tree-text.component.scss']
+    selector: 'app-comment-tree-text',
+    templateUrl: './comment-tree-text.component.html',
+    styleUrls: ['./comment-tree-text.component.scss'],
+    standalone: false
 })
 export class CommentTreeTextComponent {
   @Input({ required: true }) data!: M.CommentTreeLeafContentText;

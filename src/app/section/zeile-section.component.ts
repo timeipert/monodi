@@ -19,9 +19,10 @@ import { UndoService } from '../undoService';
 import { ContextMenuService } from '../context-menu/context-menu.service';
 
 @Component({
-  selector: 'app-zeile-section',
-  templateUrl: './section.component.html',
-  styleUrls: ['./section.component.scss'],
+    selector: 'app-zeile-section',
+    templateUrl: './section.component.html',
+    styleUrls: ['./section.component.scss'],
+    standalone: false
 })
 export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> implements OnInit, OnDestroy, Focusable {
   @ViewChild('syllableModalEdit', { static: true }) syllableModalEdit!: ElementRef;

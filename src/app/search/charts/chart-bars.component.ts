@@ -10,8 +10,8 @@ export interface BarItem {
  * several charts directly comparable (same scale).
  */
 @Component({
-  selector: 'app-chart-bars',
-  template: `
+    selector: 'app-chart-bars',
+    template: `
     <div class="cb">
       <div class="cb-row" *ngFor="let it of items">
         <div class="cb-label" [class.mono]="labelClass === 'mono'" [class.wide]="labelClass === 'wide'"
@@ -24,8 +24,8 @@ export interface BarItem {
       <p class="text-muted small mb-0" *ngIf="!items || items.length === 0">{{ empty }}</p>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .cb-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 5px; }
       .cb-label {
         flex: 0 0 3.5rem; font-size: 0.8rem; color: #374151; text-align: right;
@@ -37,7 +37,8 @@ export interface BarItem {
       .cb-fill { height: 100%; border-radius: 5px; transition: width 0.25s ease; }
       .cb-value { flex: 0 0 2.6rem; font-size: 0.78rem; color: #6b7280; text-align: right; }
     `,
-  ],
+    ],
+    standalone: false
 })
 export class ChartBarsComponent {
   @Input() items: BarItem[] = [];

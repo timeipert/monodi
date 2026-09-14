@@ -8,9 +8,10 @@ export interface CutoutOverlayItem {
 }
 
 @Component({
-  selector: 'app-annotation-cutout',
-  templateUrl: './annotation-cutout.component.html',
-  styleUrls: ['./annotation-cutout.component.css']
+    selector: 'app-annotation-cutout',
+    templateUrl: './annotation-cutout.component.html',
+    styleUrls: ['./annotation-cutout.component.css'],
+    standalone: false
 })
 export class AnnotationCutoutComponent implements OnChanges {
   @Input() imageUrl!: string;

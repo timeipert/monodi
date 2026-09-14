@@ -393,9 +393,10 @@ function findTextSnippet(text: string, query: string, window = 35): TextSnippet 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 @Component({
-  selector: 'app-search',
-  templateUrl: './search.component.html',
-  styleUrls: ['./search.component.css']
+    selector: 'app-search',
+    templateUrl: './search.component.html',
+    styleUrls: ['./search.component.css'],
+    standalone: false
 })
 export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   activeTab: 'quick' | 'sources' | 'documents' | 'melody' = 'quick';

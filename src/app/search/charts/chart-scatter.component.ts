@@ -25,8 +25,8 @@ interface RenderPoint {
  * close together are similar; colour encodes an optional grouping.
  */
 @Component({
-  selector: 'app-chart-scatter',
-  template: `
+    selector: 'app-chart-scatter',
+    template: `
     <div>
       <svg viewBox="0 0 320 220" width="100%" style="max-height: 340px;">
         <line x1="20" y1="110" x2="300" y2="110" stroke="#eef0f4" stroke-width="1" />
@@ -45,6 +45,7 @@ interface RenderPoint {
       </div>
     </div>
   `,
+    standalone: false
 })
 export class ChartScatterComponent implements OnChanges {
   @Input() points: ScatterPoint[] = [];

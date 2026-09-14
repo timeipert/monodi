@@ -3,9 +3,10 @@ import { ToastrService } from 'ngx-toastr';
 import * as M from '../../../types/model';
 
 @Component({
-  selector: 'app-comment-tree-grid',
-  templateUrl: './comment-tree-grid.component.html',
-  styleUrls: ['./comment-tree-grid.component.scss']
+    selector: 'app-comment-tree-grid',
+    templateUrl: './comment-tree-grid.component.html',
+    styleUrls: ['./comment-tree-grid.component.scss'],
+    standalone: false
 })
 export class CommentTreeGridComponent {
   @Input() originalCreator?: () => M.ZeileContainer;

@@ -40,10 +40,11 @@ const GLYPH_PATHS: { [key: string]: string } = {
 };
 
 @Component({
-  selector: 'app-notes',
-  templateUrl: './notes.component.html',
-  styleUrls: ['./notes.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-notes',
+    templateUrl: './notes.component.html',
+    styleUrls: ['./notes.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, AfterViewInit {
   getGlyphDataUri(noteType: string, focused: boolean): string {

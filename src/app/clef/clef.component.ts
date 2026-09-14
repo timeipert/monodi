@@ -15,10 +15,11 @@ import { ContextMenuService } from '../context-menu/context-menu.service';
 declare const $: any;
 
 @Component({
-  selector: 'app-clef',
-  templateUrl: './clef.component.html',
-  styleUrls: ['./clef.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-clef',
+    templateUrl: './clef.component.html',
+    styleUrls: ['./clef.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focusable {
   @ViewChild('notesDiv', { static: true }) notesDiv!: ElementRef;

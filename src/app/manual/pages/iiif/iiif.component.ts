@@ -3,8 +3,9 @@ import { Subscription } from 'rxjs';
 import { ManualHighlightService } from '../../services/manual-highlight.service';
 
 @Component({
-  selector: 'app-iiif',
-  templateUrl: './iiif.component.html'
+    selector: 'app-iiif',
+    templateUrl: './iiif.component.html',
+    standalone: false
 })
 export class IiifComponent implements OnInit, OnDestroy {
   activeHighlightId: string | null = null;

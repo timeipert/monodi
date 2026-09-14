@@ -15,9 +15,10 @@ interface LineGalleryItem {
 const manifestCache = new Map<string, any>();
 
 @Component({
-  selector: 'app-notation-viewer',
-  templateUrl: './notation-viewer.component.html',
-  styleUrls: ['./notation-viewer.component.css']
+    selector: 'app-notation-viewer',
+    templateUrl: './notation-viewer.component.html',
+    styleUrls: ['./notation-viewer.component.css'],
+    standalone: false
 })
 export class NotationViewerComponent implements OnChanges {
   @Input() source: Source | null = null;

@@ -150,8 +150,8 @@ function renderSvg(pattern: string): { svgContent: string; viewBox: string; widt
 
 // ── Angular component ─────────────────────────────────────────────────────────
 @Component({
-  selector: 'app-svg-pattern',
-  template: `
+    selector: 'app-svg-pattern',
+    template: `
     <svg *ngIf="rendered"
          class="svg-pattern"
          [attr.width]="rendered.width"
@@ -159,10 +159,11 @@ function renderSvg(pattern: string): { svgContent: string; viewBox: string; widt
          [attr.viewBox]="rendered.viewBox"
          [innerHTML]="safeHtml">
     </svg>`,
-  styles: [`
+    styles: [`
     :host { display: inline-block; }
     .svg-pattern { display: block; color: #222; }
-  `]
+  `],
+    standalone: false
 })
 export class SvgPatternComponent implements OnChanges {
   @Input() pattern = '';

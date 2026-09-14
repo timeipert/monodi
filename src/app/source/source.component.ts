@@ -42,9 +42,10 @@ const DEFAULT_DOC_COLS: DocColDef[] = [
 const DOC_COLS_KEY = 'monodi_doc_cols';
 
 @Component({
-  selector: 'app-source',
-  templateUrl: './source.component.html',
-  styleUrls: ['./source.component.css']
+    selector: 'app-source',
+    templateUrl: './source.component.html',
+    styleUrls: ['./source.component.css'],
+    standalone: false
 })
 export class SourceComponent implements OnInit {
   subs: Subscription[] = [];

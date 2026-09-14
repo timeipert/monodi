@@ -9,9 +9,10 @@ import { Observable, of } from 'rxjs';
 type Name = "zip" | "documents" | "sources" | "delSources" | "delDocuments";
 
 @Component({
-  selector: 'app-zip-upload',
-  templateUrl: './zip-upload.component.html',
-  styleUrls: ['./zip-upload.component.scss']
+    selector: 'app-zip-upload',
+    templateUrl: './zip-upload.component.html',
+    styleUrls: ['./zip-upload.component.scss'],
+    standalone: false
 })
 export class ZipUploadComponent implements OnInit {
 

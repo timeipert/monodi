@@ -1,9 +1,10 @@
 import { Output, EventEmitter, SimpleChanges, Input, OnChanges, Component, OnInit } from '@angular/core';
 
 @Component({
-  selector: 'app-smart-table',
-  templateUrl: './smart-table.component.html',
-  styleUrls: ['./smart-table.component.css']
+    selector: 'app-smart-table',
+    templateUrl: './smart-table.component.html',
+    styleUrls: ['./smart-table.component.css'],
+    standalone: false
 })
 export class SmartTableComponent<T> implements OnInit, OnChanges {
   @Input()

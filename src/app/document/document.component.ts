@@ -34,9 +34,10 @@ import { FileSystemService } from '../file-system.service';
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
 
 @Component({
-  selector: 'app-document',
-  templateUrl: './document.component.html',
-  styleUrls: ['./document.component.css']
+    selector: 'app-document',
+    templateUrl: './document.component.html',
+    styleUrls: ['./document.component.css'],
+    standalone: false
 })
 export class DocumentComponent implements OnInit {
   /** Publish the first syllable's UUID (for the chant-start clef). Called when a

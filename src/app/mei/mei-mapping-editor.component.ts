@@ -17,9 +17,10 @@ const PREVIEW_SYLLABLE_LIMIT = 40;
 const PREVIEW_MAX_ZEILEN = 2;
 
 @Component({
-  selector: 'app-mei-mapping-editor',
-  templateUrl: './mei-mapping-editor.component.html',
-  styleUrls: ['./mei-mapping-editor.component.css']
+    selector: 'app-mei-mapping-editor',
+    templateUrl: './mei-mapping-editor.component.html',
+    styleUrls: ['./mei-mapping-editor.component.css'],
+    standalone: false
 })
 export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   @Input() settings!: ProjectSettings;

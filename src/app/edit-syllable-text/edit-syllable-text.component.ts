@@ -2,9 +2,10 @@ import { Component, OnInit, Input, Output, EventEmitter } from '@angular/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 
 @Component({
-  selector: 'app-edit-syllable-text',
-  templateUrl: './edit-syllable-text.component.html',
-  styleUrls: ['./edit-syllable-text.component.css']
+    selector: 'app-edit-syllable-text',
+    templateUrl: './edit-syllable-text.component.html',
+    styleUrls: ['./edit-syllable-text.component.css'],
+    standalone: false
 })
 export class EditSyllableTextComponent implements OnInit {
   @Input() text!: string;

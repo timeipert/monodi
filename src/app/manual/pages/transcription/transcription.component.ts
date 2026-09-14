@@ -4,9 +4,10 @@ import { ManualHighlightService } from '../../services/manual-highlight.service'
 import * as Model from '../../../types/model';
 
 @Component({
-  selector: 'app-manual-transcription',
-  templateUrl: './transcription.component.html',
-  styleUrls: ['./transcription.component.css']
+    selector: 'app-manual-transcription',
+    templateUrl: './transcription.component.html',
+    styleUrls: ['./transcription.component.css'],
+    standalone: false
 })
 export class TranscriptionComponent implements OnInit, OnDestroy {
   activeHighlightId: string | null = null;

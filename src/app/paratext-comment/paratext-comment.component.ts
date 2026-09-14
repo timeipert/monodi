@@ -4,9 +4,10 @@ import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { UndoService } from '../undoService';
 
 @Component({
-  selector: 'app-paratext-comment',
-  templateUrl: './paratext-comment.component.html',
-  styleUrls: ['./paratext-comment.component.scss']
+    selector: 'app-paratext-comment',
+    templateUrl: './paratext-comment.component.html',
+    styleUrls: ['./paratext-comment.component.scss'],
+    standalone: false
 })
 export class ParatextCommentComponent implements OnInit {
   @Input() comment!: M.ParatextComment;

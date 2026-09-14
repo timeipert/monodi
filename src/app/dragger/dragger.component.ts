@@ -6,10 +6,11 @@ import { Subscription } from 'rxjs';
 import { DragStateService } from './drag-state.service';
 
 @Component({
-  selector: 'app-dragger',
-  templateUrl: './dragger.component.html',
-  styleUrls: ['./dragger.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-dragger',
+    templateUrl: './dragger.component.html',
+    styleUrls: ['./dragger.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class DraggerComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input() zipper!: number[];

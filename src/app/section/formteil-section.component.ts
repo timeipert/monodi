@@ -13,9 +13,10 @@ import { ToolsService } from '../tools.service';
 import { Subscription } from 'rxjs';
 
 @Component({
-  selector: 'app-formteil-section',
-  templateUrl: './section.component.html',
-  styleUrls: ['./section.component.scss']
+    selector: 'app-formteil-section',
+    templateUrl: './section.component.html',
+    styleUrls: ['./section.component.scss'],
+    standalone: false
 })
 export class FormteilSectionComponent extends S.Section<Model.FormteilContainer> implements OnChanges, Focusable, OnInit, OnDestroy {
   @ViewChildren("sub")

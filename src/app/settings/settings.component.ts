@@ -16,9 +16,10 @@ import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from '../no
 export interface FieldDef { key: string, label: string, isCustom: boolean }
 
 @Component({
-  selector: 'app-settings',
-  templateUrl: './settings.component.html',
-  styleUrls: ['./settings.component.css']
+    selector: 'app-settings',
+    templateUrl: './settings.component.html',
+    styleUrls: ['./settings.component.css'],
+    standalone: false
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' | 'workspace' | 'shortcuts' = 'metadata';

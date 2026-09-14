@@ -31,9 +31,10 @@ interface MockFuzzyResult {
 }
 
 @Component({
-  selector: 'app-manual-search',
-  templateUrl: './search.component.html',
-  styleUrl: './search.component.css'
+    selector: 'app-manual-search',
+    templateUrl: './search.component.html',
+    styleUrl: './search.component.css',
+    standalone: false
 })
 export class SearchComponent implements OnInit, OnDestroy {
   activeHighlightId: string | null = null;

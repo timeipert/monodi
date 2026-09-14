@@ -2,9 +2,10 @@ import { Component, EventEmitter, HostBinding, HostListener, Input, OnDestroy, O
 import * as M from '../../../types/model';
 
 @Component({
-  selector: 'app-comment-tree-action-dot',
-  templateUrl: './comment-tree-action-dot.component.html',
-  styleUrls: ['./comment-tree-action-dot.component.scss']
+    selector: 'app-comment-tree-action-dot',
+    templateUrl: './comment-tree-action-dot.component.html',
+    styleUrls: ['./comment-tree-action-dot.component.scss'],
+    standalone: false
 })
 export class CommentTreeActionDotComponent implements OnDestroy {
   @Input({ required: true }) path!: M.CommentTreePath;

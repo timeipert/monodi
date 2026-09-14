@@ -15,9 +15,10 @@ import { BarItem } from '../charts/chart-bars.component';
 import { ScatterPoint } from '../charts/chart-scatter.component';
 
 @Component({
-  selector: 'app-selection-dashboard',
-  templateUrl: './selection-dashboard.component.html',
-  styleUrls: ['./selection-dashboard.component.css'],
+    selector: 'app-selection-dashboard',
+    templateUrl: './selection-dashboard.component.html',
+    styleUrls: ['./selection-dashboard.component.css'],
+    standalone: false
 })
 export class SelectionDashboardComponent implements OnChanges {
   @Input() documents: Document[] = [];

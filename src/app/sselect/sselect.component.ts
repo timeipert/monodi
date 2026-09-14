@@ -1,9 +1,10 @@
 import { Input, Output, EventEmitter, Component, OnInit } from '@angular/core';
 
 @Component({
-  selector: 'app-sselect',
-  templateUrl: './sselect.component.html',
-  styleUrls: ['./sselect.component.css']
+    selector: 'app-sselect',
+    templateUrl: './sselect.component.html',
+    styleUrls: ['./sselect.component.css'],
+    standalone: false
 })
 export class SselectComponent<Data> implements OnInit {
   @Input()

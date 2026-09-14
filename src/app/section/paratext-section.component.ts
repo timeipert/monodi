@@ -12,9 +12,10 @@ import { take } from 'rxjs/operators';
 import { UndoService } from '../undoService';
 
 @Component({
-  selector: 'app-paratext-section',
-  templateUrl: './section.component.html',
-  styleUrls: ['./section.component.scss']
+    selector: 'app-paratext-section',
+    templateUrl: './section.component.html',
+    styleUrls: ['./section.component.scss'],
+    standalone: false
 })
 export class ParatextSectionComponent extends S.Section<Model.ParatextContainer> implements OnInit, Focusable {
   @ViewChild('paratextInput', { static: false }) paratext!: ElementRef;

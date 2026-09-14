@@ -11,10 +11,11 @@ interface TreeItem {
 }
 
 @Component({
-  selector: 'app-drag-map',
-  templateUrl: './drag-map.component.html',
-  styleUrls: ['./drag-map.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-drag-map',
+    templateUrl: './drag-map.component.html',
+    styleUrls: ['./drag-map.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class DragMapComponent implements OnDestroy {
   treeItems: TreeItem[] = [];

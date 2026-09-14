@@ -4,9 +4,10 @@ import { Router } from '@angular/router';
 import { ContextMenuService, ContextMenuState, ContextMenuItem } from './context-menu.service';
 
 @Component({
-  selector: 'app-context-menu',
-  templateUrl: './context-menu.component.html',
-  styleUrls: ['./context-menu.component.css']
+    selector: 'app-context-menu',
+    templateUrl: './context-menu.component.html',
+    styleUrls: ['./context-menu.component.css'],
+    standalone: false
 })
 export class ContextMenuComponent implements OnInit, OnDestroy {
   state: ContextMenuState = { isOpen: false, x: 0, y: 0, items: [] };

@@ -2,9 +2,10 @@ import * as M from '../../../types/model';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 @Component({
-  selector: 'app-comment-tree-undecided',
-  templateUrl: './comment-tree-undecided.component.html',
-  styleUrls: ['./comment-tree-undecided.component.scss']
+    selector: 'app-comment-tree-undecided',
+    templateUrl: './comment-tree-undecided.component.html',
+    styleUrls: ['./comment-tree-undecided.component.scss'],
+    standalone: false
 })
 export class CommentTreeUndecidedComponent {
   @Input() originalCreator?: () => M.ZeileContainer;

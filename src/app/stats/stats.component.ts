@@ -34,9 +34,10 @@ export interface TokenGroup {
 }
 
 @Component({
-  selector: 'app-stats',
-  templateUrl: './stats.component.html',
-  styleUrls: ['./stats.component.css']
+    selector: 'app-stats',
+    templateUrl: './stats.component.html',
+    styleUrls: ['./stats.component.css'],
+    standalone: false
 })
 export class StatsComponent implements OnInit, OnDestroy {
   user: User | null = null;

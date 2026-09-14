@@ -4,8 +4,9 @@ import { ManualHighlightService } from '../../services/manual-highlight.service'
 import * as Model from '../../../types/model';
 
 @Component({
-  selector: 'app-manual-comments',
-  templateUrl: './comments.component.html'
+    selector: 'app-manual-comments',
+    templateUrl: './comments.component.html',
+    standalone: false
 })
 export class CommentsComponent implements OnInit, OnDestroy {
   activeHighlightId: string | null = null;

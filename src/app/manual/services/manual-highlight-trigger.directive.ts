@@ -2,7 +2,8 @@ import { Directive, HostListener, Input, HostBinding } from '@angular/core';
 import { ManualHighlightService } from './manual-highlight.service';
 
 @Directive({
-  selector: '[appManualHighlightTrigger]'
+    selector: '[appManualHighlightTrigger]',
+    standalone: false
 })
 export class ManualHighlightTriggerDirective {
   @Input('appManualHighlightTrigger') targetId!: string;

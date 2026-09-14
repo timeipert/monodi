@@ -3,8 +3,9 @@ import { Subscription } from 'rxjs';
 import { ManualHighlightService } from '../../services/manual-highlight.service';
 
 @Component({
-  selector: 'app-metadata',
-  templateUrl: './metadata.component.html'
+    selector: 'app-metadata',
+    templateUrl: './metadata.component.html',
+    standalone: false
 })
 export class MetadataComponent implements OnInit, OnDestroy {
   activeHighlightId: string | null = null;

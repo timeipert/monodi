@@ -29,9 +29,10 @@ export interface GalleryItem {
 }
 
 @Component({
-  selector: 'app-iiif-viewer',
-  templateUrl: './iiif-viewer.component.html',
-  styleUrls: ['./iiif-viewer.component.css']
+    selector: 'app-iiif-viewer',
+    templateUrl: './iiif-viewer.component.html',
+    styleUrls: ['./iiif-viewer.component.css'],
+    standalone: false
 })
 export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   @Input() source: Source | null = null;

@@ -51,9 +51,10 @@ const DEFAULT_SOURCE_COLS: SourceColDef[] = [
 const STORAGE_KEY = 'monodi_source_cols';
 
 @Component({
-  selector: 'app-sources-overview',
-  templateUrl: './sources-overview.component.html',
-  styleUrls: ['./sources-overview.component.css']
+    selector: 'app-sources-overview',
+    templateUrl: './sources-overview.component.html',
+    styleUrls: ['./sources-overview.component.css'],
+    standalone: false
 })
 export class SourcesOverviewComponent implements OnInit, OnDestroy {
   subs: Subscription[] = [];
