@@ -28,3 +28,56 @@ jobs:
 
       - name: Run unit tests
         run: npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox
+
+  # Build the Angular app and publish it to GitHub Pages (custom domain
+  # monodi.app, preserved via src/CNAME which the build copies into docs/).
+  # Requires repo Settings → Pages → Source = "GitHub Actions".
+  deploy-pages:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run build` = ng build --configuration production --base-href ./
+      # Emits into docs/ and copies src/CNAME → docs/CNAME (custom domain).
+      - name: Build production app
+        run: npm run build
+
+      # The artifact deploy does not run Jekyll, but this makes it explicit
+      # so filenames beginning with _ are never stripped.
+      - name: Disable Jekyll processing
+        run: touch docs/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
