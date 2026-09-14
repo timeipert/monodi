@@ -8,511 +8,530 @@
       <span class="text-muted">Analyze musical pattern distributions across all manuscripts in the database</span>
     </div>
     <div class="d-flex align-items-center gap-3">
-      <span *ngIf="statsComputed && lastComputedTime" class="badge bg-light text-success border border-success-subtle">
-        Last computed: {{ lastComputedTime }}
-      </span>
-      <button *ngIf="statsComputed || loading" class="btn btn-outline-success d-flex align-items-center gap-1 shadow-sm" (click)="loadStats()" [disabled]="loading">
-        <i class="bi bi-arrow-repeat" [class.spin-loader]="loading"></i>
-        Recalculate
-      </button>
+      @if (statsComputed && lastComputedTime) {
+        <span class="badge bg-light text-success border border-success-subtle">
+          Last computed: {{ lastComputedTime }}
+        </span>
+      }
+      @if (statsComputed || loading) {
+        <button class="btn btn-outline-success d-flex align-items-center gap-1 shadow-sm" (click)="loadStats()" [disabled]="loading">
+          <i class="bi bi-arrow-repeat" [class.spin-loader]="loading"></i>
+          Recalculate
+        </button>
+      }
     </div>
   </div>
 
   <!-- Loading State -->
-  <div *ngIf="loading || loadingCache" class="card shadow-sm border border-light py-5 mb-4 text-center">
-    <div class="card-body">
-      <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <h5 class="fw-semibold text-dark mb-2">
-        {{ loadingCache ? 'Checking local cache...' : loadingProgress.message }}
-      </h5>
-      <div class="progress mx-auto" style="max-width: 400px; height: 8px;" *ngIf="!loadingCache && loadingProgress.total > 0">
-        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" 
-             role="progressbar" 
-             [style.width.%]="(loadingProgress.current / loadingProgress.total) * 100"
-             [attr.aria-valuenow]="loadingProgress.current" 
-             [attr.aria-valuemin]="0" 
-             [attr.aria-valuemax]="loadingProgress.total">
-        </div>
-      </div>
-      <small class="text-muted d-block mt-2" *ngIf="!loadingCache && loadingProgress.total > 0">
-        {{ loadingProgress.current }} / {{ loadingProgress.total }} documents processed
-      </small>
-    </div>
-  </div>
-
-  <!-- Computation Placeholder State -->
-  <div *ngIf="!statsComputed && !loading && !loadingCache" class="card shadow-sm border border-light py-5 mb-4 text-center">
-    <div class="card-body py-5 d-flex flex-column align-items-center justify-content-center">
-      <div class="bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
-        <i class="bi bi-bar-chart-line fs-2"></i>
-      </div>
-      <h4 class="fw-bold text-dark mb-2">Musical Pattern Analysis</h4>
-      <p class="text-muted small mb-4 mx-auto" style="max-width: 500px;">
-        Analyze musical pattern frequencies and bracket connections across all manuscripts and pieces in the database.
-        This scans all transcription notes and generates a manuscript-pattern matrix. It may take a moment.
-      </p>
-      <button class="btn btn-success px-4 py-2 shadow-sm" (click)="loadStats()">
-        <i class="bi bi-play-fill me-1"></i>Compute Workspace Patterns
-      </button>
-    </div>
-  </div>
-
-  <!-- Main View -->
-  <div *ngIf="statsComputed && !loading && !loadingCache">
-    <!-- Filter Card -->
-    <div class="card border-0 shadow-sm mb-4 bg-light p-3">
-      <div class="row g-3 align-items-end">
-        <!-- Manuscript search -->
-        <div class="col-md-3">
-          <label class="form-label small fw-semibold text-secondary">Search Manuscripts</label>
-          <div class="input-group input-group-sm">
-            <span class="input-group-text bg-white border-end-0 text-muted">
-              <i class="bi bi-search"></i>
-            </span>
-            <input type="text" 
-                   class="form-control border-start-0" 
-                   placeholder="e.g. Aa 13, Domarchiv..." 
-                   [(ngModel)]="sourceSearchText"
-                   (ngModelChange)="onFilterChange()">
-          </div>
-        </div>
-
-        <!-- Pattern Search -->
-        <div class="col-md-3">
-          <label class="form-label small fw-semibold text-secondary">Search Patterns</label>
-          <div class="input-group input-group-sm">
-            <span class="input-group-text bg-white border-end-0 text-muted">
-              <i class="bi bi-music-note"></i>
-            </span>
-            <input type="text" 
-                   class="form-control border-start-0 font-monospace" 
-                   placeholder="e.g. *ud, *[ud]" 
-                   [(ngModel)]="patternSearchText" 
-                   (ngModelChange)="onFilterChange()">
-          </div>
-        </div>
-
-        <!-- Min Frequency Slider -->
-        <div class="col-md-4">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <label class="form-label small fw-semibold text-secondary mb-0">Min Occurrences Frequency (1-100)</label>
-            <span class="badge bg-success rounded-pill px-2.5 py-1" style="font-size: 0.8rem;">
-              &ge; {{ minFrequency }} times
-            </span>
-          </div>
-          <div class="d-flex align-items-center gap-3">
-            <input type="range" 
-                   class="form-range flex-grow-1" 
-                   [min]="1" 
-                   [max]="100" 
-                   [(ngModel)]="minFrequency" 
-                   (ngModelChange)="onFilterChange()">
-            <input type="number" 
-                   class="form-control form-control-sm text-center font-semibold" 
-                   style="width: 65px;" 
-                   [min]="1" 
-                   [max]="100" 
-                   [(ngModel)]="minFrequency" 
-                   (ngModelChange)="onFilterChange()">
-          </div>
-        </div>
-
-        <!-- Reset Button -->
-        <div class="col-md-2 text-md-end">
-          <button class="btn btn-sm btn-outline-secondary w-100 py-2" 
-                  (click)="resetFilters()">
-            <i class="bi bi-x-circle me-1"></i>Reset Filters
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Empty State -->
-    <div *ngIf="filteredSources.length === 0 || displayedPatterns.length === 0" 
-         class="card border-0 shadow-sm text-center py-5">
+  @if (loading || loadingCache) {
+    <div class="card shadow-sm border border-light py-5 mb-4 text-center">
       <div class="card-body">
-        <i class="bi bi-exclamation-circle text-muted fs-1 mb-3"></i>
-        <h5 class="fw-semibold text-secondary">No matching results found</h5>
-        <p class="text-muted small">Try broadening your search text or decreasing the minimum occurrence frequency.</p>
-      </div>
-    </div>
-
-    <!-- Stats Table Content & Pagination Info -->
-    <div *ngIf="filteredSources.length > 0 && displayedPatterns.length > 0">
-      
-      <!-- Table Pagination Bar -->
-      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 bg-white p-2.5 border rounded-3 shadow-xs gap-3">
-        <!-- Left details -->
-        <div class="d-flex align-items-center gap-3">
-          <span class="small text-muted fw-semibold">
-            Sources: <strong class="text-dark">{{ getSourceStart() }}-{{ getSourceEnd() }}</strong> of {{ filteredSources.length }}
-          </span>
-          <span class="text-muted opacity-30">|</span>
-          <span class="small text-muted fw-semibold">
-            Patterns: <strong class="text-dark">{{ getPatternStart() }}-{{ getPatternEnd() }}</strong> of {{ displayedPatterns.length }}
-          </span>
+        <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status">
+          <span class="visually-hidden">Loading...</span>
         </div>
-
-        <!-- Pagination Controls -->
-        <div class="d-flex align-items-center gap-4">
-          <!-- Sources Pagination (Rows) -->
-          <div class="d-flex align-items-center gap-2" *ngIf="totalSourcePages > 1">
-            <span class="small fw-semibold text-secondary">Manuscripts:</span>
-            <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5" 
-                    [disabled]="sourcePageIndex === 0" 
-                    (click)="sourcePageIndex = sourcePageIndex - 1">
-              <i class="bi bi-chevron-left"></i>
-            </button>
-            <span class="small font-monospace">{{ sourcePageIndex + 1 }} / {{ totalSourcePages }}</span>
-            <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5" 
-                    [disabled]="sourcePageIndex >= totalSourcePages - 1" 
-                    (click)="sourcePageIndex = sourcePageIndex + 1">
-              <i class="bi bi-chevron-right"></i>
-            </button>
-          </div>
-
-          <!-- Patterns Pagination (Columns) -->
-          <div class="d-flex align-items-center gap-2" *ngIf="totalPatternPages > 1">
-            <span class="small fw-semibold text-secondary">Patterns (Cols):</span>
-            <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5" 
-                    [disabled]="patternPageIndex === 0" 
-                    (click)="patternPageIndex = patternPageIndex - 1">
-              <i class="bi bi-chevron-left"></i>
-            </button>
-            <span class="small font-monospace">{{ patternPageIndex + 1 }} / {{ totalPatternPages }}</span>
-            <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5" 
-                    [disabled]="patternPageIndex >= totalPatternPages - 1" 
-                    (click)="patternPageIndex = patternPageIndex + 1">
-              <i class="bi bi-chevron-right"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Stats Matrix Table -->
-      <div class="card border-0 shadow-sm overflow-hidden mb-4">
-        <div class="table-responsive stats-table-container">
-          <table class="table align-middle m-0 stats-table">
-            <thead>
-              <tr class="table-light border-bottom">
-                <!-- Sticky left headers -->
-                <th scope="col" class="sticky-col sticky-col-header first-header" style="min-width: 220px;">
-                  Manuscript / Source
-                </th>
-                <th scope="col" class="sticky-col sticky-col-header second-header text-center" style="min-width: 100px;">
-                  Total Neumes
-                </th>
-                
-                <!-- Pattern Headers -->
-                <th scope="col" 
-                    *ngFor="let pg of paginatedPatterns" 
-                    class="text-center pattern-header border-start cursor-pointer"
-                    style="min-width: 120px;"
-                    (click)="onTypeHeaderClick(pg)"
-                    title="Click to view special sign variants (tokens)">
-                  <div class="d-flex flex-column align-items-center py-1 text-nowrap">
-                    <app-svg-pattern [pattern]="pg.basePattern" class="mb-1"></app-svg-pattern>
-                    <span class="font-monospace text-muted small mt-1">{{ pg.basePattern }}</span>
-                    <span class="badge bg-light text-secondary border rounded-pill mt-1" style="font-size: 0.7rem;">
-                      {{ pg.totalCount }} total <i class="bi bi-info-circle-fill text-primary ms-0.5"></i>
-                    </span>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let s of paginatedSources; let idx = index" [class.bg-even]="idx % 2 === 1">
-                <!-- Sticky Left Column: Manuscript Info -->
-                <td class="sticky-col first-col bg-white">
-                  <div class="d-flex flex-column">
-                    <span class="fw-bold text-dark text-truncate" [title]="s.quellensigle || 'Unknown Siglum'">
-                      {{ s.quellensigle || 'Unknown Siglum' }}
-                    </span>
-                    <span class="small text-muted text-truncate" style="font-size: 0.75rem;" 
-                          [title]="(s.herkunftsort || '') + (s.bibliothek ? ', ' + s.bibliothek : '')">
-                      {{ s.herkunftsort || 'Unknown Origin' }}
-                    </span>
-                    <span class="small text-secondary" style="font-size: 0.7rem;" *ngIf="s.datierung">
-                      Dating: {{ s.datierung }}
-                    </span>
-                  </div>
-                </td>
-
-                <!-- Sticky Left Column: Total Neume Count -->
-                <td class="sticky-col second-col text-center bg-white border-end">
-                  <span class="badge bg-secondary rounded-pill px-2.5 py-1 font-semibold" style="font-size: 0.8rem;">
-                    {{ sourceNeumeCount[s.id || ''] || 0 }}
-                  </span>
-                </td>
-
-                <!-- Matrix counts -->
-                <td *ngFor="let pg of paginatedPatterns" 
-                    class="text-center count-cell border-start"
-                    [class.has-occs]="(pg.bySource[s.id || ''] || []).length > 0"
-                    (click)="onCellClick(s, pg)">
-                  <ng-container *ngIf="(pg.bySource[s.id || ''] || []).length as count; else zero">
-                    <div class="count-wrapper">
-                      <span class="count-number fw-bold">{{ count }}</span>
-                      <span class="hover-view-detail text-success small font-semibold">View</span>
-                    </div>
-                  </ng-container>
-                  <ng-template #zero>
-                    <span class="text-muted opacity-30">-</span>
-                  </ng-template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Cell Detail Modal (Overlay) -->
-  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);" *ngIf="selectedCell">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content shadow-lg border-0 rounded-4 overflow-hidden">
-        <!-- Modal Header -->
-        <div class="modal-header bg-success text-white border-0 px-4 py-3">
-          <div class="d-flex flex-column">
-            <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
-              <i class="bi bi-file-music-fill"></i>Occurrences Detail
-            </h5>
-            <small class="text-white-50">
-              Pattern <strong class="text-white">{{ selectedCell.patternGroup.basePattern }}</strong> in manuscript 
-              <strong class="text-white">{{ selectedCell.source.quellensigle || 'Unknown' }}</strong>
-            </small>
-          </div>
-          <button type="button" class="btn-close btn-close-white shadow-none" (click)="closeModal()" aria-label="Close"></button>
-        </div>
-
-        <!-- Modal Body -->
-        <div class="modal-body bg-light p-4">
-          <!-- Occurrence Pagination Bar -->
-          <div class="d-flex justify-content-between align-items-center mb-3 bg-white px-3 py-2 border rounded shadow-xs" *ngIf="totalCellOccurPages > 1">
-            <span class="small text-muted fw-semibold">
-              Showing occurrences <strong class="text-dark">{{ getCellOccurStart() }}-{{ getCellOccurEnd() }}</strong> of {{ selectedCell.occurrences.length }}
-            </span>
-            <div class="d-flex align-items-center gap-2">
-              <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5" 
-                      [disabled]="cellOccurPageIndex === 0" 
-                      (click)="cellOccurPageIndex = cellOccurPageIndex - 1">
-                <i class="bi bi-chevron-left"></i>
-              </button>
-              <span class="small font-monospace">{{ cellOccurPageIndex + 1 }} / {{ totalCellOccurPages }}</span>
-              <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5" 
-                      [disabled]="cellOccurPageIndex >= totalCellOccurPages - 1" 
-                      (click)="cellOccurPageIndex = cellOccurPageIndex + 1">
-                <i class="bi bi-chevron-right"></i>
-              </button>
+        <h5 class="fw-semibold text-dark mb-2">
+          {{ loadingCache ? 'Checking local cache...' : loadingProgress.message }}
+        </h5>
+        @if (!loadingCache && loadingProgress.total > 0) {
+          <div class="progress mx-auto" style="max-width: 400px; height: 8px;">
+            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+              role="progressbar"
+              [style.width.%]="(loadingProgress.current / loadingProgress.total) * 100"
+              [attr.aria-valuenow]="loadingProgress.current"
+              [attr.aria-valuemin]="0"
+              [attr.aria-valuemax]="loadingProgress.total">
             </div>
           </div>
+        }
+        @if (!loadingCache && loadingProgress.total > 0) {
+          <small class="text-muted d-block mt-2">
+            {{ loadingProgress.current }} / {{ loadingProgress.total }} documents processed
+          </small>
+        }
+      </div>
+    </div>
+  }
 
-          <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
-            <div class="table-responsive" style="max-height: 450px;">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="table-light border-bottom">
-                  <tr>
-                    <th scope="col" style="width: 20%;">Actual Neume</th>
-                    <th scope="col" style="width: 35%;">Document / Chant Piece</th>
-                    <th scope="col" style="width: 15%;">Location</th>
-                    <th scope="col" style="width: 15%;">Syllable</th>
-                    <th scope="col" style="width: 15%;" class="text-center">Action</th>
+  <!-- Computation Placeholder State -->
+  @if (!statsComputed && !loading && !loadingCache) {
+    <div class="card shadow-sm border border-light py-5 mb-4 text-center">
+      <div class="card-body py-5 d-flex flex-column align-items-center justify-content-center">
+        <div class="bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
+          <i class="bi bi-bar-chart-line fs-2"></i>
+        </div>
+        <h4 class="fw-bold text-dark mb-2">Musical Pattern Analysis</h4>
+        <p class="text-muted small mb-4 mx-auto" style="max-width: 500px;">
+          Analyze musical pattern frequencies and bracket connections across all manuscripts and pieces in the database.
+          This scans all transcription notes and generates a manuscript-pattern matrix. It may take a moment.
+        </p>
+        <button class="btn btn-success px-4 py-2 shadow-sm" (click)="loadStats()">
+          <i class="bi bi-play-fill me-1"></i>Compute Workspace Patterns
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Main View -->
+  @if (statsComputed && !loading && !loadingCache) {
+    <div>
+      <!-- Filter Card -->
+      <div class="card border-0 shadow-sm mb-4 bg-light p-3">
+        <div class="row g-3 align-items-end">
+          <!-- Manuscript search -->
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold text-secondary">Search Manuscripts</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white border-end-0 text-muted">
+                <i class="bi bi-search"></i>
+              </span>
+              <input type="text"
+                class="form-control border-start-0"
+                placeholder="e.g. Aa 13, Domarchiv..."
+                [(ngModel)]="sourceSearchText"
+                (ngModelChange)="onFilterChange()">
+            </div>
+          </div>
+          <!-- Pattern Search -->
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold text-secondary">Search Patterns</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white border-end-0 text-muted">
+                <i class="bi bi-music-note"></i>
+              </span>
+              <input type="text"
+                class="form-control border-start-0 font-monospace"
+                placeholder="e.g. *ud, *[ud]"
+                [(ngModel)]="patternSearchText"
+                (ngModelChange)="onFilterChange()">
+            </div>
+          </div>
+          <!-- Min Frequency Slider -->
+          <div class="col-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label small fw-semibold text-secondary mb-0">Min Occurrences Frequency (1-100)</label>
+              <span class="badge bg-success rounded-pill px-2.5 py-1" style="font-size: 0.8rem;">
+                &ge; {{ minFrequency }} times
+              </span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+              <input type="range"
+                class="form-range flex-grow-1"
+                [min]="1"
+                [max]="100"
+                [(ngModel)]="minFrequency"
+                (ngModelChange)="onFilterChange()">
+              <input type="number"
+                class="form-control form-control-sm text-center font-semibold"
+                style="width: 65px;"
+                [min]="1"
+                [max]="100"
+                [(ngModel)]="minFrequency"
+                (ngModelChange)="onFilterChange()">
+            </div>
+          </div>
+          <!-- Reset Button -->
+          <div class="col-md-2 text-md-end">
+            <button class="btn btn-sm btn-outline-secondary w-100 py-2"
+              (click)="resetFilters()">
+              <i class="bi bi-x-circle me-1"></i>Reset Filters
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Empty State -->
+      @if (filteredSources.length === 0 || displayedPatterns.length === 0) {
+        <div
+          class="card border-0 shadow-sm text-center py-5">
+          <div class="card-body">
+            <i class="bi bi-exclamation-circle text-muted fs-1 mb-3"></i>
+            <h5 class="fw-semibold text-secondary">No matching results found</h5>
+            <p class="text-muted small">Try broadening your search text or decreasing the minimum occurrence frequency.</p>
+          </div>
+        </div>
+      }
+      <!-- Stats Table Content & Pagination Info -->
+      @if (filteredSources.length > 0 && displayedPatterns.length > 0) {
+        <div>
+          <!-- Table Pagination Bar -->
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 bg-white p-2.5 border rounded-3 shadow-xs gap-3">
+            <!-- Left details -->
+            <div class="d-flex align-items-center gap-3">
+              <span class="small text-muted fw-semibold">
+                Sources: <strong class="text-dark">{{ getSourceStart() }}-{{ getSourceEnd() }}</strong> of {{ filteredSources.length }}
+              </span>
+              <span class="text-muted opacity-30">|</span>
+              <span class="small text-muted fw-semibold">
+                Patterns: <strong class="text-dark">{{ getPatternStart() }}-{{ getPatternEnd() }}</strong> of {{ displayedPatterns.length }}
+              </span>
+            </div>
+            <!-- Pagination Controls -->
+            <div class="d-flex align-items-center gap-4">
+              <!-- Sources Pagination (Rows) -->
+              @if (totalSourcePages > 1) {
+                <div class="d-flex align-items-center gap-2">
+                  <span class="small fw-semibold text-secondary">Manuscripts:</span>
+                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5"
+                    [disabled]="sourcePageIndex === 0"
+                    (click)="sourcePageIndex = sourcePageIndex - 1">
+                    <i class="bi bi-chevron-left"></i>
+                  </button>
+                  <span class="small font-monospace">{{ sourcePageIndex + 1 }} / {{ totalSourcePages }}</span>
+                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5"
+                    [disabled]="sourcePageIndex >= totalSourcePages - 1"
+                    (click)="sourcePageIndex = sourcePageIndex + 1">
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                </div>
+              }
+              <!-- Patterns Pagination (Columns) -->
+              @if (totalPatternPages > 1) {
+                <div class="d-flex align-items-center gap-2">
+                  <span class="small fw-semibold text-secondary">Patterns (Cols):</span>
+                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5"
+                    [disabled]="patternPageIndex === 0"
+                    (click)="patternPageIndex = patternPageIndex - 1">
+                    <i class="bi bi-chevron-left"></i>
+                  </button>
+                  <span class="small font-monospace">{{ patternPageIndex + 1 }} / {{ totalPatternPages }}</span>
+                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5"
+                    [disabled]="patternPageIndex >= totalPatternPages - 1"
+                    (click)="patternPageIndex = patternPageIndex + 1">
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+          <!-- Stats Matrix Table -->
+          <div class="card border-0 shadow-sm overflow-hidden mb-4">
+            <div class="table-responsive stats-table-container">
+              <table class="table align-middle m-0 stats-table">
+                <thead>
+                  <tr class="table-light border-bottom">
+                    <!-- Sticky left headers -->
+                    <th scope="col" class="sticky-col sticky-col-header first-header" style="min-width: 220px;">
+                      Manuscript / Source
+                    </th>
+                    <th scope="col" class="sticky-col sticky-col-header second-header text-center" style="min-width: 100px;">
+                      Total Neumes
+                    </th>
+                    <!-- Pattern Headers -->
+                    @for (pg of paginatedPatterns; track pg) {
+                      <th scope="col"
+                        class="text-center pattern-header border-start cursor-pointer"
+                        style="min-width: 120px;"
+                        (click)="onTypeHeaderClick(pg)"
+                        title="Click to view special sign variants (tokens)">
+                        <div class="d-flex flex-column align-items-center py-1 text-nowrap">
+                          <app-svg-pattern [pattern]="pg.basePattern" class="mb-1"></app-svg-pattern>
+                          <span class="font-monospace text-muted small mt-1">{{ pg.basePattern }}</span>
+                          <span class="badge bg-light text-secondary border rounded-pill mt-1" style="font-size: 0.7rem;">
+                            {{ pg.totalCount }} total <i class="bi bi-info-circle-fill text-primary ms-0.5"></i>
+                          </span>
+                        </div>
+                      </th>
+                    }
                   </tr>
                 </thead>
                 <tbody>
-                  <tr *ngFor="let occ of paginatedCellOccurrences">
-                    <!-- Actual Neume SVG & code -->
-                    <td>
-                      <div class="d-flex flex-column align-items-start gap-1">
-                        <app-svg-pattern [pattern]="occ.patternId"></app-svg-pattern>
-                        <span class="font-monospace text-muted px-1 rounded bg-light" style="font-size: 0.7rem;">
-                          {{ occ.patternId }}
+                  @for (s of paginatedSources; track s; let idx = $index) {
+                    <tr [class.bg-even]="idx % 2 === 1">
+                      <!-- Sticky Left Column: Manuscript Info -->
+                      <td class="sticky-col first-col bg-white">
+                        <div class="d-flex flex-column">
+                          <span class="fw-bold text-dark text-truncate" [title]="s.quellensigle || 'Unknown Siglum'">
+                            {{ s.quellensigle || 'Unknown Siglum' }}
+                          </span>
+                          <span class="small text-muted text-truncate" style="font-size: 0.75rem;"
+                            [title]="(s.herkunftsort || '') + (s.bibliothek ? ', ' + s.bibliothek : '')">
+                            {{ s.herkunftsort || 'Unknown Origin' }}
+                          </span>
+                          @if (s.datierung) {
+                            <span class="small text-secondary" style="font-size: 0.7rem;">
+                              Dating: {{ s.datierung }}
+                            </span>
+                          }
+                        </div>
+                      </td>
+                      <!-- Sticky Left Column: Total Neume Count -->
+                      <td class="sticky-col second-col text-center bg-white border-end">
+                        <span class="badge bg-secondary rounded-pill px-2.5 py-1 font-semibold" style="font-size: 0.8rem;">
+                          {{ sourceNeumeCount[s.id || ''] || 0 }}
                         </span>
-                      </div>
-                    </td>
-
-                    <!-- Document title -->
-                    <td>
-                      <div class="d-flex flex-column">
-                        <span class="fw-bold text-dark text-truncate" style="max-width: 240px;" [title]="occ.documentTitle">
-                          {{ occ.documentTitle }}
-                        </span>
-                        <span class="small text-muted font-monospace" style="font-size: 0.7rem;">
-                          ID: {{ occ.documentId }}
-                        </span>
-                      </div>
-                    </td>
-
-                    <!-- Folio / Line -->
-                    <td>
-                      <div class="d-flex flex-column text-secondary font-semibold small">
-                        <span>Folio: {{ occ.folio || 'N/A' }}</span>
-                        <span>Line: {{ occ.line || 'N/A' }}</span>
-                      </div>
-                    </td>
-
-                    <!-- Syllable text -->
-                    <td>
-                      <span class="badge bg-secondary text-white font-monospace px-2 py-1.5" style="font-size: 0.85rem;">
-                        {{ occ.syllable || '—' }}
-                      </span>
-                    </td>
-
-                    <!-- Jump Link -->
-                    <td class="text-center">
-                      <button class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 shadow-xs fw-semibold" 
-                              (click)="goToOccurrence(occ)">
-                        Editor <i class="bi bi-box-arrow-in-right"></i>
-                      </button>
-                    </td>
-                  </tr>
+                      </td>
+                      <!-- Matrix counts -->
+                      @for (pg of paginatedPatterns; track pg) {
+                        <td
+                          class="text-center count-cell border-start"
+                          [class.has-occs]="(pg.bySource[s.id || ''] || []).length > 0"
+                          (click)="onCellClick(s, pg)">
+                          @if ((pg.bySource[s.id || ''] || []).length; as count) {
+                            <div class="count-wrapper">
+                              <span class="count-number fw-bold">{{ count }}</span>
+                              <span class="hover-view-detail text-success small font-semibold">View</span>
+                            </div>
+                          } @else {
+                            <span class="text-muted opacity-30">-</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
                 </tbody>
               </table>
             </div>
           </div>
         </div>
-
-        <!-- Modal Footer -->
-        <div class="modal-footer border-top bg-white px-4 py-3">
-          <div class="me-auto text-muted small" *ngIf="totalCellOccurPages <= 1">
-            Found <strong class="text-dark">{{ selectedCell.occurrences.length }}</strong> match{{ selectedCell.occurrences.length > 1 ? 'es' : '' }}
-          </div>
-          <button type="button" class="btn btn-secondary px-4 fw-semibold shadow-sm" (click)="closeModal()">
-            Close
-          </button>
-        </div>
-      </div>
+      }
     </div>
-  </div>
+  }
 
-  <!-- Type Header Detail Modal (Overlay) -->
-  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);" *ngIf="selectedPatternType">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content shadow-lg border-0 rounded-4 overflow-hidden">
-        <!-- Modal Header -->
-        <div class="modal-header bg-primary text-white border-0 px-4 py-3">
-          <div class="d-flex flex-column">
-            <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
-              <i class="bi bi-tag-fill"></i>Pattern Type Variants
-            </h5>
-            <small class="text-white-50">
-              Showing special sign variants (tokens) for base type <strong class="text-white">{{ selectedPatternType.basePattern }}</strong>
-            </small>
-          </div>
-          <button type="button" class="btn-close btn-close-white shadow-none" (click)="closeTypeModal()" aria-label="Close"></button>
-        </div>
-
-        <!-- Modal Body -->
-        <div class="modal-body bg-light p-4">
-          <div class="row g-4">
-            <!-- Left: Tokens list -->
-            <div class="col-md-5">
-              <h6 class="fw-bold text-dark mb-3">Special Sign Tokens (Variants)</h6>
-              <div class="list-group shadow-xs rounded-3 border overflow-auto bg-white" style="max-height: 400px;">
-                <button type="button" 
-                        *ngFor="let token of selectedTypeTokens"
-                        class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-3"
-                        [class.active]="activeTokenId === token.patternId"
-                        (click)="onTokenSelect(token.patternId)">
-                  <div class="d-flex align-items-center gap-3">
-                    <!-- Token SVG -->
-                    <div class="bg-white p-1.5 rounded border shadow-xs" style="min-width: 60px;">
-                      <app-svg-pattern [pattern]="token.patternId"></app-svg-pattern>
-                    </div>
-                    <div>
-                      <div class="font-monospace fw-bold mb-1" [class.text-white]="activeTokenId === token.patternId" [class.text-dark]="activeTokenId !== token.patternId">
-                        {{ token.patternId }}
-                      </div>
-                      <small [class.text-white-50]="activeTokenId === token.patternId" [class.text-muted]="activeTokenId !== token.patternId">
-                        Sources: {{ getObjectKeys(token.sourcesCount).join(', ') }}
-                      </small>
-                    </div>
-                  </div>
-                  <span class="badge rounded-pill px-2.5 py-1.5 font-bold" [class]="activeTokenId === token.patternId ? 'bg-white text-primary' : 'bg-primary'">
-                    {{ token.count }}
-                  </span>
-                </button>
-              </div>
+  <!-- Cell Detail Modal (Overlay) -->
+  @if (selectedCell) {
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-lg border-0 rounded-4 overflow-hidden">
+          <!-- Modal Header -->
+          <div class="modal-header bg-success text-white border-0 px-4 py-3">
+            <div class="d-flex flex-column">
+              <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                <i class="bi bi-file-music-fill"></i>Occurrences Detail
+              </h5>
+              <small class="text-white-50">
+                Pattern <strong class="text-white">{{ selectedCell.patternGroup.basePattern }}</strong> in manuscript
+                <strong class="text-white">{{ selectedCell.source.quellensigle || 'Unknown' }}</strong>
+              </small>
             </div>
-
-            <!-- Right: Selected token occurrences list -->
-            <div class="col-md-7">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold text-dark m-0">Occurrences for Selected Variant</h6>
-                
-                <!-- Occurrence Pagination inside Type Modal -->
-                <div class="d-flex align-items-center gap-2 bg-white px-2 py-1.5 border rounded shadow-xs" *ngIf="totalTokenOccurPages > 1">
-                  <span class="small text-muted fw-semibold font-monospace" style="font-size: 0.75rem;">
-                    {{ getTokenOccurStart() }}-{{ getTokenOccurEnd() }} of {{ activeTokenOccurrences.length }}
-                  </span>
-                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1" 
-                          [disabled]="tokenOccurPageIndex === 0" 
-                          (click)="tokenOccurPageIndex = tokenOccurPageIndex - 1">
-                    <i class="bi bi-chevron-left" style="font-size: 0.7rem;"></i>
+            <button type="button" class="btn-close btn-close-white shadow-none" (click)="closeModal()" aria-label="Close"></button>
+          </div>
+          <!-- Modal Body -->
+          <div class="modal-body bg-light p-4">
+            <!-- Occurrence Pagination Bar -->
+            @if (totalCellOccurPages > 1) {
+              <div class="d-flex justify-content-between align-items-center mb-3 bg-white px-3 py-2 border rounded shadow-xs">
+                <span class="small text-muted fw-semibold">
+                  Showing occurrences <strong class="text-dark">{{ getCellOccurStart() }}-{{ getCellOccurEnd() }}</strong> of {{ selectedCell.occurrences.length }}
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5"
+                    [disabled]="cellOccurPageIndex === 0"
+                    (click)="cellOccurPageIndex = cellOccurPageIndex - 1">
+                    <i class="bi bi-chevron-left"></i>
                   </button>
-                  <span class="small font-monospace" style="font-size: 0.75rem;">{{ tokenOccurPageIndex + 1 }}/{{ totalTokenOccurPages }}</span>
-                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1" 
-                          [disabled]="tokenOccurPageIndex >= totalTokenOccurPages - 1" 
-                          (click)="tokenOccurPageIndex = tokenOccurPageIndex + 1">
-                    <i class="bi bi-chevron-right" style="font-size: 0.7rem;"></i>
+                  <span class="small font-monospace">{{ cellOccurPageIndex + 1 }} / {{ totalCellOccurPages }}</span>
+                  <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1.5"
+                    [disabled]="cellOccurPageIndex >= totalCellOccurPages - 1"
+                    (click)="cellOccurPageIndex = cellOccurPageIndex + 1">
+                    <i class="bi bi-chevron-right"></i>
                   </button>
                 </div>
               </div>
-
-              <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
-                <div class="table-responsive" style="max-height: 400px;">
-                  <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light border-bottom">
+            }
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+              <div class="table-responsive" style="max-height: 450px;">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light border-bottom">
+                    <tr>
+                      <th scope="col" style="width: 20%;">Actual Neume</th>
+                      <th scope="col" style="width: 35%;">Document / Chant Piece</th>
+                      <th scope="col" style="width: 15%;">Location</th>
+                      <th scope="col" style="width: 15%;">Syllable</th>
+                      <th scope="col" style="width: 15%;" class="text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (occ of paginatedCellOccurrences; track occ) {
                       <tr>
-                        <th scope="col" style="width: 55%;">Document / Chant Piece</th>
-                        <th scope="col" style="width: 25%;">Location</th>
-                        <th scope="col" style="width: 20%;" class="text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let occ of paginatedTokenOccurrences">
+                        <!-- Actual Neume SVG & code -->
                         <td>
-                          <div class="d-flex flex-column">
-                            <span class="fw-bold text-dark text-truncate" style="max-width: 280px;" [title]="occ.documentTitle">
-                              {{ occ.documentTitle }}
+                          <div class="d-flex flex-column align-items-start gap-1">
+                            <app-svg-pattern [pattern]="occ.patternId"></app-svg-pattern>
+                            <span class="font-monospace text-muted px-1 rounded bg-light" style="font-size: 0.7rem;">
+                              {{ occ.patternId }}
                             </span>
-                            <small class="text-muted" style="font-size: 0.75rem;">
-                              Siglum: {{ sourceSigleLookup[occ.sourceId] || occ.sourceId }}
-                            </small>
                           </div>
                         </td>
+                        <!-- Document title -->
+                        <td>
+                          <div class="d-flex flex-column">
+                            <span class="fw-bold text-dark text-truncate" style="max-width: 240px;" [title]="occ.documentTitle">
+                              {{ occ.documentTitle }}
+                            </span>
+                            <span class="small text-muted font-monospace" style="font-size: 0.7rem;">
+                              ID: {{ occ.documentId }}
+                            </span>
+                          </div>
+                        </td>
+                        <!-- Folio / Line -->
                         <td>
                           <div class="d-flex flex-column text-secondary font-semibold small">
                             <span>Folio: {{ occ.folio || 'N/A' }}</span>
                             <span>Line: {{ occ.line || 'N/A' }}</span>
-                            <span class="badge bg-light text-secondary border font-monospace mt-1 align-self-start" style="font-size: 0.7rem;">Syllable: {{ occ.syllable || '—' }}</span>
                           </div>
                         </td>
+                        <!-- Syllable text -->
+                        <td>
+                          <span class="badge bg-secondary text-white font-monospace px-2 py-1.5" style="font-size: 0.85rem;">
+                            {{ occ.syllable || '—' }}
+                          </span>
+                        </td>
+                        <!-- Jump Link -->
                         <td class="text-center">
-                          <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-semibold" 
-                                  (click)="goToOccurrence(occ)">
+                          <button class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 shadow-xs fw-semibold"
+                            (click)="goToOccurrence(occ)">
                             Editor <i class="bi bi-box-arrow-in-right"></i>
                           </button>
                         </td>
                       </tr>
-                    </tbody>
-                  </table>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <!-- Modal Footer -->
+          <div class="modal-footer border-top bg-white px-4 py-3">
+            @if (totalCellOccurPages <= 1) {
+              <div class="me-auto text-muted small">
+                Found <strong class="text-dark">{{ selectedCell.occurrences.length }}</strong> match{{ selectedCell.occurrences.length > 1 ? 'es' : '' }}
+              </div>
+            }
+            <button type="button" class="btn btn-secondary px-4 fw-semibold shadow-sm" (click)="closeModal()">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Type Header Detail Modal (Overlay) -->
+  @if (selectedPatternType) {
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-lg border-0 rounded-4 overflow-hidden">
+          <!-- Modal Header -->
+          <div class="modal-header bg-primary text-white border-0 px-4 py-3">
+            <div class="d-flex flex-column">
+              <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                <i class="bi bi-tag-fill"></i>Pattern Type Variants
+              </h5>
+              <small class="text-white-50">
+                Showing special sign variants (tokens) for base type <strong class="text-white">{{ selectedPatternType.basePattern }}</strong>
+              </small>
+            </div>
+            <button type="button" class="btn-close btn-close-white shadow-none" (click)="closeTypeModal()" aria-label="Close"></button>
+          </div>
+          <!-- Modal Body -->
+          <div class="modal-body bg-light p-4">
+            <div class="row g-4">
+              <!-- Left: Tokens list -->
+              <div class="col-md-5">
+                <h6 class="fw-bold text-dark mb-3">Special Sign Tokens (Variants)</h6>
+                <div class="list-group shadow-xs rounded-3 border overflow-auto bg-white" style="max-height: 400px;">
+                  @for (token of selectedTypeTokens; track token) {
+                    <button type="button"
+                      class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-3"
+                      [class.active]="activeTokenId === token.patternId"
+                      (click)="onTokenSelect(token.patternId)">
+                      <div class="d-flex align-items-center gap-3">
+                        <!-- Token SVG -->
+                        <div class="bg-white p-1.5 rounded border shadow-xs" style="min-width: 60px;">
+                          <app-svg-pattern [pattern]="token.patternId"></app-svg-pattern>
+                        </div>
+                        <div>
+                          <div class="font-monospace fw-bold mb-1" [class.text-white]="activeTokenId === token.patternId" [class.text-dark]="activeTokenId !== token.patternId">
+                            {{ token.patternId }}
+                          </div>
+                          <small [class.text-white-50]="activeTokenId === token.patternId" [class.text-muted]="activeTokenId !== token.patternId">
+                            Sources: {{ getObjectKeys(token.sourcesCount).join(', ') }}
+                          </small>
+                        </div>
+                      </div>
+                      <span class="badge rounded-pill px-2.5 py-1.5 font-bold" [class]="activeTokenId === token.patternId ? 'bg-white text-primary' : 'bg-primary'">
+                        {{ token.count }}
+                      </span>
+                    </button>
+                  }
+                </div>
+              </div>
+              <!-- Right: Selected token occurrences list -->
+              <div class="col-md-7">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h6 class="fw-bold text-dark m-0">Occurrences for Selected Variant</h6>
+                  <!-- Occurrence Pagination inside Type Modal -->
+                  @if (totalTokenOccurPages > 1) {
+                    <div class="d-flex align-items-center gap-2 bg-white px-2 py-1.5 border rounded shadow-xs">
+                      <span class="small text-muted fw-semibold font-monospace" style="font-size: 0.75rem;">
+                        {{ getTokenOccurStart() }}-{{ getTokenOccurEnd() }} of {{ activeTokenOccurrences.length }}
+                      </span>
+                      <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1"
+                        [disabled]="tokenOccurPageIndex === 0"
+                        (click)="tokenOccurPageIndex = tokenOccurPageIndex - 1">
+                        <i class="bi bi-chevron-left" style="font-size: 0.7rem;"></i>
+                      </button>
+                      <span class="small font-monospace" style="font-size: 0.75rem;">{{ tokenOccurPageIndex + 1 }}/{{ totalTokenOccurPages }}</span>
+                      <button class="btn btn-xs btn-outline-secondary d-flex align-items-center justify-content-center p-1"
+                        [disabled]="tokenOccurPageIndex >= totalTokenOccurPages - 1"
+                        (click)="tokenOccurPageIndex = tokenOccurPageIndex + 1">
+                        <i class="bi bi-chevron-right" style="font-size: 0.7rem;"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+                <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+                  <div class="table-responsive" style="max-height: 400px;">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead class="table-light border-bottom">
+                        <tr>
+                          <th scope="col" style="width: 55%;">Document / Chant Piece</th>
+                          <th scope="col" style="width: 25%;">Location</th>
+                          <th scope="col" style="width: 20%;" class="text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (occ of paginatedTokenOccurrences; track occ) {
+                          <tr>
+                            <td>
+                              <div class="d-flex flex-column">
+                                <span class="fw-bold text-dark text-truncate" style="max-width: 280px;" [title]="occ.documentTitle">
+                                  {{ occ.documentTitle }}
+                                </span>
+                                <small class="text-muted" style="font-size: 0.75rem;">
+                                  Siglum: {{ sourceSigleLookup[occ.sourceId] || occ.sourceId }}
+                                </small>
+                              </div>
+                            </td>
+                            <td>
+                              <div class="d-flex flex-column text-secondary font-semibold small">
+                                <span>Folio: {{ occ.folio || 'N/A' }}</span>
+                                <span>Line: {{ occ.line || 'N/A' }}</span>
+                                <span class="badge bg-light text-secondary border font-monospace mt-1 align-self-start" style="font-size: 0.7rem;">Syllable: {{ occ.syllable || '—' }}</span>
+                              </div>
+                            </td>
+                            <td class="text-center">
+                              <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-semibold"
+                                (click)="goToOccurrence(occ)">
+                                Editor <i class="bi bi-box-arrow-in-right"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- Modal Footer -->
-        <div class="modal-footer border-top bg-white px-4 py-3">
-          <button type="button" class="btn btn-secondary px-4 fw-semibold shadow-sm" (click)="closeTypeModal()">
-            Close
-          </button>
+          <!-- Modal Footer -->
+          <div class="modal-footer border-top bg-white px-4 py-3">
+            <button type="button" class="btn btn-secondary px-4 fw-semibold shadow-sm" (click)="closeTypeModal()">
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  }
 </div>

@@ -16,37 +16,45 @@
       </tr>
     </thead>
     <tbody>
-      <tr *ngIf="patternGroups.length === 0">
-        <td colspan="4" class="text-center py-4 text-muted">No patterns extracted yet. Add some neumes to your document!</td>
-      </tr>
-      <tr *ngFor="let group of patternGroups">
-        <td>
-          <div class="d-flex align-items-center gap-2">
-            <app-svg-pattern [pattern]="group.patternId"></app-svg-pattern>
-            <span class="font-monospace text-muted" style="font-size:0.75rem;">{{group.patternId}}</span>
-          </div>
-        </td>
-        <td>
-          <span class="badge bg-secondary rounded-pill">{{group.count}}</span>
-        </td>
-        <td>
-          <input type="text" class="form-control form-control-sm"
-                 [ngModel]="group.refId"
-                 (blur)="updateRefId(group, $any($event.target).value)"
-                 placeholder="e.g. n_123">
-        </td>
-        <td>
-          <div class="d-flex flex-wrap gap-1">
-            <span *ngFor="let loc of group.locationGroups"
+      @if (patternGroups.length === 0) {
+        <tr>
+          <td colspan="4" class="text-center py-4 text-muted">No patterns extracted yet. Add some neumes to your document!</td>
+        </tr>
+      }
+      @for (group of patternGroups; track group) {
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <app-svg-pattern [pattern]="group.patternId"></app-svg-pattern>
+              <span class="font-monospace text-muted" style="font-size:0.75rem;">{{group.patternId}}</span>
+            </div>
+          </td>
+          <td>
+            <span class="badge bg-secondary rounded-pill">{{group.count}}</span>
+          </td>
+          <td>
+            <input type="text" class="form-control form-control-sm"
+              [ngModel]="group.refId"
+              (blur)="updateRefId(group, $any($event.target).value)"
+              placeholder="e.g. n_123">
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+              @for (loc of group.locationGroups; track loc) {
+                <span
                   class="occ-badge"
                   [title]="'View in gallery — ' + loc.sample.syllable"
                   (click)="openOccurrenceInGallery(loc.sample)">
-              <i class="bi bi-image occ-icon"></i>
-              <span class="occ-loc">{{loc.label}}</span><span class="occ-count" *ngIf="loc.count > 1">&thinsp;×{{loc.count}}</span>
-            </span>
+                  <i class="bi bi-image occ-icon"></i>
+                  <span class="occ-loc">{{loc.label}}</span>@if (loc.count > 1) {
+                  <span class="occ-count">&thinsp;×{{loc.count}}</span>
+                }
+              </span>
+            }
           </div>
         </td>
       </tr>
-    </tbody>
-  </table>
+    }
+  </tbody>
+</table>
 </div>

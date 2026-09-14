@@ -5,15 +5,15 @@
     </div>
     <div class="d-flex gap-2 align-items-center">
       <!-- Workspace-level actions (import / export / HTML edition) moved to
-           Settings → Workspace tab. The file inputs and dialog state still
-           live on this page; they're triggered via `?ws=<action>` query
-           params when the user clicks a card in Settings. -->
+      Settings → Workspace tab. The file inputs and dialog state still
+      live on this page; they're triggered via `?ws=<action>` query
+      params when the user clicks a card in Settings. -->
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
       <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
       <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
       <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
-         class="btn btn-sm btn-outline-secondary"
-         title="Import, export, storage usage & cleanup in Settings → Workspace">
+        class="btn btn-sm btn-outline-secondary"
+        title="Import, export, storage usage & cleanup in Settings → Workspace">
         <i class="bi bi-gear me-1"></i>Workspace
       </a>
       <button class="btn btn-sm btn-primary" title="Add New Source" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>New</button>
@@ -25,275 +25,306 @@
       <!-- Column picker toggle -->
       <div class="d-flex justify-content-end mb-2 position-relative">
         <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                (click)="showColPicker = !showColPicker"
-                id="col-picker-toggle">
+          (click)="showColPicker = !showColPicker"
+          id="col-picker-toggle">
           <i class="bi bi-layout-three-columns"></i> Columns
         </button>
 
         <!-- Floating column picker panel -->
-        <div *ngIf="showColPicker" class="col-picker-panel shadow-lg border rounded-3 bg-white"
-             style="position:absolute; top: 2.2rem; right: 0; z-index: 200; min-width: 240px; padding: 1rem;">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
-            <button class="btn-close btn-sm" (click)="showColPicker = false"></button>
-          </div>
-          <div class="d-flex flex-column gap-2">
-            <div *ngFor="let col of cols" class="form-check form-switch mb-0">
-              <input class="form-check-input" type="checkbox" [id]="'col-' + col.key"
-                     [(ngModel)]="col.visible" (change)="saveCols()" />
-              <label class="form-check-label" [for]="'col-' + col.key"
-                     style="font-size:.85rem;">{{col.label}}</label>
+        @if (showColPicker) {
+          <div class="col-picker-panel shadow-lg border rounded-3 bg-white"
+            style="position:absolute; top: 2.2rem; right: 0; z-index: 200; min-width: 240px; padding: 1rem;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
+              <button class="btn-close btn-sm" (click)="showColPicker = false"></button>
+            </div>
+            <div class="d-flex flex-column gap-2">
+              @for (col of cols; track col) {
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" [id]="'col-' + col.key"
+                    [(ngModel)]="col.visible" (change)="saveCols()" />
+                  <label class="form-check-label" [for]="'col-' + col.key"
+                  style="font-size:.85rem;">{{col.label}}</label>
+                </div>
+              }
             </div>
           </div>
-        </div>
+        }
       </div>
 
       <!-- Empty state -->
-      <div *ngIf="sources.length === 0" class="empty-state text-center py-5 text-muted">
-        <i class="bi bi-journal-x" style="font-size: 3rem; opacity: 0.35;"></i>
-        <p class="mt-3 mb-1 fw-semibold" style="font-size: 1.1rem;">No sources yet</p>
-        <p class="small mb-4">Create your first source to start adding chant documents.</p>
-        <button class="btn btn-primary" [routerLink]="['/source']">
-          <i class="bi bi-plus-lg me-1"></i>Add New Source
-        </button>
-      </div>
+      @if (sources.length === 0) {
+        <div class="empty-state text-center py-5 text-muted">
+          <i class="bi bi-journal-x" style="font-size: 3rem; opacity: 0.35;"></i>
+          <p class="mt-3 mb-1 fw-semibold" style="font-size: 1.1rem;">No sources yet</p>
+          <p class="small mb-4">Create your first source to start adding chant documents.</p>
+          <button class="btn btn-primary" [routerLink]="['/source']">
+            <i class="bi bi-plus-lg me-1"></i>Add New Source
+          </button>
+        </div>
+      }
 
-      <app-smart-table
-        *ngIf="sources.length > 0"
-        (onDelete)="delete($event)"
-        (onBatchDelete)="onBatchDeleteSources($event)"
-        (onBatchEdit)="onBatchEditSources($event)"
-        (onRowClick)="goToSource($event)"
-        [canDelete]="true"
-        [headers]="headers"
-        [objects]="sources"
-        [batchFields]="sourceBatchFields"
-        storageKey="sources_overview_table"
-      ></app-smart-table>
+      @if (sources.length > 0) {
+        <app-smart-table
+          (onDelete)="delete($event)"
+          (onBatchDelete)="onBatchDeleteSources($event)"
+          (onBatchEdit)="onBatchEditSources($event)"
+          (onRowClick)="goToSource($event)"
+          [canDelete]="true"
+          [headers]="headers"
+          [objects]="sources"
+          [batchFields]="sourceBatchFields"
+          storageKey="sources_overview_table"
+        ></app-smart-table>
+      }
     </div>
   </div>
 </div>
 
 <!-- ZIP Import Progress Modal -->
-<div class="modal fade show d-block" tabindex="-1"
-     style="background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);"
-     *ngIf="importProgress.active">
-  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
-    <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
-
-      <div class="modal-header border-0 pb-2"
-           [style.background]="importProgress.phase === 'done' ? '#e6f4ea' : '#eef3ff'">
-        <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
-          <i class="bi"
+@if (importProgress.active) {
+  <div class="modal fade show d-block" tabindex="-1"
+    style="background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);"
+    >
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+      <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+        <div class="modal-header border-0 pb-2"
+          [style.background]="importProgress.phase === 'done' ? '#e6f4ea' : '#eef3ff'">
+          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+            <i class="bi"
              [ngClass]="{
                'bi-file-zip text-primary': importProgress.phase !== 'done',
                'bi-check-circle-fill text-success': importProgress.phase === 'done'
              }"></i>
-          <span>{{ importPhaseLabel }}</span>
-          <span *ngIf="importProgress.phase === 'done'" class="text-muted small fw-normal ms-2">
-            in {{ (importProgress.elapsedMs / 1000).toFixed(1) }} s
-          </span>
-        </h5>
-      </div>
-
-      <div class="modal-body pt-2">
-        <!-- Phase + counts -->
-        <p class="mb-2 text-muted small" style="min-height: 1.3em;">
-          {{ importProgress.message }}
-        </p>
-
-        <!-- Progress bar -->
-        <div class="progress mb-2" style="height: 10px; border-radius: 9999px; background: #e5e7eb;"
-             *ngIf="importProgress.phase !== 'done'">
-          <div class="progress-bar progress-bar-striped progress-bar-animated"
-               role="progressbar"
-               [style.width.%]="importProgressPct"
+            <span>{{ importPhaseLabel }}</span>
+            @if (importProgress.phase === 'done') {
+              <span class="text-muted small fw-normal ms-2">
+                in {{ (importProgress.elapsedMs / 1000).toFixed(1) }} s
+              </span>
+            }
+          </h5>
+        </div>
+        <div class="modal-body pt-2">
+          <!-- Phase + counts -->
+          <p class="mb-2 text-muted small" style="min-height: 1.3em;">
+            {{ importProgress.message }}
+          </p>
+          <!-- Progress bar -->
+          @if (importProgress.phase !== 'done') {
+            <div class="progress mb-2" style="height: 10px; border-radius: 9999px; background: #e5e7eb;"
+              >
+              <div class="progress-bar progress-bar-striped progress-bar-animated"
+                role="progressbar"
+                [style.width.%]="importProgressPct"
                [style.background]="importProgress.phase === 'sources' ? '#16a34a'
                                   : importProgress.phase === 'documents' ? '#2563eb'
                                   : importProgress.phase === 'saving' ? '#9333ea'
                                   : '#0ea5e9'">
+              </div>
+            </div>
+          }
+          @if (importProgress.phase === 'done') {
+            <div class="progress mb-2"
+              style="height: 10px; border-radius: 9999px;">
+              <div class="progress-bar bg-success" style="width: 100%;"></div>
+            </div>
+          }
+          <!-- Counter line (current / total) -->
+          @if (importProgress.total > 0 && importProgress.phase !== 'done') {
+            <div class="d-flex justify-content-between small text-muted mb-3"
+              >
+              <span>{{ importProgress.current }} / {{ importProgress.total }}</span>
+              <span>{{ importProgressPct }}%</span>
+            </div>
+          }
+          <!-- Per-phase detail line -->
+          @if (importProgress.details) {
+            <p class="small text-muted mb-3" style="min-height: 1.2em;">
+              <i class="bi bi-chevron-right me-1"></i>{{ importProgress.details }}
+            </p>
+          }
+          <!-- Running summary chips -->
+          <div class="d-flex flex-wrap gap-2 mb-1">
+            @if (importProgress.counts.newSources) {
+              <span class="badge bg-light text-dark border">
+                <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newSources }} new source{{ importProgress.counts.newSources === 1 ? '' : 's' }}
+              </span>
+            }
+            @if (importProgress.counts.updatedSources) {
+              <span class="badge bg-light text-dark border">
+                <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedSources }} source{{ importProgress.counts.updatedSources === 1 ? '' : 's' }} updated
+              </span>
+            }
+            @if (importProgress.counts.newDocs) {
+              <span class="badge bg-light text-dark border">
+                <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newDocs }} new document{{ importProgress.counts.newDocs === 1 ? '' : 's' }}
+              </span>
+            }
+            @if (importProgress.counts.updatedDocs) {
+              <span class="badge bg-light text-dark border">
+                <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedDocs }} document{{ importProgress.counts.updatedDocs === 1 ? '' : 's' }} updated
+              </span>
+            }
+            @if (importProgress.counts.missingData) {
+              <span class="badge bg-light border text-warning">
+                <i class="bi bi-exclamation-triangle me-1"></i>{{ importProgress.counts.missingData }} skipped
+              </span>
+            }
           </div>
         </div>
-        <div class="progress mb-2" *ngIf="importProgress.phase === 'done'"
-             style="height: 10px; border-radius: 9999px;">
-          <div class="progress-bar bg-success" style="width: 100%;"></div>
+        <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+          @if (importProgress.phase !== 'done') {
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+              (click)="cancelImport()">
+              <i class="bi bi-x-lg me-1"></i>Cancel
+            </button>
+          }
+          @if (importProgress.phase === 'done') {
+            <button type="button" class="btn btn-sm btn-success"
+              (click)="finishImport(true)">
+              <i class="bi bi-check-lg me-1"></i>Close
+            </button>
+          }
         </div>
-
-        <!-- Counter line (current / total) -->
-        <div class="d-flex justify-content-between small text-muted mb-3"
-             *ngIf="importProgress.total > 0 && importProgress.phase !== 'done'">
-          <span>{{ importProgress.current }} / {{ importProgress.total }}</span>
-          <span>{{ importProgressPct }}%</span>
-        </div>
-
-        <!-- Per-phase detail line -->
-        <p class="small text-muted mb-3" *ngIf="importProgress.details" style="min-height: 1.2em;">
-          <i class="bi bi-chevron-right me-1"></i>{{ importProgress.details }}
-        </p>
-
-        <!-- Running summary chips -->
-        <div class="d-flex flex-wrap gap-2 mb-1">
-          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.newSources">
-            <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newSources }} new source{{ importProgress.counts.newSources === 1 ? '' : 's' }}
-          </span>
-          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.updatedSources">
-            <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedSources }} source{{ importProgress.counts.updatedSources === 1 ? '' : 's' }} updated
-          </span>
-          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.newDocs">
-            <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newDocs }} new document{{ importProgress.counts.newDocs === 1 ? '' : 's' }}
-          </span>
-          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.updatedDocs">
-            <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedDocs }} document{{ importProgress.counts.updatedDocs === 1 ? '' : 's' }} updated
-          </span>
-          <span class="badge bg-light border text-warning" *ngIf="importProgress.counts.missingData">
-            <i class="bi bi-exclamation-triangle me-1"></i>{{ importProgress.counts.missingData }} skipped
-          </span>
-        </div>
-      </div>
-
-      <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
-        <button type="button" class="btn btn-sm btn-outline-secondary"
-                *ngIf="importProgress.phase !== 'done'"
-                (click)="cancelImport()">
-          <i class="bi bi-x-lg me-1"></i>Cancel
-        </button>
-        <button type="button" class="btn btn-sm btn-success"
-                *ngIf="importProgress.phase === 'done'"
-                (click)="finishImport(true)">
-          <i class="bi bi-check-lg me-1"></i>Close
-        </button>
       </div>
     </div>
   </div>
-</div>
+}
 
 <!-- CSV export options dialog -->
-<div class="modal fade show d-block" tabindex="-1"
-     style="background: rgba(0,0,0,0.5);" *ngIf="showCsvExportDialog">
-  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
-    <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
-      <div class="modal-header border-0 pb-2">
-        <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
-          <i class="bi bi-filetype-csv text-success"></i><span>Export CSV</span>
-        </h5>
-        <button type="button" class="btn-close" aria-label="Close" (click)="closeCsvExportDialog()"></button>
-      </div>
-      <div class="modal-body pt-2">
-        <p class="text-muted small mb-3">
-          Choose what to include. Only columns that actually hold data are written.
-          Melody is exported in Volpiano; text is the syllables separated by spaces.
-        </p>
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" id="csvSrcMeta" [(ngModel)]="csvIncludeSourceMeta">
-          <label class="form-check-label" for="csvSrcMeta">
-            <span class="fw-semibold">Source metadata</span>
-            <span class="text-muted small d-block">Siglum, provenance, library, shelfmark, custom fields…</span>
-          </label>
+@if (showCsvExportDialog) {
+  <div class="modal fade show d-block" tabindex="-1"
+    style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+      <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-filetype-csv text-success"></i><span>Export CSV</span>
+          </h5>
+          <button type="button" class="btn-close" aria-label="Close" (click)="closeCsvExportDialog()"></button>
         </div>
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" id="csvDocMeta" [(ngModel)]="csvIncludeDocumentMeta">
-          <label class="form-check-label" for="csvDocMeta">
-            <span class="fw-semibold">Document metadata</span>
-            <span class="text-muted small d-block">ID, genre, feast, text initium, folio, custom fields…</span>
-          </label>
+        <div class="modal-body pt-2">
+          <p class="text-muted small mb-3">
+            Choose what to include. Only columns that actually hold data are written.
+            Melody is exported in Volpiano; text is the syllables separated by spaces.
+          </p>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="csvSrcMeta" [(ngModel)]="csvIncludeSourceMeta">
+            <label class="form-check-label" for="csvSrcMeta">
+              <span class="fw-semibold">Source metadata</span>
+              <span class="text-muted small d-block">Siglum, provenance, library, shelfmark, custom fields…</span>
+            </label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="csvDocMeta" [(ngModel)]="csvIncludeDocumentMeta">
+            <label class="form-check-label" for="csvDocMeta">
+              <span class="fw-semibold">Document metadata</span>
+              <span class="text-muted small d-block">ID, genre, feast, text initium, folio, custom fields…</span>
+            </label>
+          </div>
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="csvContent" [(ngModel)]="csvIncludeContent">
+            <label class="form-check-label" for="csvContent">
+              <span class="fw-semibold">Content</span>
+              <span class="text-muted small d-block"><code>melody</code> (Volpiano) and <code>text</code> columns</span>
+            </label>
+          </div>
         </div>
-        <div class="form-check mb-1">
-          <input class="form-check-input" type="checkbox" id="csvContent" [(ngModel)]="csvIncludeContent">
-          <label class="form-check-label" for="csvContent">
-            <span class="fw-semibold">Content</span>
-            <span class="text-muted small d-block"><code>melody</code> (Volpiano) and <code>text</code> columns</span>
-          </label>
+        <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeCsvExportDialog()">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+          </button>
+          <button type="button" class="btn btn-sm btn-success" (click)="confirmCsvExport()">
+            <i class="bi bi-download me-1"></i>Export CSV
+          </button>
         </div>
-      </div>
-      <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
-        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeCsvExportDialog()">
-          <i class="bi bi-x-lg me-1"></i>Cancel
-        </button>
-        <button type="button" class="btn btn-sm btn-success" (click)="confirmCsvExport()">
-          <i class="bi bi-download me-1"></i>Export CSV
-        </button>
       </div>
     </div>
   </div>
-</div>
+}
 
 <!-- Unified Export Dialog -->
-<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showExportDialog">
-  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content shadow-lg">
-      <div class="modal-header bg-light border-0 px-4 pt-4 pb-2">
-        <h5 class="modal-title fw-bold text-dark">
-          <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : 'bi-globe text-warning'"></i>
-          {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : 'Export Static HTML Edition' }}
-        </h5>
-        <button type="button" class="btn-close" (click)="closeExportDialog()" [disabled]="isExporting"></button>
-      </div>
-      
-      <div class="modal-body bg-light px-4 py-3" style="min-height: 300px;">
-        <!-- Selector -->
-        <app-subcorpora-selector 
-          *ngIf="!isExporting"
-          [sources]="sources" 
-          [documents]="allDocuments"
-          (selectionChange)="onExportSelectionChange($event)">
-        </app-subcorpora-selector>
-        
-        <!-- Backwards Compatibility Option for ZIP export -->
-        <div *ngIf="!isExporting && exportMode === 'zip'" class="mt-3 p-3 bg-white border rounded shadow-sm">
-          <label class="form-label fw-bold text-dark mb-2">Backwards-Compatible Polyphony Export (Monodi v1)</label>
-          
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeNone" value="none" [(ngModel)]="exportBackwardsCompatMode">
-            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeNone">
-              Standard Format (Monodi-Zero)
-            </label>
-          </div>
-
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeComment" value="comment" [(ngModel)]="exportBackwardsCompatMode">
-            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeComment">
-              Apparatus Comment (2nd voice as phrase comment)
-            </label>
-          </div>
-
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeConsecutive" value="consecutive_lines" [(ngModel)]="exportBackwardsCompatMode">
-            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeConsecutive">
-              Consecutive Staff Lines (2nd voice as 2nd Notenzeile below 1st)
-            </label>
-          </div>
-
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeSplit" value="split_documents" [(ngModel)]="exportBackwardsCompatMode">
-            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeSplit">
-              Split Documents (Generates -v1 and -v2 document folders)
-            </label>
-          </div>
+@if (showExportDialog) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content shadow-lg">
+        <div class="modal-header bg-light border-0 px-4 pt-4 pb-2">
+          <h5 class="modal-title fw-bold text-dark">
+            <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : 'bi-globe text-warning'"></i>
+            {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : 'Export Static HTML Edition' }}
+          </h5>
+          <button type="button" class="btn-close" (click)="closeExportDialog()" [disabled]="isExporting"></button>
         </div>
-        
-        <!-- Loading Spinner -->
-        <div *ngIf="isExporting" class="text-center py-5">
-          <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
-          <h5 class="text-primary fw-bold">{{ exportMode === 'zip' ? 'Generating ZIP Archive...' : 'Generating HTML Edition...' }}</h5>
-          <p class="text-muted small">{{ exportStatusMessage }}</p>
+        <div class="modal-body bg-light px-4 py-3" style="min-height: 300px;">
+          <!-- Selector -->
+          @if (!isExporting) {
+            <app-subcorpora-selector
+              [sources]="sources"
+              [documents]="allDocuments"
+              (selectionChange)="onExportSelectionChange($event)">
+            </app-subcorpora-selector>
+          }
+          <!-- Backwards Compatibility Option for ZIP export -->
+          @if (!isExporting && exportMode === 'zip') {
+            <div class="mt-3 p-3 bg-white border rounded shadow-sm">
+              <label class="form-label fw-bold text-dark mb-2">Backwards-Compatible Polyphony Export (Monodi v1)</label>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeNone" value="none" [(ngModel)]="exportBackwardsCompatMode">
+                <label class="form-check-label text-dark fw-medium ms-1" for="zipModeNone">
+                  Standard Format (Monodi-Zero)
+                </label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeComment" value="comment" [(ngModel)]="exportBackwardsCompatMode">
+                <label class="form-check-label text-dark fw-medium ms-1" for="zipModeComment">
+                  Apparatus Comment (2nd voice as phrase comment)
+                </label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeConsecutive" value="consecutive_lines" [(ngModel)]="exportBackwardsCompatMode">
+                <label class="form-check-label text-dark fw-medium ms-1" for="zipModeConsecutive">
+                  Consecutive Staff Lines (2nd voice as 2nd Notenzeile below 1st)
+                </label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeSplit" value="split_documents" [(ngModel)]="exportBackwardsCompatMode">
+                <label class="form-check-label text-dark fw-medium ms-1" for="zipModeSplit">
+                  Split Documents (Generates -v1 and -v2 document folders)
+                </label>
+              </div>
+            </div>
+          }
+          <!-- Loading Spinner -->
+          @if (isExporting) {
+            <div class="text-center py-5">
+              <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+              <h5 class="text-primary fw-bold">{{ exportMode === 'zip' ? 'Generating ZIP Archive...' : 'Generating HTML Edition...' }}</h5>
+              <p class="text-muted small">{{ exportStatusMessage }}</p>
+            </div>
+          }
         </div>
-      </div>
-      
-      <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
-        <button type="button" class="btn btn-secondary px-4 fw-medium" (click)="closeExportDialog()" [disabled]="isExporting">Cancel</button>
-        <button type="button" class="btn btn-primary px-4 fw-medium" (click)="runExport()" [disabled]="isExporting || !hasSelectedItems">
-          <span class="spinner-border spinner-border-sm me-2" *ngIf="isExporting"></span>
-          {{ exportMode === 'zip' ? 'Generate & Download ZIP' : 'Generate & Download HTML' }}
-          <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : 'bi-globe ms-1'" *ngIf="!isExporting"></i>
-        </button>
+        <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary px-4 fw-medium" (click)="closeExportDialog()" [disabled]="isExporting">Cancel</button>
+          <button type="button" class="btn btn-primary px-4 fw-medium" (click)="runExport()" [disabled]="isExporting || !hasSelectedItems">
+            @if (isExporting) {
+              <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            {{ exportMode === 'zip' ? 'Generate & Download ZIP' : 'Generate & Download HTML' }}
+            @if (!isExporting) {
+              <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : 'bi-globe ms-1'"></i>
+            }
+          </button>
+        </div>
       </div>
     </div>
   </div>
-</div>
+}
 
 <!-- Hidden Render Container for Headless SVG Extraction -->
-<div style="position: absolute; left: -9999px; top: -9999px; width: 1000px;" id="export-render-container" *ngIf="renderingDocument">
-  <app-root-section [data]="renderingDocument" [zipper]="[]" [levelNames]="[]" [readOnly]="true" [comments]="renderingDocument.comments || []" [documentType]="renderingDocument.documentType || 'Antiphon'"></app-root-section>
-</div>
+@if (renderingDocument) {
+  <div style="position: absolute; left: -9999px; top: -9999px; width: 1000px;" id="export-render-container">
+    <app-root-section [data]="renderingDocument" [zipper]="[]" [levelNames]="[]" [readOnly]="true" [comments]="renderingDocument.comments || []" [documentType]="renderingDocument.documentType || 'Antiphon'"></app-root-section>
+  </div>
+}
 
 

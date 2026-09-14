@@ -1870,7 +1870,9 @@ export class DocumentComponent implements OnInit {
   }
 
   updateToolbar() {
-    const source = this.route.snapshot.paramMap.get('source') || '';
+    // A deferred setTimeout can fire after the component is torn down (e.g. in
+    // tests), when the injected route/snapshot is no longer available — guard it.
+    const source = this.route?.snapshot?.paramMap?.get('source') || '';
     
     // Tools logic
     const tools: any[] = [

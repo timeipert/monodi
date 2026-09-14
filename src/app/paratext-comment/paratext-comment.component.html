@@ -12,14 +12,18 @@
   <label for="emendation-check">Emendation</label>
   <input type="checkbox" [(ngModel)]="comment.emendation" id="emendation-check" name="emendation-check">
 
-  <button *ngIf="!comment.tree" type="button" class="btn btn-outline-secondary" (click)="addTree(comment)">
-    Add Comment Tree
-  </button>
+  @if (!comment.tree) {
+    <button type="button" class="btn btn-outline-secondary" (click)="addTree(comment)">
+      Add Comment Tree
+    </button>
+  }
 
-  <div *ngIf="comment.tree">
-    <app-comment-tree [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event)"
-      [originalCreator]="originalCreator" />
-  </div>
+  @if (comment.tree) {
+    <div>
+      <app-comment-tree [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event)"
+        [originalCreator]="originalCreator" />
+    </div>
+  }
 
   <button type="button" class="btn btn-primary" (click)="onSave()">Apply</button>
 </div>

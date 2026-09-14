@@ -1,362 +1,346 @@
-<div class="welcome-root" *ngIf="!loading">
-
-  <!-- Dynamic Dashboard View when workspace has data -->
-  <ng-container *ngIf="hasData; else landingView">
-    <header class="dashboard-header">
-      <div class="dashboard-header-inner">
-        <div class="brand-group">
-          <h1 class="brand-title">Monodi<span class="brand-zero">Zero</span></h1>
-          <p class="brand-tagline">Scholarly Chant Edition Workspace</p>
-        </div>
-      </div>
-    </header>
-
-    <main class="dashboard-content py-4">
-      <div class="container-xl">
-        
-        <!-- Metrics Cards Grid -->
-        <div class="row g-3 mb-4">
-          <div class="col-md-3">
-            <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/sources']" style="cursor: pointer;">
-              <div>
-                <div class="card-icon-wrapper text-indigo">
-                  <i class="bi bi-folder-fill"></i>
-                </div>
-                <h4 class="card-metric-label">Sources</h4>
-                <div class="card-metric-value">{{ sourcesCount }}</div>
-              </div>
-              <div class="card-link text-indigo mt-3 small">
-                Manage sources <i class="bi bi-arrow-right ms-1"></i>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-3">
-            <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/search']" style="cursor: pointer;">
-              <div>
-                <div class="card-icon-wrapper text-teal">
-                  <i class="bi bi-file-earmark-music-fill"></i>
-                </div>
-                <h4 class="card-metric-label">Chant Documents</h4>
-                <div class="card-metric-value">{{ documentsCount }}</div>
-              </div>
-              <div class="card-link text-teal mt-3 small">
-                Search documents <i class="bi bi-arrow-right ms-1"></i>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-3">
-            <div class="dashboard-card h-100 p-3">
-              <div class="card-icon-wrapper text-amber">
-                <i class="bi bi-database-fill"></i>
-              </div>
-              <h4 class="card-metric-label">IndexedDB Storage</h4>
-              <div class="card-metric-value" style="font-size: 1.25rem; line-height: 1.8;">{{ storageUsed }} <span class="small text-muted" style="font-size: 0.8rem;">used</span></div>
-              <div class="progress mt-2" style="height: 6px;" [attr.title]="'Quota: ' + storageQuota">
-                <div class="progress-bar bg-amber" role="progressbar" [style.width.%]="storagePct"></div>
-              </div>
-              <div class="d-flex justify-content-between text-muted small mt-2" style="font-size: 0.75rem;">
-                <span>{{ storagePct }}% of quota</span>
-                <span class="text-success" *ngIf="api.storagePersisted === true"><i class="bi bi-shield-fill-check me-1"></i>Protected</span>
-                <span class="text-warning" *ngIf="api.storagePersisted === false"><i class="bi bi-shield-fill-exclamation me-1"></i>Not Protected</span>
-                <span class="text-secondary" *ngIf="api.storagePersisted === null"><i class="bi bi-question-circle me-1"></i>Unknown</span>
-              </div>
-              <button class="btn btn-sm btn-outline-warning w-100 mt-3 py-1" style="font-size: 0.75rem;" (click)="requestPersistence()" *ngIf="api.storagePersisted !== true">
-                <i class="bi bi-shield-lock-fill me-1"></i>Enable Protection
-              </button>
-            </div>
-          </div>
-
-          <div class="col-md-3">
-            <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/settings']" [queryParams]="{ tab: 'github' }" style="cursor: pointer;">
-              <div>
-                <div class="card-icon-wrapper" [ngClass]="isGithubConnected ? 'text-success' : 'text-secondary'">
-                  <i class="bi bi-github"></i>
-                </div>
-                <h4 class="card-metric-label">GitHub connection</h4>
-                <div class="card-metric-value" style="font-size: 1.1rem; line-height: 1.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" [title]="githubRepo || 'Not configured'">
-                  {{ isGithubConnected ? 'Connected' : 'Not Connected' }}
-                </div>
-              </div>
-              <div class="text-muted small mt-3 overflow-hidden text-nowrap text-truncate" style="font-size: 0.75rem;">
-                <span *ngIf="isGithubConnected"><i class="bi bi-link-45deg me-1"></i>{{ githubRepo }}</span>
-                <span *ngIf="!isGithubConnected"><i class="bi bi-exclamation-circle me-1"></i>Local-only mode</span>
-              </div>
-            </div>
+@if (!loading) {
+  <div class="welcome-root">
+    <!-- Dynamic Dashboard View when workspace has data -->
+    @if (hasData) {
+      <header class="dashboard-header">
+        <div class="dashboard-header-inner">
+          <div class="brand-group">
+            <h1 class="brand-title">Monodi<span class="brand-zero">Zero</span></h1>
+            <p class="brand-tagline">Scholarly Chant Edition Workspace</p>
           </div>
         </div>
-
-        <!-- Detail panels -->
-        <div class="row g-4">
-          
-          <!-- Recent documents -->
-          <div class="col-lg-7">
-            <div class="dashboard-card p-4">
-              <h3 class="panel-section-title mb-3">
-                <i class="bi bi-clock-history text-indigo me-2"></i>Last used documents
-              </h3>
-              
-              <div class="recent-docs-list" *ngIf="recentDocuments.length > 0; else noRecentDocs">
-                <div class="recent-doc-item" *ngFor="let doc of recentDocuments" [routerLink]="['/document', doc.quelle_id, doc.id]">
-                  <div class="doc-item-icon">
-                    <i class="bi bi-file-earmark-music"></i>
+      </header>
+      <main class="dashboard-content py-4">
+        <div class="container-xl">
+          <!-- Metrics Cards Grid -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/sources']" style="cursor: pointer;">
+                <div>
+                  <div class="card-icon-wrapper text-indigo">
+                    <i class="bi bi-folder-fill"></i>
                   </div>
-                  <div class="doc-item-body">
-                    <div class="doc-item-title">{{ doc.textinitium || doc.dokumenten_id || 'Untitled Document' }}</div>
-                    <div class="doc-item-details">
-                      <span class="doc-badge">Source: {{ getSourceName(doc.quelle_id) }}</span>
-                      <span class="doc-time"><i class="bi bi-clock me-1"></i>{{ doc.timestamp | date:'short' }}</span>
+                  <h4 class="card-metric-label">Sources</h4>
+                  <div class="card-metric-value">{{ sourcesCount }}</div>
+                </div>
+                <div class="card-link text-indigo mt-3 small">
+                  Manage sources <i class="bi bi-arrow-right ms-1"></i>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/search']" style="cursor: pointer;">
+                <div>
+                  <div class="card-icon-wrapper text-teal">
+                    <i class="bi bi-file-earmark-music-fill"></i>
+                  </div>
+                  <h4 class="card-metric-label">Chant Documents</h4>
+                  <div class="card-metric-value">{{ documentsCount }}</div>
+                </div>
+                <div class="card-link text-teal mt-3 small">
+                  Search documents <i class="bi bi-arrow-right ms-1"></i>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="dashboard-card h-100 p-3">
+                <div class="card-icon-wrapper text-amber">
+                  <i class="bi bi-database-fill"></i>
+                </div>
+                <h4 class="card-metric-label">IndexedDB Storage</h4>
+                <div class="card-metric-value" style="font-size: 1.25rem; line-height: 1.8;">{{ storageUsed }} <span class="small text-muted" style="font-size: 0.8rem;">used</span></div>
+                <div class="progress mt-2" style="height: 6px;" [attr.title]="'Quota: ' + storageQuota">
+                  <div class="progress-bar bg-amber" role="progressbar" [style.width.%]="storagePct"></div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small mt-2" style="font-size: 0.75rem;">
+                  <span>{{ storagePct }}% of quota</span>
+                  @if (api.storagePersisted === true) {
+                    <span class="text-success"><i class="bi bi-shield-fill-check me-1"></i>Protected</span>
+                  }
+                  @if (api.storagePersisted === false) {
+                    <span class="text-warning"><i class="bi bi-shield-fill-exclamation me-1"></i>Not Protected</span>
+                  }
+                  @if (api.storagePersisted === null) {
+                    <span class="text-secondary"><i class="bi bi-question-circle me-1"></i>Unknown</span>
+                  }
+                </div>
+                @if (api.storagePersisted !== true) {
+                  <button class="btn btn-sm btn-outline-warning w-100 mt-3 py-1" style="font-size: 0.75rem;" (click)="requestPersistence()">
+                    <i class="bi bi-shield-lock-fill me-1"></i>Enable Protection
+                  </button>
+                }
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/settings']" [queryParams]="{ tab: 'github' }" style="cursor: pointer;">
+                <div>
+                  <div class="card-icon-wrapper" [ngClass]="isGithubConnected ? 'text-success' : 'text-secondary'">
+                    <i class="bi bi-github"></i>
+                  </div>
+                  <h4 class="card-metric-label">GitHub connection</h4>
+                  <div class="card-metric-value" style="font-size: 1.1rem; line-height: 1.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" [title]="githubRepo || 'Not configured'">
+                    {{ isGithubConnected ? 'Connected' : 'Not Connected' }}
+                  </div>
+                </div>
+                <div class="text-muted small mt-3 overflow-hidden text-nowrap text-truncate" style="font-size: 0.75rem;">
+                  @if (isGithubConnected) {
+                    <span><i class="bi bi-link-45deg me-1"></i>{{ githubRepo }}</span>
+                  }
+                  @if (!isGithubConnected) {
+                    <span><i class="bi bi-exclamation-circle me-1"></i>Local-only mode</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Detail panels -->
+          <div class="row g-4">
+            <!-- Recent documents -->
+            <div class="col-lg-7">
+              <div class="dashboard-card p-4">
+                <h3 class="panel-section-title mb-3">
+                  <i class="bi bi-clock-history text-indigo me-2"></i>Last used documents
+                </h3>
+                @if (recentDocuments.length > 0) {
+                  <div class="recent-docs-list">
+                    @for (doc of recentDocuments; track doc) {
+                      <div class="recent-doc-item" [routerLink]="['/document', doc.quelle_id, doc.id]">
+                        <div class="doc-item-icon">
+                          <i class="bi bi-file-earmark-music"></i>
+                        </div>
+                        <div class="doc-item-body">
+                          <div class="doc-item-title">{{ doc.textinitium || doc.dokumenten_id || 'Untitled Document' }}</div>
+                          <div class="doc-item-details">
+                            <span class="doc-badge">Source: {{ getSourceName(doc.quelle_id) }}</span>
+                            <span class="doc-time"><i class="bi bi-clock me-1"></i>{{ doc.timestamp | date:'short' }}</span>
+                          </div>
+                        </div>
+                        <div class="doc-item-arrow">
+                          <i class="bi bi-chevron-right"></i>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="text-center py-4 my-2 border rounded border-dashed text-muted">
+                    <i class="bi bi-file-earmark-plus display-6 mb-2 d-block text-secondary"></i>
+                    <p class="mb-0 small">No recently accessed documents.</p>
+                    <a [routerLink]="['/sources']" class="btn btn-sm btn-outline-indigo mt-3">Open a Source</a>
+                  </div>
+                }
+              </div>
+            </div>
+            <!-- Searches & Quick actions -->
+            <div class="col-lg-5">
+              <!-- Recent searches -->
+              <div class="dashboard-card p-4 mb-4">
+                <h3 class="panel-section-title mb-3">
+                  <i class="bi bi-search text-teal me-2"></i>Last searches
+                </h3>
+                @if (recentSearches.length > 0) {
+                  <div class="recent-searches-list">
+                    <div class="d-flex flex-wrap gap-2">
+                      @for (s of recentSearches; track s) {
+                        <a [routerLink]="['/search']" [queryParams]="{ q: s }" class="search-tag-pill">
+                          <i class="bi bi-search me-1" style="font-size: 0.75rem;"></i>{{ s }}
+                        </a>
+                      }
                     </div>
                   </div>
-                  <div class="doc-item-arrow">
-                    <i class="bi bi-chevron-right"></i>
+                } @else {
+                  <div class="text-center py-3 text-muted">
+                    <p class="mb-0 small">No recent searches yet.</p>
+                    <a [routerLink]="['/search']" class="btn btn-sm btn-outline-teal mt-2">Go to Search</a>
                   </div>
-                </div>
+                }
               </div>
-              
-              <ng-template #noRecentDocs>
-                <div class="text-center py-4 my-2 border rounded border-dashed text-muted">
-                  <i class="bi bi-file-earmark-plus display-6 mb-2 d-block text-secondary"></i>
-                  <p class="mb-0 small">No recently accessed documents.</p>
-                  <a [routerLink]="['/sources']" class="btn btn-sm btn-outline-indigo mt-3">Open a Source</a>
-                </div>
-              </ng-template>
-            </div>
-          </div>
-
-          <!-- Searches & Quick actions -->
-          <div class="col-lg-5">
-            
-            <!-- Recent searches -->
-            <div class="dashboard-card p-4 mb-4">
-              <h3 class="panel-section-title mb-3">
-                <i class="bi bi-search text-teal me-2"></i>Last searches
-              </h3>
-              
-              <div class="recent-searches-list" *ngIf="recentSearches.length > 0; else noRecentSearches">
-                <div class="d-flex flex-wrap gap-2">
-                  <a *ngFor="let s of recentSearches" [routerLink]="['/search']" [queryParams]="{ q: s }" class="search-tag-pill">
-                    <i class="bi bi-search me-1" style="font-size: 0.75rem;"></i>{{ s }}
+              <!-- Quick actions -->
+              <div class="dashboard-card p-4">
+                <h3 class="panel-section-title mb-3">
+                  <i class="bi bi-lightning-charge-fill text-amber me-2"></i>Quick Actions
+                </h3>
+                <div class="d-grid gap-2">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-zip' }" class="btn btn-outline-secondary text-start p-2 fs-7">
+                    <i class="bi bi-box-arrow-in-down me-2 text-primary"></i>Import ZIP Workspace
+                  </a>
+                  <a [routerLink]="['/source']" class="btn btn-outline-secondary text-start p-2 fs-7">
+                    <i class="bi bi-folder-plus me-2 text-success"></i>Create New Source
+                  </a>
+                  <a [routerLink]="['/manual']" class="btn btn-outline-secondary text-start p-2 fs-7">
+                    <i class="bi bi-book me-2 text-info"></i>View User Manual
                   </a>
                 </div>
               </div>
-              
-              <ng-template #noRecentSearches>
-                <div class="text-center py-3 text-muted">
-                  <p class="mb-0 small">No recent searches yet.</p>
-                  <a [routerLink]="['/search']" class="btn btn-sm btn-outline-teal mt-2">Go to Search</a>
-                </div>
-              </ng-template>
             </div>
-
-            <!-- Quick actions -->
-            <div class="dashboard-card p-4">
-              <h3 class="panel-section-title mb-3">
-                <i class="bi bi-lightning-charge-fill text-amber me-2"></i>Quick Actions
-              </h3>
-              
-              <div class="d-grid gap-2">
-                <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-zip' }" class="btn btn-outline-secondary text-start p-2 fs-7">
-                  <i class="bi bi-box-arrow-in-down me-2 text-primary"></i>Import ZIP Workspace
-                </a>
-                <a [routerLink]="['/source']" class="btn btn-outline-secondary text-start p-2 fs-7">
-                  <i class="bi bi-folder-plus me-2 text-success"></i>Create New Source
-                </a>
-                <a [routerLink]="['/manual']" class="btn btn-outline-secondary text-start p-2 fs-7">
-                  <i class="bi bi-book me-2 text-info"></i>View User Manual
-                </a>
+          </div>
+        </div>
+      </main>
+      <footer class="welcome-footer mt-auto">
+        <span>Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure, funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
+        <span class="footer-sister-links">
+          <a href="https://directions.monodi.app" target="_blank" rel="noopener">Contour Search <i class="bi bi-box-arrow-up-right"></i></a>
+          <a href="https://neume.monodi.app" target="_blank" rel="noopener">Neume Mapping <i class="bi bi-box-arrow-up-right"></i></a>
+        </span>
+        <button class="btn-credits" (click)="openCredits(creditsModal)">Credits</button>
+      </footer>
+    } @else {
+      <!-- Hero Section -->
+      <section class="hero-section">
+        <div class="hero-inner">
+          <h1 class="hero-title">Monodi<span class="hero-zero">Zero</span></h1>
+          <p class="hero-subtitle">
+            A standalone note editor for monophonic medieval chant. Runs entirely in your browser — no server, no login required. Built for the creation of scholarly chant editions, with optional GitHub integration for storage and collaborative work.
+          </p>
+          <div class="hero-actions">
+            <button [routerLink]="['/sources']" class="btn-hero-primary">
+              Get Started
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/></svg>
+            </button>
+          </div>
+          <div class="hero-visual">
+            <div class="visual-card">
+              <div class="abstract-graphic">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+                  <!-- Geometric and network representation of sources and documents -->
+                  <circle cx="100" cy="100" r="80" stroke="rgba(255,255,255,0.1)" stroke-width="2" stroke-dasharray="6 6"/>
+                  <circle cx="100" cy="100" r="50" stroke="rgba(99,102,241,0.3)" stroke-width="1.5"/>
+                  <!-- Nodes -->
+                  <circle cx="100" cy="20" r="6" fill="#818cf8"/>
+                  <circle cx="170" cy="60" r="5" fill="#34d399"/>
+                  <circle cx="170" cy="140" r="4" fill="rgba(255,255,255,0.6)"/>
+                  <circle cx="100" cy="180" r="6" fill="#818cf8"/>
+                  <circle cx="30" cy="140" r="5" fill="#34d399"/>
+                  <circle cx="30" cy="60" r="4" fill="rgba(255,255,255,0.6)"/>
+                  <!-- Center element symbolizing a core document/source -->
+                  <rect x="85" y="80" width="30" height="40" rx="4" fill="rgba(255,255,255,0.1)" stroke="#a5b4fc" stroke-width="2"/>
+                  <line x1="90" y1="90" x2="110" y2="90" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/>
+                  <line x1="90" y1="100" x2="105" y2="100" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/>
+                  <line x1="90" y1="110" x2="110" y2="110" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/>
+                  <!-- Connections -->
+                  <path d="M100 20 Q100 80 100 80" stroke="rgba(129,140,248,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
+                  <path d="M30 60 Q85 80 85 80" stroke="rgba(129,140,248,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
+                  <path d="M170 140 Q115 120 115 120" stroke="rgba(129,140,248,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
+                </svg>
               </div>
             </div>
-
           </div>
         </div>
-
+      </section>
+      <!-- Features Grid -->
+      <section class="features-section">
+        <div class="features-inner">
+          <div class="feature-card">
+            <div class="feature-icon offline-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 13A6 6 0 1 1 8 2a6 6 0 0 1 0 12z"/><path d="M8 4a.5.5 0 0 1 .5.5v3.793l2.146 2.147a.5.5 0 0 1-.708.708L7.5 8.707V4.5A.5.5 0 0 1 8 4z"/></svg>
+            </div>
+            <h3>Zero-Server Architecture</h3>
+            <p>All data — sources, documents, neumes — is stored locally in your browser using IndexedDB. No backend, no account, no dependency on external infrastructure.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon github-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            </div>
+            <h3>GitHub Integration</h3>
+            <p>Connect to a GitHub repository to push and pull your workspace. This enables cloud backup and collaborative editing across multiple researchers.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon export-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+            </div>
+            <h3>PDF &amp; MonodiJSON Export</h3>
+            <p>Export editions as typeset PDF with configurable layout settings, or as MonodiJSON (Markdown-compatible) for long-term archival. MEI export is planned for a future release.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon ommr-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M1.5 1a.5.5 0 0 0-.5.5v3a.5.5 0 0 1-1 0v-3A1.5 1.5 0 0 1 1.5 0h3a.5.5 0 0 1 0 1h-3zM11 .5a.5.5 0 0 1 .5-.5h3A1.5 1.5 0 0 1 16 1.5v3a.5.5 0 0 1-1 0v-3a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 1-.5-.5zM.5 11a.5.5 0 0 1 .5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 1 0 1h-3A1.5 1.5 0 0 1 0 14.5v-3a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v3a1.5 1.5 0 0 1-1.5 1.5h-3a.5.5 0 0 1 0-1h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 1 .5-.5z"/><path d="M3 5.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 8a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 8zm0 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1-.5-.5z"/></svg>
+            </div>
+            <h3>OMMR4all Import</h3>
+            <p>Read files produced by the OMMR4all optical music recognition system, allowing you to start from machine-generated transcriptions and refine them manually.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon search-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+            </div>
+            <h3>Source &amp; Document Search</h3>
+            <p>Search across sources and documents using full-text filtering. Quickly locate chants by initium, feast day, genre, or folio reference.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon critical-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/></svg>
+            </div>
+            <h3>Critical Apparatus</h3>
+            <p>Attach structured comments, textual variants, and notes to individual neumes or syllables. Exported into a formatted critical apparatus in the PDF output.</p>
+          </div>
+        </div>
+      </section>
+      <!-- Corpus Monodicum infrastructure: sibling tools -->
+      <section class="infra-section">
+        <div class="infra-inner">
+          <p class="infra-kicker">Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure</p>
+          <div class="infra-cards">
+            <a class="infra-card" href="https://directions.monodi.app" target="_blank" rel="noopener">
+              <div class="infra-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0Zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 4.032a.5.5 0 1 1-.74-.672l4-4.412a.5.5 0 0 1 .733-.001l2.588 2.588 3.128-3.83a.5.5 0 0 1 .704-.07Z"/></svg>
+              </div>
+              <div class="infra-text">
+                <h3>Contour Search <i class="bi bi-box-arrow-up-right"></i></h3>
+                <p>Search chant melodies by their melodic contour at <span class="infra-host">directions.monodi.app</span></p>
+              </div>
+            </a>
+            <a class="infra-card" href="https://neume.monodi.app" target="_blank" rel="noopener">
+              <div class="infra-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5v-1ZM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1ZM0 11.5A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5v-1Zm6 0A1.5 1.5 0 0 1 7.5 10h1A1.5 1.5 0 0 1 10 11.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5v-1Zm6 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5v-1Z"/></svg>
+              </div>
+              <div class="infra-text">
+                <h3>Neume Mapping <i class="bi bi-box-arrow-up-right"></i></h3>
+                <p>Map and explore neume shapes and transcriptions at <span class="infra-host">neume.monodi.app</span></p>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+      <!-- Footer -->
+      <footer class="welcome-footer">
+        <span>Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure, funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
+        <span class="footer-sister-links">
+          <a href="https://directions.monodi.app" target="_blank" rel="noopener">Contour Search <i class="bi bi-box-arrow-up-right"></i></a>
+          <a href="https://neume.monodi.app" target="_blank" rel="noopener">Neume Mapping <i class="bi bi-box-arrow-up-right"></i></a>
+        </span>
+        <button class="btn-credits" (click)="openCredits(creditsModal)">Credits</button>
+      </footer>
+    }
+    <!-- Original Welcome Landing View -->
+    <!-- Shared Credits Modal -->
+    <ng-template #creditsModal let-modal>
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#6366f1" class="me-2" viewBox="0 0 16 16">
+            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+          </svg>
+          <h5 class="modal-title fw-bold text-dark m-0">Project Credits</h5>
+        </div>
+        <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
       </div>
-    </main>
-
-    <footer class="welcome-footer mt-auto">
-      <span>Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure, funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
-      <span class="footer-sister-links">
-        <a href="https://directions.monodi.app" target="_blank" rel="noopener">Contour Search <i class="bi bi-box-arrow-up-right"></i></a>
-        <a href="https://neume.monodi.app" target="_blank" rel="noopener">Neume Mapping <i class="bi bi-box-arrow-up-right"></i></a>
-      </span>
-      <button class="btn-credits" (click)="openCredits(creditsModal)">Credits</button>
-    </footer>
-  </ng-container>
-
-  <!-- Original Welcome Landing View -->
-  <ng-template #landingView>
-    <!-- Hero Section -->
-    <section class="hero-section">
-      <div class="hero-inner">
-        <h1 class="hero-title">Monodi<span class="hero-zero">Zero</span></h1>
-        <p class="hero-subtitle">
-          A standalone note editor for monophonic medieval chant. Runs entirely in your browser — no server, no login required. Built for the creation of scholarly chant editions, with optional GitHub integration for storage and collaborative work.
+      <div class="modal-body pt-3">
+        <p class="mb-3" style="font-size: 0.95rem; line-height: 1.6; color: #374151;">
+          <strong><a href="https://olyro.de" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">Olyro</a></strong> developed crucial components of the software and designed its core architecture.
         </p>
-        <div class="hero-actions">
-          <button [routerLink]="['/sources']" class="btn-hero-primary">
-            Get Started
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/></svg>
-          </button>
-        </div>
-        <div class="hero-visual">
-          <div class="visual-card">
-            <div class="abstract-graphic">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
-                <!-- Geometric and network representation of sources and documents -->
-                <circle cx="100" cy="100" r="80" stroke="rgba(255,255,255,0.1)" stroke-width="2" stroke-dasharray="6 6"/>
-                <circle cx="100" cy="100" r="50" stroke="rgba(99,102,241,0.3)" stroke-width="1.5"/>
-                
-                <!-- Nodes -->
-                <circle cx="100" cy="20" r="6" fill="#818cf8"/>
-                <circle cx="170" cy="60" r="5" fill="#34d399"/>
-                <circle cx="170" cy="140" r="4" fill="rgba(255,255,255,0.6)"/>
-                <circle cx="100" cy="180" r="6" fill="#818cf8"/>
-                <circle cx="30" cy="140" r="5" fill="#34d399"/>
-                <circle cx="30" cy="60" r="4" fill="rgba(255,255,255,0.6)"/>
-                
-                <!-- Center element symbolizing a core document/source -->
-                <rect x="85" y="80" width="30" height="40" rx="4" fill="rgba(255,255,255,0.1)" stroke="#a5b4fc" stroke-width="2"/>
-                <line x1="90" y1="90" x2="110" y2="90" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/>
-                <line x1="90" y1="100" x2="105" y2="100" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/>
-                <line x1="90" y1="110" x2="110" y2="110" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/>
-                
-                <!-- Connections -->
-                <path d="M100 20 Q100 80 100 80" stroke="rgba(129,140,248,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
-                <path d="M30 60 Q85 80 85 80" stroke="rgba(129,140,248,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
-                <path d="M170 140 Q115 120 115 120" stroke="rgba(129,140,248,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
-              </svg>
-            </div>
-          </div>
+        <p class="mb-3" style="font-size: 0.95rem; line-height: 1.6; color: #374151;">
+          <strong><a href="https://github.com/timeipert" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">Tim Eipert</a></strong> compiled the software as a standalone application and elaborated it.
+        </p>
+        <hr class="my-3 text-muted opacity-25">
+        <p class="mb-0 small text-muted" style="line-height: 1.6;">
+          The software is copyrighted by <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">Corpus Monodicum</a> and <a href="https://www.adwmainz.de/" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">ADW Mainz</a>, but is delivered as Open Source with <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 500;">MIT license</a>.
+        </p>
+        <p class="mb-0 small text-muted mt-2" style="line-height: 1.6;">
+          <a href="https://corpus-monodicum.de/impressum" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 500;">Impressum</a>
+        </p>
+      </div>
+      <div class="modal-body pt-0 border-0">
+        <div class="d-flex justify-content-end">
+          <button type="button" class="btn btn-secondary btn-sm px-3" style="background-color: #6366f1; border-color: #6366f1; font-weight: 500;" (click)="modal.close()">Close</button>
         </div>
       </div>
-    </section>
-
-    <!-- Features Grid -->
-    <section class="features-section">
-      <div class="features-inner">
-
-        <div class="feature-card">
-          <div class="feature-icon offline-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 13A6 6 0 1 1 8 2a6 6 0 0 1 0 12z"/><path d="M8 4a.5.5 0 0 1 .5.5v3.793l2.146 2.147a.5.5 0 0 1-.708.708L7.5 8.707V4.5A.5.5 0 0 1 8 4z"/></svg>
-          </div>
-          <h3>Zero-Server Architecture</h3>
-          <p>All data — sources, documents, neumes — is stored locally in your browser using IndexedDB. No backend, no account, no dependency on external infrastructure.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon github-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-          </div>
-          <h3>GitHub Integration</h3>
-          <p>Connect to a GitHub repository to push and pull your workspace. This enables cloud backup and collaborative editing across multiple researchers.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon export-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
-          </div>
-          <h3>PDF &amp; MonodiJSON Export</h3>
-          <p>Export editions as typeset PDF with configurable layout settings, or as MonodiJSON (Markdown-compatible) for long-term archival. MEI export is planned for a future release.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon ommr-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M1.5 1a.5.5 0 0 0-.5.5v3a.5.5 0 0 1-1 0v-3A1.5 1.5 0 0 1 1.5 0h3a.5.5 0 0 1 0 1h-3zM11 .5a.5.5 0 0 1 .5-.5h3A1.5 1.5 0 0 1 16 1.5v3a.5.5 0 0 1-1 0v-3a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 1-.5-.5zM.5 11a.5.5 0 0 1 .5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 1 0 1h-3A1.5 1.5 0 0 1 0 14.5v-3a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v3a1.5 1.5 0 0 1-1.5 1.5h-3a.5.5 0 0 1 0-1h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 1 .5-.5z"/><path d="M3 5.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 8a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 8zm0 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1-.5-.5z"/></svg>
-          </div>
-          <h3>OMMR4all Import</h3>
-          <p>Read files produced by the OMMR4all optical music recognition system, allowing you to start from machine-generated transcriptions and refine them manually.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon search-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
-          </div>
-          <h3>Source &amp; Document Search</h3>
-          <p>Search across sources and documents using full-text filtering. Quickly locate chants by initium, feast day, genre, or folio reference.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon critical-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/></svg>
-          </div>
-          <h3>Critical Apparatus</h3>
-          <p>Attach structured comments, textual variants, and notes to individual neumes or syllables. Exported into a formatted critical apparatus in the PDF output.</p>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- Corpus Monodicum infrastructure: sibling tools -->
-    <section class="infra-section">
-      <div class="infra-inner">
-        <p class="infra-kicker">Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure</p>
-        <div class="infra-cards">
-          <a class="infra-card" href="https://directions.monodi.app" target="_blank" rel="noopener">
-            <div class="infra-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0Zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 4.032a.5.5 0 1 1-.74-.672l4-4.412a.5.5 0 0 1 .733-.001l2.588 2.588 3.128-3.83a.5.5 0 0 1 .704-.07Z"/></svg>
-            </div>
-            <div class="infra-text">
-              <h3>Contour Search <i class="bi bi-box-arrow-up-right"></i></h3>
-              <p>Search chant melodies by their melodic contour at <span class="infra-host">directions.monodi.app</span></p>
-            </div>
-          </a>
-          <a class="infra-card" href="https://neume.monodi.app" target="_blank" rel="noopener">
-            <div class="infra-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5v-1ZM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1ZM0 11.5A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5v-1Zm6 0A1.5 1.5 0 0 1 7.5 10h1A1.5 1.5 0 0 1 10 11.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5v-1Zm6 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5v-1Z"/></svg>
-            </div>
-            <div class="infra-text">
-              <h3>Neume Mapping <i class="bi bi-box-arrow-up-right"></i></h3>
-              <p>Map and explore neume shapes and transcriptions at <span class="infra-host">neume.monodi.app</span></p>
-            </div>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="welcome-footer">
-      <span>Part of the <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener">Corpus Monodicum</a> infrastructure, funded by <a href="https://www.adwmainz.de/" target="_blank" rel="noopener">ADW Mainz</a>.</span>
-      <span class="footer-sister-links">
-        <a href="https://directions.monodi.app" target="_blank" rel="noopener">Contour Search <i class="bi bi-box-arrow-up-right"></i></a>
-        <a href="https://neume.monodi.app" target="_blank" rel="noopener">Neume Mapping <i class="bi bi-box-arrow-up-right"></i></a>
-      </span>
-      <button class="btn-credits" (click)="openCredits(creditsModal)">Credits</button>
-    </footer>
-  </ng-template>
-
-  <!-- Shared Credits Modal -->
-  <ng-template #creditsModal let-modal>
-    <div class="modal-header border-0 pb-0">
-      <div class="d-flex align-items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#6366f1" class="me-2" viewBox="0 0 16 16">
-          <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
-        </svg>
-        <h5 class="modal-title fw-bold text-dark m-0">Project Credits</h5>
-      </div>
-      <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
-    </div>
-    <div class="modal-body pt-3">
-      <p class="mb-3" style="font-size: 0.95rem; line-height: 1.6; color: #374151;">
-        <strong><a href="https://olyro.de" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">Olyro</a></strong> developed crucial components of the software and designed its core architecture.
-      </p>
-      <p class="mb-3" style="font-size: 0.95rem; line-height: 1.6; color: #374151;">
-        <strong><a href="https://github.com/timeipert" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">Tim Eipert</a></strong> compiled the software as a standalone application and elaborated it.
-      </p>
-      <hr class="my-3 text-muted opacity-25">
-      <p class="mb-0 small text-muted" style="line-height: 1.6;">
-        The software is copyrighted by <a href="https://www.corpus-monodicum.de" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">Corpus Monodicum</a> and <a href="https://www.adwmainz.de/" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 600;">ADW Mainz</a>, but is delivered as Open Source with <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 500;">MIT license</a>.
-      </p>
-      <p class="mb-0 small text-muted mt-2" style="line-height: 1.6;">
-        <a href="https://corpus-monodicum.de/impressum" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none; font-weight: 500;">Impressum</a>
-      </p>
-    </div>
-    <div class="modal-body pt-0 border-0">
-      <div class="d-flex justify-content-end">
-        <button type="button" class="btn btn-secondary btn-sm px-3" style="background-color: #6366f1; border-color: #6366f1; font-weight: 500;" (click)="modal.close()">Close</button>
-      </div>
-    </div>
-  </ng-template>
-
-</div>
+    </ng-template>
+  </div>
+}

@@ -1,9 +1,18 @@
-<ng-container [ngSwitch]="data.content.kind">
-  <app-comment-tree-text *ngSwitchCase="'Text'" [data]="data.content" [path]="path"
-    (treeEvent)="treeEvent.emit($event)" [readOnly]="readOnly" />
-  <app-comment-tree-bracket *ngSwitchCase="'Bracket'" />
-  <app-comment-tree-notes *ngSwitchCase="'Notes'" [data]="data.content" [path]="path"
-    (treeEvent)="treeEvent.emit($event)" [readOnly]="readOnly" />
-</ng-container>
-<app-comment-tree-action-dot *ngIf="!readOnly" [supportsSettingContext]="supportsSettingContext()" [path]="path" [data]="data"
-  (treeEvent)="treeEvent.emit($event)" />
+
+@switch (data.content.kind) {
+  @case ('Text') {
+    <app-comment-tree-text [data]="data.content" [path]="path"
+      (treeEvent)="treeEvent.emit($event)" [readOnly]="readOnly" />
+  }
+  @case ('Bracket') {
+    <app-comment-tree-bracket />
+  }
+  @case ('Notes') {
+    <app-comment-tree-notes [data]="data.content" [path]="path"
+      (treeEvent)="treeEvent.emit($event)" [readOnly]="readOnly" />
+  }
+}
+@if (!readOnly) {
+  <app-comment-tree-action-dot [supportsSettingContext]="supportsSettingContext()" [path]="path" [data]="data"
+    (treeEvent)="treeEvent.emit($event)" />
+}

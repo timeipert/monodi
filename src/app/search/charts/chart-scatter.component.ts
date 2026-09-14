@@ -31,20 +31,28 @@ interface RenderPoint {
       <svg viewBox="0 0 320 220" width="100%" style="max-height: 340px;">
         <line x1="20" y1="110" x2="300" y2="110" stroke="#eef0f4" stroke-width="1" />
         <line x1="160" y1="14" x2="160" y2="206" stroke="#eef0f4" stroke-width="1" />
-        <g *ngFor="let p of rendered">
-          <circle [attr.cx]="p.cx" [attr.cy]="p.cy" r="4.5" [attr.fill]="p.color" fill-opacity="0.85" stroke="#fff" stroke-width="1">
-            <title>{{ p.label }}{{ p.group ? ' · ' + p.group : '' }}</title>
-          </circle>
-          <text *ngIf="showLabels" [attr.x]="p.cx + 6" [attr.y]="p.cy + 3" font-size="6.5" fill="#6b7280">{{ p.label }}</text>
-        </g>
+        @for (p of rendered; track p) {
+          <g>
+            <circle [attr.cx]="p.cx" [attr.cy]="p.cy" r="4.5" [attr.fill]="p.color" fill-opacity="0.85" stroke="#fff" stroke-width="1">
+              <title>{{ p.label }}{{ p.group ? ' · ' + p.group : '' }}</title>
+            </circle>
+            @if (showLabels) {
+              <text [attr.x]="p.cx + 6" [attr.y]="p.cy + 3" font-size="6.5" fill="#6b7280">{{ p.label }}</text>
+            }
+          </g>
+        }
       </svg>
-      <div class="d-flex flex-wrap gap-2 mt-1" *ngIf="legend.length > 1">
-        <span class="d-inline-flex align-items-center gap-1 small text-muted" *ngFor="let l of legend">
-          <span style="width:10px;height:10px;border-radius:9999px;display:inline-block;" [style.background]="l.color"></span>{{ l.group }}
-        </span>
-      </div>
+      @if (legend.length > 1) {
+        <div class="d-flex flex-wrap gap-2 mt-1">
+          @for (l of legend; track l) {
+            <span class="d-inline-flex align-items-center gap-1 small text-muted">
+              <span style="width:10px;height:10px;border-radius:9999px;display:inline-block;" [style.background]="l.color"></span>{{ l.group }}
+            </span>
+          }
+        </div>
+      }
     </div>
-  `,
+    `,
     standalone: false
 })
 export class ChartScatterComponent implements OnChanges {

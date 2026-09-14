@@ -1,25 +1,25 @@
-<ng-container *ngIf="!readOnly">
+@if (!readOnly) {
   <button type="button" class="tile" (click)="becomeGrid()"
-          title="Grid — align witnesses side by side">
+    title="Grid — align witnesses side by side">
     <i class="bi bi-table"></i>
     <span class="tile-label">Grid</span>
   </button>
   <button type="button" class="tile" (click)="becomeNotesLeaf()"
-          title="Chant — a musical reading in notation">
+    title="Chant — a musical reading in notation">
     <i class="bi bi-music-note-beamed"></i>
     <span class="tile-label">Chant</span>
   </button>
   <button type="button" class="tile" (click)="becomeTextLeaf()"
-          title="Text — a prose or textual reading">
+    title="Text — a prose or textual reading">
     <i class="bi bi-fonts"></i>
     <span class="tile-label">Text</span>
   </button>
   <button type="button" class="tile" (click)="becomeBracketLeaf()"
-          title="Editorial bracket">
+    title="Editorial bracket">
     <svg class="tile-ico" viewBox="0 0 12 16" fill="none" stroke="currentColor"
-         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M4.5 2 H8 V14 H4.5" />
     </svg>
     <span class="tile-label">Bracket</span>
   </button>
-</ng-container>
+}

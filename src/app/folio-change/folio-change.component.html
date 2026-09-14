@@ -1,21 +1,31 @@
 <div class="section" [style.width]="syllableWidth + 'px'" [class.read-only]="readOnly">
-	<div #svg (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)" (click)="focusSvg()" class="notes" (keydown)="keyDown($event)" tabindex="-1">
-		<svg [attr.width]="syllableWidth + 'px'">
-			<g [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">
-                          <g [attr.transform]="'translate(' + ((syllableWidth - svgWidth)/2) + ', 0)'">
-                            <rect x=0 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': 'black'" />
-                            <rect x=5 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': 'black'" />
-                            <text *ngIf="readOnly" x=10 y=97 fill="black" >{{model.text}}</text>
-						  </g>
-						  <g [attr.transform]="'translate(' + (20/2) + ', 0)'">
-							<rect  *ngIf="!readOnly && isCommentStart()" [attr.x]="-5" [attr.y]="30" fill="black" width="2px"  height="60px" fill="#A5A5A5" />
-							<rect  *ngIf="!readOnly && isCommentStart()" [attr.x]="-5" [attr.y]="30" fill="black" width="10px" height="2px" fill="#A5A5A5" />    
-							<rect  *ngIf="!readOnly && isCommentEnd()"   [attr.x]="15"  [attr.y]="30" fill="black" width="2px"  height="60px" fill="#A5A5A5" />
-							<rect  *ngIf="!readOnly && isCommentEnd()"   [attr.x]="5"  [attr.y]="30" fill="black" width="10px" height="2px" fill="#A5A5A5" />
-						  </g>
-			</g>
-		</svg>
-	</div>
-	<div (focus)="focusText()"  #changeText class="noteText" spellcheck="false" (keyup)="onTextChange()" (keydown)="onTextKeyDownChange($event)" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
-	<div                                    class="syllableText" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
+  <div #svg (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)" (click)="focusSvg()" class="notes" (keydown)="keyDown($event)" tabindex="-1">
+    <svg [attr.width]="syllableWidth + 'px'">
+      <g [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">
+        <g [attr.transform]="'translate(' + ((syllableWidth - svgWidth)/2) + ', 0)'">
+          <rect x=0 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': 'black'" />
+          <rect x=5 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': 'black'" />
+          @if (readOnly) {
+            <text x=10 y=97 fill="black" >{{model.text}}</text>
+          }
+        </g>
+        <g [attr.transform]="'translate(' + (20/2) + ', 0)'">
+          @if (!readOnly && isCommentStart()) {
+            <rect  [attr.x]="-5" [attr.y]="30" fill="black" width="2px"  height="60px" fill="#A5A5A5" />
+          }
+          @if (!readOnly && isCommentStart()) {
+            <rect  [attr.x]="-5" [attr.y]="30" fill="black" width="10px" height="2px" fill="#A5A5A5" />
+          }
+          @if (!readOnly && isCommentEnd()) {
+            <rect    [attr.x]="15"  [attr.y]="30" fill="black" width="2px"  height="60px" fill="#A5A5A5" />
+          }
+          @if (!readOnly && isCommentEnd()) {
+            <rect    [attr.x]="5"  [attr.y]="30" fill="black" width="10px" height="2px" fill="#A5A5A5" />
+          }
+        </g>
+      </g>
+    </svg>
+  </div>
+  <div (focus)="focusText()"  #changeText class="noteText" spellcheck="false" (keyup)="onTextChange()" (keydown)="onTextKeyDownChange($event)" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
+  <div                                    class="syllableText" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
 </div>

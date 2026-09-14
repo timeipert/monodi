@@ -1,72 +1,91 @@
 <div class="app-container" [class.read-only]="readOnly" [class.insertion-point]="isDragTarget">
   <div>
     <div class="content-row" [class.formteil-section]="kindIs(data, 'FormteilContainer')"
-         [class.selected-container-highlight]="isFocused()"
-         (click)="selectContainer($event)"
-         (contextmenu)="onContextMenu($event)">
-      <app-dragger *ngIf="!readOnly && !kindIs(data, 'RootContainer')" [zipper]="zipper" (dropRequested)="onDropRequested($event); isDragTarget=false"
-        (actionRequested)="executeAction($event)" [actions]="actions()"
+      [class.selected-container-highlight]="isFocused()"
+      (click)="selectContainer($event)"
+      (contextmenu)="onContextMenu($event)">
+      @if (!readOnly && !kindIs(data, 'RootContainer')) {
+        <app-dragger [zipper]="zipper" (dropRequested)="onDropRequested($event); isDragTarget=false"
+          (actionRequested)="executeAction($event)" [actions]="actions()"
         (dragEnterTarget)="isDragTarget=true" (dragLeaveTarget)="isDragTarget=false"></app-dragger>
-        
+      }
+
 
       <div class="after-dragger">
         <div class="type-identifier">
-          <ng-container *ngIf="kindIs(data, 'FormteilContainer')">
+          @if (kindIs(data, 'FormteilContainer')) {
             <span class="type-identifier-name">{{getName()}}</span>
-            <span class="ms-2 text-muted small" *ngIf="getLevelName()">{{getLevelName()}}</span>
-          </ng-container>
-          <ng-container *ngIf="kindIs(data, 'MiscContainer')">
+            @if (getLevelName()) {
+              <span class="ms-2 text-muted small">{{getLevelName()}}</span>
+            }
+          }
+          @if (kindIs(data, 'MiscContainer')) {
             <span class="type-identifier-name">Misc</span>
-          </ng-container>
-          <ng-container *ngIf="kindIs(data, 'RootContainer')">
+          }
+          @if (kindIs(data, 'RootContainer')) {
             <span class="type-identifier-name">{{name}}</span>
-            <div ngbDropdown placement="bottom-left" class="dropdown d-inline-block ms-2" *ngIf="!readOnly">
-              <div ngbDropdownToggle class="btn btn-sm btn-outline-primary rounded p-0 d-flex align-items-center justify-content-center border-0 shadow-sm" style="width: 24px; height: 24px; background-color: #eff6ff; color: #3b82f6; cursor: pointer;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-gear-fill" viewBox="0 0 16 16">
-                  <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
-                </svg>
+            @if (!readOnly) {
+              <div ngbDropdown placement="bottom-left" class="dropdown d-inline-block ms-2">
+                <div ngbDropdownToggle class="btn btn-sm btn-outline-primary rounded p-0 d-flex align-items-center justify-content-center border-0 shadow-sm" style="width: 24px; height: 24px; background-color: #eff6ff; color: #3b82f6; cursor: pointer;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-gear-fill" viewBox="0 0 16 16">
+                    <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+                  </svg>
+                </div>
+                <div ngbDropdownMenu class="shadow-sm border-0 py-1">
+                  @for (action of actions(); track action) {
+                    <button class="dropdown-item d-flex align-items-center gap-2 py-2" (click)="executeAction(action)">
+                      <i [class]="getActionIcon(action)"></i>
+                      <span>{{getActionLabel(action)}}</span>
+                    </button>
+                  }
+                </div>
               </div>
-              <div ngbDropdownMenu class="shadow-sm border-0 py-1">
-                <button class="dropdown-item d-flex align-items-center gap-2 py-2" (click)="executeAction(action)" *ngFor="let action of actions()">
-                  <i [class]="getActionIcon(action)"></i>
-                  <span>{{getActionLabel(action)}}</span>
-                </button>
+            }
+          }
+
+          @if (kindIs(data, 'RootContainer')) {
+            <div class="root-line form-inline d-flex align-items-center gap-2">
+              <div class="formteil-line-detail d-flex align-items-center flex-nowrap" style="gap: 4px;">
+                <span class="small fw-semibold text-muted" style="white-space: nowrap;">Layers</span>
+                <!-- Button group instead of <select> so clicking the current level always fires the handler -->
+                <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Number of structural layers">
+                  @for (o of documentTypes; track o) {
+                    <button type="button" class="btn"
+                      [class.btn-primary]="data.documentType === o.value"
+                      [class.btn-outline-secondary]="data.documentType !== o.value"
+                      [disabled]="canChangeDocumentType()"
+                      (click)="setDocumentType(o.value)"
+                      [title]="'Use ' + o.label + ' structural layer' + (o.label === '1' ? '' : 's')">
+                      {{ o.label }}
+                    </button>
+                  }
+                </div>
               </div>
             </div>
-          </ng-container>
+          }
 
-          <div class="root-line form-inline d-flex align-items-center gap-2" *ngIf="kindIs(data, 'RootContainer')">
-            <div class="formteil-line-detail d-flex align-items-center flex-nowrap" style="gap: 4px;">
-              <span class="small fw-semibold text-muted" style="white-space: nowrap;">Layers</span>
-              <!-- Button group instead of <select> so clicking the current level always fires the handler -->
-              <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Number of structural layers">
-                <button type="button" class="btn"
-                        *ngFor="let o of documentTypes"
-                        [class.btn-primary]="data.documentType === o.value"
-                        [class.btn-outline-secondary]="data.documentType !== o.value"
-                        [disabled]="canChangeDocumentType()"
-                        (click)="setDocumentType(o.value)"
-                        [title]="'Use ' + o.label + ' structural layer' + (o.label === '1' ? '' : 's')">
-                  {{ o.label }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="para-line form-inline d-flex align-items-center gap-2" *ngIf="kindIs(data, 'ParatextContainer')">
-            <div class="formteil-line-detail">
-              <span>Type</span> <select class='form-control' [ngModel]="data.paratextType"
+          @if (kindIs(data, 'ParatextContainer')) {
+            <div class="para-line form-inline d-flex align-items-center gap-2">
+              <div class="formteil-line-detail">
+                <span>Type</span> <select class='form-control' [ngModel]="data.paratextType"
                 (ngModelChange)="setParaType($event)">
-                <option *ngFor="let o of types">{{o}}</option>
+                @for (o of types; track o) {
+                  <option>{{o}}</option>
+                }
               </select>
             </div>
-            <div class="para-comment-button" *ngIf="!readOnly">
-              <img (click)="showParaTextComment()" title="Comment" src='assets/icons/comment.svg' />
-            </div>
+            @if (!readOnly) {
+              <div class="para-comment-button">
+                <img (click)="showParaTextComment()" title="Comment" src='assets/icons/comment.svg' />
+              </div>
+            }
           </div>
+        }
 
-          <div class="formteil-line form-inline" *ngIf="kindIs(data, 'FormteilContainer')">
-            <div *ngFor="let extraData of data.data; let i = index">
+        @if (kindIs(data, 'FormteilContainer')) {
+          <div class="formteil-line form-inline">
+            @for (extraData of data.data; track extraData; let i = $index) {
+              <div>
               <ng-container *ngTemplateOutlet="
                 extraData.name === 'LemmatisiertesTextInitium' ? LemmatisiertesTextInitium :
                 extraData.name === 'Signatur'                  ? Signatur                  :
@@ -74,9 +93,10 @@
                 extraData.name === 'Verweis'                   ? Verweis                  :
                 UnknownFormteilData
                 ; context: {'$implicit': i}">
-              </ng-container>
-              <button class="deleteData" (click)="deleteData(i)" type="button" title="Remove">×</button>
-            </div>
+                </ng-container>
+                <button class="deleteData" (click)="deleteData(i)" type="button" title="Remove">×</button>
+              </div>
+            }
             <div ngbDropdown placement="right" class="dropdown dropright d-inline-block ms-2">
               <div ngbDropdownToggle class="btn btn-sm btn-outline-success rounded-circle p-0 d-flex align-items-center justify-content-center border-0 shadow-sm" style="width: 24px; height: 24px; background-color: #ecfdf5; color: #10b981; cursor: pointer;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus" viewBox="0 0 16 16">
@@ -84,63 +104,93 @@
                 </svg>
               </div>
               <div ngbDropdownMenu class="shadow-sm border-0">
-                <button class="dropdown-item" (click)="addData(name)" *ngFor="let name of newDataName">{{getEnglishDataName(name)}}</button>
+                @for (name of newDataName; track name) {
+                  <button class="dropdown-item" (click)="addData(name)">{{getEnglishDataName(name)}}</button>
+                }
               </div>
             </div>
-
           </div>
+        }
 
-        </div>
-        <div *ngIf=" ('' + data.kind) === 'ZeileContainer'" (contextmenu)="onContextMenu($event)" [class.zeile-cv]="!readOnly">
-          <ng-container *ngFor="let child of data.children; trackBy:getUUID; let first = first">
-            <app-notes #linechild *ngIf="child.kind === 'Syllable'" [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
-              [adiastematic]="isAdiastematic()"
-              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
-              [showGClef]="first"></app-notes>
-            <app-line-change #linechild *ngIf="child.kind === 'LineChange'" [readOnly]="readOnly" [model]="child"
-              [adiastematic]="isAdiastematic()"
-              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
-              [showGClef]="first"></app-line-change>
-            <app-folio-change #linechild *ngIf="child.kind === 'FolioChange'" [readOnly]="readOnly" [model]="child"
-              [adiastematic]="isAdiastematic()"
-              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-folio-change>
-            <app-clef #linechild *ngIf="child.kind === 'Clef'" [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
-              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
-              [showGClef]="first"></app-clef>
-            <app-box #linechild *ngIf="child.kind === 'Box'" [readOnly]="readOnly" [model]="child"
-              (request)="onLinePartRequest($event, child)" [attr.data-uuid]="child.uuid"
-              [showGClef]="first">
-            </app-box>
-          </ng-container>
-        </div>
-        <div *ngIf=" ('' + data.kind) === 'ParatextContainer'">
-          <textarea (keyDown)="onKeyDown()" spellcheck="false" class="form-control" *ngIf="!readOnly"
-            [ngModel]='data.text' (ngModelChange)="setParatextTextArea($event)" #paratextInput></textarea>
-          <span *ngIf="readOnly">{{data.text}}</span>
-        </div>
       </div>
-    </div>
-  </div>
-  <div class="children">
-    <div class="child" *ngFor="let child of getChildren(); let i = index;trackBy:getUUID">
-      <app-formteil-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'FormteilContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
-      </app-formteil-section>
-      <app-misc-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'MiscContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
-      </app-misc-section>
-      <app-zeile-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'ZeileContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
-      </app-zeile-section>
-      <app-paratext-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'ParatextContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
-      </app-paratext-section>
+      @if ( ('' + data.kind) === 'ZeileContainer') {
+        <div (contextmenu)="onContextMenu($event)" [class.zeile-cv]="!readOnly">
+          @for (child of data.children; track getUUID($index, child); let first = $first) {
+            @if (child.kind === 'Syllable') {
+              <app-notes #linechild [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
+                [adiastematic]="isAdiastematic()"
+                (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
+              [showGClef]="first"></app-notes>
+            }
+            @if (child.kind === 'LineChange') {
+              <app-line-change #linechild [readOnly]="readOnly" [model]="child"
+                [adiastematic]="isAdiastematic()"
+                (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
+              [showGClef]="first"></app-line-change>
+            }
+            @if (child.kind === 'FolioChange') {
+              <app-folio-change #linechild [readOnly]="readOnly" [model]="child"
+                [adiastematic]="isAdiastematic()"
+              (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-folio-change>
+            }
+            @if (child.kind === 'Clef') {
+              <app-clef #linechild [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
+                (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
+              [showGClef]="first"></app-clef>
+            }
+            @if (child.kind === 'Box') {
+              <app-box #linechild [readOnly]="readOnly" [model]="child"
+                (request)="onLinePartRequest($event, child)" [attr.data-uuid]="child.uuid"
+                [showGClef]="first">
+              </app-box>
+            }
+          }
+        </div>
+      }
+      @if ( ('' + data.kind) === 'ParatextContainer') {
+        <div>
+          @if (!readOnly) {
+            <textarea (keyDown)="onKeyDown()" spellcheck="false" class="form-control"
+            [ngModel]='data.text' (ngModelChange)="setParatextTextArea($event)" #paratextInput></textarea>
+          }
+          @if (readOnly) {
+            <span>{{data.text}}</span>
+          }
+        </div>
+      }
     </div>
   </div>
 </div>
+<div class="children">
+  @for (child of getChildren(); track getUUID(i, child); let i = $index) {
+    <div class="child">
+      @if (child.kind === 'FormteilContainer') {
+        <app-formteil-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
+          [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
+        </app-formteil-section>
+      }
+      @if (child.kind === 'MiscContainer') {
+        <app-misc-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
+          [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
+        </app-misc-section>
+      }
+      @if (child.kind === 'ZeileContainer') {
+        <app-zeile-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
+          [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
+        </app-zeile-section>
+      }
+      @if (child.kind === 'ParatextContainer') {
+        <app-paratext-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
+          [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
+        </app-paratext-section>
+      }
+    </div>
+  }
+</div>
+</div>
 
 <ng-template #LemmatisiertesTextInitium let-index>Lem. Text Init. <input class="form-control"
-    [(ngModel)]="data.data[index].data" /></ng-template>
+[(ngModel)]="data.data[index].data" /></ng-template>
 <ng-template #Signatur let-index>Signature
   <input class="form-control form-control-sm d-inline-block ms-2" style="width: auto; min-width: 6ch; max-width: 100%; field-sizing: content;" [size]="getFormControlData(index)?.length || 6" [ngModel]="getFormControlData(index)" (ngModelChange)="setFormControl($event, index)" />
 </ng-template>
@@ -153,5 +203,5 @@
   </select>
 </ng-template>
 <ng-template #Verweis let-index>Reference <input class="form-control" [ngModel]="getFormControlData(index)"
-    (ngModelChange)="setFormControl($event, index)" /></ng-template>
+(ngModelChange)="setFormControl($event, index)" /></ng-template>
 <ng-template #UnknownFormteilData let-index>can't show {{data.data[index].name}}</ng-template>

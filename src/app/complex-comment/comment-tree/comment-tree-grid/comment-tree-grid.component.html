@@ -1,26 +1,46 @@
-<div *ngIf="path.length === 0" class="orientation-caption">
-  columns &rarr; segments &middot; rows &darr; witnesses
-</div>
+@if (path.length === 0) {
+  <div class="orientation-caption">
+    columns &rarr; segments &middot; rows &darr; witnesses
+  </div>
+}
 
-<div [ngClass]="{'grid-entry': true, 'first-row': entry.row == 0, 'first-col': entry.col == 0, 'hovered-row': hoverRow === entry.row, 'hovered-col': hoverCol === entry.col}"
-  (mouseenter)="setHover(entry.row, entry.col)" (mouseleave)="setHover(null, null)"
-  *ngFor=" let entry of entries(); trackBy:identifyEntry">
-  <div class="dummy"></div>
-  <div *ngIf="!readOnly" (click)="delCol(entry.col)" class="del-col" title="Delete this column"><i class="bi bi-trash"></i></div>
-  <div *ngIf="!readOnly" (click)="delRow(entry.row)" class="del-row" title="Delete this row"><i class="bi bi-trash"></i></div>
-  <app-comment-tree-undecided *ngIf="entry.sub.kind == 'CommentTreeUndecided'" [path]="entry.path"
-    (treeEvent)="treeEvent.emit($event)" [data]="entry.sub" [originalCreator]="originalCreator" [readOnly]="readOnly" />
-  <app-comment-tree-leaf *ngIf="entry.sub.kind == 'CommentTreeLeaf'" [path]="entry.path"
-    (treeEvent)="treeEvent.emit($event)" [data]="entry.sub" [readOnly]="readOnly" />
-  <app-comment-tree-grid *ngIf="entry.sub.kind == 'CommentTreeGrid'" [path]="entry.path"
-    (treeEvent)="treeEvent.emit($event)" [data]="entry.sub" [originalCreator]="originalCreator" [readOnly]="readOnly" />
-</div>
+@for ( entry of entries(); track identifyEntry($index,  entry)) {
+  <div [ngClass]="{'grid-entry': true, 'first-row': entry.row == 0, 'first-col': entry.col == 0, 'hovered-row': hoverRow === entry.row, 'hovered-col': hoverCol === entry.col}"
+    (mouseenter)="setHover(entry.row, entry.col)" (mouseleave)="setHover(null, null)"
+    >
+    <div class="dummy"></div>
+    @if (!readOnly) {
+      <div (click)="delCol(entry.col)" class="del-col" title="Delete this column"><i class="bi bi-trash"></i></div>
+    }
+    @if (!readOnly) {
+      <div (click)="delRow(entry.row)" class="del-row" title="Delete this row"><i class="bi bi-trash"></i></div>
+    }
+    @if (entry.sub.kind == 'CommentTreeUndecided') {
+      <app-comment-tree-undecided [path]="entry.path"
+        (treeEvent)="treeEvent.emit($event)" [data]="entry.sub" [originalCreator]="originalCreator" [readOnly]="readOnly" />
+    }
+    @if (entry.sub.kind == 'CommentTreeLeaf') {
+      <app-comment-tree-leaf [path]="entry.path"
+        (treeEvent)="treeEvent.emit($event)" [data]="entry.sub" [readOnly]="readOnly" />
+    }
+    @if (entry.sub.kind == 'CommentTreeGrid') {
+      <app-comment-tree-grid [path]="entry.path"
+        (treeEvent)="treeEvent.emit($event)" [data]="entry.sub" [originalCreator]="originalCreator" [readOnly]="readOnly" />
+    }
+  </div>
+}
 
-<button *ngIf="!readOnly" (click)="addRow()" class="add-row btn btn-outline-secondary btn-sm" title="Add row (e.g. another witness)">
-  <i class="bi bi-plus-lg"></i> Row
-</button>
-<button *ngIf="!readOnly" (click)="addCol()" class="add-col btn btn-outline-secondary btn-sm" title="Add column (e.g. next segment)">
-  <i class="bi bi-plus-lg"></i> Column
-</button>
-<app-comment-tree-action-dot *ngIf="!readOnly" [supportsSettingContext]="false" [data]="data" [path]="path"
-  (treeEvent)="treeEvent.emit($event)" />
+@if (!readOnly) {
+  <button (click)="addRow()" class="add-row btn btn-outline-secondary btn-sm" title="Add row (e.g. another witness)">
+    <i class="bi bi-plus-lg"></i> Row
+  </button>
+}
+@if (!readOnly) {
+  <button (click)="addCol()" class="add-col btn btn-outline-secondary btn-sm" title="Add column (e.g. next segment)">
+    <i class="bi bi-plus-lg"></i> Column
+  </button>
+}
+@if (!readOnly) {
+  <app-comment-tree-action-dot [supportsSettingContext]="false" [data]="data" [path]="path"
+    (treeEvent)="treeEvent.emit($event)" />
+}

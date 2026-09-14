@@ -152,13 +152,15 @@ function renderSvg(pattern: string): { svgContent: string; viewBox: string; widt
 @Component({
     selector: 'app-svg-pattern',
     template: `
-    <svg *ngIf="rendered"
-         class="svg-pattern"
-         [attr.width]="rendered.width"
-         [attr.height]="rendered.height"
-         [attr.viewBox]="rendered.viewBox"
-         [innerHTML]="safeHtml">
-    </svg>`,
+    @if (rendered) {
+      <svg
+        class="svg-pattern"
+        [attr.width]="rendered.width"
+        [attr.height]="rendered.height"
+        [attr.viewBox]="rendered.viewBox"
+        [innerHTML]="safeHtml">
+      </svg>
+    }`,
     styles: [`
     :host { display: inline-block; }
     .svg-pattern { display: block; color: #222; }

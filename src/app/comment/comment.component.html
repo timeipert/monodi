@@ -3,19 +3,21 @@
     <h4 class="modal-title fw-bold mb-0">
       <i class="bi bi-chat-square-text"></i>
       Critical Apparatus
-      <span class="header-sub" *ngIf="activeComments().length > 0">
-        ({{activeComments().length}} {{activeComments().length === 1 ? 'entry' : 'entries'}})
-      </span>
+      @if (activeComments().length > 0) {
+        <span class="header-sub">
+          ({{activeComments().length}} {{activeComments().length === 1 ? 'entry' : 'entries'}})
+        </span>
+      }
     </h4>
-    
-    <button type="button" 
-            class="btn btn-sm btn-outline-secondary rounded-circle ms-2"
-            style="width: 20px; height: 20px; padding: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: bold; border-color: #cbd5e1; color: #64748b;"
-            [ngbPopover]="helpContent"
-            popoverTitle="Apparatus Help"
-            placement="bottom-end"
-            triggers="click"
-            [autoClose]="'outside'">
+
+    <button type="button"
+      class="btn btn-sm btn-outline-secondary rounded-circle ms-2"
+      style="width: 20px; height: 20px; padding: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: bold; border-color: #cbd5e1; color: #64748b;"
+      [ngbPopover]="helpContent"
+      popoverTitle="Apparatus Help"
+      placement="bottom-end"
+      triggers="click"
+      [autoClose]="'outside'">
       ?
     </button>
   </div>
@@ -34,157 +36,167 @@
   </div>
 </ng-template>
 
-<div class="comment-chips-container" *ngIf="activeComments().length > 1">
-  <button *ngFor="let item of getCommentsWithIndices()"
-          class="comment-chip"
-          [class.active]="selectedIndex === item.originalIndex"
-          (click)="selectComment(item.originalIndex)">
-    <span class="color-dot" [style.background-color]="commentColor(item.originalIndex)"></span>
-    {{item.sequentialIndex}}
-  </button>
-</div>
+@if (activeComments().length > 1) {
+  <div class="comment-chips-container">
+    @for (item of getCommentsWithIndices(); track item) {
+      <button
+        class="comment-chip"
+        [class.active]="selectedIndex === item.originalIndex"
+        (click)="selectComment(item.originalIndex)">
+        <span class="color-dot" [style.background-color]="commentColor(item.originalIndex)"></span>
+        {{item.sequentialIndex}}
+      </button>
+    }
+  </div>
+}
 
 <div class="modal-body">
 
   <!-- Inline Undo Bar -->
-  <div *ngIf="pendingDeletion" class="undo-alert-bar alert alert-secondary d-flex justify-content-between align-items-center mb-3 py-2 px-3">
-    <span class="undo-message"><i class="bi bi-trash3 me-2"></i>Comment deleted</span>
-    <button type="button" class="btn btn-sm btn-outline-danger undo-btn px-3 rounded-pill" (click)="undoDeletion()">Undo</button>
-  </div>
-
-  <div *ngIf="comments[selectedIndex] as comment" class="note-comment">
-
-    <!-- Header row: index pill + delete -->
-    <div class="card-header-row">
-      <span class="index-pill">
-        <i class="bi bi-chat-left-quote"></i>
-        Comment {{getSequentialIndex(comment)}}
-      </span>
-      <button type="button"
-              class="delete-btn"
-              [class.armed]="isArmed"
-              (click)="deleteComment(comment)"
-              [title]="isArmed ? 'Confirm deletion' : 'Delete this comment'">
-        <i class="bi bi-trash3"></i>
-        <span *ngIf="isArmed">Confirm delete</span>
-      </button>
+  @if (pendingDeletion) {
+    <div class="undo-alert-bar alert alert-secondary d-flex justify-content-between align-items-center mb-3 py-2 px-3">
+      <span class="undo-message"><i class="bi bi-trash3 me-2"></i>Comment deleted</span>
+      <button type="button" class="btn btn-sm btn-outline-danger undo-btn px-3 rounded-pill" (click)="undoDeletion()">Undo</button>
     </div>
+  }
 
-    <!-- 2-Pane Split Grid -->
-    <div class="comment-grid">
-      
-      <!-- LEFT Rail (fixed context & metadata) -->
-      <div class="left-rail">
-        <div class="sidebar-panel">
-
-          <!-- Classification card -->
-          <div class="sidebar-section">
-            <span class="section-label">Classification</span>
-            <div class="toggle-chips">
-              <button *ngFor="let cat of COMMENT_CATEGORIES"
-                      type="button"
-                      class="toggle-chip"
-                      [class.active]="comment.category === cat.key"
-                      [style.--chip-color]="cat.color"
-                      [title]="cat.label"
-                      (click)="toggleCategory(comment, cat.key)">
-                <i class="bi" [class]="cat.icon"></i>
-                <span>{{cat.short}}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Intervention card -->
-          <div class="sidebar-section border-top pt-3">
-            <span class="section-label">Intervention</span>
-            <div class="toggle-chips intervention-chips">
-              <button *ngFor="let item of INTERVENTIONS"
-                      type="button"
-                      class="toggle-chip"
-                      [class.active]="comment.intervention === item.key"
-                      [title]="item.label"
-                      (click)="toggleIntervention(comment, item.key)">
-                <i class="bi" [class]="item.icon"></i>
-                <span>{{item.label}}</span>
-              </button>
-            </div>
-
-            <!-- Certainty selection (if unclear) -->
-            <div *ngIf="comment.intervention === 'unclear'" class="certainty-container mt-3 border-top pt-3">
-              <span class="section-label mb-2 d-block">Certainty</span>
-              <select class="form-select form-select-sm"
-                      [ngModel]="comment.certainty ?? ''"
-                      (ngModelChange)="updateCertainty(comment, $event)">
-                <option value="">Not set</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
-          </div>
-
-        </div>
+  @if (comments[selectedIndex]; as comment) {
+    <div class="note-comment">
+      <!-- Header row: index pill + delete -->
+      <div class="card-header-row">
+        <span class="index-pill">
+          <i class="bi bi-chat-left-quote"></i>
+          Comment {{getSequentialIndex(comment)}}
+        </span>
+        <button type="button"
+          class="delete-btn"
+          [class.armed]="isArmed"
+          (click)="deleteComment(comment)"
+          [title]="isArmed ? 'Confirm deletion' : 'Delete this comment'">
+          <i class="bi bi-trash3"></i>
+          @if (isArmed) {
+            <span>Confirm delete</span>
+          }
+        </button>
       </div>
-
-      <!-- RIGHT Pane (content editor) — a comment's content is always a tree -->
-      <div class="right-pane">
-        <label class="mb-2">Structure</label>
-
-        <!-- Template bar: one-click starting structures -->
-        <div class="template-bar">
-          <!-- Built-in templates -->
-          <button *ngFor="let tpl of COMMENT_TEMPLATES"
-                  type="button"
-                  class="toggle-chip template-chip"
-                  [class.armed]="armedTemplateKey === tpl.key"
-                  [title]="armedTemplateKey === tpl.key ? 'Click again to replace the current structure' : tpl.label"
-                  (click)="applyTemplate(comment, tpl.key)">
-            <i class="bi" [class]="armedTemplateKey === tpl.key ? 'bi-exclamation-triangle' : tpl.icon"></i>
-            <span>{{ armedTemplateKey === tpl.key ? 'Replace?' : tpl.label }}</span>
-          </button>
-
-          <!-- User-saved templates -->
-          <span *ngFor="let saved of savedTemplates" class="saved-chip-wrap">
+      <!-- 2-Pane Split Grid -->
+      <div class="comment-grid">
+        <!-- LEFT Rail (fixed context & metadata) -->
+        <div class="left-rail">
+          <div class="sidebar-panel">
+            <!-- Classification card -->
+            <div class="sidebar-section">
+              <span class="section-label">Classification</span>
+              <div class="toggle-chips">
+                @for (cat of COMMENT_CATEGORIES; track cat) {
+                  <button
+                    type="button"
+                    class="toggle-chip"
+                    [class.active]="comment.category === cat.key"
+                    [style.--chip-color]="cat.color"
+                    [title]="cat.label"
+                    (click)="toggleCategory(comment, cat.key)">
+                    <i class="bi" [class]="cat.icon"></i>
+                    <span>{{cat.short}}</span>
+                  </button>
+                }
+              </div>
+            </div>
+            <!-- Intervention card -->
+            <div class="sidebar-section border-top pt-3">
+              <span class="section-label">Intervention</span>
+              <div class="toggle-chips intervention-chips">
+                @for (item of INTERVENTIONS; track item) {
+                  <button
+                    type="button"
+                    class="toggle-chip"
+                    [class.active]="comment.intervention === item.key"
+                    [title]="item.label"
+                    (click)="toggleIntervention(comment, item.key)">
+                    <i class="bi" [class]="item.icon"></i>
+                    <span>{{item.label}}</span>
+                  </button>
+                }
+              </div>
+              <!-- Certainty selection (if unclear) -->
+              @if (comment.intervention === 'unclear') {
+                <div class="certainty-container mt-3 border-top pt-3">
+                  <span class="section-label mb-2 d-block">Certainty</span>
+                  <select class="form-select form-select-sm"
+                    [ngModel]="comment.certainty ?? ''"
+                    (ngModelChange)="updateCertainty(comment, $event)">
+                    <option value="">Not set</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+        <!-- RIGHT Pane (content editor) — a comment's content is always a tree -->
+        <div class="right-pane">
+          <label class="mb-2">Structure</label>
+          <!-- Template bar: one-click starting structures -->
+          <div class="template-bar">
+            <!-- Built-in templates -->
+            @for (tpl of COMMENT_TEMPLATES; track tpl) {
+              <button
+                type="button"
+                class="toggle-chip template-chip"
+                [class.armed]="armedTemplateKey === tpl.key"
+                [title]="armedTemplateKey === tpl.key ? 'Click again to replace the current structure' : tpl.label"
+                (click)="applyTemplate(comment, tpl.key)">
+                <i class="bi" [class]="armedTemplateKey === tpl.key ? 'bi-exclamation-triangle' : tpl.icon"></i>
+                <span>{{ armedTemplateKey === tpl.key ? 'Replace?' : tpl.label }}</span>
+              </button>
+            }
+            <!-- User-saved templates -->
+            @for (saved of savedTemplates; track saved) {
+              <span class="saved-chip-wrap">
+                <button type="button"
+                  class="toggle-chip template-chip saved-chip"
+                  [class.armed]="armedTemplateKey === saved.id"
+                  [title]="armedTemplateKey === saved.id ? 'Click again to replace the current structure' : ('Apply template: ' + saved.name)"
+                  (click)="applySavedTemplate(comment, saved)">
+                  <i class="bi" [class]="armedTemplateKey === saved.id ? 'bi-exclamation-triangle' : 'bi-bookmark'"></i>
+                  <span>{{ armedTemplateKey === saved.id ? 'Replace?' : saved.name }}</span>
+                </button>
+                <button type="button" class="saved-chip-delete"
+                  title="Delete template" aria-label="Delete template"
+                  (click)="deleteSavedTemplate(saved, $event)">
+                  <i class="bi bi-x"></i>
+                </button>
+              </span>
+            }
+            <!-- Save current structure as a template -->
             <button type="button"
-                    class="toggle-chip template-chip saved-chip"
-                    [class.armed]="armedTemplateKey === saved.id"
-                    [title]="armedTemplateKey === saved.id ? 'Click again to replace the current structure' : ('Apply template: ' + saved.name)"
-                    (click)="applySavedTemplate(comment, saved)">
-              <i class="bi" [class]="armedTemplateKey === saved.id ? 'bi-exclamation-triangle' : 'bi-bookmark'"></i>
-              <span>{{ armedTemplateKey === saved.id ? 'Replace?' : saved.name }}</span>
+              class="toggle-chip template-chip save-chip"
+              title="Save the current structure as a template"
+              (click)="saveAsTemplate(comment)">
+              <i class="bi bi-bookmark-plus"></i>
+              <span>Save</span>
             </button>
-            <button type="button" class="saved-chip-delete"
-                    title="Delete template" aria-label="Delete template"
-                    (click)="deleteSavedTemplate(saved, $event)">
-              <i class="bi bi-x"></i>
-            </button>
-          </span>
-
-          <!-- Save current structure as a template -->
-          <button type="button"
-                  class="toggle-chip template-chip save-chip"
-                  title="Save the current structure as a template"
-                  (click)="saveAsTemplate(comment)">
-            <i class="bi bi-bookmark-plus"></i>
-            <span>Save</span>
-          </button>
-        </div>
-
-        <div class="panel">
-          <app-comment-tree *ngIf="comment.tree" [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event, comment)"
-            [originalCreator]="originalCreator(comment)" />
+          </div>
+          <div class="panel">
+            @if (comment.tree) {
+              <app-comment-tree [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event, comment)"
+                [originalCreator]="originalCreator(comment)" />
+            }
+          </div>
         </div>
       </div>
-
     </div>
+  }
 
-  </div>
-
-  <div *ngIf="activeComments().length === 0" class="empty-state">
-    <i class="bi bi-chat-square-dots"></i>
-    <h5>No comments to edit</h5>
-    <p class="small mb-0">All comments on this span have been deleted.</p>
-  </div>
+  @if (activeComments().length === 0) {
+    <div class="empty-state">
+      <i class="bi bi-chat-square-dots"></i>
+      <h5>No comments to edit</h5>
+      <p class="small mb-0">All comments on this span have been deleted.</p>
+    </div>
+  }
 </div>
 
 <div class="modal-footer">
@@ -196,5 +208,7 @@
 </div>
 
 <datalist id="sigla-list">
-  <option *ngFor="let s of sigla" [value]="s"></option>
+  @for (s of sigla; track s) {
+    <option [value]="s"></option>
+  }
 </datalist>

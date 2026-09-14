@@ -8,10 +8,12 @@
     <!-- Toolbar -->
     <div class="d-flex align-items-center gap-2 flex-wrap">
       <!-- Profile Selector -->
-      <select class="form-select form-select-sm w-auto" 
-              [ngModel]="settings.activeMeiProfileId" 
-              (change)="onProfileChange($event)">
-        <option *ngFor="let p of settings.meiProfiles" [value]="p.id">{{ p.name }}</option>
+      <select class="form-select form-select-sm w-auto"
+        [ngModel]="settings.activeMeiProfileId"
+        (change)="onProfileChange($event)">
+        @for (p of settings.meiProfiles; track p) {
+          <option [value]="p.id">{{ p.name }}</option>
+        }
       </select>
 
       <div class="btn-group btn-group-sm">
@@ -50,382 +52,422 @@
 
   <div class="card-body bg-white p-0">
     <!-- Validation Alerts -->
-    <div class="px-4 pt-3 pb-0" *ngIf="validationErrors && validationErrors.length > 0">
-      <div *ngFor="let err of validationErrors" 
-           class="alert alert-sm mb-2 d-flex align-items-center"
-           [ngClass]="err.isError ? 'alert-danger' : 'alert-warning'">
-        <i class="bi me-2" [ngClass]="err.isError ? 'bi-x-circle-fill' : 'bi-exclamation-triangle-fill'"></i>
-        <div>
-          <strong *ngIf="err.entity" class="me-1 cursor-pointer text-decoration-underline" (click)="selectNode(err.entity)">{{ err.entity | titlecase }}:</strong>
-          {{ err.message }}
-        </div>
-      </div>
-    </div>
-    <div class="px-4 pt-3 pb-0" *ngIf="activeProfile && (!validationErrors || validationErrors.length === 0)">
-      <div class="alert alert-success alert-sm mb-2 d-flex align-items-center">
-        <i class="bi bi-check-circle-fill me-2"></i> Output is well-formed.
-      </div>
-    </div>
-
-    <div class="row g-0" *ngIf="activeProfile; else noProfileTpl">
-      
-      <!-- Column 1: Entities Tree -->
-      <div class="col-12 col-md-4 col-xl-3 border-end">
-        <div class="p-3 bg-light border-bottom">
-          <h6 class="mb-0 fw-semibold text-secondary">Mapping Structure</h6>
-        </div>
-        <div class="p-3" style="max-height: 600px; overflow-y: auto;">
-          <ul class="entity-tree">
-            <!-- SKELETON -->
-            <li>
-              <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'skeleton'" (click)="selectNode('skeleton')">
-                <i class="bi bi-file-code me-2 text-muted"></i>
-                <span class="me-auto">Document Skeleton</span>
-                <span class="modified-dot ms-2" *ngIf="skeletonDiffers()" title="Modified from default"></span>
-              </div>
-            </li>
-            
-            <!-- FORMTEIL -->
-            <li>
-              <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'formteil'" [class.text-muted]="!activeProfile.entities.formteil.enabled" (click)="selectNode('formteil')">
-                <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.formteil.enabled" (ngModelChange)="emitChange()">
-                <span class="me-auto">Formteil</span>
-                <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.formteil.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('formteil')" title="Modified from default"></span>
-              </div>
-              
-              <!-- ZEILE -->
-              <ul>
-                <li>
-                  <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'zeile'" [class.text-muted]="!activeProfile.entities.zeile.enabled" (click)="selectNode('zeile')">
-                    <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.zeile.enabled" (ngModelChange)="emitChange()">
-                    <span class="me-auto">Line</span>
-                    <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.zeile.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('zeile')" title="Modified from default"></span>
-                  </div>
-                  
-                  <ul>
-                    <!-- CLEF -->
-                    <li>
-                      <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'clef'" [class.text-muted]="!activeProfile.entities.clef.enabled" (click)="selectNode('clef')">
-                        <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.clef.enabled" (ngModelChange)="emitChange()">
-                        <span class="me-auto">Clef</span>
-                        <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.clef.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('clef')" title="Modified from default"></span>
-                      </div>
-                    </li>
-                    
-                    <!-- SYLLABLE -->
-                    <li>
-                      <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllable'" [class.text-muted]="!activeProfile.entities.syllable.enabled" (click)="selectNode('syllable')">
-                        <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllable.enabled" (ngModelChange)="emitChange()">
-                        <span class="me-auto">Syllable</span>
-                        <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllable.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('syllable')" title="Modified from default"></span>
-                      </div>
-                      
-                      <ul>
-                        <!-- SYLLABLE TEXT -->
-                        <li>
-                          <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllableText'" [class.text-muted]="!activeProfile.entities.syllableText.enabled" (click)="selectNode('syllableText')">
-                            <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllableText.enabled" (ngModelChange)="emitChange()">
-                            <span class="me-auto">Text</span>
-                            <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllableText.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('syllableText')" title="Modified from default"></span>
-                          </div>
-                        </li>
-                        
-                        <!-- NEUME -->
-                        <li>
-                          <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'neume'" [class.text-muted]="!activeProfile.entities.neume.enabled" (click)="selectNode('neume')">
-                            <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.neume.enabled" (ngModelChange)="emitChange()">
-                            <span class="me-auto">Neume</span>
-                            <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.neume.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('neume')" title="Modified from default"></span>
-                          </div>
-                          
-                          <ul>
-                            <!-- NOTE -->
-                            <li>
-                              <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'note'" [class.text-muted]="!activeProfile.entities.note.enabled" (click)="selectNode('note')">
-                                <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.note.enabled" (ngModelChange)="emitChange()">
-                                <span class="me-auto">Note</span>
-                                <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.note.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('note')" title="Modified from default"></span>
-                              </div>
-                              
-                              <ul>
-                                <!-- ORISCUS -->
-                                <li>
-                                  <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'oriscus'" [class.text-muted]="!activeProfile.entities.oriscus.enabled" (click)="selectNode('oriscus')">
-                                    <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.oriscus.enabled" (ngModelChange)="emitChange()">
-                                    <span class="me-auto">Oriscus</span>
-                                    <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.oriscus.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('oriscus')" title="Modified from default"></span>
-                                  </div>
-                                </li>
-                                <!-- QUILISMA -->
-                                <li>
-                                  <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'quilisma'" [class.text-muted]="!activeProfile.entities.quilisma.enabled" (click)="selectNode('quilisma')">
-                                    <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.quilisma.enabled" (ngModelChange)="emitChange()">
-                                    <span class="me-auto">Quilisma</span>
-                                    <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.quilisma.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('quilisma')" title="Modified from default"></span>
-                                  </div>
-                                </li>
-                                <!-- STROPHICUS -->
-                                <li>
-                                  <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'strophicus'" [class.text-muted]="!activeProfile.entities.strophicus.enabled" (click)="selectNode('strophicus')">
-                                    <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.strophicus.enabled" (ngModelChange)="emitChange()">
-                                    <span class="me-auto">Strophicus</span>
-                                    <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.strophicus.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('strophicus')" title="Modified from default"></span>
-                                  </div>
-                                </li>
-                                <!-- LIQUESCENT -->
-                                <li>
-                                  <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'liquescent'" [class.text-muted]="!activeProfile.entities.liquescent.enabled" (click)="selectNode('liquescent')">
-                                    <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.liquescent.enabled" (ngModelChange)="emitChange()">
-                                    <span class="me-auto">Liquescent</span>
-                                    <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.liquescent.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('liquescent')" title="Modified from default"></span>
-                                  </div>
-                                </li>
-                              </ul>
-                            </li>
-                          </ul>
-                        </li>
-                      </ul>
-                    </li>
-
-                    <!-- PARATEXT -->
-                    <li>
-                      <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'paratext'" [class.text-muted]="!activeProfile.entities.paratext.enabled" (click)="selectNode('paratext')">
-                        <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.paratext.enabled" (ngModelChange)="emitChange()">
-                        <span class="me-auto">Paratext</span>
-                        <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.paratext.tag}}&gt;</span>
-                <span class="modified-dot ms-2" *ngIf="entityDiffers('paratext')" title="Modified from default"></span>
-                      </div>
-                    </li>
-                  </ul>
-                </li>
-              </ul>
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Column 2: Rule Editor -->
-      <div class="col-12 col-md-8 col-xl-5 border-end bg-white">
-        <div class="p-3 bg-light border-bottom d-flex align-items-center">
-          <h6 class="mb-0 fw-semibold text-secondary">
-            {{ selectedNodeId === 'skeleton' ? 'Document Skeleton Settings' : 'Mapping Rule Editor' }}
-          </h6>
-        </div>
-        <div class="p-4" style="max-height: 600px; overflow-y: auto;">
-
-          <!-- SKELETON EDITOR -->
-          <ng-container *ngIf="selectedNodeId === 'skeleton'">
-            <div class="mb-4">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="emitHeaderCheck" [(ngModel)]="activeProfile.emitHeader" (ngModelChange)="emitChange()">
-                <label class="form-check-label fw-medium" for="emitHeaderCheck">Emit standard &lt;meiHead&gt; block</label>
-              </div>
-              <small class="text-muted d-block mt-1">If enabled, a standard MEI header containing document metadata will be prepended.</small>
-            </div>
-
-            <div class="mb-4">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="inlineInterventionsCheck" [(ngModel)]="activeProfile.inlineInterventions" (ngModelChange)="emitChange()">
-                <label class="form-check-label fw-medium" for="inlineInterventionsCheck">Encode interventions inline (experimental)</label>
-              </div>
-              <small class="text-muted d-block mt-1">If enabled, unclear and supplied editorial interventions will be encoded directly in the musical notation structure.</small>
-            </div>
-
+    @if (validationErrors && validationErrors.length > 0) {
+      <div class="px-4 pt-3 pb-0">
+        @for (err of validationErrors; track err) {
+          <div
+            class="alert alert-sm mb-2 d-flex align-items-center"
+            [ngClass]="err.isError ? 'alert-danger' : 'alert-warning'">
+            <i class="bi me-2" [ngClass]="err.isError ? 'bi-x-circle-fill' : 'bi-exclamation-triangle-fill'"></i>
             <div>
-              <label class="form-label fw-medium">Root Wrappers / Skeleton</label>
-              <p class="text-muted small mb-2">Defines the nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
-              
-              <div class="wrapper-chips mb-3">
-                <div class="wrapper-chip" *ngFor="let wrap of activeProfile.skeleton; let i = index; let last = last">
-                  <span>&lt;{{wrap}}&gt;</span>
-                  <div class="wrapper-chip-actions ms-2">
-                    <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, -1)" [disabled]="i === 0"><i class="bi bi-caret-left-fill" style="font-size: 0.6rem;"></i></button>
-                    <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, 1)" [disabled]="last"><i class="bi bi-caret-right-fill" style="font-size: 0.6rem;"></i></button>
-                  </div>
-                  <button class="btn btn-link text-danger p-0 ms-2" (click)="removeWrapper(i)"><i class="bi bi-x-circle"></i></button>
-                  <i *ngIf="!last" class="bi bi-arrow-right ms-2 wrapper-separator"></i>
-                </div>
-                <div *ngIf="activeProfile.skeleton.length === 0" class="text-muted small font-monospace">None</div>
-              </div>
-
-              <div class="input-group input-group-sm w-50">
-                <input type="text" class="form-control" placeholder="Add wrapper tag..." #newSkelInput list="meiSuggestionsList" (keyup.enter)="addWrapper(newSkelInput.value); newSkelInput.value = ''">
-                <button class="btn btn-outline-secondary" (click)="addWrapper(newSkelInput.value); newSkelInput.value = ''">Add</button>
-              </div>
+              @if (err.entity) {
+                <strong class="me-1 cursor-pointer text-decoration-underline" (click)="selectNode(err.entity)">{{ err.entity | titlecase }}:</strong>
+              }
+              {{ err.message }}
             </div>
-          </ng-container>
-
-          <!-- ENTITY EDITOR -->
-          <ng-container *ngIf="activeRule">
-            <div *ngIf="selectedEntityDiffers" class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
-              <span class="small text-warning-emphasis d-flex align-items-center">
-                <span class="modified-dot me-2"></span>Modified from default
-              </span>
-              <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
-                      [class.text-warning]="armedResetEntity === selectedNodeId"
-                      (click)="resetEntityToDefault()">
-                <i class="bi bi-arrow-counterclockwise me-1"></i>{{ armedResetEntity === selectedNodeId ? 'Click again to confirm' : 'Reset this entity to default' }}
-              </button>
-            </div>
-
-            <div *ngIf="!activeRule.enabled" class="alert alert-secondary py-2 mb-4">
-              <i class="bi bi-info-circle me-2"></i> This entity is disabled and will be omitted from the MEI output. (Children of a structural entity will still be emitted, flattened).
-            </div>
-
-            <div class="mb-4" [class.opacity-50]="!activeRule.enabled">
-              <label class="form-label fw-medium">Element Tag</label>
-              <div class="input-group input-group-sm w-50">
-                <span class="input-group-text font-monospace text-muted">&lt;</span>
-                <input type="text" class="form-control font-monospace" [(ngModel)]="activeRule.tag" (ngModelChange)="emitChange()" list="meiSuggestionsList" [disabled]="!activeRule.enabled">
-                <span class="input-group-text font-monospace text-muted">&gt;</span>
-              </div>
-            </div>
-
-            <div class="mb-4" [class.opacity-50]="!activeRule.enabled">
-              <label class="form-label fw-medium">Wrappers</label>
-              <p class="text-muted small mb-2">Nested elements to wrap around each instance. (Outermost &rarr; Tag)</p>
-              
-              <div class="wrapper-chips mb-3">
-                <ng-container *ngFor="let wrap of activeRule.wrappers; let i = index">
-                  <div class="wrapper-chip">
-                    <span>&lt;{{wrap}}&gt;</span>
-                    <div class="wrapper-chip-actions ms-2">
-                      <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, -1)" [disabled]="i === 0 || !activeRule.enabled"><i class="bi bi-caret-left-fill" style="font-size: 0.6rem;"></i></button>
-                      <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, 1)" [disabled]="i === activeRule.wrappers.length - 1 || !activeRule.enabled"><i class="bi bi-caret-right-fill" style="font-size: 0.6rem;"></i></button>
-                    </div>
-                    <button class="btn btn-link text-danger p-0 ms-2" (click)="removeWrapper(i)" [disabled]="!activeRule.enabled"><i class="bi bi-x-circle"></i></button>
-                  </div>
-                  <i class="bi bi-arrow-right wrapper-separator"></i>
-                </ng-container>
-                <div class="wrapper-chip border-primary text-primary bg-primary-subtle font-monospace">
-                  &lt;{{activeRule.tag || '...'}}&gt;
-                </div>
-              </div>
-
-              <div class="input-group input-group-sm w-50">
-                <input type="text" class="form-control" placeholder="Add wrapper tag..." #newWrapInput list="meiSuggestionsList" [disabled]="!activeRule.enabled" (keyup.enter)="addWrapper(newWrapInput.value); newWrapInput.value = ''">
-                <button class="btn btn-outline-secondary" (click)="addWrapper(newWrapInput.value); newWrapInput.value = ''" [disabled]="!activeRule.enabled">Add</button>
-              </div>
-            </div>
-
-            <div class="mb-4" [class.opacity-50]="!activeRule.enabled">
-              <label class="form-label fw-medium">Attributes</label>
-              <div class="table-responsive border rounded mb-2">
-                <table class="table table-sm table-hover mb-0 align-middle">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Name</th>
-                      <th>Source</th>
-                      <th>Value</th>
-                      <th class="text-center" title="Omit if empty">Opt?</th>
-                      <th style="width: 40px;"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let attr of activeRule.attributes; let i = index">
-                      <td>
-                        <input type="text" class="form-control form-control-sm font-monospace" [(ngModel)]="attr.name" (ngModelChange)="emitChange()" list="commonAttributesList" placeholder="e.g. pname" [disabled]="!activeRule.enabled">
-                      </td>
-                      <td style="width: 120px;">
-                        <select class="form-select form-select-sm" [(ngModel)]="attr.source" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
-                          <option value="static">Static</option>
-                          <option value="field">Data Field</option>
-                        </select>
-                      </td>
-                      <td>
-                        <input *ngIf="attr.source === 'static'" type="text" class="form-control form-control-sm font-monospace" [(ngModel)]="attr.value" (ngModelChange)="emitChange()" placeholder="Value" [disabled]="!activeRule.enabled">
-                        <select *ngIf="attr.source === 'field'" class="form-select form-select-sm" [(ngModel)]="attr.value" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
-                          <option value="" disabled>Select field...</option>
-                          <option *ngFor="let f of entityFields[selectedNodeId]" [value]="f.key">{{ f.label }} ({{f.key}})</option>
-                        </select>
-                      </td>
-                      <td class="text-center">
-                        <input type="checkbox" class="form-check-input m-0" [(ngModel)]="attr.omitIfEmpty" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
-                      </td>
-                      <td class="text-center">
-                        <button class="btn btn-link text-danger p-0" (click)="removeAttribute(i)" [disabled]="!activeRule.enabled"><i class="bi bi-trash"></i></button>
-                      </td>
-                    </tr>
-                    <tr *ngIf="activeRule.attributes.length === 0">
-                      <td colspan="5" class="text-center text-muted py-3 small">No attributes mapped.</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <button class="btn btn-sm btn-outline-secondary" (click)="addAttribute()" [disabled]="!activeRule.enabled"><i class="bi bi-plus"></i> Add Attribute</button>
-            </div>
-
-            <div [class.opacity-50]="!activeRule.enabled">
-              <label class="form-label fw-medium">Text Content</label>
-              <div class="w-50">
-                <select class="form-select form-select-sm" [(ngModel)]="activeRule.textFrom" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
-                  <option [ngValue]="null">(none)</option>
-                  <option *ngFor="let f of entityFields[selectedNodeId]" [value]="f.key">{{ f.label }} ({{f.key}})</option>
-                </select>
-              </div>
-            </div>
-
-          </ng-container>
+          </div>
+        }
+      </div>
+    }
+    @if (activeProfile && (!validationErrors || validationErrors.length === 0)) {
+      <div class="px-4 pt-3 pb-0">
+        <div class="alert alert-success alert-sm mb-2 d-flex align-items-center">
+          <i class="bi bi-check-circle-fill me-2"></i> Output is well-formed.
         </div>
       </div>
+    }
 
-      <!-- Column 3: Preview -->
-      <div class="col-12 col-md-12 col-xl-4 bg-light p-4 d-none d-xl-flex flex-column" style="min-height: 600px;">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Live Preview</h6>
-          <button class="btn btn-sm btn-outline-secondary" (click)="copyXml()" [disabled]="!previewXml || previewXml.startsWith('<!--')">
-            <i class="bi bi-clipboard"></i> Copy
-          </button>
-        </div>
-
-        <!-- Preview source selector -->
-        <div class="mb-2">
-          <label class="form-label small text-muted mb-1 d-flex align-items-center gap-2">
-            Preview source
-            <span *ngIf="loadingPreviewDoc" class="spinner-border spinner-border-sm text-secondary" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
-          </label>
-          <select class="form-select form-select-sm"
-                  [ngModel]="previewSourceId"
-                  (focus)="ensureDocListLoaded()"
-                  (change)="onPreviewSourceChange($event)">
-            <option value="sample">Built-in sample</option>
-            <option *ngIf="loadingDocList" disabled>Loading documents…</option>
-            <option *ngFor="let d of documentList" [value]="d.id">{{ docLabel(d) }}</option>
-          </select>
-          <div *ngIf="previewTruncated" class="small text-warning-emphasis mt-1 d-flex align-items-center">
-            <i class="bi bi-scissors me-1"></i>Preview truncated to the first 2 lines.
+    @if (activeProfile) {
+      <div class="row g-0">
+        <!-- Column 1: Entities Tree -->
+        <div class="col-12 col-md-4 col-xl-3 border-end">
+          <div class="p-3 bg-light border-bottom">
+            <h6 class="mb-0 fw-semibold text-secondary">Mapping Structure</h6>
+          </div>
+          <div class="p-3" style="max-height: 600px; overflow-y: auto;">
+            <ul class="entity-tree">
+              <!-- SKELETON -->
+              <li>
+                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'skeleton'" (click)="selectNode('skeleton')">
+                  <i class="bi bi-file-code me-2 text-muted"></i>
+                  <span class="me-auto">Document Skeleton</span>
+                  @if (skeletonDiffers()) {
+                    <span class="modified-dot ms-2" title="Modified from default"></span>
+                  }
+                </div>
+              </li>
+              <!-- FORMTEIL -->
+              <li>
+                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'formteil'" [class.text-muted]="!activeProfile.entities.formteil.enabled" (click)="selectNode('formteil')">
+                  <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.formteil.enabled" (ngModelChange)="emitChange()">
+                  <span class="me-auto">Formteil</span>
+                  <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.formteil.tag}}&gt;</span>
+                  @if (entityDiffers('formteil')) {
+                    <span class="modified-dot ms-2" title="Modified from default"></span>
+                  }
+                </div>
+                <!-- ZEILE -->
+                <ul>
+                  <li>
+                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'zeile'" [class.text-muted]="!activeProfile.entities.zeile.enabled" (click)="selectNode('zeile')">
+                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.zeile.enabled" (ngModelChange)="emitChange()">
+                      <span class="me-auto">Line</span>
+                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.zeile.tag}}&gt;</span>
+                      @if (entityDiffers('zeile')) {
+                        <span class="modified-dot ms-2" title="Modified from default"></span>
+                      }
+                    </div>
+                    <ul>
+                      <!-- CLEF -->
+                      <li>
+                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'clef'" [class.text-muted]="!activeProfile.entities.clef.enabled" (click)="selectNode('clef')">
+                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.clef.enabled" (ngModelChange)="emitChange()">
+                          <span class="me-auto">Clef</span>
+                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.clef.tag}}&gt;</span>
+                          @if (entityDiffers('clef')) {
+                            <span class="modified-dot ms-2" title="Modified from default"></span>
+                          }
+                        </div>
+                      </li>
+                      <!-- SYLLABLE -->
+                      <li>
+                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllable'" [class.text-muted]="!activeProfile.entities.syllable.enabled" (click)="selectNode('syllable')">
+                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllable.enabled" (ngModelChange)="emitChange()">
+                          <span class="me-auto">Syllable</span>
+                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllable.tag}}&gt;</span>
+                          @if (entityDiffers('syllable')) {
+                            <span class="modified-dot ms-2" title="Modified from default"></span>
+                          }
+                        </div>
+                        <ul>
+                          <!-- SYLLABLE TEXT -->
+                          <li>
+                            <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllableText'" [class.text-muted]="!activeProfile.entities.syllableText.enabled" (click)="selectNode('syllableText')">
+                              <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllableText.enabled" (ngModelChange)="emitChange()">
+                              <span class="me-auto">Text</span>
+                              <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllableText.tag}}&gt;</span>
+                              @if (entityDiffers('syllableText')) {
+                                <span class="modified-dot ms-2" title="Modified from default"></span>
+                              }
+                            </div>
+                          </li>
+                          <!-- NEUME -->
+                          <li>
+                            <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'neume'" [class.text-muted]="!activeProfile.entities.neume.enabled" (click)="selectNode('neume')">
+                              <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.neume.enabled" (ngModelChange)="emitChange()">
+                              <span class="me-auto">Neume</span>
+                              <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.neume.tag}}&gt;</span>
+                              @if (entityDiffers('neume')) {
+                                <span class="modified-dot ms-2" title="Modified from default"></span>
+                              }
+                            </div>
+                            <ul>
+                              <!-- NOTE -->
+                              <li>
+                                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'note'" [class.text-muted]="!activeProfile.entities.note.enabled" (click)="selectNode('note')">
+                                  <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.note.enabled" (ngModelChange)="emitChange()">
+                                  <span class="me-auto">Note</span>
+                                  <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.note.tag}}&gt;</span>
+                                  @if (entityDiffers('note')) {
+                                    <span class="modified-dot ms-2" title="Modified from default"></span>
+                                  }
+                                </div>
+                                <ul>
+                                  <!-- ORISCUS -->
+                                  <li>
+                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'oriscus'" [class.text-muted]="!activeProfile.entities.oriscus.enabled" (click)="selectNode('oriscus')">
+                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.oriscus.enabled" (ngModelChange)="emitChange()">
+                                      <span class="me-auto">Oriscus</span>
+                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.oriscus.tag}}&gt;</span>
+                                      @if (entityDiffers('oriscus')) {
+                                        <span class="modified-dot ms-2" title="Modified from default"></span>
+                                      }
+                                    </div>
+                                  </li>
+                                  <!-- QUILISMA -->
+                                  <li>
+                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'quilisma'" [class.text-muted]="!activeProfile.entities.quilisma.enabled" (click)="selectNode('quilisma')">
+                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.quilisma.enabled" (ngModelChange)="emitChange()">
+                                      <span class="me-auto">Quilisma</span>
+                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.quilisma.tag}}&gt;</span>
+                                      @if (entityDiffers('quilisma')) {
+                                        <span class="modified-dot ms-2" title="Modified from default"></span>
+                                      }
+                                    </div>
+                                  </li>
+                                  <!-- STROPHICUS -->
+                                  <li>
+                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'strophicus'" [class.text-muted]="!activeProfile.entities.strophicus.enabled" (click)="selectNode('strophicus')">
+                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.strophicus.enabled" (ngModelChange)="emitChange()">
+                                      <span class="me-auto">Strophicus</span>
+                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.strophicus.tag}}&gt;</span>
+                                      @if (entityDiffers('strophicus')) {
+                                        <span class="modified-dot ms-2" title="Modified from default"></span>
+                                      }
+                                    </div>
+                                  </li>
+                                  <!-- LIQUESCENT -->
+                                  <li>
+                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'liquescent'" [class.text-muted]="!activeProfile.entities.liquescent.enabled" (click)="selectNode('liquescent')">
+                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.liquescent.enabled" (ngModelChange)="emitChange()">
+                                      <span class="me-auto">Liquescent</span>
+                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.liquescent.tag}}&gt;</span>
+                                      @if (entityDiffers('liquescent')) {
+                                        <span class="modified-dot ms-2" title="Modified from default"></span>
+                                      }
+                                    </div>
+                                  </li>
+                                </ul>
+                              </li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </li>
+                      <!-- PARATEXT -->
+                      <li>
+                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'paratext'" [class.text-muted]="!activeProfile.entities.paratext.enabled" (click)="selectNode('paratext')">
+                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.paratext.enabled" (ngModelChange)="emitChange()">
+                          <span class="me-auto">Paratext</span>
+                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.paratext.tag}}&gt;</span>
+                          @if (entityDiffers('paratext')) {
+                            <span class="modified-dot ms-2" title="Modified from default"></span>
+                          }
+                        </div>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+            </ul>
           </div>
         </div>
-
-        <pre class="bg-dark text-light p-3 rounded flex-grow-1" style="font-size: 11px; overflow: auto; margin-bottom: 0;"><code>{{ previewXml }}</code></pre>
+        <!-- Column 2: Rule Editor -->
+        <div class="col-12 col-md-8 col-xl-5 border-end bg-white">
+          <div class="p-3 bg-light border-bottom d-flex align-items-center">
+            <h6 class="mb-0 fw-semibold text-secondary">
+              {{ selectedNodeId === 'skeleton' ? 'Document Skeleton Settings' : 'Mapping Rule Editor' }}
+            </h6>
+          </div>
+          <div class="p-4" style="max-height: 600px; overflow-y: auto;">
+            <!-- SKELETON EDITOR -->
+            @if (selectedNodeId === 'skeleton') {
+              <div class="mb-4">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="emitHeaderCheck" [(ngModel)]="activeProfile.emitHeader" (ngModelChange)="emitChange()">
+                  <label class="form-check-label fw-medium" for="emitHeaderCheck">Emit standard &lt;meiHead&gt; block</label>
+                </div>
+                <small class="text-muted d-block mt-1">If enabled, a standard MEI header containing document metadata will be prepended.</small>
+              </div>
+              <div class="mb-4">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="inlineInterventionsCheck" [(ngModel)]="activeProfile.inlineInterventions" (ngModelChange)="emitChange()">
+                  <label class="form-check-label fw-medium" for="inlineInterventionsCheck">Encode interventions inline (experimental)</label>
+                </div>
+                <small class="text-muted d-block mt-1">If enabled, unclear and supplied editorial interventions will be encoded directly in the musical notation structure.</small>
+              </div>
+              <div>
+                <label class="form-label fw-medium">Root Wrappers / Skeleton</label>
+                <p class="text-muted small mb-2">Defines the nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
+                <div class="wrapper-chips mb-3">
+                  @for (wrap of activeProfile.skeleton; track wrap; let i = $index; let last = $last) {
+                    <div class="wrapper-chip">
+                      <span>&lt;{{wrap}}&gt;</span>
+                      <div class="wrapper-chip-actions ms-2">
+                        <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, -1)" [disabled]="i === 0"><i class="bi bi-caret-left-fill" style="font-size: 0.6rem;"></i></button>
+                        <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, 1)" [disabled]="last"><i class="bi bi-caret-right-fill" style="font-size: 0.6rem;"></i></button>
+                      </div>
+                      <button class="btn btn-link text-danger p-0 ms-2" (click)="removeWrapper(i)"><i class="bi bi-x-circle"></i></button>
+                      @if (!last) {
+                        <i class="bi bi-arrow-right ms-2 wrapper-separator"></i>
+                      }
+                    </div>
+                  }
+                  @if (activeProfile.skeleton.length === 0) {
+                    <div class="text-muted small font-monospace">None</div>
+                  }
+                </div>
+                <div class="input-group input-group-sm w-50">
+                  <input type="text" class="form-control" placeholder="Add wrapper tag..." #newSkelInput list="meiSuggestionsList" (keyup.enter)="addWrapper(newSkelInput.value); newSkelInput.value = ''">
+                  <button class="btn btn-outline-secondary" (click)="addWrapper(newSkelInput.value); newSkelInput.value = ''">Add</button>
+                </div>
+              </div>
+            }
+            <!-- ENTITY EDITOR -->
+            @if (activeRule) {
+              @if (selectedEntityDiffers) {
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                  <span class="small text-warning-emphasis d-flex align-items-center">
+                    <span class="modified-dot me-2"></span>Modified from default
+                  </span>
+                  <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                    [class.text-warning]="armedResetEntity === selectedNodeId"
+                    (click)="resetEntityToDefault()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>{{ armedResetEntity === selectedNodeId ? 'Click again to confirm' : 'Reset this entity to default' }}
+                  </button>
+                </div>
+              }
+              @if (!activeRule.enabled) {
+                <div class="alert alert-secondary py-2 mb-4">
+                  <i class="bi bi-info-circle me-2"></i> This entity is disabled and will be omitted from the MEI output. (Children of a structural entity will still be emitted, flattened).
+                </div>
+              }
+              <div class="mb-4" [class.opacity-50]="!activeRule.enabled">
+                <label class="form-label fw-medium">Element Tag</label>
+                <div class="input-group input-group-sm w-50">
+                  <span class="input-group-text font-monospace text-muted">&lt;</span>
+                  <input type="text" class="form-control font-monospace" [(ngModel)]="activeRule.tag" (ngModelChange)="emitChange()" list="meiSuggestionsList" [disabled]="!activeRule.enabled">
+                  <span class="input-group-text font-monospace text-muted">&gt;</span>
+                </div>
+              </div>
+              <div class="mb-4" [class.opacity-50]="!activeRule.enabled">
+                <label class="form-label fw-medium">Wrappers</label>
+                <p class="text-muted small mb-2">Nested elements to wrap around each instance. (Outermost &rarr; Tag)</p>
+                <div class="wrapper-chips mb-3">
+                  @for (wrap of activeRule.wrappers; track wrap; let i = $index) {
+                    <div class="wrapper-chip">
+                      <span>&lt;{{wrap}}&gt;</span>
+                      <div class="wrapper-chip-actions ms-2">
+                        <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, -1)" [disabled]="i === 0 || !activeRule.enabled"><i class="bi bi-caret-left-fill" style="font-size: 0.6rem;"></i></button>
+                        <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, 1)" [disabled]="i === activeRule.wrappers.length - 1 || !activeRule.enabled"><i class="bi bi-caret-right-fill" style="font-size: 0.6rem;"></i></button>
+                      </div>
+                      <button class="btn btn-link text-danger p-0 ms-2" (click)="removeWrapper(i)" [disabled]="!activeRule.enabled"><i class="bi bi-x-circle"></i></button>
+                    </div>
+                    <i class="bi bi-arrow-right wrapper-separator"></i>
+                  }
+                  <div class="wrapper-chip border-primary text-primary bg-primary-subtle font-monospace">
+                    &lt;{{activeRule.tag || '...'}}&gt;
+                  </div>
+                </div>
+                <div class="input-group input-group-sm w-50">
+                  <input type="text" class="form-control" placeholder="Add wrapper tag..." #newWrapInput list="meiSuggestionsList" [disabled]="!activeRule.enabled" (keyup.enter)="addWrapper(newWrapInput.value); newWrapInput.value = ''">
+                  <button class="btn btn-outline-secondary" (click)="addWrapper(newWrapInput.value); newWrapInput.value = ''" [disabled]="!activeRule.enabled">Add</button>
+                </div>
+              </div>
+              <div class="mb-4" [class.opacity-50]="!activeRule.enabled">
+                <label class="form-label fw-medium">Attributes</label>
+                <div class="table-responsive border rounded mb-2">
+                  <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Name</th>
+                        <th>Source</th>
+                        <th>Value</th>
+                        <th class="text-center" title="Omit if empty">Opt?</th>
+                        <th style="width: 40px;"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (attr of activeRule.attributes; track attr; let i = $index) {
+                        <tr>
+                          <td>
+                            <input type="text" class="form-control form-control-sm font-monospace" [(ngModel)]="attr.name" (ngModelChange)="emitChange()" list="commonAttributesList" placeholder="e.g. pname" [disabled]="!activeRule.enabled">
+                          </td>
+                          <td style="width: 120px;">
+                            <select class="form-select form-select-sm" [(ngModel)]="attr.source" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
+                              <option value="static">Static</option>
+                              <option value="field">Data Field</option>
+                            </select>
+                          </td>
+                          <td>
+                            @if (attr.source === 'static') {
+                              <input type="text" class="form-control form-control-sm font-monospace" [(ngModel)]="attr.value" (ngModelChange)="emitChange()" placeholder="Value" [disabled]="!activeRule.enabled">
+                            }
+                            @if (attr.source === 'field') {
+                              <select class="form-select form-select-sm" [(ngModel)]="attr.value" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
+                                <option value="" disabled>Select field...</option>
+                                @for (f of entityFields[selectedNodeId]; track f) {
+                                  <option [value]="f.key">{{ f.label }} ({{f.key}})</option>
+                                }
+                              </select>
+                            }
+                          </td>
+                          <td class="text-center">
+                            <input type="checkbox" class="form-check-input m-0" [(ngModel)]="attr.omitIfEmpty" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
+                          </td>
+                          <td class="text-center">
+                            <button class="btn btn-link text-danger p-0" (click)="removeAttribute(i)" [disabled]="!activeRule.enabled"><i class="bi bi-trash"></i></button>
+                          </td>
+                        </tr>
+                      }
+                      @if (activeRule.attributes.length === 0) {
+                        <tr>
+                          <td colspan="5" class="text-center text-muted py-3 small">No attributes mapped.</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" (click)="addAttribute()" [disabled]="!activeRule.enabled"><i class="bi bi-plus"></i> Add Attribute</button>
+              </div>
+              <div [class.opacity-50]="!activeRule.enabled">
+                <label class="form-label fw-medium">Text Content</label>
+                <div class="w-50">
+                  <select class="form-select form-select-sm" [(ngModel)]="activeRule.textFrom" (ngModelChange)="emitChange()" [disabled]="!activeRule.enabled">
+                    <option [ngValue]="null">(none)</option>
+                    @for (f of entityFields[selectedNodeId]; track f) {
+                      <option [value]="f.key">{{ f.label }} ({{f.key}})</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+        <!-- Column 3: Preview -->
+        <div class="col-12 col-md-12 col-xl-4 bg-light p-4 d-none d-xl-flex flex-column" style="min-height: 600px;">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Live Preview</h6>
+            <button class="btn btn-sm btn-outline-secondary" (click)="copyXml()" [disabled]="!previewXml || previewXml.startsWith('<!--')">
+              <i class="bi bi-clipboard"></i> Copy
+            </button>
+          </div>
+          <!-- Preview source selector -->
+          <div class="mb-2">
+            <label class="form-label small text-muted mb-1 d-flex align-items-center gap-2">
+              Preview source
+              @if (loadingPreviewDoc) {
+                <span class="spinner-border spinner-border-sm text-secondary" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
+              }
+            </label>
+            <select class="form-select form-select-sm"
+              [ngModel]="previewSourceId"
+              (focus)="ensureDocListLoaded()"
+              (change)="onPreviewSourceChange($event)">
+              <option value="sample">Built-in sample</option>
+              @if (loadingDocList) {
+                <option disabled>Loading documents…</option>
+              }
+              @for (d of documentList; track d) {
+                <option [value]="d.id">{{ docLabel(d) }}</option>
+              }
+            </select>
+            @if (previewTruncated) {
+              <div class="small text-warning-emphasis mt-1 d-flex align-items-center">
+                <i class="bi bi-scissors me-1"></i>Preview truncated to the first 2 lines.
+              </div>
+            }
+          </div>
+          <pre class="bg-dark text-light p-3 rounded flex-grow-1" style="font-size: 11px; overflow: auto; margin-bottom: 0;"><code>{{ previewXml }}</code></pre>
+        </div>
       </div>
-
-    </div>
-
-    <ng-template #noProfileTpl>
+    } @else {
       <div class="alert alert-warning text-center m-4">
         No active MEI profile found. Please create or import one.
       </div>
-    </ng-template>
+    }
+
   </div>
 </div>
 
 <!-- Datalists for Auto-complete -->
 <datalist id="meiSuggestionsList">
-  <option *ngFor="let s of meiSuggestions" [value]="s"></option>
+  @for (s of meiSuggestions; track s) {
+    <option [value]="s"></option>
+  }
 </datalist>
 
 <datalist id="commonAttributesList">
-  <option *ngFor="let a of commonAttributes" [value]="a"></option>
+  @for (a of commonAttributes; track a) {
+    <option [value]="a"></option>
+  }
 </datalist>

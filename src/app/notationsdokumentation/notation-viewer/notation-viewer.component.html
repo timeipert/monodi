@@ -1,5 +1,5 @@
 <div class="notation-viewer-container">
-  
+
   <div class="row gx-4 h-100">
     <!-- Left Pane: Patterns -->
     <div class="col-md-5 col-lg-4 d-flex flex-column" style="max-height: calc(100vh - 120px);">
@@ -19,26 +19,28 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let row of tableRows" 
+            @for (row of tableRows; track row) {
+              <tr
                 [id]="'nv-pat-' + row.patternId"
                 [class.table-primary]="highlightedPattern === row.patternId">
-              <td class="text-center">
-                <input class="form-check-input" type="checkbox" 
-                       [checked]="selectedPatterns.has(row.patternId)" 
-                       (change)="togglePatternSelection(row.patternId)">
-              </td>
-              <td class="font-monospace text-primary fw-bold" style="cursor: pointer;" (click)="scrollToPattern(row.patternId)">
-                {{ row.baseId }}
-              </td>
-              <td>
-                <app-svg-pattern [pattern]="row.patternId" style="height: 32px; display: block;"></app-svg-pattern>
-              </td>
-              <td class="d-none d-xl-table-cell">
-                <span class="text-muted small">
-                  {{ (patternOccurrences.get(row.patternId)?.length || 0) }} occ.
-                </span>
-              </td>
-            </tr>
+                <td class="text-center">
+                  <input class="form-check-input" type="checkbox"
+                    [checked]="selectedPatterns.has(row.patternId)"
+                    (change)="togglePatternSelection(row.patternId)">
+                </td>
+                <td class="font-monospace text-primary fw-bold" style="cursor: pointer;" (click)="scrollToPattern(row.patternId)">
+                  {{ row.baseId }}
+                </td>
+                <td>
+                  <app-svg-pattern [pattern]="row.patternId" style="height: 32px; display: block;"></app-svg-pattern>
+                </td>
+                <td class="d-none d-xl-table-cell">
+                  <span class="text-muted small">
+                    {{ (patternOccurrences.get(row.patternId)?.length || 0) }} occ.
+                  </span>
+                </td>
+              </tr>
+            }
           </tbody>
         </table>
       </div>
@@ -52,42 +54,46 @@
       </div>
 
       <div class="flex-grow-1 overflow-auto custom-scrollbar pe-2">
-        <div *ngIf="filteredManuscriptLines.length === 0" class="alert alert-info mt-0 shadow-sm border-0">
-          No IIIF annotated lines found for this manuscript (or none match your selected patterns).
-        </div>
+        @if (filteredManuscriptLines.length === 0) {
+          <div class="alert alert-info mt-0 shadow-sm border-0">
+            No IIIF annotated lines found for this manuscript (or none match your selected patterns).
+          </div>
+        }
 
         <div class="d-flex flex-column gap-3">
-          <div *ngFor="let line of filteredManuscriptLines" 
-               [id]="'nv-line-' + line.regionId"
-               class="card shadow-sm line-card border-0"
-               [class.border-primary]="highlightedLineId === line.regionId"
-               [class.border]="highlightedLineId === line.regionId">
-            
-            <div class="card-header bg-light border-bottom-0 d-flex justify-content-between align-items-center py-2">
-              <h5 class="mb-0 fs-6 fw-bold text-secondary">
-                <span class="font-monospace me-2">p.{{ line.folio }}</span> / <span class="ms-2">{{ line.lineName }}</span>
-              </h5>
-              <div class="d-flex flex-wrap gap-1">
-                <span *ngFor="let item of line.items" 
+          @for (line of filteredManuscriptLines; track line) {
+            <div
+              [id]="'nv-line-' + line.regionId"
+              class="card shadow-sm line-card border-0"
+              [class.border-primary]="highlightedLineId === line.regionId"
+              [class.border]="highlightedLineId === line.regionId">
+              <div class="card-header bg-light border-bottom-0 d-flex justify-content-between align-items-center py-2">
+                <h5 class="mb-0 fs-6 fw-bold text-secondary">
+                  <span class="font-monospace me-2">p.{{ line.folio }}</span> / <span class="ms-2">{{ line.lineName }}</span>
+                </h5>
+                <div class="d-flex flex-wrap gap-1">
+                  @for (item of line.items; track item) {
+                    <span
                       class="badge bg-white text-dark border font-monospace cursor-pointer hover-bg-light d-inline-flex align-items-center gap-1 px-2 py-1"
                       (click)="scrollToPattern(item.pattern)"
                       [title]="item.pattern">
-                  {{ item.displayId }}
-                  <app-svg-pattern [pattern]="item.pattern" style="height: 12px; display: block;"></app-svg-pattern>
-                </span>
+                      {{ item.displayId }}
+                      <app-svg-pattern [pattern]="item.pattern" style="height: 12px; display: block;"></app-svg-pattern>
+                    </span>
+                  }
+                </div>
+              </div>
+              <div class="card-body p-0 bg-white d-flex justify-content-center overflow-hidden border-top">
+                <app-annotation-cutout
+                  [imageUrl]="line.imageUrl"
+                  [regionPoints]="line.points"
+                  [items]="line.items"
+                  width="100%"
+                  height="150px">
+                </app-annotation-cutout>
               </div>
             </div>
-
-            <div class="card-body p-0 bg-white d-flex justify-content-center overflow-hidden border-top">
-              <app-annotation-cutout 
-                [imageUrl]="line.imageUrl"
-                [regionPoints]="line.points"
-                [items]="line.items"
-                width="100%"
-                height="150px">
-              </app-annotation-cutout>
-            </div>
-          </div>
+          }
         </div>
       </div>
     </div>

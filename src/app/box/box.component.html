@@ -8,7 +8,9 @@
         <line x1=0 x2=9999 y1=60 y2=60 stroke=black />
         <line x1=0 x2=9999 y1=70 y2=70 stroke=black />
         <line x1=0 x2=9999 y1=80 y2=80 stroke=black />
-        <text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="bold" fill="black" style="user-select: none; pointer-events: none;">G</text>
+        @if (showGClef) {
+          <text x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="bold" fill="black" style="user-select: none; pointer-events: none;">G</text>
+        }
         <path d="M 2.5 45 L 30.25 45 L 30.25 75 L 2.5 75 Z" [attr.stroke]="hasCurrentFocus()? '#5bf186' : '#FF0000'"
           fill="white" />
       </g>

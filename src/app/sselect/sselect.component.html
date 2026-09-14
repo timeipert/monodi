@@ -1,6 +1,8 @@
 <select [disabled]="dropdown.getPossibleValues().length === 0" class="form-control" [ngModel]="input" (ngModelChange)="change($event)">
   <option></option>
-  <option *ngFor="let e of dropdown.getPossibleValues()">
-    {{dropdown.getId(e)}}
-  </option>
+  @for (e of dropdown.getPossibleValues(); track e) {
+    <option>
+      {{dropdown.getId(e)}}
+    </option>
+  }
 </select>

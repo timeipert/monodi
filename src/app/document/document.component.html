@@ -1,624 +1,733 @@
 <input style="display: none" type="file" id="document-upload" (change)="handleFile()" />
 <div [ngClass]="viewMode === 'split' ? 'container-fluid px-2' : 'container'">
-  <div class="row mt-5" *ngIf="!document">
-    <div class="col">
-      The document is loading. If it does not load within a few seconds, someone has probably deleted the document.
-    </div>
-  </div>
-  <div class="mt-4" *ngIf="document">
-    <ng-container *ngIf="settings">
-      <datalist id="list-gattung1"><option *ngFor="let s of settings.gattung1" [value]="s"></option></datalist>
-      <datalist id="list-gattung2"><option *ngFor="let s of settings.gattung2" [value]="s"></option></datalist>
-      <datalist id="list-festtag"><option *ngFor="let s of settings.festtag" [value]="s"></option></datalist>
-      <datalist id="list-feier"><option *ngFor="let s of settings.feier" [value]="s"></option></datalist>
-      <datalist *ngFor="let cf of settings.customDocumentFields" [id]="'list-' + cf.key">
-        <option *ngFor="let s of settings.customLists?.[cf.key] || []" [value]="s"></option>
-      </datalist>
-    </ng-container>
-    <div class="row mb-4">
-      <div class="col d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <h2 class="page-title mb-0">{{document.textinitium || document.dokumenten_id || 'Untitled Chant'}} <app-help-button topic="transcription"></app-help-button></h2>
-        <button type="button" class="btn btn-outline-secondary btn-sm d-print-none" (click)="showCiteDialog = true" title="Citation suggestions">
-          <i class="bi bi-quote me-1"></i>Cite
-        </button>
+  @if (!document) {
+    <div class="row mt-5">
+      <div class="col">
+        The document is loading. If it does not load within a few seconds, someone has probably deleted the document.
       </div>
     </div>
-
-    <!-- Cite Modal -->
-    <div class="modal fade show d-block d-print-none" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showCiteDialog">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"><i class="bi bi-quote me-2 text-primary"></i>Cite this chant</h5>
-            <button type="button" class="btn-close" (click)="showCiteDialog = false"></button>
-          </div>
-          <div class="modal-body">
-            <p class="text-muted small">Rudimentary citation suggestions — please adapt to your style guide.</p>
-            <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
-              <span>Citation</span>
-              <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationText())"><i class="bi bi-clipboard me-1"></i>Copy</button>
-            </label>
-            <textarea class="form-control form-control-sm mb-3" rows="3" readonly>{{ citationText() }}</textarea>
-            <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
-              <span>BibTeX</span>
-              <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationBibtex())"><i class="bi bi-clipboard me-1"></i>Copy</button>
-            </label>
-            <textarea class="form-control form-control-sm font-monospace" rows="9" readonly style="font-family: monospace;">{{ citationBibtex() }}</textarea>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary px-3" (click)="showCiteDialog = false">Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Persistent Search Pattern Highlight Alert Banner -->
-    <div *ngIf="activeHighlight" class="alert alert-info border shadow-sm mb-4 py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold text-primary"><i class="bi bi-search me-1"></i>Search Pattern Highlights Active:</span>
-        <span class="badge bg-white text-dark border font-monospace" style="font-size: 0.85rem;">{{activeHighlight.patternLabel}}</span>
-        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
-          {{activeHighlight.occurrences.length}} {{activeHighlight.occurrences.length === 1 ? 'instance' : 'instances'}} highlighted
-        </span>
-        <!-- Occurrence color badges -->
-        <div class="d-flex align-items-center gap-1 ms-2" *ngIf="activeHighlight.occurrences.length > 0">
-          <span *ngFor="let occ of activeHighlight.occurrences; let idx = index"
-                class="badge rounded-pill text-white"
-                [style.background-color]="occ.color"
-                [title]="'Match #' + (idx + 1) + ': Notes ' + (occ.startNoteIndex + 1) + '–' + (occ.endNoteIndex + 1)">
-            #{{idx + 1}}
-          </span>
-        </div>
-      </div>
-      <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" (click)="clearHighlights()">
-        <i class="bi bi-x-circle me-1 text-danger"></i>Clear Highlights
-      </button>
-    </div>
-
-    <!-- Print-Only Metadata Inline styled & dense -->
-    <div class="print-only mb-4" *ngIf="isPrinting && printIncludeMetadata">
-      <div class="inline-metadata" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; line-height: 1.5; color: #000; margin-bottom: 15px;">
-        <span *ngFor="let item of getInlineMetadataItems(); let last = last">
-          <strong>{{item.label}}:</strong> {{item.val}}<span *ngIf="!last" style="color: #000; margin: 0 8px;"> • </span>
-        </span>
-      </div>
-    </div>
-
-    <!-- Hidden area to pre-render comment trees for the PDF engine -->
-    <div id="pdf-comments-render-area" *ngIf="isPrinting" 
-         [style.--tree-padding]="(settings?.pdfCommentTreePadding ?? 4) + 'px'"
-         [style.--tree-gap]="(settings?.pdfCommentTreeGap ?? 4) + 'px'"
-         style="position: absolute; left: -9999px; top: 0; width: 1000px; background: white;">
-       <!-- Global Comment first -->
-       <div *ngIf="cont?.globalComment" class="pdf-comment-block pdf-global-comment" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
-           <h4 class="app-index" style="margin-bottom: 5px;">Global comment</h4>
-           <app-comment-tree [tree]="cont.globalComment" [readOnly]="true"></app-comment-tree>
-       </div>
-       <!-- Numbered comments -->
-        <div *ngFor="let comment of cont?.comments; let i = index" class="pdf-comment-block" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
-            <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                <span *ngIf="comment.category && getCategoryDetails(comment.category) as cat" class="app-category" style="font-family: times; font-style: italic; font-size: 10pt; margin-right: 5px;">{{cat.label}}</span>
-                <span class="app-index" style="font-family: times; font-weight: bold; font-size: 10pt;">{{i + 1}}<span *ngIf="comment.emendation"> ⟨em.⟩</span></span>
-            </div>
-            <span *ngIf="getCommentType(comment) === 'text'" class="text" style="font-family: helvetica; font-size: 10pt; margin-bottom: 10px;">{{comment.text}}</span>
-            <app-comment-tree *ngIf="getCommentType(comment) === 'tree' && comment.tree" [tree]="comment.tree" [readOnly]="true"></app-comment-tree>
-            <div *ngIf="getCommentType(comment) === 'lines' && comment.lines" class="lines-container" style="width: 100%;">
-                <div *ngFor="let line of comment.lines; let j = index" style="margin-bottom: 10px; width: 100%;">
-                    <span *ngIf="comment.readingWitnesses?.[j]" class="app-witness-siglum" style="font-family: times; font-weight: bold; font-size: 9pt; display: block; margin-bottom: 2px;">{{comment.readingWitnesses[j]}}</span>
-                    <app-zeile-section *ngIf="line.kind === 'ZeileContainer'" [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-zeile-section>
-                    <app-paratext-section *ngIf="line.kind === 'ParatextContainer'" [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-paratext-section>
-                </div>
-            </div>
-        </div>
-    </div>
-
-
-    <div class="row g-4 d-flex" id="split-screen-container" [class.flex-nowrap]="splitScreen" [class.overflow-auto]="splitScreen">
-      <!-- Left Sidebar: Metadata & Comments -->
-      <div [ngClass]="sidebarVisible ? 'col-lg-4 col-md-5' : 'col-auto'" *ngIf="!splitScreen || sidebarVisible" [style.flex-shrink]="splitScreen ? '0' : ''">
-
-        <!-- Collapsed strip: just the expand button -->
-        <div *ngIf="!sidebarVisible" class="sidebar-collapsed-strip">
-          <button class="btn sidebar-strip-btn" (click)="sidebarVisible = true" title="Show sidebar">
-            <i class="bi bi-chevron-double-right"></i>
+  }
+  @if (document) {
+    <div class="mt-4">
+      @if (settings) {
+        <datalist id="list-gattung1">@for (s of settings.gattung1; track s) {
+          <option [value]="s"></option>
+        }</datalist>
+        <datalist id="list-gattung2">@for (s of settings.gattung2; track s) {
+          <option [value]="s"></option>
+        }</datalist>
+        <datalist id="list-festtag">@for (s of settings.festtag; track s) {
+          <option [value]="s"></option>
+        }</datalist>
+        <datalist id="list-feier">@for (s of settings.feier; track s) {
+          <option [value]="s"></option>
+        }</datalist>
+        @for (cf of settings.customDocumentFields; track cf) {
+          <datalist [id]="'list-' + cf.key">
+            @for (s of settings.customLists?.[cf.key] || []; track s) {
+              <option [value]="s"></option>
+            }
+          </datalist>
+        }
+      }
+      <div class="row mb-4">
+        <div class="col d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h2 class="page-title mb-0">{{document.textinitium || document.dokumenten_id || 'Untitled Chant'}} <app-help-button topic="transcription"></app-help-button></h2>
+          <button type="button" class="btn btn-outline-secondary btn-sm d-print-none" (click)="showCiteDialog = true" title="Citation suggestions">
+            <i class="bi bi-quote me-1"></i>Cite
           </button>
         </div>
-
-        <!-- Expanded sidebar -->
-        <div *ngIf="sidebarVisible" class="border rounded-3 p-3 bg-light shadow-sm" style="background-color: #f9fbfd !important;">
-          <!-- Tab Navigation + collapse button -->
-          <div class="d-flex align-items-center mb-3 gap-1">
-            <ul class="nav nav-pills flex-grow-1 bg-white p-1 rounded border mb-0" style="font-size: 0.82rem;">
-              <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
-                <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
-                        [class.active]="sidebarTab === 'metadata'"
-                        [style.background-color]="sidebarTab === 'metadata' ? '#0d6efd' : 'transparent'"
-                        [style.color]="sidebarTab === 'metadata' ? '#fff' : '#495057'"
-                        (click)="setSidebarTab('metadata')" type="button">
-                  <i class="bi bi-info-circle me-1"></i>Meta
-                </button>
-              </li>
-              <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
-                <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
-                        [class.active]="sidebarTab === 'structure'"
-                        [style.background-color]="sidebarTab === 'structure' ? '#0d6efd' : 'transparent'"
-                        [style.color]="sidebarTab === 'structure' ? '#fff' : '#495057'"
-                        (click)="setSidebarTab('structure')" type="button">
-                  <i class="bi bi-diagram-3 me-1"></i>Struct
-                </button>
-              </li>
-              <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
-                <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
-                        [class.active]="sidebarTab === 'comments'"
-                        [style.background-color]="sidebarTab === 'comments' ? '#0d6efd' : 'transparent'"
-                        [style.color]="sidebarTab === 'comments' ? '#fff' : '#495057'"
-                        (click)="setSidebarTab('comments')" type="button">
-                  <i class="bi bi-chat-text me-1"></i>Comm
-                  <span class="badge rounded-pill ms-1"
+      </div>
+      <!-- Cite Modal -->
+      @if (showCiteDialog) {
+        <div class="modal fade show d-block d-print-none" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+          <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-quote me-2 text-primary"></i>Cite this chant</h5>
+                <button type="button" class="btn-close" (click)="showCiteDialog = false"></button>
+              </div>
+              <div class="modal-body">
+                <p class="text-muted small">Rudimentary citation suggestions — please adapt to your style guide.</p>
+                <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+                  <span>Citation</span>
+                  <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationText())"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                </label>
+                <textarea class="form-control form-control-sm mb-3" rows="3" readonly>{{ citationText() }}</textarea>
+                <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+                  <span>BibTeX</span>
+                  <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationBibtex())"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                </label>
+                <textarea class="form-control form-control-sm font-monospace" rows="9" readonly style="font-family: monospace;">{{ citationBibtex() }}</textarea>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary px-3" (click)="showCiteDialog = false">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+      <!-- Persistent Search Pattern Highlight Alert Banner -->
+      @if (activeHighlight) {
+        <div class="alert alert-info border shadow-sm mb-4 py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="fw-semibold text-primary"><i class="bi bi-search me-1"></i>Search Pattern Highlights Active:</span>
+            <span class="badge bg-white text-dark border font-monospace" style="font-size: 0.85rem;">{{activeHighlight.patternLabel}}</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
+              {{activeHighlight.occurrences.length}} {{activeHighlight.occurrences.length === 1 ? 'instance' : 'instances'}} highlighted
+            </span>
+            <!-- Occurrence color badges -->
+            @if (activeHighlight.occurrences.length > 0) {
+              <div class="d-flex align-items-center gap-1 ms-2">
+                @for (occ of activeHighlight.occurrences; track occ; let idx = $index) {
+                  <span
+                    class="badge rounded-pill text-white"
+                    [style.background-color]="occ.color"
+                    [title]="'Match #' + (idx + 1) + ': Notes ' + (occ.startNoteIndex + 1) + '–' + (occ.endNoteIndex + 1)">
+                    #{{idx + 1}}
+                  </span>
+                }
+              </div>
+            }
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" (click)="clearHighlights()">
+            <i class="bi bi-x-circle me-1 text-danger"></i>Clear Highlights
+          </button>
+        </div>
+      }
+      <!-- Print-Only Metadata Inline styled & dense -->
+      @if (isPrinting && printIncludeMetadata) {
+        <div class="print-only mb-4">
+          <div class="inline-metadata" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; line-height: 1.5; color: #000; margin-bottom: 15px;">
+            @for (item of getInlineMetadataItems(); track item; let last = $last) {
+              <span>
+                <strong>{{item.label}}:</strong> {{item.val}}@if (!last) {
+                <span style="color: #000; margin: 0 8px;"> • </span>
+              }
+            </span>
+          }
+        </div>
+      </div>
+    }
+    <!-- Hidden area to pre-render comment trees for the PDF engine -->
+    @if (isPrinting) {
+      <div id="pdf-comments-render-area"
+        [style.--tree-padding]="(settings?.pdfCommentTreePadding ?? 4) + 'px'"
+        [style.--tree-gap]="(settings?.pdfCommentTreeGap ?? 4) + 'px'"
+        style="position: absolute; left: -9999px; top: 0; width: 1000px; background: white;">
+        <!-- Global Comment first -->
+        @if (cont?.globalComment) {
+          <div class="pdf-comment-block pdf-global-comment" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
+            <h4 class="app-index" style="margin-bottom: 5px;">Global comment</h4>
+            <app-comment-tree [tree]="cont.globalComment" [readOnly]="true"></app-comment-tree>
+          </div>
+        }
+        <!-- Numbered comments -->
+        @for (comment of cont?.comments; track comment; let i = $index) {
+          <div class="pdf-comment-block" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
+            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+              @if (comment.category && getCategoryDetails(comment.category); as cat) {
+                <span class="app-category" style="font-family: times; font-style: italic; font-size: 10pt; margin-right: 5px;">{{cat.label}}</span>
+              }
+              <span class="app-index" style="font-family: times; font-weight: bold; font-size: 10pt;">{{i + 1}}@if (comment.emendation) {
+                <span> ⟨em.⟩</span>
+              }</span>
+            </div>
+            @if (getCommentType(comment) === 'text') {
+              <span class="text" style="font-family: helvetica; font-size: 10pt; margin-bottom: 10px;">{{comment.text}}</span>
+            }
+            @if (getCommentType(comment) === 'tree' && comment.tree) {
+              <app-comment-tree [tree]="comment.tree" [readOnly]="true"></app-comment-tree>
+            }
+            @if (getCommentType(comment) === 'lines' && comment.lines) {
+              <div class="lines-container" style="width: 100%;">
+                @for (line of comment.lines; track line; let j = $index) {
+                  <div style="margin-bottom: 10px; width: 100%;">
+                    @if (comment.readingWitnesses?.[j]) {
+                      <span class="app-witness-siglum" style="font-family: times; font-weight: bold; font-size: 9pt; display: block; margin-bottom: 2px;">{{comment.readingWitnesses[j]}}</span>
+                    }
+                    @if (line.kind === 'ZeileContainer') {
+                      <app-zeile-section [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-zeile-section>
+                    }
+                    @if (line.kind === 'ParatextContainer') {
+                      <app-paratext-section [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-paratext-section>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+    <div class="row g-4 d-flex" id="split-screen-container" [class.flex-nowrap]="splitScreen" [class.overflow-auto]="splitScreen">
+      <!-- Left Sidebar: Metadata & Comments -->
+      @if (!splitScreen || sidebarVisible) {
+        <div [ngClass]="sidebarVisible ? 'col-lg-4 col-md-5' : 'col-auto'" [style.flex-shrink]="splitScreen ? '0' : ''">
+          <!-- Collapsed strip: just the expand button -->
+          @if (!sidebarVisible) {
+            <div class="sidebar-collapsed-strip">
+              <button class="btn sidebar-strip-btn" (click)="sidebarVisible = true" title="Show sidebar">
+                <i class="bi bi-chevron-double-right"></i>
+              </button>
+            </div>
+          }
+          <!-- Expanded sidebar -->
+          @if (sidebarVisible) {
+            <div class="border rounded-3 p-3 bg-light shadow-sm" style="background-color: #f9fbfd !important;">
+              <!-- Tab Navigation + collapse button -->
+              <div class="d-flex align-items-center mb-3 gap-1">
+                <ul class="nav nav-pills flex-grow-1 bg-white p-1 rounded border mb-0" style="font-size: 0.82rem;">
+                  <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
+                    <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
+                      [class.active]="sidebarTab === 'metadata'"
+                      [style.background-color]="sidebarTab === 'metadata' ? '#0d6efd' : 'transparent'"
+                      [style.color]="sidebarTab === 'metadata' ? '#fff' : '#495057'"
+                      (click)="setSidebarTab('metadata')" type="button">
+                      <i class="bi bi-info-circle me-1"></i>Meta
+                    </button>
+                  </li>
+                  <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
+                    <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
+                      [class.active]="sidebarTab === 'structure'"
+                      [style.background-color]="sidebarTab === 'structure' ? '#0d6efd' : 'transparent'"
+                      [style.color]="sidebarTab === 'structure' ? '#fff' : '#495057'"
+                      (click)="setSidebarTab('structure')" type="button">
+                      <i class="bi bi-diagram-3 me-1"></i>Struct
+                    </button>
+                  </li>
+                  <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
+                    <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
+                      [class.active]="sidebarTab === 'comments'"
+                      [style.background-color]="sidebarTab === 'comments' ? '#0d6efd' : 'transparent'"
+                      [style.color]="sidebarTab === 'comments' ? '#fff' : '#495057'"
+                      (click)="setSidebarTab('comments')" type="button">
+                      <i class="bi bi-chat-text me-1"></i>Comm
+                      <span class="badge rounded-pill ms-1"
                         [class.bg-light]="sidebarTab === 'comments'" [class.text-dark]="sidebarTab === 'comments'"
-                        [class.bg-secondary]="sidebarTab !== 'comments'">{{cont?.comments?.length || 0}}</span>
+                      [class.bg-secondary]="sidebarTab !== 'comments'">{{cont?.comments?.length || 0}}</span>
+                    </button>
+                  </li>
+                </ul>
+                <button class="btn sidebar-strip-btn flex-shrink-0" (click)="sidebarVisible = false" title="Hide sidebar">
+                  <i class="bi bi-chevron-double-left"></i>
                 </button>
-              </li>
-            </ul>
-            <button class="btn sidebar-strip-btn flex-shrink-0" (click)="sidebarVisible = false" title="Hide sidebar">
-              <i class="bi bi-chevron-double-left"></i>
-            </button>
-          </div>
-
-          <!-- Tab Content: Metadata -->
-          <div *ngIf="sidebarTab === 'metadata'" class="row g-2">
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Document ID</label>
-              <input class="form-control form-control-sm" [(ngModel)]="document.dokumenten_id" (blur)="save()" placeholder="Calculated automatically..."/>
-            </div>
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Text Initium</label>
-              <input class="form-control form-control-sm" [(ngModel)]="document.textinitium" (blur)="save()" placeholder="Incipit of the text..."/>
-            </div>
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Genre 1</label>
-              <div class="input-group input-group-sm">
-                <input class="form-control form-control-sm" list="list-gattung1" [(ngModel)]="document.gattung1" (blur)="save()" />
-                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('gattung1', document.gattung1)" title="Add to global options"><i class="bi bi-plus"></i></button>
               </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Genre 2</label>
-              <div class="input-group input-group-sm">
-                <input class="form-control form-control-sm" list="list-gattung2" [(ngModel)]="document.gattung2" (blur)="save()" />
-                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('gattung2', document.gattung2)" title="Add to global options"><i class="bi bi-plus"></i></button>
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Feast Day</label>
-              <div class="input-group input-group-sm">
-                <input class="form-control form-control-sm" list="list-festtag" [(ngModel)]="document.festtag" (blur)="save()" />
-                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('festtag', document.festtag)" title="Add to global options"><i class="bi bi-plus"></i></button>
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Feast</label>
-              <div class="input-group input-group-sm">
-                <input class="form-control form-control-sm" list="list-feier" [(ngModel)]="document.feier" (blur)="save()" />
-                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('feier', document.feier)" title="Add to global options"><i class="bi bi-plus"></i></button>
-              </div>
-            </div>
-            <div class="col-6">
-              <label class="form-label text-muted small mb-1">Line Start</label>
-              <input class="form-control form-control-sm" [(ngModel)]="document.zeilenstart" (ngModelChange)="recalcId()" (blur)="save()" />
-            </div>
-            <div class="col-6">
-              <label class="form-label text-muted small mb-1">Folio Start</label>
-              <input class="form-control form-control-sm" [(ngModel)]="document.foliostart" (ngModelChange)="recalcId()" (blur)="save()" />
-            </div>
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Print Edition</label>
-              <input class="form-control form-control-sm" [(ngModel)]="document.druckausgabe" (blur)="save()" />
-            </div>
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Bibliographic Reference</label>
-              <input class="form-control form-control-sm" [(ngModel)]="document.bibliographischerverweis" (blur)="save()" />
-            </div>
-
-            <!-- Custom Fields -->
-            <div class="col-12" *ngFor="let cf of settings?.customDocumentFields">
-              <label class="form-label text-muted small mb-1">{{cf.label}}</label>
-              <div class="input-group input-group-sm">
-                <input class="form-control form-control-sm" [attr.list]="'list-' + cf.key" [(ngModel)]="document.custom![cf.key]" (blur)="save()" />
-                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettingsCustom(cf.key, document.custom![cf.key])" title="Add to global options"><i class="bi bi-plus"></i></button>
-              </div>
-            </div>
-
-            <div class="col-12">
-              <label class="form-label text-muted small mb-1">Comment</label>
-              <textarea class="form-control form-control-sm" [(ngModel)]="document.kommentar" (blur)="save()" rows="2"></textarea>
-            </div>
-          </div>
-
-          <!-- Tab Content: Comments -->
-          <div *ngIf="sidebarTab === 'comments'" class="d-flex flex-column gap-2 h-100 comments-sidebar">
-
-            <!-- ① Verbose help card — shown only until dismissed, plus while in pick mode for clarity -->
-            <div *ngIf="!commentHelpDismissed && !isCommentCreationMode" class="comment-help-card border rounded-3 p-3 mb-1 position-relative">
-              <button type="button" class="btn-close btn-sm position-absolute" (click)="dismissCommentHelp()"
-                      style="top: 6px; right: 8px;" title="Don't show again"></button>
-              <div class="d-flex align-items-start gap-2">
-                <i class="bi bi-info-circle text-primary mt-1"></i>
-                <div class="small text-muted lh-sm" style="padding-right: 18px;">
-                  <div class="fw-semibold text-dark mb-1">How to add a comment</div>
-                  <ol class="ps-3 mb-0" style="font-size: 0.78rem;">
-                    <li>Click <em>Add Comment</em> (or press <kbd>Ctrl</kbd>+<kbd>K</kbd>).</li>
-                    <li>Click the note where the comment should <em>begin</em>.</li>
-                    <li>Click the note where the comment should <em>end</em>.</li>
-                  </ol>
+              <!-- Tab Content: Metadata -->
+              @if (sidebarTab === 'metadata') {
+                <div class="row g-2">
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Document ID</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="document.dokumenten_id" (blur)="save()" placeholder="Calculated automatically..."/>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Text Initium</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="document.textinitium" (blur)="save()" placeholder="Incipit of the text..."/>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Genre 1</label>
+                    <div class="input-group input-group-sm">
+                      <input class="form-control form-control-sm" list="list-gattung1" [(ngModel)]="document.gattung1" (blur)="save()" />
+                      <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('gattung1', document.gattung1)" title="Add to global options"><i class="bi bi-plus"></i></button>
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Genre 2</label>
+                    <div class="input-group input-group-sm">
+                      <input class="form-control form-control-sm" list="list-gattung2" [(ngModel)]="document.gattung2" (blur)="save()" />
+                      <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('gattung2', document.gattung2)" title="Add to global options"><i class="bi bi-plus"></i></button>
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Feast Day</label>
+                    <div class="input-group input-group-sm">
+                      <input class="form-control form-control-sm" list="list-festtag" [(ngModel)]="document.festtag" (blur)="save()" />
+                      <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('festtag', document.festtag)" title="Add to global options"><i class="bi bi-plus"></i></button>
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Feast</label>
+                    <div class="input-group input-group-sm">
+                      <input class="form-control form-control-sm" list="list-feier" [(ngModel)]="document.feier" (blur)="save()" />
+                      <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('feier', document.feier)" title="Add to global options"><i class="bi bi-plus"></i></button>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label text-muted small mb-1">Line Start</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="document.zeilenstart" (ngModelChange)="recalcId()" (blur)="save()" />
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label text-muted small mb-1">Folio Start</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="document.foliostart" (ngModelChange)="recalcId()" (blur)="save()" />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Print Edition</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="document.druckausgabe" (blur)="save()" />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Bibliographic Reference</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="document.bibliographischerverweis" (blur)="save()" />
+                  </div>
+                  <!-- Custom Fields -->
+                  @for (cf of settings?.customDocumentFields; track cf) {
+                    <div class="col-12">
+                      <label class="form-label text-muted small mb-1">{{cf.label}}</label>
+                      <div class="input-group input-group-sm">
+                        <input class="form-control form-control-sm" [attr.list]="'list-' + cf.key" [(ngModel)]="document.custom![cf.key]" (blur)="save()" />
+                        <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettingsCustom(cf.key, document.custom![cf.key])" title="Add to global options"><i class="bi bi-plus"></i></button>
+                      </div>
+                    </div>
+                  }
+                  <div class="col-12">
+                    <label class="form-label text-muted small mb-1">Comment</label>
+                    <textarea class="form-control form-control-sm" [(ngModel)]="document.kommentar" (blur)="save()" rows="2"></textarea>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <!-- ② Add / Cancel button -->
-            <button *ngIf="!isCommentCreationMode" class="btn btn-primary btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="startCommentCreation()">
-              <i class="bi bi-plus-lg me-1"></i>Add Comment
-              <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Ctrl+K</kbd>
-            </button>
-            <button *ngIf="isCommentCreationMode" class="btn btn-warning btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="cancelCommentCreation()">
-              <i class="bi bi-x-lg me-1"></i>Cancel comment creation
-              <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Esc</kbd>
-            </button>
-
-            <!-- ③ Tiny "how does this work?" link once the help card is dismissed -->
-            <button *ngIf="commentHelpDismissed && !isCommentCreationMode"
-                    class="btn btn-link btn-sm text-decoration-none text-muted p-0 mb-2 align-self-start"
-                    (click)="reopenCommentHelp()"
-                    style="font-size: 0.75rem;">
-              <i class="bi bi-question-circle me-1"></i>How does adding a comment work?
-            </button>
-
-            <!-- ④ Compact summary header above the list -->
-            <div *ngIf="cont?.comments && cont!.comments.length > 0" class="comments-summary d-flex justify-content-between align-items-center px-1 mt-1 mb-1">
-              <span class="text-uppercase fw-semibold text-muted" style="font-size: 0.7rem; letter-spacing: 0.05em;">
-                {{cont!.comments.length}} {{cont!.comments.length === 1 ? 'comment' : 'comments'}}
-              </span>
-            </div>
-
-            <!-- ⑤ Empty state -->
-            <div *ngIf="!cont?.comments || cont!.comments.length === 0" class="text-muted text-center py-4">
-              <i class="bi bi-chat-left-dots fs-3 mb-2 d-block"></i>
-              <span class="small">No comments yet. Add your first comment with <kbd>Ctrl</kbd>+<kbd>K</kbd>.</span>
-            </div>
-
-            <!-- ⑥ Comment cards -->
-            <div *ngFor="let comment of cont?.comments; let idx = index"
-                 class="comment-card"
-                 [class.is-highlighted]="isCommentHighlighted(comment)"
-                 (click)="openComment(comment)">
-              <!-- Stripe color matches the SVG bracket color of this comment
-                   so users can pair sidebar cards with their brackets at a
-                   glance — especially helpful when a single note has multiple
-                   comments. -->
-              <div class="comment-card-stripe"
-                   [attr.data-type]="getCommentType(comment)"
-                   [style.background]="commentColor(comment)"></div>
-              <div class="comment-card-body">
-                <div class="comment-card-meta">
-                  <span class="comment-index">#{{idx + 1}}</span>
-                  <span class="comment-type-badge" [attr.data-type]="getCommentType(comment)">
+              }
+              <!-- Tab Content: Comments -->
+              @if (sidebarTab === 'comments') {
+                <div class="d-flex flex-column gap-2 h-100 comments-sidebar">
+                  <!-- ① Verbose help card — shown only until dismissed, plus while in pick mode for clarity -->
+                  @if (!commentHelpDismissed && !isCommentCreationMode) {
+                    <div class="comment-help-card border rounded-3 p-3 mb-1 position-relative">
+                      <button type="button" class="btn-close btn-sm position-absolute" (click)="dismissCommentHelp()"
+                      style="top: 6px; right: 8px;" title="Don't show again"></button>
+                      <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle text-primary mt-1"></i>
+                        <div class="small text-muted lh-sm" style="padding-right: 18px;">
+                          <div class="fw-semibold text-dark mb-1">How to add a comment</div>
+                          <ol class="ps-3 mb-0" style="font-size: 0.78rem;">
+                            <li>Click <em>Add Comment</em> (or press <kbd>Ctrl</kbd>+<kbd>K</kbd>).</li>
+                            <li>Click the note where the comment should <em>begin</em>.</li>
+                            <li>Click the note where the comment should <em>end</em>.</li>
+                          </ol>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                  <!-- ② Add / Cancel button -->
+                  @if (!isCommentCreationMode) {
+                    <button class="btn btn-primary btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="startCommentCreation()">
+                      <i class="bi bi-plus-lg me-1"></i>Add Comment
+                      <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Ctrl+K</kbd>
+                    </button>
+                  }
+                  @if (isCommentCreationMode) {
+                    <button class="btn btn-warning btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="cancelCommentCreation()">
+                      <i class="bi bi-x-lg me-1"></i>Cancel comment creation
+                      <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Esc</kbd>
+                    </button>
+                  }
+                  <!-- ③ Tiny "how does this work?" link once the help card is dismissed -->
+                  @if (commentHelpDismissed && !isCommentCreationMode) {
+                    <button
+                      class="btn btn-link btn-sm text-decoration-none text-muted p-0 mb-2 align-self-start"
+                      (click)="reopenCommentHelp()"
+                      style="font-size: 0.75rem;">
+                      <i class="bi bi-question-circle me-1"></i>How does adding a comment work?
+                    </button>
+                  }
+                  <!-- ④ Compact summary header above the list -->
+                  @if (cont?.comments && cont!.comments.length > 0) {
+                    <div class="comments-summary d-flex justify-content-between align-items-center px-1 mt-1 mb-1">
+                      <span class="text-uppercase fw-semibold text-muted" style="font-size: 0.7rem; letter-spacing: 0.05em;">
+                        {{cont!.comments.length}} {{cont!.comments.length === 1 ? 'comment' : 'comments'}}
+                      </span>
+                    </div>
+                  }
+                  <!-- ⑤ Empty state -->
+                  @if (!cont?.comments || cont!.comments.length === 0) {
+                    <div class="text-muted text-center py-4">
+                      <i class="bi bi-chat-left-dots fs-3 mb-2 d-block"></i>
+                      <span class="small">No comments yet. Add your first comment with <kbd>Ctrl</kbd>+<kbd>K</kbd>.</span>
+                    </div>
+                  }
+                  <!-- ⑥ Comment cards -->
+                  @for (comment of cont?.comments; track comment; let idx = $index) {
+                    <div
+                      class="comment-card"
+                      [class.is-highlighted]="isCommentHighlighted(comment)"
+                      (click)="openComment(comment)">
+                      <!-- Stripe color matches the SVG bracket color of this comment
+                      so users can pair sidebar cards with their brackets at a
+                      glance — especially helpful when a single note has multiple
+                      comments. -->
+                      <div class="comment-card-stripe"
+                        [attr.data-type]="getCommentType(comment)"
+                      [style.background]="commentColor(comment)"></div>
+                      <div class="comment-card-body">
+                        <div class="comment-card-meta">
+                          <span class="comment-index">#{{idx + 1}}</span>
+                          <span class="comment-type-badge" [attr.data-type]="getCommentType(comment)">
                     <i class="bi" [ngClass]="{
                       'bi-text-paragraph': getCommentType(comment) === 'text',
                       'bi-music-note-list': getCommentType(comment) === 'lines',
                       'bi-grid-3x3-gap': getCommentType(comment) === 'tree'
                     }"></i>
-                    {{getCommentType(comment) === 'text' ? 'Text' : (getCommentType(comment) === 'lines' ? 'Staff' : 'Grid')}}
-                  </span>
-                  <span *ngIf="comment.intervention || comment.emendation" 
-                        class="emendation-badge" 
-                        [attr.title]="comment.intervention ? getInterventionLabel(comment.intervention) : 'Emendation'">
-                    <i class="bi" [class]="comment.intervention ? getInterventionIcon(comment.intervention) : 'bi-pencil-fill'"></i>
-                    {{ comment.intervention ? getInterventionLabel(comment.intervention) : 'Emend.' }}
-                    <span *ngIf="comment.intervention === 'unclear' && comment.certainty" class="text-lowercase font-monospace">({{comment.certainty}})</span>
-                  </span>
-                  <span *ngIf="comment.category && getCategoryDetails(comment.category) as cat" 
-                        class="category-badge text-white ms-1" 
-                        [style.background-color]="cat.color"
-                        [attr.title]="cat.label">
-                    <i class="bi" [class]="cat.icon"></i>{{cat.label}}
-                  </span>
+                            {{getCommentType(comment) === 'text' ? 'Text' : (getCommentType(comment) === 'lines' ? 'Staff' : 'Grid')}}
+                          </span>
+                          @if (comment.intervention || comment.emendation) {
+                            <span
+                              class="emendation-badge"
+                              [attr.title]="comment.intervention ? getInterventionLabel(comment.intervention) : 'Emendation'">
+                              <i class="bi" [class]="comment.intervention ? getInterventionIcon(comment.intervention) : 'bi-pencil-fill'"></i>
+                              {{ comment.intervention ? getInterventionLabel(comment.intervention) : 'Emend.' }}
+                              @if (comment.intervention === 'unclear' && comment.certainty) {
+                                <span class="text-lowercase font-monospace">({{comment.certainty}})</span>
+                              }
+                            </span>
+                          }
+                          @if (comment.category && getCategoryDetails(comment.category); as cat) {
+                            <span
+                              class="category-badge text-white ms-1"
+                              [style.background-color]="cat.color"
+                              [attr.title]="cat.label">
+                              <i class="bi" [class]="cat.icon"></i>{{cat.label}}
+                            </span>
+                          }
+                        </div>
+                        <!-- Spanned text preview (the lemma) -->
+                        @if (getCommentPreview(comment)) {
+                          <div class="comment-lemma">
+                            <i class="bi bi-quote"></i>{{getCommentPreview(comment)}}
+                          </div>
+                        }
+                        <!-- Body preview -->
+                        @if (getCommentType(comment) === 'text' && comment.text) {
+                          <div class="comment-body-preview">
+                            {{comment.text}}
+                          </div>
+                        }
+                        @if (getCommentType(comment) === 'tree') {
+                          <div class="comment-body-preview">
+                            {{getCommentTreeText(comment.tree) || '[Grid layout]'}}
+                          </div>
+                        }
+                        @if (getCommentType(comment) === 'lines') {
+                          <div class="comment-body-preview">
+                            Alternative staff line reading
+                          </div>
+                        }
+                        @if (getCommentType(comment) === 'text' && !comment.text) {
+                          <div class="comment-body-preview text-muted fst-italic">
+                            (no content yet — click to edit)
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
                 </div>
-
-                <!-- Spanned text preview (the lemma) -->
-                <div class="comment-lemma" *ngIf="getCommentPreview(comment)">
-                  <i class="bi bi-quote"></i>{{getCommentPreview(comment)}}
-                </div>
-
-                <!-- Body preview -->
-                <div class="comment-body-preview" *ngIf="getCommentType(comment) === 'text' && comment.text">
-                  {{comment.text}}
-                </div>
-                <div class="comment-body-preview" *ngIf="getCommentType(comment) === 'tree'">
-                  {{getCommentTreeText(comment.tree) || '[Grid layout]'}}
-                </div>
-                <div class="comment-body-preview" *ngIf="getCommentType(comment) === 'lines'">
-                  Alternative staff line reading
-                </div>
-                <div class="comment-body-preview text-muted fst-italic" *ngIf="getCommentType(comment) === 'text' && !comment.text">
-                  (no content yet — click to edit)
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab Content: Structure -->
-          <div *ngIf="sidebarTab === 'structure' && cont" class="d-flex flex-column gap-3 structure-pane">
-
-            <!-- Layers configuration -->
-            <div class="struct-card">
-              <div class="struct-card-head">
-                <i class="bi bi-layers-half"></i>
-                <span>Structural layers</span>
-              </div>
-              <div class="struct-seg" role="group" aria-label="Number of structural layers">
-                <button type="button" class="struct-seg-btn"
-                        *ngFor="let o of documentTypes"
-                        [class.active]="cont.documentType === o.value"
-                        (click)="setDocumentType(o.value)"
-                        [attr.aria-pressed]="cont.documentType === o.value">
-                  {{ o.label }}
-                </button>
-              </div>
-              <div class="struct-card-hint">How many nesting levels the document hierarchy uses.</div>
-            </div>
-
-            <!-- Structure Tree Editor -->
-            <div class="struct-card">
-              <ng-container *ngIf="getStructureTree() as tree">
-                <div class="struct-card-head justify-content-between">
-                  <span><i class="bi bi-diagram-3"></i>Hierarchy &amp; sections</span>
-                  <span class="struct-count" *ngIf="tree.length">{{ tree.length }}</span>
-                </div>
-
-                <div class="structure-tree">
-                  <div *ngFor="let item of tree"
-                       class="structure-row"
-                       [attr.data-kind]="item.kind"
-                       [class.is-section]="item.kind === 'FormteilContainer'"
-                       [style.--depth]="item.depth < 0 ? 0 : item.depth">
-
-                    <span class="structure-icon" [ngSwitch]="item.kind">
-                      <i *ngSwitchCase="'FormteilContainer'" class="bi bi-folder-fill"></i>
-                      <i *ngSwitchCase="'ZeileContainer'" class="bi bi-music-note-beamed"></i>
-                      <i *ngSwitchCase="'ParatextContainer'" class="bi bi-text-paragraph"></i>
-                      <i *ngSwitchCase="'MiscContainer'" class="bi bi-three-dots"></i>
-                      <i *ngSwitchDefault class="bi bi-dot"></i>
-                    </span>
-
-                    <span class="structure-label" [class.fw-semibold]="item.kind === 'FormteilContainer'">{{ item.label }}</span>
+              }
+              <!-- Tab Content: Structure -->
+              @if (sidebarTab === 'structure' && cont) {
+                <div class="d-flex flex-column gap-3 structure-pane">
+                  <!-- Layers configuration -->
+                  <div class="struct-card">
+                    <div class="struct-card-head">
+                      <i class="bi bi-layers-half"></i>
+                      <span>Structural layers</span>
+                    </div>
+                    <div class="struct-seg" role="group" aria-label="Number of structural layers">
+                      @for (o of documentTypes; track o) {
+                        <button type="button" class="struct-seg-btn"
+                          [class.active]="cont.documentType === o.value"
+                          (click)="setDocumentType(o.value)"
+                          [attr.aria-pressed]="cont.documentType === o.value">
+                          {{ o.label }}
+                        </button>
+                      }
+                    </div>
+                    <div class="struct-card-hint">How many nesting levels the document hierarchy uses.</div>
+                  </div>
+                  <!-- Structure Tree Editor -->
+                  <div class="struct-card">
+                    @if (getStructureTree(); as tree) {
+                      <div class="struct-card-head justify-content-between">
+                        <span><i class="bi bi-diagram-3"></i>Hierarchy &amp; sections</span>
+                        @if (tree.length) {
+                          <span class="struct-count">{{ tree.length }}</span>
+                        }
+                      </div>
+                      <div class="structure-tree">
+                        @for (item of tree; track item) {
+                          <div
+                            class="structure-row"
+                            [attr.data-kind]="item.kind"
+                            [class.is-section]="item.kind === 'FormteilContainer'"
+                            [style.--depth]="item.depth < 0 ? 0 : item.depth">
+                            <span class="structure-icon">
+                              @switch (item.kind) {
+                                @case ('FormteilContainer') {
+                                  <i class="bi bi-folder-fill"></i>
+                                }
+                                @case ('ZeileContainer') {
+                                  <i class="bi bi-music-note-beamed"></i>
+                                }
+                                @case ('ParatextContainer') {
+                                  <i class="bi bi-text-paragraph"></i>
+                                }
+                                @case ('MiscContainer') {
+                                  <i class="bi bi-three-dots"></i>
+                                }
+                                @default {
+                                  <i class="bi bi-dot"></i>
+                                }
+                              }
+                            </span>
+                            <span class="structure-label" [class.fw-semibold]="item.kind === 'FormteilContainer'">{{ item.label }}</span>
+                          </div>
+                        }
+                      </div>
+                      @if (!tree.length) {
+                        <div class="struct-empty">
+                          <i class="bi bi-diagram-2 mb-1"></i>
+                          <div>No sections yet.</div>
+                        </div>
+                      }
+                    }
                   </div>
                 </div>
-
-                <div class="struct-empty" *ngIf="!tree.length">
-                  <i class="bi bi-diagram-2 mb-1"></i>
-                  <div>No sections yet.</div>
-                </div>
-              </ng-container>
+              }
             </div>
-          </div>
+          }
         </div>
-      </div>
-
+      }
       <!-- Left Column: IIIF Viewer (Shown in Split Screen or IIIF mode) -->
-      <div *ngIf="(viewMode === 'split' || viewMode === 'iiif') && sourceData?.iiifManifestUrl" [style.flex]="viewMode === 'iiif' ? '1 1 0%' : '0 0 ' + splitLeftWidth + '%'" style="min-width: 0;">
-        <!-- Linking mode banner -->
-        <div *ngIf="isLinkingMode" class="linking-mode-banner">
-          <i class="bi bi-link-45deg me-2"></i>
-          Click a <strong>line-change</strong> in the transcription to link it to
-          <strong class="ms-1">«{{ linkModeRegionName }}»</strong>
-          <button class="btn btn-sm btn-outline-light ms-3 py-0" (click)="isLinkingMode = false">
-            <i class="bi bi-x me-1"></i>Cancel
-          </button>
+      @if ((viewMode === 'split' || viewMode === 'iiif') && sourceData?.iiifManifestUrl) {
+        <div [style.flex]="viewMode === 'iiif' ? '1 1 0%' : '0 0 ' + splitLeftWidth + '%'" style="min-width: 0;">
+          <!-- Linking mode banner -->
+          @if (isLinkingMode) {
+            <div class="linking-mode-banner">
+              <i class="bi bi-link-45deg me-2"></i>
+              Click a <strong>line-change</strong> in the transcription to link it to
+              <strong class="ms-1">«{{ linkModeRegionName }}»</strong>
+              <button class="btn btn-sm btn-outline-light ms-3 py-0" (click)="isLinkingMode = false">
+                <i class="bi bi-x me-1"></i>Cancel
+              </button>
+            </div>
+          }
+          <div class="border rounded-3 bg-white shadow-sm overflow-hidden mb-5">
+            <app-iiif-viewer [source]="sourceData"
+              [documentPatterns]="emptyArray"
+              [allPatterns]="emptyArray"
+              [simpleMode]="true"
+              [documentFolios]="documentFolios"
+              [initialCanvasIndex]="currentFolioIndex"
+              [highlightedLineUUID]="highlightedLineUUID"
+              [activeRegionName]="activeLineName"
+              (beforeChange)="handleIiifBeforeChange()"
+              (sourceChanged)="saveSourceData()"
+              (regionClicked)="handleIiifRegionClicked($event)"
+              (requestLineLink)="handleIiifRequestLineLink($event)">
+            </app-iiif-viewer>
+          </div>
         </div>
-        <div class="border rounded-3 bg-white shadow-sm overflow-hidden mb-5">
-          <app-iiif-viewer [source]="sourceData"
-                           [documentPatterns]="emptyArray"
-                           [allPatterns]="emptyArray"
-                           [simpleMode]="true"
-                           [documentFolios]="documentFolios"
-                           [initialCanvasIndex]="currentFolioIndex"
-                           [highlightedLineUUID]="highlightedLineUUID"
-                           [activeRegionName]="activeLineName"
-                           (beforeChange)="handleIiifBeforeChange()"
-                           (sourceChanged)="saveSourceData()"
-                           (regionClicked)="handleIiifRegionClicked($event)"
-                           (requestLineLink)="handleIiifRequestLineLink($event)">
-          </app-iiif-viewer>
-        </div>
-      </div>
-
+      }
       <!-- Draggable Splitter -->
-      <div *ngIf="splitScreen && sourceData?.iiifManifestUrl"
-           (mousedown)="startSplitDrag($event)"
-           style="width: 8px; cursor: col-resize; background: #e9ecef; border-radius: 4px; margin: 0 -0.5rem; z-index: 10; transition: background 0.2s;"
-           onmouseover="this.style.background='#ced4da'"
-           onmouseout="this.style.background='#e9ecef'">
-      </div>
-
+      @if (splitScreen && sourceData?.iiifManifestUrl) {
+        <div
+          (mousedown)="startSplitDrag($event)"
+          style="width: 8px; cursor: col-resize; background: #e9ecef; border-radius: 4px; margin: 0 -0.5rem; z-index: 10; transition: background 0.2s;"
+          onmouseover="this.style.background='#ced4da'"
+          onmouseout="this.style.background='#e9ecef'">
+        </div>
+      }
       <!-- Right Column: Content -->
-      <div *ngIf="viewMode === 'transcription' || viewMode === 'split'" [ngClass]="viewMode === 'split' ? '' : (sidebarVisible ? 'col-lg-8 col-md-7' : 'col')" [style.flex]="viewMode === 'split' ? '1 1 0%' : ''" style="min-width: 0;">
-        <!-- Comment-creation persistent banner: explains the 2-step pick workflow.
-             Step 1 (CommentPickStart): pick start. Step 2 (CommentCreate): pick end. -->
-        <div *ngIf="isCommentCreationMode" class="comment-create-banner shadow-sm" role="status" aria-live="polite">
-          <!-- Step indicator pills -->
-          <div class="ccb-steps">
-            <div class="ccb-step" [class.active]="isPickingCommentStart" [class.done]="isPickingCommentEnd">
-              <span class="ccb-step-num">1</span>
-              <span class="ccb-step-label">Start</span>
-            </div>
-            <div class="ccb-step-sep"></div>
-            <div class="ccb-step" [class.active]="isPickingCommentEnd">
-              <span class="ccb-step-num">2</span>
-              <span class="ccb-step-label">End</span>
-            </div>
-          </div>
-
-          <div class="ccb-text">
-            <ng-container *ngIf="isPickingCommentStart">
-              <div class="ccb-title">
-                <i class="bi bi-arrow-right-circle-fill me-1"></i>
-                Click the note where the comment should <span class="ccb-emph-start">START</span>
-              </div>
-              <div class="ccb-sub">
-                Step <strong>1 of 2</strong> — your next click on any note will mark the beginning of the commented range.
-              </div>
-            </ng-container>
-            <ng-container *ngIf="isPickingCommentEnd">
-              <div class="ccb-title">
-                <i class="bi bi-arrow-right-circle-fill me-1"></i>
-                Now click the note where the comment should <span class="ccb-emph-end">END</span>
-              </div>
-              <div class="ccb-sub">
-                Step <strong>2 of 2</strong> — the orange dashed ring marks your START note. Click another note to close the range.
-              </div>
-            </ng-container>
-          </div>
-
-          <button type="button" class="btn btn-sm btn-light ccb-cancel" (click)="cancelCommentCreation()" title="Cancel (Esc)">
-            <i class="bi bi-x-lg me-1"></i>Cancel
-            <kbd class="ms-2">Esc</kbd>
-          </button>
-        </div>
-
-        <!-- Search and Replace Panel -->
-        <div *ngIf="isSearchReplaceOpen" class="search-replace-panel card shadow border-primary border-opacity-25 mb-3">
-          <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center justify-content-between py-2 px-3">
-            <div class="d-flex align-items-center gap-2">
-              <i class="bi bi-search text-primary"></i>
-              <strong class="small text-dark">Search &amp; Replace</strong>
-              <span class="badge bg-white text-dark border ms-2" *ngIf="searchQuery && currentMatches.length > 0">
-                Match {{ currentMatchIndex + 1 }} of {{ currentMatches.length }}
-              </span>
-              <span class="badge bg-white text-muted border ms-2" *ngIf="searchQuery && currentMatches.length === 0">
-                0 matches
-              </span>
-            </div>
-            <button type="button" class="btn-close btn-close-sm" (click)="closeSearchReplace()" aria-label="Close" title="Close (Esc)"></button>
-          </div>
-          <div class="card-body p-3">
-            <!-- Scopes and Options -->
-            <div class="d-flex align-items-center flex-wrap gap-3 mb-2">
-              <span class="small text-muted fw-semibold">Target Scope:</span>
-              <div class="form-check form-check-inline m-0">
-                <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeSyllables" [(ngModel)]="searchScopeSyllables" (ngModelChange)="onSearchQueryChange()">
-                <label class="form-check-label small cursor-pointer" for="srScopeSyllables">
-                  <i class="bi bi-fonts me-1 text-primary"></i>Syllable text
-                </label>
-              </div>
-              <div class="form-check form-check-inline m-0">
-                <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeNotes" [(ngModel)]="searchScopeNotes" (ngModelChange)="onSearchQueryChange()">
-                <label class="form-check-label small cursor-pointer" for="srScopeNotes">
-                  <i class="bi bi-music-note-beamed me-1 text-success"></i>Notes
-                </label>
-              </div>
-              <div class="form-check form-check-inline m-0">
-                <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeParatext" [(ngModel)]="searchScopeParatext" (ngModelChange)="onSearchQueryChange()">
-                <label class="form-check-label small cursor-pointer" for="srScopeParatext">
-                  <i class="bi bi-paragraph me-1 text-info"></i>Paratext
-                </label>
-              </div>
-
-              <div class="vr mx-1 d-none d-md-block"></div>
-
-              <!-- Matching flags -->
-              <div class="form-check form-check-inline m-0">
-                <input class="form-check-input cursor-pointer" type="checkbox" id="srMatchCase" [(ngModel)]="searchMatchCase" (ngModelChange)="onSearchQueryChange()">
-                <label class="form-check-label small cursor-pointer" for="srMatchCase" title="Match upper/lower case strictly">
-                  Match case (Aa)
-                </label>
-              </div>
-              <div class="form-check form-check-inline m-0">
-                <input class="form-check-input cursor-pointer" type="checkbox" id="srMatchWholeWord" [(ngModel)]="searchMatchWholeWord" (ngModelChange)="onSearchQueryChange()">
-                <label class="form-check-label small cursor-pointer" for="srMatchWholeWord" title="Match whole words only">
-                  Whole word
-                </label>
-              </div>
-            </div>
-
-            <!-- Inputs & Action Buttons Row -->
-            <div class="row g-2 align-items-center">
-              <div class="col-lg-5 col-md-6">
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
-                  <input type="text" 
-                         class="form-control" 
-                         placeholder="Search for text, notes (e.g. G a b), or paratext..." 
-                         [(ngModel)]="searchQuery" 
-                         (ngModelChange)="onSearchQueryChange()" 
-                         (keydown.enter)="nextSearchMatch()"
-                         #searchInputEl>
-                  <button class="btn btn-outline-secondary" type="button" *ngIf="searchQuery" (click)="searchQuery = ''; onSearchQueryChange()">
-                    <i class="bi bi-x-lg"></i>
-                  </button>
+      @if (viewMode === 'transcription' || viewMode === 'split') {
+        <div [ngClass]="viewMode === 'split' ? '' : (sidebarVisible ? 'col-lg-8 col-md-7' : 'col')" [style.flex]="viewMode === 'split' ? '1 1 0%' : ''" style="min-width: 0;">
+          <!-- Comment-creation persistent banner: explains the 2-step pick workflow.
+          Step 1 (CommentPickStart): pick start. Step 2 (CommentCreate): pick end. -->
+          @if (isCommentCreationMode) {
+            <div class="comment-create-banner shadow-sm" role="status" aria-live="polite">
+              <!-- Step indicator pills -->
+              <div class="ccb-steps">
+                <div class="ccb-step" [class.active]="isPickingCommentStart" [class.done]="isPickingCommentEnd">
+                  <span class="ccb-step-num">1</span>
+                  <span class="ccb-step-label">Start</span>
+                </div>
+                <div class="ccb-step-sep"></div>
+                <div class="ccb-step" [class.active]="isPickingCommentEnd">
+                  <span class="ccb-step-num">2</span>
+                  <span class="ccb-step-label">End</span>
                 </div>
               </div>
-
-              <div class="col-lg-4 col-md-6">
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text bg-white text-muted"><i class="bi bi-arrow-left-right"></i></span>
-                  <input type="text" 
-                         class="form-control" 
-                         placeholder="Replace with..." 
-                         [(ngModel)]="replaceQuery" 
-                         (keydown.enter)="replaceCurrentMatch()">
+              <div class="ccb-text">
+                @if (isPickingCommentStart) {
+                  <div class="ccb-title">
+                    <i class="bi bi-arrow-right-circle-fill me-1"></i>
+                    Click the note where the comment should <span class="ccb-emph-start">START</span>
+                  </div>
+                  <div class="ccb-sub">
+                    Step <strong>1 of 2</strong> — your next click on any note will mark the beginning of the commented range.
+                  </div>
+                }
+                @if (isPickingCommentEnd) {
+                  <div class="ccb-title">
+                    <i class="bi bi-arrow-right-circle-fill me-1"></i>
+                    Now click the note where the comment should <span class="ccb-emph-end">END</span>
+                  </div>
+                  <div class="ccb-sub">
+                    Step <strong>2 of 2</strong> — the orange dashed ring marks your START note. Click another note to close the range.
+                  </div>
+                }
+              </div>
+              <button type="button" class="btn btn-sm btn-light ccb-cancel" (click)="cancelCommentCreation()" title="Cancel (Esc)">
+                <i class="bi bi-x-lg me-1"></i>Cancel
+                <kbd class="ms-2">Esc</kbd>
+              </button>
+            </div>
+          }
+          <!-- Search and Replace Panel -->
+          @if (isSearchReplaceOpen) {
+            <div class="search-replace-panel card shadow border-primary border-opacity-25 mb-3">
+              <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-search text-primary"></i>
+                  <strong class="small text-dark">Search &amp; Replace</strong>
+                  @if (searchQuery && currentMatches.length > 0) {
+                    <span class="badge bg-white text-dark border ms-2">
+                      Match {{ currentMatchIndex + 1 }} of {{ currentMatches.length }}
+                    </span>
+                  }
+                  @if (searchQuery && currentMatches.length === 0) {
+                    <span class="badge bg-white text-muted border ms-2">
+                      0 matches
+                    </span>
+                  }
                 </div>
+                <button type="button" class="btn-close btn-close-sm" (click)="closeSearchReplace()" aria-label="Close" title="Close (Esc)"></button>
               </div>
-
-              <div class="col-lg-3 col-md-12 d-flex align-items-center gap-1 justify-content-lg-end mt-2 mt-lg-0">
-                <button type="button" class="btn btn-sm btn-outline-secondary px-2" (click)="prevSearchMatch()" [disabled]="currentMatches.length === 0" title="Previous match">
-                  <i class="bi bi-chevron-up"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary px-2" (click)="nextSearchMatch()" [disabled]="currentMatches.length === 0" title="Next match (Enter)">
-                  <i class="bi bi-chevron-down"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-primary" (click)="replaceCurrentMatch()" [disabled]="currentMatches.length === 0 || currentMatchIndex < 0" title="Replace current match">
-                  Replace
-                </button>
-                <button type="button" class="btn btn-sm btn-primary" (click)="replaceAllMatches()" [disabled]="currentMatches.length === 0" title="Replace all matches">
-                  Replace All
-                </button>
+              <div class="card-body p-3">
+                <!-- Scopes and Options -->
+                <div class="d-flex align-items-center flex-wrap gap-3 mb-2">
+                  <span class="small text-muted fw-semibold">Target Scope:</span>
+                  <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeSyllables" [(ngModel)]="searchScopeSyllables" (ngModelChange)="onSearchQueryChange()">
+                    <label class="form-check-label small cursor-pointer" for="srScopeSyllables">
+                      <i class="bi bi-fonts me-1 text-primary"></i>Syllable text
+                    </label>
+                  </div>
+                  <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeNotes" [(ngModel)]="searchScopeNotes" (ngModelChange)="onSearchQueryChange()">
+                    <label class="form-check-label small cursor-pointer" for="srScopeNotes">
+                      <i class="bi bi-music-note-beamed me-1 text-success"></i>Notes
+                    </label>
+                  </div>
+                  <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input cursor-pointer" type="checkbox" id="srScopeParatext" [(ngModel)]="searchScopeParatext" (ngModelChange)="onSearchQueryChange()">
+                    <label class="form-check-label small cursor-pointer" for="srScopeParatext">
+                      <i class="bi bi-paragraph me-1 text-info"></i>Paratext
+                    </label>
+                  </div>
+                  <div class="vr mx-1 d-none d-md-block"></div>
+                  <!-- Matching flags -->
+                  <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input cursor-pointer" type="checkbox" id="srMatchCase" [(ngModel)]="searchMatchCase" (ngModelChange)="onSearchQueryChange()">
+                    <label class="form-check-label small cursor-pointer" for="srMatchCase" title="Match upper/lower case strictly">
+                      Match case (Aa)
+                    </label>
+                  </div>
+                  <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input cursor-pointer" type="checkbox" id="srMatchWholeWord" [(ngModel)]="searchMatchWholeWord" (ngModelChange)="onSearchQueryChange()">
+                    <label class="form-check-label small cursor-pointer" for="srMatchWholeWord" title="Match whole words only">
+                      Whole word
+                    </label>
+                  </div>
+                </div>
+                <!-- Inputs & Action Buttons Row -->
+                <div class="row g-2 align-items-center">
+                  <div class="col-lg-5 col-md-6">
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                      <input type="text"
+                        class="form-control"
+                        placeholder="Search for text, notes (e.g. G a b), or paratext..."
+                        [(ngModel)]="searchQuery"
+                        (ngModelChange)="onSearchQueryChange()"
+                        (keydown.enter)="nextSearchMatch()"
+                        #searchInputEl>
+                      @if (searchQuery) {
+                        <button class="btn btn-outline-secondary" type="button" (click)="searchQuery = ''; onSearchQueryChange()">
+                          <i class="bi bi-x-lg"></i>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                  <div class="col-lg-4 col-md-6">
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-white text-muted"><i class="bi bi-arrow-left-right"></i></span>
+                      <input type="text"
+                        class="form-control"
+                        placeholder="Replace with..."
+                        [(ngModel)]="replaceQuery"
+                        (keydown.enter)="replaceCurrentMatch()">
+                    </div>
+                  </div>
+                  <div class="col-lg-3 col-md-12 d-flex align-items-center gap-1 justify-content-lg-end mt-2 mt-lg-0">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-2" (click)="prevSearchMatch()" [disabled]="currentMatches.length === 0" title="Previous match">
+                      <i class="bi bi-chevron-up"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-2" (click)="nextSearchMatch()" [disabled]="currentMatches.length === 0" title="Next match (Enter)">
+                      <i class="bi bi-chevron-down"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="replaceCurrentMatch()" [disabled]="currentMatches.length === 0 || currentMatchIndex < 0" title="Replace current match">
+                      Replace
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" (click)="replaceAllMatches()" [disabled]="currentMatches.length === 0" title="Replace all matches">
+                      Replace All
+                    </button>
+                  </div>
+                </div>
+                <!-- Scope Breakdown & Current Match Context Snippet -->
+                @if (searchQuery && currentMatches.length > 0) {
+                  <div class="mt-2 pt-2 border-top d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
+                    <div>
+                      <span>Found in: </span>
+                      @if (matchCountsByScope.syllables > 0) {
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">
+                          {{ matchCountsByScope.syllables }} Syllable{{ matchCountsByScope.syllables > 1 ? 's' : '' }}
+                        </span>
+                      }
+                      @if (matchCountsByScope.notes > 0) {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle me-1">
+                          {{ matchCountsByScope.notes }} Note{{ matchCountsByScope.notes > 1 ? 's' : '' }}
+                        </span>
+                      }
+                      @if (matchCountsByScope.paratext > 0) {
+                        <span class="badge bg-info-subtle text-info border border-info-subtle">
+                          {{ matchCountsByScope.paratext }} Paratext
+                        </span>
+                      }
+                    </div>
+                    @if (currentMatches[currentMatchIndex]; as cur) {
+                      <div class="text-truncate" style="max-width: 450px;">
+                        <span class="text-dark fw-medium">Match #{{ currentMatchIndex + 1 }}: </span>
+                        <code class="bg-light px-1 py-0.5 rounded border text-dark">{{ cur.contextSnippet }}</code>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             </div>
-
-            <!-- Scope Breakdown & Current Match Context Snippet -->
-            <div *ngIf="searchQuery && currentMatches.length > 0" class="mt-2 pt-2 border-top d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
-              <div>
-                <span>Found in: </span>
-                <span *ngIf="matchCountsByScope.syllables > 0" class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">
-                  {{ matchCountsByScope.syllables }} Syllable{{ matchCountsByScope.syllables > 1 ? 's' : '' }}
-                </span>
-                <span *ngIf="matchCountsByScope.notes > 0" class="badge bg-success-subtle text-success border border-success-subtle me-1">
-                  {{ matchCountsByScope.notes }} Note{{ matchCountsByScope.notes > 1 ? 's' : '' }}
-                </span>
-                <span *ngIf="matchCountsByScope.paratext > 0" class="badge bg-info-subtle text-info border border-info-subtle">
-                  {{ matchCountsByScope.paratext }} Paratext
-                </span>
+          }
+          <div class="border rounded-3 bg-white mb-5" [ngClass]="viewMode === 'split' ? 'p-1' : 'p-3'" [class.comment-create-target]="isCommentCreationMode">
+            <!-- Linking-mode highlight ring on the editor panel -->
+            @if (splitScreen && isLinkingMode) {
+              <div class="linking-mode-editor-hint">
+                <i class="bi bi-hand-index me-1"></i> Click a line-change below to link it
               </div>
-              <div *ngIf="currentMatches[currentMatchIndex] as cur" class="text-truncate" style="max-width: 450px;">
-                <span class="text-dark fw-medium">Match #{{ currentMatchIndex + 1 }}: </span>
-                <code class="bg-light px-1 py-0.5 rounded border text-dark">{{ cur.contextSnippet }}</code>
-              </div>
+            }
+            <div (focusout)="save()">
+              @if (cont) {
+                <app-root-section [sourceId]="document.quelle_id" [levelNames]="currentLevelNames" [zipper]="[]" [readOnly]="readOnly" [data]="cont" [comments]="cont.comments" [documentType]="cont.documentType" (onEvent)="handleRootEvent($event)"></app-root-section>
+              }
             </div>
           </div>
         </div>
-
-        <div class="border rounded-3 bg-white mb-5" [ngClass]="viewMode === 'split' ? 'p-1' : 'p-3'" [class.comment-create-target]="isCommentCreationMode">
-          <!-- Linking-mode highlight ring on the editor panel -->
-          <div *ngIf="splitScreen && isLinkingMode" class="linking-mode-editor-hint">
-            <i class="bi bi-hand-index me-1"></i> Click a line-change below to link it
-          </div>
-          <div (focusout)="save()">
-            <app-root-section [sourceId]="document.quelle_id" [levelNames]="currentLevelNames" [zipper]="[]" [readOnly]="readOnly" *ngIf="cont" [data]="cont" [comments]="cont.comments" [documentType]="cont.documentType" (onEvent)="handleRootEvent($event)"></app-root-section>
-          </div>
-        </div>
-      </div>
+      }
     </div>
   </div>
+}
 </div>
 
 <ng-template #textImport let-modal>
@@ -630,7 +739,9 @@
   </div>
   <div class="modal-body">
     <select class="form-control" [(ngModel)]="importType">
-      <option *ngFor="let it of importTypes">{{it}}</option>
+      @for (it of importTypes; track it) {
+        <option>{{it}}</option>
+      }
     </select>
     <div>
       <textarea class="w-100" [(ngModel)]="importText"></textarea>
@@ -644,11 +755,15 @@
     <div>
       <button class="btn btn-primary" (click)="doImport()">Import</button>
     </div>
-    <div *ngIf="textImportErrors.length > 0" class="import-errors">
-      <ul>
-        <li *ngFor="let error of this.textImportErrors">{{error}}</li>
-      </ul>
-    </div>
+    @if (textImportErrors.length > 0) {
+      <div class="import-errors">
+        <ul>
+          @for (error of this.textImportErrors; track error) {
+            <li>{{error}}</li>
+          }
+        </ul>
+      </div>
+    }
   </div>
 </ng-template>
 
@@ -660,149 +775,156 @@
     </button>
   </div>
   <div class="modal-body">
-    <div *ngIf="cont.globalComment">
-      <p>
-        <button class="btn btn-outline-secondary" (click)="deleteGlobalComment()">Delete</button>
-      </p>
-      <app-comment-tree [tree]="cont.globalComment" (treeEvent)="handleGlobalCommentTreeEvent($event)"
-        [originalCreator]="createNewZeileContainerForTreeComment" />
-    </div>
-    <div *ngIf="!cont.globalComment">
-      <button class="btn btn-primary" (click)="createGlobalComment()">Create</button>
-    </div>
+    @if (cont.globalComment) {
+      <div>
+        <p>
+          <button class="btn btn-outline-secondary" (click)="deleteGlobalComment()">Delete</button>
+        </p>
+        <app-comment-tree [tree]="cont.globalComment" (treeEvent)="handleGlobalCommentTreeEvent($event)"
+          [originalCreator]="createNewZeileContainerForTreeComment" />
+      </div>
+    }
+    @if (!cont.globalComment) {
+      <div>
+        <button class="btn btn-primary" (click)="createGlobalComment()">Create</button>
+      </div>
+    }
   </div>
 </ng-template>
 
 <!-- PDF generation spinner overlay (never printed) -->
-<div class="d-print-none position-fixed top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center"
-     style="background: rgba(255,255,255,0.75); z-index: 2000;" *ngIf="isPrinting">
-  <div class="spinner-border text-danger" role="status"></div>
-  <p class="mt-3 fw-medium text-muted">Generating PDF…</p>
-</div>
+@if (isPrinting) {
+  <div class="d-print-none position-fixed top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center"
+    style="background: rgba(255,255,255,0.75); z-index: 2000;">
+    <div class="spinner-border text-danger" role="status"></div>
+    <p class="mt-3 fw-medium text-muted">Generating PDF…</p>
+  </div>
+}
 
 <!-- PDF Export Modal -->
-<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showPdfExportDialog">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content shadow">
-      <div class="modal-header bg-light border-bottom">
-        <h5 class="modal-title fw-bold">
-          <i class="bi bi-file-pdf me-2 text-danger"></i>Export to PDF
-        </h5>
-      </div>
-      <div class="modal-body p-4">
-        <p class="text-muted mb-4">You are about to export this document to PDF using the browser's native print function. Please ensure you select "Save as PDF" in the print dialog.</p>
-        
-        <div class="form-check form-switch mb-3">
-          <input class="form-check-input" type="checkbox" id="includeMetadataSwitch" [(ngModel)]="printIncludeMetadata">
-          <label class="form-check-label fw-medium" for="includeMetadataSwitch">Include Metadata as Table</label>
-          <div class="form-text mt-1">If enabled, a clean table with all metadata will be printed at the top of the document.</div>
+@if (showPdfExportDialog) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow">
+        <div class="modal-header bg-light border-bottom">
+          <h5 class="modal-title fw-bold">
+            <i class="bi bi-file-pdf me-2 text-danger"></i>Export to PDF
+          </h5>
         </div>
-      </div>
-      <div class="modal-footer border-0 bg-light">
-        <button type="button" class="btn btn-outline-secondary px-3" (click)="showPdfExportDialog = false">Cancel</button>
-        <button type="button" class="btn btn-danger px-4" (click)="confirmPdfExport()">
-          <i class="bi bi-printer me-1"></i> Print / Save PDF
-        </button>
+        <div class="modal-body p-4">
+          <p class="text-muted mb-4">You are about to export this document to PDF using the browser's native print function. Please ensure you select "Save as PDF" in the print dialog.</p>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="includeMetadataSwitch" [(ngModel)]="printIncludeMetadata">
+            <label class="form-check-label fw-medium" for="includeMetadataSwitch">Include Metadata as Table</label>
+            <div class="form-text mt-1">If enabled, a clean table with all metadata will be printed at the top of the document.</div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 bg-light">
+          <button type="button" class="btn btn-outline-secondary px-3" (click)="showPdfExportDialog = false">Cancel</button>
+          <button type="button" class="btn btn-danger px-4" (click)="confirmPdfExport()">
+            <i class="bi bi-printer me-1"></i> Print / Save PDF
+          </button>
+        </div>
       </div>
     </div>
   </div>
-</div>
+}
 
 <!-- JSON Export Modal -->
-<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showJsonExportDialog">
-  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
-    <div class="modal-content shadow border-0">
-      <div class="modal-header border-bottom bg-white px-4 py-3">
-        <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
-          <i class="bi bi-download text-primary"></i>
-          <span>Export Document JSON</span>
-        </h5>
-        <button type="button" class="btn-close" (click)="showJsonExportDialog = false"></button>
-      </div>
-      <div class="modal-body p-4 bg-light">
-        <p class="text-muted small fw-medium mb-3">Choose the format option for exporting this document:</p>
-        
-        <div class="d-flex flex-column gap-2">
-          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
-            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatStandard" value="none" [(ngModel)]="exportJsonMode" style="float: left;">
-            <div class="ms-4">
-              <label class="form-check-label fw-bold text-dark" for="formatStandard">
-                Standard (Monodi-Zero)
-              </label>
-              <div class="text-muted small mt-1">Native two-voice file (recommended)</div>
+@if (showJsonExportDialog) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+      <div class="modal-content shadow border-0">
+        <div class="modal-header border-bottom bg-white px-4 py-3">
+          <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+            <i class="bi bi-download text-primary"></i>
+            <span>Export Document JSON</span>
+          </h5>
+          <button type="button" class="btn-close" (click)="showJsonExportDialog = false"></button>
+        </div>
+        <div class="modal-body p-4 bg-light">
+          <p class="text-muted small fw-medium mb-3">Choose the format option for exporting this document:</p>
+          <div class="d-flex flex-column gap-2">
+            <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+              <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatStandard" value="none" [(ngModel)]="exportJsonMode" style="float: left;">
+              <div class="ms-4">
+                <label class="form-check-label fw-bold text-dark" for="formatStandard">
+                  Standard (Monodi-Zero)
+                </label>
+                <div class="text-muted small mt-1">Native two-voice file (recommended)</div>
+              </div>
             </div>
-          </div>
-
-          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
-            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatComment" value="comment" [(ngModel)]="exportJsonMode" style="float: left;">
-            <div class="ms-4">
-              <label class="form-check-label fw-bold text-dark" for="formatComment">
-                Apparatus Comment
-              </label>
-              <div class="text-muted small mt-1">2nd voice as a phrase comment</div>
+            <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+              <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatComment" value="comment" [(ngModel)]="exportJsonMode" style="float: left;">
+              <div class="ms-4">
+                <label class="form-check-label fw-bold text-dark" for="formatComment">
+                  Apparatus Comment
+                </label>
+                <div class="text-muted small mt-1">2nd voice as a phrase comment</div>
+              </div>
             </div>
-          </div>
-
-          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
-            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatConsecutive" value="consecutive_lines" [(ngModel)]="exportJsonMode" style="float: left;">
-            <div class="ms-4">
-              <label class="form-check-label fw-bold text-dark" for="formatConsecutive">
-                Consecutive Staff Lines
-              </label>
-              <div class="text-muted small mt-1">2nd voice as a staff line below the first</div>
+            <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+              <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatConsecutive" value="consecutive_lines" [(ngModel)]="exportJsonMode" style="float: left;">
+              <div class="ms-4">
+                <label class="form-check-label fw-bold text-dark" for="formatConsecutive">
+                  Consecutive Staff Lines
+                </label>
+                <div class="text-muted small mt-1">2nd voice as a staff line below the first</div>
+              </div>
             </div>
-          </div>
-
-          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
-            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatSplit" value="split_documents" [(ngModel)]="exportJsonMode" style="float: left;">
-            <div class="ms-4">
-              <label class="form-check-label fw-bold text-dark" for="formatSplit">
-                Split Documents
-              </label>
-              <div class="text-muted small mt-1">Save as two separate files (-v1 & -v2)</div>
+            <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+              <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatSplit" value="split_documents" [(ngModel)]="exportJsonMode" style="float: left;">
+              <div class="ms-4">
+                <label class="form-check-label fw-bold text-dark" for="formatSplit">
+                  Split Documents
+                </label>
+                <div class="text-muted small mt-1">Save as two separate files (-v1 & -v2)</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
-        <button type="button" class="btn btn-outline-secondary px-3 fw-medium" (click)="showJsonExportDialog = false">Cancel</button>
-        <button type="button" class="btn btn-primary px-4 fw-medium d-inline-flex align-items-center gap-2" (click)="confirmJsonExport()">
-          <i class="bi bi-download"></i>
-          <span>{{ exportJsonMode === 'split_documents' ? 'Download 2 Files' : 'Download JSON' }}</span>
-        </button>
+        <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary px-3 fw-medium" (click)="showJsonExportDialog = false">Cancel</button>
+          <button type="button" class="btn btn-primary px-4 fw-medium d-inline-flex align-items-center gap-2" (click)="confirmJsonExport()">
+            <i class="bi bi-download"></i>
+            <span>{{ exportJsonMode === 'split_documents' ? 'Download 2 Files' : 'Download JSON' }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
-</div>
+}
 
 <!-- Second Voice Reincorporation Import Modal -->
-<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showSecondVoiceImportDialog">
-  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
-    <div class="modal-content shadow border-0">
-      <div class="modal-header border-bottom bg-white px-4 py-3">
-        <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
-          <i class="bi bi-music-note-beamed text-danger"></i>
-          <span>Second Voice Detected</span>
-        </h5>
-        <button type="button" class="btn-close" (click)="keepSecondVoiceAsComments()"></button>
-      </div>
-      <div class="modal-body p-4 bg-light">
-        <p class="text-dark fw-semibold mb-2">
-          This document contains {{ detectedSecondVoiceCommentCount }} phrase comment(s) stored as a Second Voice.
-        </p>
-        <p class="text-muted small mb-0">
-          Would you like to incorporate them back into native 2nd voice staves, or leave them as apparatus comments?
-        </p>
-      </div>
-      <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
-        <button type="button" class="btn btn-outline-secondary px-3 fw-medium" (click)="keepSecondVoiceAsComments()">
-          Keep as Comments
-        </button>
-        <button type="button" class="btn btn-primary px-3 fw-medium d-inline-flex align-items-center gap-2" (click)="confirmReincorporateSecondVoice()">
-          <i class="bi bi-arrow-repeat"></i>
-          <span>Incorporate as 2nd Voice</span>
-        </button>
+@if (showSecondVoiceImportDialog) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+      <div class="modal-content shadow border-0">
+        <div class="modal-header border-bottom bg-white px-4 py-3">
+          <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+            <i class="bi bi-music-note-beamed text-danger"></i>
+            <span>Second Voice Detected</span>
+          </h5>
+          <button type="button" class="btn-close" (click)="keepSecondVoiceAsComments()"></button>
+        </div>
+        <div class="modal-body p-4 bg-light">
+          <p class="text-dark fw-semibold mb-2">
+            This document contains {{ detectedSecondVoiceCommentCount }} phrase comment(s) stored as a Second Voice.
+          </p>
+          <p class="text-muted small mb-0">
+            Would you like to incorporate them back into native 2nd voice staves, or leave them as apparatus comments?
+          </p>
+        </div>
+        <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary px-3 fw-medium" (click)="keepSecondVoiceAsComments()">
+            Keep as Comments
+          </button>
+          <button type="button" class="btn btn-primary px-3 fw-medium d-inline-flex align-items-center gap-2" (click)="confirmReincorporateSecondVoice()">
+            <i class="bi bi-arrow-repeat"></i>
+            <span>Incorporate as 2nd Voice</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
-</div>
+}

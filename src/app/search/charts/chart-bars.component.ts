@@ -13,17 +13,21 @@ export interface BarItem {
     selector: 'app-chart-bars',
     template: `
     <div class="cb">
-      <div class="cb-row" *ngFor="let it of items">
-        <div class="cb-label" [class.mono]="labelClass === 'mono'" [class.wide]="labelClass === 'wide'"
-             [title]="it.label">{{ it.label }}</div>
-        <div class="cb-track">
-          <div class="cb-fill" [style.width.%]="pct(it.value)" [style.background]="color"></div>
+      @for (it of items; track it) {
+        <div class="cb-row">
+          <div class="cb-label" [class.mono]="labelClass === 'mono'" [class.wide]="labelClass === 'wide'"
+          [title]="it.label">{{ it.label }}</div>
+          <div class="cb-track">
+            <div class="cb-fill" [style.width.%]="pct(it.value)" [style.background]="color"></div>
+          </div>
+          <div class="cb-value">{{ it.value | number: fmt }}{{ suffix }}</div>
         </div>
-        <div class="cb-value">{{ it.value | number: fmt }}{{ suffix }}</div>
-      </div>
-      <p class="text-muted small mb-0" *ngIf="!items || items.length === 0">{{ empty }}</p>
+      }
+      @if (!items || items.length === 0) {
+        <p class="text-muted small mb-0">{{ empty }}</p>
+      }
     </div>
-  `,
+    `,
     styles: [
         `
       .cb-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 5px; }

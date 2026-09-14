@@ -11,16 +11,20 @@
     <div tabindex="-1" class="action" [class.active]="currentJustification() === 'Center'"
       (click)="doSetJustificationCenter()"><i class="bi bi-text-center"></i> Alignment: center</div>
 
-    <div tabindex="-1" class="action" [class.active]="currentJustification() === 'Right'"
-      (click)="doSetJustificationRight()"><i class="bi bi-text-right"></i> Alignment: right</div>
+      <div tabindex="-1" class="action" [class.active]="currentJustification() === 'Right'"
+        (click)="doSetJustificationRight()"><i class="bi bi-text-right"></i> Alignment: right</div>
 
-    <div tabindex="-1" class="action" [class.active]="currentJustification() === undefined"
-      (click)="doSetJustificationNone()"><i class="bi bi-justify"></i> Alignment: default</div>
+        <div tabindex="-1" class="action" [class.active]="currentJustification() === undefined"
+          (click)="doSetJustificationNone()"><i class="bi bi-justify"></i> Alignment: default</div>
 
-    <div tabindex="-1" class="action" *ngIf="supportsSettingContext" [class.active]="showContextSet()"
-      (click)="doSetContext(true)"><i class="bi bi-magic"></i> Generate automatic context</div>
+          @if (supportsSettingContext) {
+            <div tabindex="-1" class="action" [class.active]="showContextSet()"
+              (click)="doSetContext(true)"><i class="bi bi-magic"></i> Generate automatic context</div>
+            }
 
-    <div tabindex="-1" class="action" *ngIf="supportsSettingContext" [class.active]="!showContextSet()"
-      (click)="doSetContext(false)"><i class="bi bi-slash-circle"></i> No automatic context</div>
-  </div>
-</div>
+            @if (supportsSettingContext) {
+              <div tabindex="-1" class="action" [class.active]="!showContextSet()"
+                (click)="doSetContext(false)"><i class="bi bi-slash-circle"></i> No automatic context</div>
+              }
+            </div>
+          </div>

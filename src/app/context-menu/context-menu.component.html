@@ -1,30 +1,42 @@
-<div *ngIf="state.isOpen" 
-     class="custom-context-menu shadow-lg rounded"
-     [style.left.px]="state.x" 
-     [style.top.px]="state.y"
-     (click)="onMenuClick($event)">
-  <div class="menu-items-container">
-    <ng-container *ngFor="let item of state.items">
-      <!-- Section header: non-clickable group label, no submenu nesting needed. -->
-      <div *ngIf="item.header" class="menu-header">{{ item.label }}</div>
-      <div *ngIf="!item.header"
-           class="menu-item"
-           [class.disabled]="item.disabled"
-           [class.checked]="item.checked"
-           (click)="executeAction(item, $event)">
-        <i *ngIf="item.icon" class="bi" [ngClass]="item.icon"></i>
-        <span>{{ item.label }}</span>
-        <i *ngIf="item.checked" class="bi bi-check-lg ms-auto text-success"></i>
+@if (state.isOpen) {
+  <div
+    class="custom-context-menu shadow-lg rounded"
+    [style.left.px]="state.x"
+    [style.top.px]="state.y"
+    (click)="onMenuClick($event)">
+    <div class="menu-items-container">
+      @for (item of state.items; track item) {
+        <!-- Section header: non-clickable group label, no submenu nesting needed. -->
+        @if (item.header) {
+          <div class="menu-header">{{ item.label }}</div>
+        }
+        @if (!item.header) {
+          <div
+            class="menu-item"
+            [class.disabled]="item.disabled"
+            [class.checked]="item.checked"
+            (click)="executeAction(item, $event)">
+            @if (item.icon) {
+              <i class="bi" [ngClass]="item.icon"></i>
+            }
+            <span>{{ item.label }}</span>
+            @if (item.checked) {
+              <i class="bi bi-check-lg ms-auto text-success"></i>
+            }
+          </div>
+        }
+      }
+    </div>
+    @if (state.items.length > 0 && state.helpTopic) {
+      <div class="menu-divider"></div>
+    }
+    @if (state.helpTopic) {
+      <div
+        class="menu-item help-item"
+        (click)="openHelp($event)">
+        <i class="bi bi-question-circle-fill text-primary"></i>
+        <span class="text-primary fw-medium">Get Help for this Component</span>
       </div>
-    </ng-container>
+    }
   </div>
-  
-  <div class="menu-divider" *ngIf="state.items.length > 0 && state.helpTopic"></div>
-  
-  <div *ngIf="state.helpTopic" 
-       class="menu-item help-item" 
-       (click)="openHelp($event)">
-    <i class="bi bi-question-circle-fill text-primary"></i>
-    <span class="text-primary fw-medium">Get Help for this Component</span>
-  </div>
-</div>
+}

@@ -45,17 +45,19 @@
 
       <!-- Split Screen Simulator Frame -->
       <div class="demo-wrapper w-100 mt-2 position-relative" style="height: 220px; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
-        
+
         <!-- Flash indicator -->
-        <div *ngIf="showFlash" class="position-absolute w-100 h-100 bg-success-soft d-flex align-items-center justify-content-center border border-success" style="z-index: 10; opacity: 0.85; transition: all 0.3s; pointer-events: none;">
-          <span class="fw-bold text-success" style="font-size: 0.9rem;"><i class="bi bi-check-circle-fill me-1"></i>Synchronized: Scrolled & Focused!</span>
-        </div>
+        @if (showFlash) {
+          <div class="position-absolute w-100 h-100 bg-success-soft d-flex align-items-center justify-content-center border border-success" style="z-index: 10; opacity: 0.85; transition: all 0.3s; pointer-events: none;">
+            <span class="fw-bold text-success" style="font-size: 0.9rem;"><i class="bi bi-check-circle-fill me-1"></i>Synchronized: Scrolled & Focused!</span>
+          </div>
+        }
 
         <div class="row g-0 h-100">
           <!-- Left side: Mock Editor -->
           <div class="col-6 h-100 border-end d-flex flex-column p-2 bg-light transition" [class.bg-warning-subtle]="activeHighlightId === 'split-screen'">
             <span class="text-uppercase text-muted fw-bold d-block mb-2 border-bottom pb-1" style="font-size: 0.65rem;"><i class="bi bi-pencil-square me-1"></i>Editor</span>
-            
+
             <!-- Folio Change Block -->
             <div class="p-1 mb-2 border rounded text-center transition bg-white" [class.border-primary]="activeHighlightId === 'auto-folio'" [class.bg-primary-subtle]="activeHighlightId === 'auto-folio'" style="font-size: 0.75rem;">
               <i class="bi bi-journal-album me-1"></i>Folio [F 1r]
@@ -89,9 +91,9 @@
 
               <!-- Annotation box -->
               <div class="position-absolute border border-danger rounded" id="mock-ms-source"
-                   [class.bg-danger-subtle]="activeHighlightId === 'linking-regions'"
-                   [style.border-width.px]="activeHighlightId === 'linking-regions' ? 2 : 1"
-                   style="top: 25px; left: 10px; width: 100px; height: 40px; opacity: 0.85;">
+                [class.bg-danger-subtle]="activeHighlightId === 'linking-regions'"
+                [style.border-width.px]="activeHighlightId === 'linking-regions' ? 2 : 1"
+                style="top: 25px; left: 10px; width: 100px; height: 40px; opacity: 0.85;">
                 <span class="badge bg-danger position-absolute" style="font-size: 0.5rem; top: -8px; left: 2px; padding: 2px 4px;">Zone 1</span>
               </div>
             </div>
@@ -99,32 +101,34 @@
         </div>
 
         <!-- SVG Linking Connector Line -->
-        <svg *ngIf="activeHighlightId === 'linking-regions'" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;">
-          <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent-color)"/>
-            </marker>
-          </defs>
-          <!-- Draw line between manuscript zone and stave line change -->
-          <line x1="85" y1="130" x2="160" y2="70" 
-                stroke="var(--accent-color)" 
-                stroke-width="2.5" 
-                stroke-dasharray="5,3" 
-                marker-end="url(#arrow)"
-                marker-start="url(#arrow)"
-                style="animation: dash 1s linear infinite;">
-          </line>
-          <style>
-            @keyframes dash {
+        @if (activeHighlightId === 'linking-regions') {
+          <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent-color)"/>
+              </marker>
+            </defs>
+            <!-- Draw line between manuscript zone and stave line change -->
+            <line x1="85" y1="130" x2="160" y2="70"
+              stroke="var(--accent-color)"
+              stroke-width="2.5"
+              stroke-dasharray="5,3"
+              marker-end="url(#arrow)"
+              marker-start="url(#arrow)"
+              style="animation: dash 1s linear infinite;">
+            </line>
+            <style>
+              @keyframes dash {
               to {
-                stroke-dashoffset: -8;
-              }
+              stroke-dashoffset: -8;
             }
-          </style>
-        </svg>
+          }
+        </style>
+      </svg>
+    }
 
-      </div>
-    </div>
   </div>
+</div>
+</div>
 </div>
 

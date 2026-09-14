@@ -1,29 +1,37 @@
-<div class="drag-map-panel" *ngIf="visible" (dragleave)="onPanelDragLeave($event)">
-  <div class="drag-map-header">
-    <span class="drag-map-title">Move to…</span>
+@if (visible) {
+  <div class="drag-map-panel" (dragleave)="onPanelDragLeave($event)">
+    <div class="drag-map-header">
+      <span class="drag-map-title">Move to…</span>
+    </div>
+    <div class="drag-map-body">
+      @for (item of treeItems; track item; let i = $index) {
+        <div class="tree-row"
+          [class.row-origin]="isOrigin(item)"
+          [class.row-ancestor]="item.isAncestor"
+          [class.row-ancestor-target]="item.isAncestor && isTarget(item)"
+          [class.row-sibling]="isValidSibling(item) && !isOrigin(item)"
+          [class.row-target]="!item.isAncestor && isTarget(item)"
+          [style.padding-left.px]="10 + item.depth * 13"
+          (dragenter)="onMapDragEnter(item.zipper, $event)"
+          (dragover)="onMapDragOver($event)"
+          (drop)="onMapDrop(item.zipper, $event)">
+          <span class="row-icon">{{kindIcon(item.kind)}}</span>
+          <span class="row-label">{{item.label}}</span>
+          @if (isOrigin(item)) {
+            <span class="row-badge from-badge">from</span>
+          }
+          @if (item.isAncestor && isTarget(item)) {
+            <span class="row-into">→ inside</span>
+          }
+        </div>
+        @if (i === insertAfterIndex) {
+          <div class="insertion-line"
+            [style.margin-left.px]="10 + insertAfterDepth * 13">
+            <span class="insertion-arrow">▶</span>
+            <div class="insertion-track"></div>
+          </div>
+        }
+      }
+    </div>
   </div>
-  <div class="drag-map-body">
-    <ng-container *ngFor="let item of treeItems; let i = index">
-      <div class="tree-row"
-           [class.row-origin]="isOrigin(item)"
-           [class.row-ancestor]="item.isAncestor"
-           [class.row-ancestor-target]="item.isAncestor && isTarget(item)"
-           [class.row-sibling]="isValidSibling(item) && !isOrigin(item)"
-           [class.row-target]="!item.isAncestor && isTarget(item)"
-           [style.padding-left.px]="10 + item.depth * 13"
-           (dragenter)="onMapDragEnter(item.zipper, $event)"
-           (dragover)="onMapDragOver($event)"
-           (drop)="onMapDrop(item.zipper, $event)">
-        <span class="row-icon">{{kindIcon(item.kind)}}</span>
-        <span class="row-label">{{item.label}}</span>
-        <span class="row-badge from-badge" *ngIf="isOrigin(item)">from</span>
-        <span class="row-into" *ngIf="item.isAncestor && isTarget(item)">→ inside</span>
-      </div>
-      <div class="insertion-line" *ngIf="i === insertAfterIndex"
-           [style.margin-left.px]="10 + insertAfterDepth * 13">
-        <span class="insertion-arrow">▶</span>
-        <div class="insertion-track"></div>
-      </div>
-    </ng-container>
-  </div>
-</div>
+}

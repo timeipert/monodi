@@ -1,345 +1,383 @@
 <div class="container-fluid px-4">
 
   <!-- datalists for autocomplete -->
-  <ng-container *ngIf="settings">
-    <datalist id="list-quellensigle"><option *ngFor="let s of settings.quellensigle" [value]="s"></option></datalist>
-    <datalist id="list-herkunftsregion"><option *ngFor="let s of settings.herkunftsregion" [value]="s"></option></datalist>
-    <datalist id="list-herkunftsort"><option *ngFor="let s of settings.herkunftsort" [value]="s"></option></datalist>
-    <datalist id="list-herkunftsinstitution"><option *ngFor="let s of settings.herkunftsinstitution" [value]="s"></option></datalist>
-    <datalist id="list-ordenstradition"><option *ngFor="let s of settings.ordenstradition" [value]="s"></option></datalist>
-    <datalist id="list-quellentyp"><option *ngFor="let s of settings.quellentyp" [value]="s"></option></datalist>
-    <datalist id="list-bibliotheksort"><option *ngFor="let s of settings.bibliotheksort" [value]="s"></option></datalist>
-    <datalist id="list-bibliothek"><option *ngFor="let s of settings.bibliothek" [value]="s"></option></datalist>
-    <datalist id="list-bibliothekssignatur"><option *ngFor="let s of settings.bibliothekssignatur" [value]="s"></option></datalist>
-    <datalist *ngFor="let cf of settings.customSourceFields" [id]="'list-' + cf.key">
-      <option *ngFor="let s of settings.customLists?.[cf.key] || []" [value]="s"></option>
-    </datalist>
-  </ng-container>
+  @if (settings) {
+    <datalist id="list-quellensigle">@for (s of settings.quellensigle; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-herkunftsregion">@for (s of settings.herkunftsregion; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-herkunftsort">@for (s of settings.herkunftsort; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-herkunftsinstitution">@for (s of settings.herkunftsinstitution; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-ordenstradition">@for (s of settings.ordenstradition; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-quellentyp">@for (s of settings.quellentyp; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-bibliotheksort">@for (s of settings.bibliotheksort; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-bibliothek">@for (s of settings.bibliothek; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    <datalist id="list-bibliothekssignatur">@for (s of settings.bibliothekssignatur; track s) {
+      <option [value]="s"></option>
+    }</datalist>
+    @for (cf of settings.customSourceFields; track cf) {
+      <datalist [id]="'list-' + cf.key">
+        @for (s of settings.customLists?.[cf.key] || []; track s) {
+          <option [value]="s"></option>
+        }
+      </datalist>
+    }
+  }
 
   <!-- Loading state -->
-  <div class="row mt-5" *ngIf="!source">
-    <div class="col text-muted">
-      The source is loading. If it does not appear within a few seconds the source may have been deleted.
-    </div>
-  </div>
-
-  <div *ngIf="source" class="source-layout">
-
-    <!-- ── Sticky header bar ──────────────────────────────────────────────── -->
-    <div class="source-header">
-
-      <!-- Left: title + compact meta chips -->
-      <div class="source-header-left">
-        <h2 class="source-title mb-0">{{ source.quellensigle || 'New Source' }}</h2>
-        <div class="source-meta-chips">
-          <span *ngIf="source.datierung"       class="meta-chip">{{ source.datierung }}</span>
-          <span *ngIf="source.herkunftsort"    class="meta-chip">{{ source.herkunftsort }}</span>
-          <span *ngIf="source.bibliothek"      class="meta-chip"><i class="bi bi-building me-1"></i>{{ source.bibliothek }}</span>
-          <span *ngIf="source.bibliothekssignatur" class="meta-chip text-muted">{{ source.bibliothekssignatur }}</span>
-        </div>
-      </div>
-
-      <!-- Right: saving indicator + edit metadata button -->
-      <div class="source-header-right">
-        <span class="text-muted small me-3" *ngIf="isSaving">
-          <i class="bi bi-arrow-repeat spin me-1"></i>Saving…
-        </span>
-        <button class="btn btn-sm"
-                [class.btn-primary]="showMetadataPanel"
-                [class.btn-outline-secondary]="!showMetadataPanel"
-                (click)="showMetadataPanel = !showMetadataPanel">
-          <i class="bi bi-pencil-square me-1"></i>
-          {{ showMetadataPanel ? 'Close Metadata' : 'Edit Metadata' }}
-        </button>
+  @if (!source) {
+    <div class="row mt-5">
+      <div class="col text-muted">
+        The source is loading. If it does not appear within a few seconds the source may have been deleted.
       </div>
     </div>
+  }
 
-    <!-- ── Collapsible metadata edit panel ───────────────────────────────── -->
-    <div class="source-meta-panel" *ngIf="showMetadataPanel">
-      <div class="meta-panel-grid">
-
-        <div class="meta-field">
-          <label class="meta-label">Source Siglum</label>
-          <div class="input-group input-group-sm">
-            <input id="quellensigle-input" class="form-control form-control-sm" 
-                   [ngStyle]="!source.id ? {'border': '2px solid #0d6efd', 'box-shadow': '0 0 0 0.25rem rgba(13, 110, 253, 0.25)'} : {}"
-                   list="list-quellensigle" [(ngModel)]="source.quellensigle" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellensigle', source.quellensigle)" title="Add to list"><i class="bi bi-plus"></i></button>
+  @if (source) {
+    <div class="source-layout">
+      <!-- ── Sticky header bar ──────────────────────────────────────────────── -->
+      <div class="source-header">
+        <!-- Left: title + compact meta chips -->
+        <div class="source-header-left">
+          <h2 class="source-title mb-0">{{ source.quellensigle || 'New Source' }}</h2>
+          <div class="source-meta-chips">
+            @if (source.datierung) {
+              <span       class="meta-chip">{{ source.datierung }}</span>
+            }
+            @if (source.herkunftsort) {
+              <span    class="meta-chip">{{ source.herkunftsort }}</span>
+            }
+            @if (source.bibliothek) {
+              <span      class="meta-chip"><i class="bi bi-building me-1"></i>{{ source.bibliothek }}</span>
+            }
+            @if (source.bibliothekssignatur) {
+              <span class="meta-chip text-muted">{{ source.bibliothekssignatur }}</span>
+            }
           </div>
         </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Date</label>
-          <input class="form-control form-control-sm" [(ngModel)]="source.datierung" (blur)="save()" placeholder="e.g. 12th cent."/>
+        <!-- Right: saving indicator + edit metadata button -->
+        <div class="source-header-right">
+          @if (isSaving) {
+            <span class="text-muted small me-3">
+              <i class="bi bi-arrow-repeat spin me-1"></i>Saving…
+            </span>
+          }
+          <button class="btn btn-sm"
+            [class.btn-primary]="showMetadataPanel"
+            [class.btn-outline-secondary]="!showMetadataPanel"
+            (click)="showMetadataPanel = !showMetadataPanel">
+            <i class="bi bi-pencil-square me-1"></i>
+            {{ showMetadataPanel ? 'Close Metadata' : 'Edit Metadata' }}
+          </button>
         </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Region of Origin</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-herkunftsregion" [(ngModel)]="source.herkunftsregion" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsregion', source.herkunftsregion)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Place of Origin</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-herkunftsort" [(ngModel)]="source.herkunftsort" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsort', source.herkunftsort)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Institution of Origin</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-herkunftsinstitution" [(ngModel)]="source.herkunftsinstitution" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsinstitution', source.herkunftsinstitution)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Order Tradition</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-ordenstradition" [(ngModel)]="source.ordenstradition" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('ordenstradition', source.ordenstradition)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Source Type</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-quellentyp" [(ngModel)]="source.quellentyp" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellentyp', source.quellentyp)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Library Location</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-bibliotheksort" [(ngModel)]="source.bibliotheksort" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliotheksort', source.bibliotheksort)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Library</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-bibliothek" [(ngModel)]="source.bibliothek" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliothek', source.bibliothek)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field">
-          <label class="meta-label">Library Signature</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-bibliothekssignatur" [(ngModel)]="source.bibliothekssignatur" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliothekssignatur', source.bibliothekssignatur)" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <!-- Custom Fields -->
-        <div class="meta-field" *ngFor="let cf of settings?.customSourceFields">
-          <label class="meta-label">{{ cf.label }}</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" [attr.list]="'list-' + cf.key" [(ngModel)]="source.custom![cf.key]" (blur)="save()" />
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettingsCustom(cf.key, source.custom![cf.key])" title="Add to list"><i class="bi bi-plus"></i></button>
-          </div>
-        </div>
-
-        <div class="meta-field meta-field--wide">
-          <label class="meta-label">Comment</label>
-          <textarea class="form-control form-control-sm" [(ngModel)]="source.kommentar" (blur)="save()" rows="2"></textarea>
-        </div>
-
-        <div class="meta-field meta-field--wide">
-          <label class="meta-label text-primary fw-semibold"><i class="bi bi-image me-1"></i>IIIF Manifest URL</label>
-          <input class="form-control form-control-sm border-primary" [(ngModel)]="source.iiifManifestUrl" (blur)="save()" placeholder="https://.../manifest.json" />
-        </div>
-
       </div>
-    </div>
-
-    <!-- ── Tabs — always full width, never move ───────────────────────────── -->
-    <div class="source-tabs-wrap">
-
-      <ul class="nav nav-tabs source-nav-tabs">
-        <li class="nav-item">
-          <a class="nav-link cursor-pointer" [class.active]="activeTab === 'documents'"
-             (click)="switchTab('documents')">
-            <i class="bi bi-file-earmark-music me-1"></i>Documents
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link cursor-pointer" [class.active]="activeTab === 'notation'"
-             (click)="switchTab('notation')">
-            <i class="bi bi-music-note-list me-1"></i>Notation Documentation
-          </a>
-        </li>
-      </ul>
-
-      <!-- ── Documents tab ── -->
-      <div *ngIf="activeTab === 'documents'" class="tab-content-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0 fw-semibold">Documents</h5>
-          <div class="d-flex gap-2 align-items-center position-relative">
-            <div class="position-relative">
-              <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                      (click)="showDocColPicker = !showDocColPicker">
-                <i class="bi bi-layout-three-columns"></i> Columns
-              </button>
-              <div *ngIf="showDocColPicker"
-                   class="shadow-lg border rounded-3 bg-white"
-                   style="position:absolute; top:2.2rem; right:0; z-index:200; min-width:230px; padding:1rem;">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
-                  <button class="btn-close btn-sm" (click)="showDocColPicker = false"></button>
-                </div>
-                <div class="d-flex flex-column gap-2">
-                  <div *ngFor="let col of docCols" class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" [id]="'dcol-' + col.key"
-                           [(ngModel)]="col.visible" (change)="saveDocCols()" />
-                    <label class="form-check-label" [for]="'dcol-' + col.key"
-                           style="font-size:.85rem;">{{ col.label }}</label>
-                  </div>
-                </div>
+      <!-- ── Collapsible metadata edit panel ───────────────────────────────── -->
+      @if (showMetadataPanel) {
+        <div class="source-meta-panel">
+          <div class="meta-panel-grid">
+            <div class="meta-field">
+              <label class="meta-label">Source Siglum</label>
+              <div class="input-group input-group-sm">
+                <input id="quellensigle-input" class="form-control form-control-sm"
+                  [ngStyle]="!source.id ? {'border': '2px solid #0d6efd', 'box-shadow': '0 0 0 0.25rem rgba(13, 110, 253, 0.25)'} : {}"
+                  list="list-quellensigle" [(ngModel)]="source.quellensigle" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellensigle', source.quellensigle)" title="Add to list"><i class="bi bi-plus"></i></button>
               </div>
             </div>
-            <ng-container *ngIf="source.id">
-              <button class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]">
-                <i class="bi bi-plus-lg me-1"></i> New Document
-              </button>
-              <button class="btn btn-outline-primary btn-sm ms-2" (click)="openVolpianoImport()"
-                      title="Create a new document from a Volpiano string">
-                <i class="bi bi-music-note-beamed me-1"></i> Import Volpiano
-              </button>
-            </ng-container>
-            <ng-container *ngIf="!source.id">
-              <button class="btn btn-warning btn-sm" (click)="promptForName()" title="Name the source first">
-                <i class="bi bi-pencil me-1"></i> Name source first
-              </button>
-            </ng-container>
+            <div class="meta-field">
+              <label class="meta-label">Date</label>
+              <input class="form-control form-control-sm" [(ngModel)]="source.datierung" (blur)="save()" placeholder="e.g. 12th cent."/>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Region of Origin</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-herkunftsregion" [(ngModel)]="source.herkunftsregion" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsregion', source.herkunftsregion)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Place of Origin</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-herkunftsort" [(ngModel)]="source.herkunftsort" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsort', source.herkunftsort)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Institution of Origin</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-herkunftsinstitution" [(ngModel)]="source.herkunftsinstitution" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsinstitution', source.herkunftsinstitution)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Order Tradition</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-ordenstradition" [(ngModel)]="source.ordenstradition" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('ordenstradition', source.ordenstradition)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Source Type</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-quellentyp" [(ngModel)]="source.quellentyp" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellentyp', source.quellentyp)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Library Location</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-bibliotheksort" [(ngModel)]="source.bibliotheksort" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliotheksort', source.bibliotheksort)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Library</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-bibliothek" [(ngModel)]="source.bibliothek" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliothek', source.bibliothek)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="meta-field">
+              <label class="meta-label">Library Signature</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-bibliothekssignatur" [(ngModel)]="source.bibliothekssignatur" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliothekssignatur', source.bibliothekssignatur)" title="Add to list"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <!-- Custom Fields -->
+            @for (cf of settings?.customSourceFields; track cf) {
+              <div class="meta-field">
+                <label class="meta-label">{{ cf.label }}</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control form-control-sm" [attr.list]="'list-' + cf.key" [(ngModel)]="source.custom![cf.key]" (blur)="save()" />
+                  <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettingsCustom(cf.key, source.custom![cf.key])" title="Add to list"><i class="bi bi-plus"></i></button>
+                </div>
+              </div>
+            }
+            <div class="meta-field meta-field--wide">
+              <label class="meta-label">Comment</label>
+              <textarea class="form-control form-control-sm" [(ngModel)]="source.kommentar" (blur)="save()" rows="2"></textarea>
+            </div>
+            <div class="meta-field meta-field--wide">
+              <label class="meta-label text-primary fw-semibold"><i class="bi bi-image me-1"></i>IIIF Manifest URL</label>
+              <input class="form-control form-control-sm border-primary" [(ngModel)]="source.iiifManifestUrl" (blur)="save()" placeholder="https://.../manifest.json" />
+            </div>
           </div>
         </div>
-        <app-smart-table
-          [objects]="documents"
-          [headers]="docHeaders"
-          [batchFields]="docBatchFields"
-          [canDelete]="true"
-          [filterable]="true"
-          [paginated]="true"
-          [pageSize]="10"
-          storageKey="source_documents_table"
-          (onRowClick)="goToDocument($event)"
-          (onDelete)="deleteDocument($event)"
-          (onBatchDelete)="onBatchDeleteDocuments($event)"
-          (onBatchEdit)="onBatchEditDocuments($event)">
-        </app-smart-table>
-      </div>
-
-      <!-- ── Notation Documentation tab ── -->
-      <div *ngIf="activeTab === 'notation'" class="tab-content-panel">
-        
-        <!-- Sub-navigation -->
-        <ul class="nav nav-pills mb-4">
+      }
+      <!-- ── Tabs — always full width, never move ───────────────────────────── -->
+      <div class="source-tabs-wrap">
+        <ul class="nav nav-tabs source-nav-tabs">
           <li class="nav-item">
-            <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'select'"
-               (click)="setNotationTab('select')">
-              Select Patterns
+            <a class="nav-link cursor-pointer" [class.active]="activeTab === 'documents'"
+              (click)="switchTab('documents')">
+              <i class="bi bi-file-earmark-music me-1"></i>Documents
             </a>
           </li>
-          <li class="nav-item" *ngIf="source.iiifManifestUrl">
-            <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'annotate'"
-               (click)="setNotationTab('annotate')">
-              Annotate Scans
-            </a>
-          </li>
-          <li class="nav-item" *ngIf="source.iiifManifestUrl">
-            <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'view'"
-               (click)="setNotationTab('view')">
-              View Documentation
+          <li class="nav-item">
+            <a class="nav-link cursor-pointer" [class.active]="activeTab === 'notation'"
+              (click)="switchTab('notation')">
+              <i class="bi bi-music-note-list me-1"></i>Notation Documentation
             </a>
           </li>
         </ul>
-
-        <!-- Select Patterns Sub-tab -->
-        <div *ngIf="activeNotationTab === 'select'">
-          <div *ngIf="isLoadingNotation" class="text-center py-5 text-muted">
-            <div class="spinner-border spinner-border-sm me-2"></div>
-            Analysing notation patterns…
+        <!-- ── Documents tab ── -->
+        @if (activeTab === 'documents') {
+          <div class="tab-content-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0 fw-semibold">Documents</h5>
+              <div class="d-flex gap-2 align-items-center position-relative">
+                <div class="position-relative">
+                  <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                    (click)="showDocColPicker = !showDocColPicker">
+                    <i class="bi bi-layout-three-columns"></i> Columns
+                  </button>
+                  @if (showDocColPicker) {
+                    <div
+                      class="shadow-lg border rounded-3 bg-white"
+                      style="position:absolute; top:2.2rem; right:0; z-index:200; min-width:230px; padding:1rem;">
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
+                        <button class="btn-close btn-sm" (click)="showDocColPicker = false"></button>
+                      </div>
+                      <div class="d-flex flex-column gap-2">
+                        @for (col of docCols; track col) {
+                          <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" [id]="'dcol-' + col.key"
+                              [(ngModel)]="col.visible" (change)="saveDocCols()" />
+                            <label class="form-check-label" [for]="'dcol-' + col.key"
+                            style="font-size:.85rem;">{{ col.label }}</label>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+                @if (source.id) {
+                  <button class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]">
+                    <i class="bi bi-plus-lg me-1"></i> New Document
+                  </button>
+                  <button class="btn btn-outline-primary btn-sm ms-2" (click)="openVolpianoImport()"
+                    title="Create a new document from a Volpiano string">
+                    <i class="bi bi-music-note-beamed me-1"></i> Import Volpiano
+                  </button>
+                }
+                @if (!source.id) {
+                  <button class="btn btn-warning btn-sm" (click)="promptForName()" title="Name the source first">
+                    <i class="bi bi-pencil me-1"></i> Name source first
+                  </button>
+                }
+              </div>
+            </div>
+            <app-smart-table
+              [objects]="documents"
+              [headers]="docHeaders"
+              [batchFields]="docBatchFields"
+              [canDelete]="true"
+              [filterable]="true"
+              [paginated]="true"
+              [pageSize]="10"
+              storageKey="source_documents_table"
+              (onRowClick)="goToDocument($event)"
+              (onDelete)="deleteDocument($event)"
+              (onBatchDelete)="onBatchDeleteDocuments($event)"
+              (onBatchEdit)="onBatchEditDocuments($event)">
+            </app-smart-table>
           </div>
-          <app-overview *ngIf="!isLoadingNotation"
-                        [manuscriptPatterns]="allPatterns"
-                        [source]="source"
-                        (openInGallery)="openPatternInGallery($event)">
-          </app-overview>
-        </div>
+        }
+        <!-- ── Notation Documentation tab ── -->
+        @if (activeTab === 'notation') {
+          <div class="tab-content-panel">
+            <!-- Sub-navigation -->
+            <ul class="nav nav-pills mb-4">
+              <li class="nav-item">
+                <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'select'"
+                  (click)="setNotationTab('select')">
+                  Select Patterns
+                </a>
+              </li>
+              @if (source.iiifManifestUrl) {
+                <li class="nav-item">
+                  <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'annotate'"
+                    (click)="setNotationTab('annotate')">
+                    Annotate Scans
+                  </a>
+                </li>
+              }
+              @if (source.iiifManifestUrl) {
+                <li class="nav-item">
+                  <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'view'"
+                    (click)="setNotationTab('view')">
+                    View Documentation
+                  </a>
+                </li>
+              }
+            </ul>
+            <!-- Select Patterns Sub-tab -->
+            @if (activeNotationTab === 'select') {
+              <div>
+                @if (isLoadingNotation) {
+                  <div class="text-center py-5 text-muted">
+                    <div class="spinner-border spinner-border-sm me-2"></div>
+                    Analysing notation patterns…
+                  </div>
+                }
+                @if (!isLoadingNotation) {
+                  <app-overview
+                    [manuscriptPatterns]="allPatterns"
+                    [source]="source"
+                    (openInGallery)="openPatternInGallery($event)">
+                  </app-overview>
+                }
+              </div>
+            }
+            <!-- Annotate Scans Sub-tab -->
+            @if (activeNotationTab === 'annotate' && source.iiifManifestUrl) {
+              <div class="mt-2" style="margin: -1.5rem; margin-top: 1rem;">
+                <!-- Negative margin to allow the IIIF viewer to expand edge-to-edge if needed, though we add a slight top margin -->
+                <app-iiif-viewer [source]="source"
+                  [documentFolios]="sourceFolios"
+                  [documentPatterns]="documentPatternIds"
+                  [allPatterns]="allPatterns"
+                  [jumpToPattern]="iiifGalleryPattern"
+                  (sourceChanged)="save()">
+                </app-iiif-viewer>
+              </div>
+            }
+            <!-- View Documentation Sub-tab -->
+            @if (activeNotationTab === 'view' && source.iiifManifestUrl) {
+              <div class="mt-2">
+                <app-notation-viewer [source]="source" [allPatterns]="allPatterns"></app-notation-viewer>
+              </div>
+            }
+          </div>
+        }
+      </div><!-- /tabs wrap -->
+    </div>
+    }<!-- /source layout -->
+  </div>
 
-        <!-- Annotate Scans Sub-tab -->
-        <div *ngIf="activeNotationTab === 'annotate' && source.iiifManifestUrl" class="mt-2" style="margin: -1.5rem; margin-top: 1rem;">
-          <!-- Negative margin to allow the IIIF viewer to expand edge-to-edge if needed, though we add a slight top margin -->
-          <app-iiif-viewer [source]="source"
-                           [documentFolios]="sourceFolios"
-                           [documentPatterns]="documentPatternIds"
-                           [allPatterns]="allPatterns"
-                           [jumpToPattern]="iiifGalleryPattern"
-                           (sourceChanged)="save()">
-          </app-iiif-viewer>
-        </div>
+  <!-- Volpiano import modal -->
+  <ng-template #volpianoImport let-modal>
+    <div class="modal-header">
+      <h4 class="modal-title">Import Volpiano</h4>
+      <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click');"></button>
+    </div>
+    <div class="modal-body">
+      <p class="text-muted small">
+        Paste a Volpiano melody (CANTUS convention, e.g. <code>1---dh-k--h--h---h--h---</code>).
+        A new document is created under this source. Characters that aren't understood are ignored
+        and listed as warnings.
+      </p>
 
-        <!-- View Documentation Sub-tab -->
-        <div *ngIf="activeNotationTab === 'view' && source.iiifManifestUrl" class="mt-2">
-          <app-notation-viewer [source]="source" [allPatterns]="allPatterns"></app-notation-viewer>
-        </div>
-
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Document ID <span class="text-muted">(optional)</span></label>
+        <input class="form-control form-control-sm" [(ngModel)]="volpianoImportDocId" placeholder="e.g. A-KN1012_001r_01">
       </div>
 
-    </div><!-- /tabs wrap -->
-  </div><!-- /source layout -->
-</div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Volpiano</label>
+        <textarea class="form-control font-monospace" rows="4" [(ngModel)]="volpianoImportText"
+        placeholder="1---dh-k--h--h---h--h---"></textarea>
+      </div>
 
-<!-- Volpiano import modal -->
-<ng-template #volpianoImport let-modal>
-  <div class="modal-header">
-    <h4 class="modal-title">Import Volpiano</h4>
-    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click');"></button>
-  </div>
-  <div class="modal-body">
-    <p class="text-muted small">
-      Paste a Volpiano melody (CANTUS convention, e.g. <code>1---dh-k--h--h---h--h---</code>).
-      A new document is created under this source. Characters that aren't understood are ignored
-      and listed as warnings.
-    </p>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Aligned text <span class="text-muted">(optional)</span></label>
+        <textarea class="form-control" rows="2" [(ngModel)]="volpianoImportAlignedText"
+        placeholder="Quo-ni-am de-us"></textarea>
+        <div class="form-text">
+          Syllables separated by <code>-</code>, words by spaces. When supplied, word and syllable
+          boundaries survive a round trip.
+        </div>
+      </div>
 
-    <div class="mb-3">
-      <label class="form-label small fw-semibold">Document ID <span class="text-muted">(optional)</span></label>
-      <input class="form-control form-control-sm" [(ngModel)]="volpianoImportDocId" placeholder="e.g. A-KN1012_001r_01">
-    </div>
+      @if (volpianoImportWarnings.length > 0) {
+        <div class="alert alert-warning py-2 small">
+          <ul class="mb-0">
+            @for (w of volpianoImportWarnings; track w) {
+              <li>{{ w }}</li>
+            }
+          </ul>
+        </div>
+      }
 
-    <div class="mb-3">
-      <label class="form-label small fw-semibold">Volpiano</label>
-      <textarea class="form-control font-monospace" rows="4" [(ngModel)]="volpianoImportText"
-                placeholder="1---dh-k--h--h---h--h---"></textarea>
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label small fw-semibold">Aligned text <span class="text-muted">(optional)</span></label>
-      <textarea class="form-control" rows="2" [(ngModel)]="volpianoImportAlignedText"
-                placeholder="Quo-ni-am de-us"></textarea>
-      <div class="form-text">
-        Syllables separated by <code>-</code>, words by spaces. When supplied, word and syllable
-        boundaries survive a round trip.
+      <div class="text-end">
+        <button class="btn btn-secondary btn-sm me-2" (click)="modal.dismiss()">Cancel</button>
+        <button class="btn btn-primary btn-sm" (click)="doVolpianoImport()">Create Document</button>
       </div>
     </div>
-
-    <div *ngIf="volpianoImportWarnings.length > 0" class="alert alert-warning py-2 small">
-      <ul class="mb-0">
-        <li *ngFor="let w of volpianoImportWarnings">{{ w }}</li>
-      </ul>
-    </div>
-
-    <div class="text-end">
-      <button class="btn btn-secondary btn-sm me-2" (click)="modal.dismiss()">Cancel</button>
-      <button class="btn btn-primary btn-sm" (click)="doVolpianoImport()">Create Document</button>
-    </div>
-  </div>
-</ng-template>
+  </ng-template>

@@ -57,18 +57,18 @@
       <div class="demo-wrapper w-100 mt-1">
         <!-- Mock Tab Selectors -->
         <div class="d-flex bg-light p-1 rounded mb-3 border" style="font-size: 0.8rem;">
-          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
-                  [class.bg-white]="mockTab === 'text'" [class.shadow-sm]="mockTab === 'text'" 
-                  (click)="triggerExample('text', 'fidelis')">Text</button>
-          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
-                  [class.bg-white]="mockTab === 'pitch'" [class.shadow-sm]="mockTab === 'pitch'" 
-                  (click)="triggerExample('pitch', 'F G A')">Pitch</button>
-          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
-                  [class.bg-white]="mockTab === 'interval'" [class.shadow-sm]="mockTab === 'interval'" 
-                  (click)="triggerExample('interval', '+2 -2')">Interval</button>
-          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
-                  [class.bg-white]="mockTab === 'fuzzy'" [class.shadow-sm]="mockTab === 'fuzzy'" 
-                  (click)="triggerExample('fuzzy', 'A B C', 1)">Fuzzy</button>
+          <button class="btn btn-sm py-1 flex-grow-1 border-0"
+            [class.bg-white]="mockTab === 'text'" [class.shadow-sm]="mockTab === 'text'"
+          (click)="triggerExample('text', 'fidelis')">Text</button>
+          <button class="btn btn-sm py-1 flex-grow-1 border-0"
+            [class.bg-white]="mockTab === 'pitch'" [class.shadow-sm]="mockTab === 'pitch'"
+          (click)="triggerExample('pitch', 'F G A')">Pitch</button>
+          <button class="btn btn-sm py-1 flex-grow-1 border-0"
+            [class.bg-white]="mockTab === 'interval'" [class.shadow-sm]="mockTab === 'interval'"
+          (click)="triggerExample('interval', '+2 -2')">Interval</button>
+          <button class="btn btn-sm py-1 flex-grow-1 border-0"
+            [class.bg-white]="mockTab === 'fuzzy'" [class.shadow-sm]="mockTab === 'fuzzy'"
+          (click)="triggerExample('fuzzy', 'A B C', 1)">Fuzzy</button>
         </div>
 
         <!-- Simulator Query Input -->
@@ -79,82 +79,102 @@
         </div>
 
         <!-- Levenshtein Slider for Fuzzy tab -->
-        <div class="mb-3 border-bottom pb-2" *ngIf="mockTab === 'fuzzy'">
-          <label class="form-label d-flex justify-content-between text-muted small mb-1">
-            <span>Fuzzy Tolerance (Distance)</span>
-            <span class="badge bg-secondary">{{fuzzyDistance}}</span>
-          </label>
-          <input type="range" class="form-range" min="0" max="1" step="1" [(ngModel)]="fuzzyDistance" (ngModelChange)="runMockSearch()">
-        </div>
+        @if (mockTab === 'fuzzy') {
+          <div class="mb-3 border-bottom pb-2">
+            <label class="form-label d-flex justify-content-between text-muted small mb-1">
+              <span>Fuzzy Tolerance (Distance)</span>
+              <span class="badge bg-secondary">{{fuzzyDistance}}</span>
+            </label>
+            <input type="range" class="form-range" min="0" max="1" step="1" [(ngModel)]="fuzzyDistance" (ngModelChange)="runMockSearch()">
+          </div>
+        }
 
         <!-- Simulator Results List -->
         <div class="results-container" style="max-height: 250px; overflow-y: auto;">
           <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Mock Search Results</span>
-          
-          <!-- Text Results -->
-          <div *ngIf="mockTab === 'text'">
-            <div *ngFor="let r of textResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
-              <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
-              <div class="text-dark">{{r.title}}</div>
-              <div class="text-muted small mt-1">
-                {{r.before}}<span class="bg-warning px-1 rounded">{{r.match}}</span>{{r.after}}
-              </div>
-            </div>
-          </div>
 
-          <!-- Pitch Results with visual staff -->
-          <div *ngIf="mockTab === 'pitch'">
-            <div *ngFor="let r of pitchResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
-              <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
-              <div class="text-dark mb-1">{{r.title}}</div>
-              
-              <!-- Mini 4-line staff visualizer -->
-              <div class="mini-staff-wrapper bg-light rounded border p-2 position-relative" style="height: 60px; overflow: hidden; margin-top: 5px;">
-                <!-- 4 lines -->
-                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 12px;"></div>
-                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 22px;"></div>
-                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 32px;"></div>
-                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 42px;"></div>
-                
-                <!-- Mock neume squares -->
-                <div class="d-flex justify-content-around align-items-center h-100 position-relative z-index-2">
-                  <div *ngFor="let pitch of r.pitches; let idx = index" 
-                       [class.bg-warning]="r.highlight.includes(idx)" 
-                       [class.border-warning]="r.highlight.includes(idx)"
-                       [class.bg-dark]="!r.highlight.includes(idx)" 
-                       style="width: 10px; height: 10px; transform: rotate(45deg); display: flex; align-items: center; justify-content: center;"
-                       [style.margin-top.px]="pitch === 'A' ? -20 : pitch === 'G' ? -10 : pitch === 'F' ? 0 : pitch === 'D' ? 15 : 5"
-                       [title]="pitch">
+          <!-- Text Results -->
+          @if (mockTab === 'text') {
+            <div>
+              @for (r of textResults; track r) {
+                <div class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+                  <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
+                  <div class="text-dark">{{r.title}}</div>
+                  <div class="text-muted small mt-1">
+                    {{r.before}}<span class="bg-warning px-1 rounded">{{r.match}}</span>{{r.after}}
                   </div>
                 </div>
-              </div>
+              }
             </div>
-          </div>
+          }
+
+          <!-- Pitch Results with visual staff -->
+          @if (mockTab === 'pitch') {
+            <div>
+              @for (r of pitchResults; track r) {
+                <div class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+                  <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
+                  <div class="text-dark mb-1">{{r.title}}</div>
+                  <!-- Mini 4-line staff visualizer -->
+                  <div class="mini-staff-wrapper bg-light rounded border p-2 position-relative" style="height: 60px; overflow: hidden; margin-top: 5px;">
+                    <!-- 4 lines -->
+                    <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 12px;"></div>
+                    <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 22px;"></div>
+                    <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 32px;"></div>
+                    <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 42px;"></div>
+                    <!-- Mock neume squares -->
+                    <div class="d-flex justify-content-around align-items-center h-100 position-relative z-index-2">
+                      @for (pitch of r.pitches; track pitch; let idx = $index) {
+                        <div
+                          [class.bg-warning]="r.highlight.includes(idx)"
+                          [class.border-warning]="r.highlight.includes(idx)"
+                          [class.bg-dark]="!r.highlight.includes(idx)"
+                          style="width: 10px; height: 10px; transform: rotate(45deg); display: flex; align-items: center; justify-content: center;"
+                          [style.margin-top.px]="pitch === 'A' ? -20 : pitch === 'G' ? -10 : pitch === 'F' ? 0 : pitch === 'D' ? 15 : 5"
+                          [title]="pitch">
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          }
 
           <!-- Interval Results -->
-          <div *ngIf="mockTab === 'interval'">
-            <div *ngFor="let r of intervalResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
-              <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
-              <div class="text-dark">{{r.title}}</div>
-              <div class="text-muted small mt-1 font-monospace">{{r.steps}}</div>
-              <div class="d-flex gap-1 mt-1">
-                <span *ngFor="let p of r.pitches" class="badge bg-secondary" style="font-size: 0.65rem;">{{p}}</span>
-              </div>
+          @if (mockTab === 'interval') {
+            <div>
+              @for (r of intervalResults; track r) {
+                <div class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+                  <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
+                  <div class="text-dark">{{r.title}}</div>
+                  <div class="text-muted small mt-1 font-monospace">{{r.steps}}</div>
+                  <div class="d-flex gap-1 mt-1">
+                    @for (p of r.pitches; track p) {
+                      <span class="badge bg-secondary" style="font-size: 0.65rem;">{{p}}</span>
+                    }
+                  </div>
+                </div>
+              }
             </div>
-          </div>
+          }
 
           <!-- Fuzzy Results -->
-          <div *ngIf="mockTab === 'fuzzy'">
-            <div *ngFor="let r of fuzzyResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="font-monospace text-dark fw-semibold">{{r.match}}</span>
-                <span class="badge" [class.bg-success]="r.distance === 0" [class.bg-warning]="r.distance > 0" style="font-size: 0.7rem;">
-                  Dist: {{r.distance}}
-                </span>
-              </div>
-              <div class="text-muted small mt-1">{{r.description}}</div>
+          @if (mockTab === 'fuzzy') {
+            <div>
+              @for (r of fuzzyResults; track r) {
+                <div class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="font-monospace text-dark fw-semibold">{{r.match}}</span>
+                    <span class="badge" [class.bg-success]="r.distance === 0" [class.bg-warning]="r.distance > 0" style="font-size: 0.7rem;">
+                      Dist: {{r.distance}}
+                    </span>
+                  </div>
+                  <div class="text-muted small mt-1">{{r.description}}</div>
+                </div>
+              }
             </div>
-          </div>
+          }
 
         </div>
 

@@ -1,18 +1,20 @@
 <div class="cutout-wrapper position-relative" [style.width]="width" [style.height]="height">
-  <button *ngIf="zoomLevel !== 1 || panX !== 0 || panY !== 0" 
-          class="btn btn-sm btn-light position-absolute top-0 end-0 m-2 shadow-sm z-3" 
-          style="opacity: 0.8;"
-          (click)="resetView()" 
-          title="Reset View">
-    <i class="bi bi-arrows-angle-contract"></i> Reset
-  </button>
-  <svg class="cutout-svg" 
-       [attr.viewBox]="viewBox" 
-       preserveAspectRatio="xMidYMid meet"
-       (wheel)="onWheel($event)"
-       (mousedown)="onMouseDown($event)"
-       style="cursor: grab;"
-       [style.cursor]="isDragging ? 'grabbing' : 'grab'">
+  @if (zoomLevel !== 1 || panX !== 0 || panY !== 0) {
+    <button
+      class="btn btn-sm btn-light position-absolute top-0 end-0 m-2 shadow-sm z-3"
+      style="opacity: 0.8;"
+      (click)="resetView()"
+      title="Reset View">
+      <i class="bi bi-arrows-angle-contract"></i> Reset
+    </button>
+  }
+  <svg class="cutout-svg"
+    [attr.viewBox]="viewBox"
+    preserveAspectRatio="xMidYMid meet"
+    (wheel)="onWheel($event)"
+    (mousedown)="onMouseDown($event)"
+    style="cursor: grab;"
+    [style.cursor]="isDragging ? 'grabbing' : 'grab'">
     <image
       [attr.href]="imageUrl"
       x="0"
@@ -22,40 +24,43 @@
       preserveAspectRatio="none"
       referrerpolicy="no-referrer">
     </image>
-    
+
     <!-- Region Outline -->
-    <polygon 
-      *ngIf="regionPoints"
-      [attr.points]="regionPoints" 
-      fill="none" 
-      stroke="#cbd5e1" 
-      stroke-width="0.3" 
-      vector-effect="non-scaling-stroke" 
-      opacity="0.8">
-    </polygon>
+    @if (regionPoints) {
+      <polygon
+        [attr.points]="regionPoints"
+        fill="none"
+        stroke="#cbd5e1"
+        stroke-width="0.3"
+        vector-effect="non-scaling-stroke"
+        opacity="0.8">
+      </polygon>
+    }
 
     <!-- Item Polygons -->
-    <polygon 
-      *ngFor="let ov of items" 
-      [attr.points]="ov.points"
-      fill="rgba(37, 99, 235, 0.15)"
-      stroke="#2563eb"
-      stroke-width="0.3"
-      vector-effect="non-scaling-stroke"
-      class="interactive-poly">
-    </polygon>
+    @for (ov of items; track ov) {
+      <polygon
+        [attr.points]="ov.points"
+        fill="rgba(37, 99, 235, 0.15)"
+        stroke="#2563eb"
+        stroke-width="0.3"
+        vector-effect="non-scaling-stroke"
+        class="interactive-poly">
+      </polygon>
+    }
   </svg>
 
   <!-- HTML Labels Overlay -->
   <div class="html-labels-layer pointer-events-none">
-    <div 
-      *ngFor="let ov of items" 
-      class="html-label d-flex align-items-center gap-1 bg-white border border-secondary shadow-sm rounded px-1"
-      [style.left]="getLabelStyle(ov).left"
-      [style.top]="getLabelStyle(ov).top"
-      [title]="ov.pattern">
-      <span class="small fw-bold text-dark">{{ ov.displayId || ov.pattern }}</span>
-      <app-svg-pattern [pattern]="ov.pattern" style="height: 16px; display: block;"></app-svg-pattern>
-    </div>
+    @for (ov of items; track ov) {
+      <div
+        class="html-label d-flex align-items-center gap-1 bg-white border border-secondary shadow-sm rounded px-1"
+        [style.left]="getLabelStyle(ov).left"
+        [style.top]="getLabelStyle(ov).top"
+        [title]="ov.pattern">
+        <span class="small fw-bold text-dark">{{ ov.displayId || ov.pattern }}</span>
+        <app-svg-pattern [pattern]="ov.pattern" style="height: 16px; display: block;"></app-svg-pattern>
+      </div>
+    }
   </div>
 </div>

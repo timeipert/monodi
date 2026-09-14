@@ -1,217 +1,245 @@
 <div class="sticky-top shadow-sm">
-    <nav class="navbar navbar-expand-lg navbar-light bg-white px-3 px-md-4 border-bottom">
-        <a class="navbar-brand d-flex align-items-center gap-2" [routerLink]="['/']" style="text-decoration: none;">
-            <div class="d-flex align-items-baseline" style="font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.5px;">
-                <span style="color: #fff;">Monodi</span>
-                <span style="color: #34d399; font-size: 1.5rem; line-height: 1; margin-left: 1px;">+</span>
-            </div>
-            <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">zero</span>
-        </a>
+  <nav class="navbar navbar-expand-lg navbar-light bg-white px-3 px-md-4 border-bottom">
+    <a class="navbar-brand d-flex align-items-center gap-2" [routerLink]="['/']" style="text-decoration: none;">
+      <div class="d-flex align-items-baseline" style="font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.5px;">
+        <span style="color: #fff;">Monodi</span>
+        <span style="color: #34d399; font-size: 1.5rem; line-height: 1; margin-left: 1px;">+</span>
+      </div>
+      <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">zero</span>
+    </a>
 
-        <button class="navbar-toggler" type="button"
-                (click)="isNavCollapsed = !isNavCollapsed"
-                [attr.aria-expanded]="!isNavCollapsed" aria-controls="navbarSupportedContent" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+    <button class="navbar-toggler" type="button"
+      (click)="isNavCollapsed = !isNavCollapsed"
+      [attr.aria-expanded]="!isNavCollapsed" aria-controls="navbarSupportedContent" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-        <div class="collapse navbar-collapse" id="navbarSupportedContent" [ngbCollapse]="isNavCollapsed">
-            <ul class="navbar-nav me-auto">
-                <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['sources']" (click)="isNavCollapsed = true">Sources</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']" (click)="isNavCollapsed = true">Search</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['stats']" (click)="isNavCollapsed = true">Stats</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['import-export']" (click)="isNavCollapsed = true">Import / Export</a>
-                </li>
-            </ul>
-            <ul class="navbar-nav ms-auto align-items-lg-center mt-2 mt-lg-0 gap-2 gap-lg-0">
-                <li class="nav-item me-3" *ngIf="github.isConnected">
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-success d-flex align-items-center gap-1" (click)="sync('pull')" [disabled]="isSyncing" title="Pull from GitHub">
-                            <i class="bi bi-cloud-arrow-down" *ngIf="!isSyncing"></i>
-                            <span class="spinner-border spinner-border-sm" *ngIf="isSyncing"></span>
-                            Pull
-                        </button>
-                        <button class="btn btn-success d-flex align-items-center gap-1" (click)="sync('push')" [disabled]="isSyncing" title="Push to GitHub">
-                            <i class="bi bi-cloud-arrow-up" *ngIf="!isSyncing"></i>
-                            <span class="spinner-border spinner-border-sm" *ngIf="isSyncing"></span>
-                            Push
-                        </button>
-                    </div>
-                </li>
-                <li class="nav-item me-3 d-flex align-items-center gap-2" [attr.title]="isOnline ? 'Online' : 'Offline'">
-                    <span [style.background-color]="isOnline ? '#22c55e' : '#9ca3af'" 
-                          class="rounded-circle d-inline-block shadow-sm"
-                          style="width: 10px; height: 10px; transition: background-color 0.3s ease;">
-                    </span>
-                    <span class="small text-muted fw-medium d-none d-sm-inline" style="font-size: 0.85rem;">{{ isOnline ? 'Online' : 'Offline' }}</span>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']" (click)="isNavCollapsed = true">
-                        <i class="bi bi-gear-fill me-1"></i>Settings
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-medium text-primary" [routerLink]="['/manual']" (click)="isNavCollapsed = true">
-                        <i class="bi bi-book-fill me-1"></i>Manual
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </nav>
-
-    <!-- Backup reminder: data is local-first and lost if browser storage is cleared -->
-    <div *ngIf="showBackupReminder" class="backup-reminder border-bottom px-3 py-2">
-        <div class="d-flex align-items-start gap-2 flex-wrap">
-            <i class="bi bi-shield-exclamation fs-5 text-warning flex-shrink-0"></i>
-            <div class="flex-grow-1" style="min-width: 220px;">
-                <div class="fw-semibold">Changes not backed up</div>
-                <div class="small text-muted">
-                    Your data lives only in this browser. If the browser's storage is cleared, it is gone for
-                    good. Back it up to be safe — via <strong>Export</strong> or <strong>GitHub</strong>.
-                </div>
+    <div class="collapse navbar-collapse" id="navbarSupportedContent" [ngbCollapse]="isNavCollapsed">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['sources']" (click)="isNavCollapsed = true">Sources</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']" (click)="isNavCollapsed = true">Search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['stats']" (click)="isNavCollapsed = true">Stats</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['import-export']" (click)="isNavCollapsed = true">Import / Export</a>
+        </li>
+      </ul>
+      <ul class="navbar-nav ms-auto align-items-lg-center mt-2 mt-lg-0 gap-2 gap-lg-0">
+        @if (github.isConnected) {
+          <li class="nav-item me-3">
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-success d-flex align-items-center gap-1" (click)="sync('pull')" [disabled]="isSyncing" title="Pull from GitHub">
+                @if (!isSyncing) {
+                  <i class="bi bi-cloud-arrow-down"></i>
+                }
+                @if (isSyncing) {
+                  <span class="spinner-border spinner-border-sm"></span>
+                }
+                Pull
+              </button>
+              <button class="btn btn-success d-flex align-items-center gap-1" (click)="sync('push')" [disabled]="isSyncing" title="Push to GitHub">
+                @if (!isSyncing) {
+                  <i class="bi bi-cloud-arrow-up"></i>
+                }
+                @if (isSyncing) {
+                  <span class="spinner-border spinner-border-sm"></span>
+                }
+                Push
+              </button>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-shrink-0">
-                <button class="btn btn-sm btn-warning" (click)="goToBackup()">
-                    <i class="bi bi-download me-1"></i>Back up now
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" (click)="snoozeBackup()" title="Hide for 30 minutes">
-                    Later
-                </button>
-                <button class="btn btn-sm btn-link text-muted text-decoration-none px-1" (click)="dismissBackupReminder()">
-                    Don't show again
-                </button>
-            </div>
-        </div>
+          </li>
+        }
+        <li class="nav-item me-3 d-flex align-items-center gap-2" [attr.title]="isOnline ? 'Online' : 'Offline'">
+          <span [style.background-color]="isOnline ? '#22c55e' : '#9ca3af'"
+            class="rounded-circle d-inline-block shadow-sm"
+            style="width: 10px; height: 10px; transition: background-color 0.3s ease;">
+          </span>
+          <span class="small text-muted fw-medium d-none d-sm-inline" style="font-size: 0.85rem;">{{ isOnline ? 'Online' : 'Offline' }}</span>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']" (click)="isNavCollapsed = true">
+            <i class="bi bi-gear-fill me-1"></i>Settings
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link fw-medium text-primary" [routerLink]="['/manual']" (click)="isNavCollapsed = true">
+            <i class="bi bi-book-fill me-1"></i>Manual
+          </a>
+        </li>
+      </ul>
     </div>
+  </nav>
 
-    <div *ngIf="tools && tools.tools.length > 0" class="monodi-tool-bar bg-light border-bottom px-3 py-2 d-flex align-items-center flex-wrap gap-2 shadow-sm">
-        <!-- Left: Back to Source button -->
-        <button *ngIf="tools.tools[0]?.icon === 'to-source'"
-                class="btn btn-sm btn-back-source d-flex align-items-center gap-1 me-3"
-                (click)="tools.tools[0].callback && tools.tools[0].callback()">
-            <i class="bi bi-arrow-left"></i>
-            {{ tools.tools[0].title }}
+  <!-- Backup reminder: data is local-first and lost if browser storage is cleared -->
+  @if (showBackupReminder) {
+    <div class="backup-reminder border-bottom px-3 py-2">
+      <div class="d-flex align-items-start gap-2 flex-wrap">
+        <i class="bi bi-shield-exclamation fs-5 text-warning flex-shrink-0"></i>
+        <div class="flex-grow-1" style="min-width: 220px;">
+          <div class="fw-semibold">Changes not backed up</div>
+          <div class="small text-muted">
+            Your data lives only in this browser. If the browser's storage is cleared, it is gone for
+            good. Back it up to be safe — via <strong>Export</strong> or <strong>GitHub</strong>.
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          <button class="btn btn-sm btn-warning" (click)="goToBackup()">
+            <i class="bi bi-download me-1"></i>Back up now
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" (click)="snoozeBackup()" title="Hide for 30 minutes">
+            Later
+          </button>
+          <button class="btn btn-sm btn-link text-muted text-decoration-none px-1" (click)="dismissBackupReminder()">
+            Don't show again
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (tools && tools.tools.length > 0) {
+    <div class="monodi-tool-bar bg-light border-bottom px-3 py-2 d-flex align-items-center flex-wrap gap-2 shadow-sm">
+      <!-- Left: Back to Source button -->
+      @if (tools.tools[0]?.icon === 'to-source') {
+        <button
+          class="btn btn-sm btn-back-source d-flex align-items-center gap-1 me-3"
+          (click)="tools.tools[0].callback && tools.tools[0].callback()">
+          <i class="bi bi-arrow-left"></i>
+          {{ tools.tools[0].title }}
         </button>
-        <button *ngIf="toolHasParent" class="btn btn-sm btn-outline-secondary d-flex align-items-center me-2" (click)="toolsBack()" title="Back">
-            <i class="bi bi-arrow-left"></i>
+      }
+      @if (toolHasParent) {
+        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center me-2" (click)="toolsBack()" title="Back">
+          <i class="bi bi-arrow-left"></i>
         </button>
-        <!-- Middle: Undo/Redo group -->
-        <div class="d-flex align-items-center gap-1 ms-3" *ngIf="router.url.includes('/document/')">
-            <div ngbDropdown class="btn-group btn-group-sm">
-                <button class="btn btn-outline-secondary d-flex align-items-center bg-white" [disabled]="undoService.getHistoryCount() === 0" (click)="undoService.undo()" title="Undo">
-                    <i class="bi bi-arrow-counterclockwise"></i>
-                </button>
-                <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split bg-white" 
-                        ngbDropdownToggle [disabled]="undoService.getHistoryCount() === 0">
-                    <span class="visually-hidden">Toggle Dropdown</span>
-                </button>
-                <div ngbDropdownMenu class="shadow border-0 py-1" style="max-height: 300px; overflow-y: auto;">
-                    <h6 class="dropdown-header">Undo History</h6>
-                    <button class="dropdown-item py-2 small" *ngFor="let name of undoService.getHistoryNames(); let i = index" (click)="undoService.jumpToHistory(i + 1)">
-                        Undo: {{ name }} ({{ i + 1 }} step{{ i + 1 > 1 ? 's' : '' }})
-                    </button>
-                </div>
-            </div>
-            
-            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center bg-white" [disabled]="undoService.getRedoCount() === 0" (click)="undoService.redo()" title="Redo">
-                <i class="bi bi-arrow-clockwise"></i>
+      }
+      <!-- Middle: Undo/Redo group -->
+      @if (router.url.includes('/document/')) {
+        <div class="d-flex align-items-center gap-1 ms-3">
+          <div ngbDropdown class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary d-flex align-items-center bg-white" [disabled]="undoService.getHistoryCount() === 0" (click)="undoService.undo()" title="Undo">
+              <i class="bi bi-arrow-counterclockwise"></i>
             </button>
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split bg-white"
+              ngbDropdownToggle [disabled]="undoService.getHistoryCount() === 0">
+              <span class="visually-hidden">Toggle Dropdown</span>
+            </button>
+            <div ngbDropdownMenu class="shadow border-0 py-1" style="max-height: 300px; overflow-y: auto;">
+              <h6 class="dropdown-header">Undo History</h6>
+              @for (name of undoService.getHistoryNames(); track name; let i = $index) {
+                <button class="dropdown-item py-2 small" (click)="undoService.jumpToHistory(i + 1)">
+                  Undo: {{ name }} ({{ i + 1 }} step{{ i + 1 > 1 ? 's' : '' }})
+                </button>
+              }
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center bg-white" [disabled]="undoService.getRedoCount() === 0" (click)="undoService.redo()" title="Redo">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
         </div>
-
-        <!-- Right: remaining tool icons -->
-        <div class="ms-auto d-flex align-items-center gap-2">
-            <ng-container *ngFor="let t of tools.tools; let i = index">
-                <ng-container *ngIf="t.icon !== 'to-source'">
-                    <ng-container *ngIf="t.icon; else other">
-                        <button *ngIf="!(i === 0 && t.icon === 'to-source')"
-                                class="btn d-flex align-items-center justify-content-center"
-                                style="min-width: 40px; height: 40px;"
-                                [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
-                                (click)="t.callback && t.callback()"
-                                (contextmenu)="onToolContextMenu($event, t)"
-                                [title]="t.title">
-                            <span *ngIf="t.icon === 'mei'" class="fw-bold px-1" style="font-family: serif; font-size: 1.1em; letter-spacing: 0.5px;">MEI</span>
-                            <i *ngIf="t.icon !== 'mei'" class="bi bi-{{t.icon}}" style="font-size: 1.25rem;"></i>
-                            <span *ngIf="t.active" class="ms-1">{{t.title}}</span>
-                        </button>
-                    </ng-container>
-                    <ng-template #other>
-                        <span class="badge bg-secondary text-white">{{t.title}}</span>
-                    </ng-template>
-                </ng-container>
-            </ng-container>
-        </div>
+      }
+      <!-- Right: remaining tool icons -->
+      <div class="ms-auto d-flex align-items-center gap-2">
+        @for (t of tools.tools; track t; let i = $index) {
+          @if (t.icon !== 'to-source') {
+            @if (t.icon) {
+              @if (!(i === 0 && t.icon === 'to-source')) {
+                <button
+                  class="btn d-flex align-items-center justify-content-center"
+                  style="min-width: 40px; height: 40px;"
+                  [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
+                  (click)="t.callback && t.callback()"
+                  (contextmenu)="onToolContextMenu($event, t)"
+                  [title]="t.title">
+                  @if (t.icon === 'mei') {
+                    <span class="fw-bold px-1" style="font-family: serif; font-size: 1.1em; letter-spacing: 0.5px;">MEI</span>
+                  }
+                  @if (t.icon !== 'mei') {
+                    <i class="bi bi-{{t.icon}}" style="font-size: 1.25rem;"></i>
+                  }
+                  @if (t.active) {
+                    <span class="ms-1">{{t.title}}</span>
+                  }
+                </button>
+              }
+            } @else {
+              <span class="badge bg-secondary text-white">{{t.title}}</span>
+            }
+          }
+        }
+      </div>
     </div>
+  }
 </div>
 <div class="main-content">
-    <router-outlet></router-outlet>
+  <router-outlet></router-outlet>
 </div>
 
 <!-- Merge Collision Dialog -->
-<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showMergeDialog">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content shadow-lg">
-      <div class="modal-header bg-warning text-dark border-0">
-        <h5 class="modal-title fw-bold">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>Merge Conflicts Detected
-        </h5>
-      </div>
-      <div class="modal-body bg-light p-4">
-        <p class="mb-4 text-muted">The remote repository contains changes that conflict with your local edits. Please select which version to keep for each file.</p>
-        
-        <div class="card shadow-sm border-0 mb-3" *ngFor="let conflict of conflicts; let i = index">
-          <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <h6 class="mb-0 fw-bold text-primary">{{ conflict.type }}: <span class="text-dark">{{ conflict.name }}</span></h6>
-            <small class="text-muted font-monospace" style="font-size: 0.75rem;">{{ conflict.id }}</small>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <!-- Local Option -->
-              <div class="col-md-6">
-                <div class="position-relative">
-                  <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'local-' + i" [(ngModel)]="conflict.resolution" value="local">
-                  <label class="btn btn-outline-secondary w-100 text-start p-3 h-100" [for]="'local-' + i">
-                    <div class="d-flex align-items-center mb-2">
-                      <i class="bi bi-laptop me-2 fs-5"></i>
-                      <strong class="d-block">Keep Local Version</strong>
-                    </div>
-                    <small class="d-block text-muted text-truncate">Preserve your unpushed browser edits.</small>
-                  </label>
-                </div>
+@if (showMergeDialog) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content shadow-lg">
+        <div class="modal-header bg-warning text-dark border-0">
+          <h5 class="modal-title fw-bold">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Merge Conflicts Detected
+          </h5>
+        </div>
+        <div class="modal-body bg-light p-4">
+          <p class="mb-4 text-muted">The remote repository contains changes that conflict with your local edits. Please select which version to keep for each file.</p>
+          @for (conflict of conflicts; track conflict; let i = $index) {
+            <div class="card shadow-sm border-0 mb-3">
+              <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h6 class="mb-0 fw-bold text-primary">{{ conflict.type }}: <span class="text-dark">{{ conflict.name }}</span></h6>
+                <small class="text-muted font-monospace" style="font-size: 0.75rem;">{{ conflict.id }}</small>
               </div>
-              
-              <!-- Remote Option -->
-              <div class="col-md-6">
-                <div class="position-relative">
-                  <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'remote-' + i" [(ngModel)]="conflict.resolution" value="remote">
-                  <label class="btn btn-outline-success w-100 text-start p-3 h-100" [for]="'remote-' + i">
-                    <div class="d-flex align-items-center mb-2">
-                      <i class="bi bi-github me-2 fs-5"></i>
-                      <strong class="d-block">Take Remote Version</strong>
+              <div class="card-body">
+                <div class="row g-3">
+                  <!-- Local Option -->
+                  <div class="col-md-6">
+                    <div class="position-relative">
+                      <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'local-' + i" [(ngModel)]="conflict.resolution" value="local">
+                      <label class="btn btn-outline-secondary w-100 text-start p-3 h-100" [for]="'local-' + i">
+                        <div class="d-flex align-items-center mb-2">
+                          <i class="bi bi-laptop me-2 fs-5"></i>
+                          <strong class="d-block">Keep Local Version</strong>
+                        </div>
+                        <small class="d-block text-muted text-truncate">Preserve your unpushed browser edits.</small>
+                      </label>
                     </div>
-                    <small class="d-block text-muted text-truncate">Overwrite with GitHub's version.</small>
-                  </label>
+                  </div>
+                  <!-- Remote Option -->
+                  <div class="col-md-6">
+                    <div class="position-relative">
+                      <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'remote-' + i" [(ngModel)]="conflict.resolution" value="remote">
+                      <label class="btn btn-outline-success w-100 text-start p-3 h-100" [for]="'remote-' + i">
+                        <div class="d-flex align-items-center mb-2">
+                          <i class="bi bi-github me-2 fs-5"></i>
+                          <strong class="d-block">Take Remote Version</strong>
+                        </div>
+                        <small class="d-block text-muted text-truncate">Overwrite with GitHub's version.</small>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          }
         </div>
-
-      </div>
-      <div class="modal-footer border-0 bg-white">
-        <button type="button" class="btn btn-primary px-4 fw-medium" (click)="resolveConflicts()">
-          Resolve & Apply <i class="bi bi-check2-circle ms-1"></i>
-        </button>
+        <div class="modal-footer border-0 bg-white">
+          <button type="button" class="btn btn-primary px-4 fw-medium" (click)="resolveConflicts()">
+            Resolve & Apply <i class="bi bi-check2-circle ms-1"></i>
+          </button>
+        </div>
       </div>
     </div>
   </div>
-</div>
+}
 
 <canvas id="canvas"></canvas>
 <app-drag-map></app-drag-map>

@@ -11,71 +11,90 @@
     </div>
 
     <!-- Active Filters List -->
-    <div class="filters-list" *ngIf="filters.length > 0; else noFilters">
-      <div class="row g-2 align-items-center mb-2" *ngFor="let filter of filters; let idx = index">
-        <!-- Select Field -->
-        <div class="col-md-4">
-          <select class="form-select form-select-sm" [(ngModel)]="filter.field" (change)="onFilterFieldChange(filter)">
-            <optgroup label="Standard Source Fields">
-              <option *ngFor="let f of allFields" [value]="f.key" [hidden]="f.type !== 'source'">{{ f.label }}</option>
-            </optgroup>
-            <optgroup label="Standard Document Fields">
-              <option *ngFor="let f of allFields" [value]="f.key" [hidden]="f.type !== 'document'">{{ f.label }}</option>
-            </optgroup>
-            <optgroup label="Custom Source Fields" *ngIf="customSourceKeys.size > 0">
-              <option *ngFor="let f of allFields" [value]="f.key" [hidden]="f.type !== 'custom_source'">{{ f.label }}</option>
-            </optgroup>
-            <optgroup label="Custom Document Fields" *ngIf="customDocKeys.size > 0">
-              <option *ngFor="let f of allFields" [value]="f.key" [hidden]="f.type !== 'custom_doc'">{{ f.label }}</option>
-            </optgroup>
-          </select>
-        </div>
-
-        <!-- Operator -->
-        <div class="col-md-3">
-          <select class="form-select form-select-sm" [(ngModel)]="filter.operator" (change)="applyFilters()">
-            <option value="contains">contains</option>
-            <option value="equals">equals</option>
-            <option value="startsWith">starts with</option>
-            <option value="endsWith">ends with</option>
-            <option value="empty">is empty</option>
-            <option value="notEmpty">is not empty</option>
-          </select>
-        </div>
-
-        <!-- Value Input with autocomplete datalist -->
-        <div class="col-md-4">
-          <input 
-            *ngIf="filter.operator !== 'empty' && filter.operator !== 'notEmpty'"
-            type="text" 
-            class="form-control form-control-sm" 
-            placeholder="Type or select value..." 
-            [(ngModel)]="filter.value" 
-            [attr.list]="'datalist-' + filter.field" 
-            (input)="applyFilters()"
-          />
-          <datalist [id]="'datalist-' + filter.field" *ngIf="filter.operator !== 'empty' && filter.operator !== 'notEmpty'">
-            <option *ngFor="let val of getUniqueValues(filter.field)" [value]="val"></option>
-          </datalist>
-          <span class="text-muted small px-2 align-middle" *ngIf="filter.operator === 'empty' || filter.operator === 'notEmpty'">
-            N/A
-          </span>
-        </div>
-
-        <!-- Delete Button -->
-        <div class="col-md-1 text-end">
-          <button class="btn btn-sm btn-outline-danger border-0" (click)="removeFilter(idx)" title="Remove filter">
-            <i class="bi bi-trash3"></i>
-          </button>
-        </div>
+    @if (filters.length > 0) {
+      <div class="filters-list">
+        @for (filter of filters; track filter; let idx = $index) {
+          <div class="row g-2 align-items-center mb-2">
+            <!-- Select Field -->
+            <div class="col-md-4">
+              <select class="form-select form-select-sm" [(ngModel)]="filter.field" (change)="onFilterFieldChange(filter)">
+                <optgroup label="Standard Source Fields">
+                  @for (f of allFields; track f) {
+                    <option [value]="f.key" [hidden]="f.type !== 'source'">{{ f.label }}</option>
+                  }
+                </optgroup>
+                <optgroup label="Standard Document Fields">
+                  @for (f of allFields; track f) {
+                    <option [value]="f.key" [hidden]="f.type !== 'document'">{{ f.label }}</option>
+                  }
+                </optgroup>
+                @if (customSourceKeys.size > 0) {
+                  <optgroup label="Custom Source Fields">
+                    @for (f of allFields; track f) {
+                      <option [value]="f.key" [hidden]="f.type !== 'custom_source'">{{ f.label }}</option>
+                    }
+                  </optgroup>
+                }
+                @if (customDocKeys.size > 0) {
+                  <optgroup label="Custom Document Fields">
+                    @for (f of allFields; track f) {
+                      <option [value]="f.key" [hidden]="f.type !== 'custom_doc'">{{ f.label }}</option>
+                    }
+                  </optgroup>
+                }
+              </select>
+            </div>
+            <!-- Operator -->
+            <div class="col-md-3">
+              <select class="form-select form-select-sm" [(ngModel)]="filter.operator" (change)="applyFilters()">
+                <option value="contains">contains</option>
+                <option value="equals">equals</option>
+                <option value="startsWith">starts with</option>
+                <option value="endsWith">ends with</option>
+                <option value="empty">is empty</option>
+                <option value="notEmpty">is not empty</option>
+              </select>
+            </div>
+            <!-- Value Input with autocomplete datalist -->
+            <div class="col-md-4">
+              @if (filter.operator !== 'empty' && filter.operator !== 'notEmpty') {
+                <input
+                  type="text"
+                  class="form-control form-control-sm"
+                  placeholder="Type or select value..."
+                  [(ngModel)]="filter.value"
+                  [attr.list]="'datalist-' + filter.field"
+                  (input)="applyFilters()"
+                  />
+              }
+              @if (filter.operator !== 'empty' && filter.operator !== 'notEmpty') {
+                <datalist [id]="'datalist-' + filter.field">
+                  @for (val of getUniqueValues(filter.field); track val) {
+                    <option [value]="val"></option>
+                  }
+                </datalist>
+              }
+              @if (filter.operator === 'empty' || filter.operator === 'notEmpty') {
+                <span class="text-muted small px-2 align-middle">
+                  N/A
+                </span>
+              }
+            </div>
+            <!-- Delete Button -->
+            <div class="col-md-1 text-end">
+              <button class="btn btn-sm btn-outline-danger border-0" (click)="removeFilter(idx)" title="Remove filter">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </div>
+          </div>
+        }
       </div>
-    </div>
-    
-    <ng-template #noFilters>
+    } @else {
       <div class="text-center py-2 text-muted small bg-light rounded border border-dashed">
         No active metadata filters. Click "Add Filter" to refine selection.
       </div>
-    </ng-template>
+    }
+
   </div>
 
   <!-- Selection Tools and Tree Panel -->
@@ -90,17 +109,19 @@
       <div class="d-flex gap-2 flex-grow-1 flex-md-grow-0">
         <!-- Quick search filter -->
         <input type="text" class="form-control form-control-sm" style="max-width: 240px;" placeholder="Quick search tree..." [(ngModel)]="searchText" (input)="applyFilters()">
-        
+
         <!-- Column selector dropdown -->
         <div ngbDropdown class="d-inline-block">
           <button class="btn btn-sm btn-outline-secondary text-nowrap" id="selColumns" ngbDropdownToggle>
             <i class="bi bi-layout-three-columns me-1"></i> Columns
           </button>
           <div ngbDropdownMenu aria-labelledby="selColumns" class="p-2 shadow dropdown-menu-end">
-            <div class="form-check" *ngFor="let col of docCols">
-              <input class="form-check-input" type="checkbox" [id]="'sel-col-' + col.key" [(ngModel)]="col.visible">
-              <label class="form-check-label" [for]="'sel-col-' + col.key">{{ col.label }}</label>
-            </div>
+            @for (col of docCols; track col) {
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" [id]="'sel-col-' + col.key" [(ngModel)]="col.visible">
+                <label class="form-check-label" [for]="'sel-col-' + col.key">{{ col.label }}</label>
+              </div>
+            }
           </div>
         </div>
 
@@ -111,63 +132,75 @@
 
     <!-- Tree View -->
     <div class="selection-tree-scroll" style="max-height: 400px; overflow-y: auto;">
-      <ng-container *ngFor="let srcNode of visibleSelection">
-        <div class="card shadow-none border mb-2" *ngIf="srcNode.visible">
-          <!-- Source Node Header -->
-          <div class="card-header bg-light d-flex align-items-center justify-content-between py-2 px-3">
-            <div class="form-check mb-0">
-              <input class="form-check-input" type="checkbox" [id]="'selector-src-' + srcNode.source.id" [(ngModel)]="srcNode.selected" (change)="toggleSourceSelection(srcNode)">
-              <label class="form-check-label fw-bold text-dark cursor-pointer" [for]="'selector-src-' + srcNode.source.id">
-                {{ srcNode.source.quellensigle || srcNode.source.id }}
-              </label>
-              <span class="text-muted small ms-2" *ngIf="srcNode.source.herkunftsort">
-                ({{ srcNode.source.herkunftsort }})
-              </span>
+      @for (srcNode of visibleSelection; track srcNode) {
+        @if (srcNode.visible) {
+          <div class="card shadow-none border mb-2">
+            <!-- Source Node Header -->
+            <div class="card-header bg-light d-flex align-items-center justify-content-between py-2 px-3">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" [id]="'selector-src-' + srcNode.source.id" [(ngModel)]="srcNode.selected" (change)="toggleSourceSelection(srcNode)">
+                <label class="form-check-label fw-bold text-dark cursor-pointer" [for]="'selector-src-' + srcNode.source.id">
+                  {{ srcNode.source.quellensigle || srcNode.source.id }}
+                </label>
+                @if (srcNode.source.herkunftsort) {
+                  <span class="text-muted small ms-2">
+                    ({{ srcNode.source.herkunftsort }})
+                  </span>
+                }
+              </div>
+              <button class="btn btn-xs btn-outline-secondary py-0 px-2 fw-medium" (click)="srcNode.expanded = !srcNode.expanded" style="font-size: 0.75rem;">
+                <i class="bi" [ngClass]="srcNode.expanded ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                {{ srcNode.documents.length }} docs
+              </button>
             </div>
-            
-            <button class="btn btn-xs btn-outline-secondary py-0 px-2 fw-medium" (click)="srcNode.expanded = !srcNode.expanded" style="font-size: 0.75rem;">
-              <i class="bi" [ngClass]="srcNode.expanded ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
-              {{ srcNode.documents.length }} docs
-            </button>
+            <!-- Document List Table inside Expanded Card -->
+            @if (srcNode.expanded) {
+              <div class="card-body p-0 border-top">
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover mb-0" style="font-size: 0.85rem;">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width: 40px;" class="text-center border-0">✓</th>
+                        @for (col of docCols; track col) {
+                          @if (col.visible) {
+                            <th class="border-0">{{ col.label }}</th>
+                          }
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (docNode of srcNode.documents; track docNode) {
+                        @if (docNode.visible) {
+                          <tr [ngClass]="{'table-primary-subtle': docNode.selected}">
+                            <td class="text-center align-middle">
+                              <input class="form-check-input mt-0" type="checkbox" [id]="'selector-doc-' + docNode.document.id" [(ngModel)]="docNode.selected" (change)="checkSourceSelection(srcNode)">
+                            </td>
+                            @for (col of docCols; track col) {
+                              @if (col.visible) {
+                                <td class="align-middle">
+                                  <label class="d-block w-100 cursor-pointer m-0 py-1" [for]="'selector-doc-' + docNode.document.id">
+                                    {{ docNode.document[col.key] || '-' }}
+                                  </label>
+                                </td>
+                              }
+                            }
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
           </div>
+        }
+      }
 
-          <!-- Document List Table inside Expanded Card -->
-          <div class="card-body p-0 border-top" *ngIf="srcNode.expanded">
-            <div class="table-responsive">
-              <table class="table table-sm table-hover mb-0" style="font-size: 0.85rem;">
-                <thead class="table-light">
-                  <tr>
-                    <th style="width: 40px;" class="text-center border-0">✓</th>
-                    <ng-container *ngFor="let col of docCols">
-                      <th *ngIf="col.visible" class="border-0">{{ col.label }}</th>
-                    </ng-container>
-                  </tr>
-                </thead>
-                <tbody>
-                  <ng-container *ngFor="let docNode of srcNode.documents">
-                    <tr *ngIf="docNode.visible" [ngClass]="{'table-primary-subtle': docNode.selected}">
-                      <td class="text-center align-middle">
-                        <input class="form-check-input mt-0" type="checkbox" [id]="'selector-doc-' + docNode.document.id" [(ngModel)]="docNode.selected" (change)="checkSourceSelection(srcNode)">
-                      </td>
-                      <ng-container *ngFor="let col of docCols">
-                        <td *ngIf="col.visible" class="align-middle">
-                          <label class="d-block w-100 cursor-pointer m-0 py-1" [for]="'selector-doc-' + docNode.document.id">
-                            {{ docNode.document[col.key] || '-' }}
-                          </label>
-                        </td>
-                      </ng-container>
-                    </tr>
-                  </ng-container>
-                </tbody>
-              </table>
-            </div>
-          </div>
+      @if (countTotalFiltered === 0) {
+        <div class="text-center py-5 text-muted small bg-light rounded border border-dashed">
+          <i class="bi bi-info-circle me-1" style="font-size: 1.25rem;"></i> No sources or documents match the current filters and search text.
         </div>
-      </ng-container>
-      
-      <div *ngIf="countTotalFiltered === 0" class="text-center py-5 text-muted small bg-light rounded border border-dashed">
-        <i class="bi bi-info-circle me-1" style="font-size: 1.25rem;"></i> No sources or documents match the current filters and search text.
-      </div>
+      }
     </div>
   </div>
 </div>

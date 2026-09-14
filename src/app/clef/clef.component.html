@@ -1,37 +1,45 @@
 <div class="section" [style.width.px]="(readOnly ? (35 * staffScale) : 35) + (showGClef ? 32 : 0)" [class.read-only]="readOnly">
-	<div #notesDiv class="notes" (keydown)="keyDown($event)" (click)="clicked()" (contextmenu)="onContextMenu($event)" tabindex="-1" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)">
-		<svg [attr.width]="((readOnly ? (35 * staffScale) : 35) + (showGClef ? 32 : 0)) + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
-			<g (click)="clicked()" [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
+  <div #notesDiv class="notes" (keydown)="keyDown($event)" (click)="clicked()" (contextmenu)="onContextMenu($event)" tabindex="-1" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)">
+    <svg [attr.width]="((readOnly ? (35 * staffScale) : 35) + (showGClef ? 32 : 0)) + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
+      <g (click)="clicked()" [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
 
-                          <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
-                          <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
-                          <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
-                          <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
-                          <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
-                          <text *ngIf="showGClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
-                          <text [attr.x]="showGClef ? 27 : 5" [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.fill]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.y]="getY() + 6">{{this.model.shape}}</text>
-			</g>
-		</svg>
-	</div>
-	<div tabindex="-1" class="noteText"     [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
-	<div tabindex="-1" class="syllableText" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
+        <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
+        <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
+        <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
+        <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
+        <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
+        @if (showGClef) {
+          <text x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
+        }
+        <text [attr.x]="showGClef ? 27 : 5" [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.fill]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.y]="getY() + 6">{{this.model.shape}}</text>
+      </g>
+    </svg>
+  </div>
+  <div tabindex="-1" class="noteText"     [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
+  <div tabindex="-1" class="syllableText" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
 </div>
 
 <ng-template #commentModal let-modal>
-	<div class="modal-header">
-		<h4 class="modal-title" id="modal-basic-title">Clef Comments</h4>
-		<button type="button" class="close" aria-label="Close" (click)="modal.dismiss('Cross click')">
-			<span aria-hidden="true">&times;</span>
-		</button>
-	</div>
-	<div class="modal-body">
-		<div *ngIf="getActiveComments().length > 0">
-			<ul>
-				<li *ngFor="let comment of getActiveComments()">{{comment.text}}<img (click)="requestDeleteComment(comment)" src="assets/icons/delete.svg"/></li>
-			</ul>
-		</div>
-		<div *ngIf="getActiveComments().length == 0">
-			No comments for this clef.
-		</div>
-	</div>
+  <div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">Clef Comments</h4>
+    <button type="button" class="close" aria-label="Close" (click)="modal.dismiss('Cross click')">
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
+  <div class="modal-body">
+    @if (getActiveComments().length > 0) {
+      <div>
+        <ul>
+          @for (comment of getActiveComments(); track comment) {
+            <li>{{comment.text}}<img (click)="requestDeleteComment(comment)" src="assets/icons/delete.svg"/></li>
+          }
+        </ul>
+      </div>
+    }
+    @if (getActiveComments().length == 0) {
+      <div>
+        No comments for this clef.
+      </div>
+    }
+  </div>
 </ng-template>

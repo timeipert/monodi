@@ -1,93 +1,122 @@
 <div class="section" [class.grouped-layout]="isGroupedLayout()" [style.width]="getWidth() + 'px'" [class.read-only]="readOnly">
-	<ng-container *ngFor="let voice of getVoices(); let i = index; trackBy: trackByIndex">
-	<div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
-		(focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
-		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
-			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
-				<!-- Staff lines: only for diastematic notation. Adiastematic draws no staff. -->
-				<ng-container *ngIf="!adiastematic">
-					<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
-					<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
-					<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
-					<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
-					<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
-				</ng-container>
-
-				<!-- G-clef at a staff-line start: light grey, spaced from the first note. -->
-				<text *ngIf="showClef" x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
-
-				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="2px"
-					height="60px" [attr.fill]="syllableBracketColor('start')" />
-				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="10px"
-					height="2px" [attr.fill]="syllableBracketColor('start')" />
-
-				<g *ngIf="isNormal()" [attr.transform]="'translate(' + (showClef ? 44 : 12) + ', 0)'">
-
-					<g *ngFor="let drawable of getDrawables(i);trackBy:refOfDrawable"
-						[style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
-						(click)="drawableClicked(drawable, $event, i)"
-						(contextmenu)="onContextMenu($event, drawable, i)">
-						<!-- Comment-creation visual marker for the picked START note (step 2). -->
-						<circle *ngIf="isPickedCommentStart(drawable)"
-							[attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 30"
-							r="16" fill="none" stroke="#f59f00" stroke-width="2.5"
-							stroke-dasharray="4 3" class="comment-start-marker"
-							style="pointer-events: none;" />
-						<text *ngIf="isPickedCommentStart(drawable)"
-							[attr.x]="drawable.x + 6" [attr.y]="drawable.y - 6"
-							text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
-							style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
-						<!-- Search Result Note Highlight Circle -->
-						<circle *ngIf="isNote(drawable) && isHighlighted(drawable)"
-							[attr.cx]="drawable.x + (drawable.ref.liquescent ? 4 : 6)" [attr.cy]="drawable.y + 30"
-							r="10" [attr.fill]="getHighlightFill(drawable)" fill-opacity="0.8"
-							[attr.stroke]="getHighlightStroke(drawable)" stroke-width="1.5"
-							style="pointer-events: none;" />
-						<image *ngIf="isNote(drawable)"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							[attr.href]="getGlyphDataUri(drawable.ref.noteType, hasCurrentFocus(drawable, i))" />
-						<path *ngIf="isTie(drawable)" [attr.d]="drawable.getPath()" stroke="black" stroke-width="2"
-							fill="transparent" />
-
-						<rect *ngIf="isHelperLine(drawable)" [attr.x]="drawable.x -3" [attr.y]="drawable.y - 0.5"
-							fill="black" width="15px" height="1px" />
-
-						<rect *ngIf="!readOnly && isCommentStart(drawable)" [attr.x]="drawable.x" [attr.y]="30"
-							width="2px" height="60px" [attr.fill]="drawableBracketColor(drawable)" />
-						<rect *ngIf="!readOnly && isCommentStart(drawable)" [attr.x]="drawable.x" [attr.y]="30"
-							width="10px" height="2px" [attr.fill]="drawableBracketColor(drawable)" />
-						<rect *ngIf="!readOnly && isCommentEnd(drawable)" [attr.x]="drawable.x" [attr.y]="30"
-							width="2px" height="60px" [attr.fill]="drawableBracketColor(drawable)" />
-						<rect *ngIf="!readOnly && isCommentEnd(drawable)" [attr.x]="drawable.x -10" [attr.y]="30"
-							width="10px" height="2px" [attr.fill]="drawableBracketColor(drawable)" />
-					</g>
-				</g>
-				<rect *ngIf="!readOnly && isThisCommentEnd()" [attr.x]="getWidth()-2" [attr.y]="30"
-					width="2px" height="60px" [attr.fill]="syllableBracketColor('end')" />
-				<rect *ngIf="!readOnly && isThisCommentEnd()" [attr.x]="getWidth()-14" [attr.y]="30"
-					width="10px" height="2px" [attr.fill]="syllableBracketColor('end')" />
-
-			</g>
-			<g *ngIf="!isNormal()" [attr.transform]="'translate(' + ((getWidth() - 40)/2) + ', 0)'">
-				<rect x="5" y="60" fill="none" width="40px" height="10px"
-					[attr.stroke]=" hasFocus && !readOnly ? '#00FF00' : '#000000'" stroke-width="4" />
-			</g>
-
-		</svg>
-	</div>
-
-	<div (click)="setCodeAsPreferredFocus(i)" [class.vhidden]="!isNormal()" tabindex="-1" #noteText class="noteText voice-{{i}}"
-		spellcheck="false" (keyup)="changeNoteText($event, i)" (keydown)="onNoteTextDown($event, i)" [attr.contenteditable]="readOnly ? 'false' : 'true'">
-	</div>
-	</ng-container>
-	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || isSourceEllipsis() || isEditorEllipsis()" tabindex="-1"
-		#syllableText class="syllableText" spellcheck="false" (keydown)="changeSyllableTextDown($event)"
-		(keyup)="changeSyllableText($event)" (focusin)="setSyllFocus(true)" (focusout)="setSyllFocus(false)"
-		[attr.contenteditable]="readOnly ? 'false' : 'true'" (contextmenu)="onSyllableContextMenu($event)"></div>
-	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isSourceEllipsis()" class="syllableText">...</div>
-	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isEditorEllipsis()" class="syllableText">&lt;...&gt;</div>
+  @for (voice of getVoices(); track trackByIndex(i, voice); let i = $index) {
+    <div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
+      (focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
+      <svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
+        <g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
+          <!-- Staff lines: only for diastematic notation. Adiastematic draws no staff. -->
+          @if (!adiastematic) {
+            <ng-container>
+              <line x1=0 x2=9999 y1=40 y2=40 stroke=black />
+              <line x1=0 x2=9999 y1=50 y2=50 stroke=black />
+              <line x1=0 x2=9999 y1=60 y2=60 stroke=black />
+              <line x1=0 x2=9999 y1=70 y2=70 stroke=black />
+              <line x1=0 x2=9999 y1=80 y2=80 stroke=black />
+            </ng-container>
+          }
+          <!-- G-clef at a staff-line start: light grey, spaced from the first note. -->
+          @if (showClef) {
+            <text x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
+          }
+          @if (!readOnly && isThisCommentStart()) {
+            <rect [attr.x]="0" [attr.y]="30" width="2px"
+              height="60px" [attr.fill]="syllableBracketColor('start')" />
+          }
+          @if (!readOnly && isThisCommentStart()) {
+            <rect [attr.x]="0" [attr.y]="30" width="10px"
+              height="2px" [attr.fill]="syllableBracketColor('start')" />
+          }
+          @if (isNormal()) {
+            <g [attr.transform]="'translate(' + (showClef ? 44 : 12) + ', 0)'">
+              @for (drawable of getDrawables(i); track refOfDrawable($index, drawable)) {
+                <g
+                  [style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
+                  (click)="drawableClicked(drawable, $event, i)"
+                  (contextmenu)="onContextMenu($event, drawable, i)">
+                  <!-- Comment-creation visual marker for the picked START note (step 2). -->
+                  @if (isPickedCommentStart(drawable)) {
+                    <circle
+                      [attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 30"
+                      r="16" fill="none" stroke="#f59f00" stroke-width="2.5"
+                      stroke-dasharray="4 3" class="comment-start-marker"
+                      style="pointer-events: none;" />
+                  }
+                  @if (isPickedCommentStart(drawable)) {
+                    <text
+                      [attr.x]="drawable.x + 6" [attr.y]="drawable.y - 6"
+                      text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
+                    style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
+                  }
+                  <!-- Search Result Note Highlight Circle -->
+                  @if (isNote(drawable) && isHighlighted(drawable)) {
+                    <circle
+                      [attr.cx]="drawable.x + (drawable.ref.liquescent ? 4 : 6)" [attr.cy]="drawable.y + 30"
+                      r="10" [attr.fill]="getHighlightFill(drawable)" fill-opacity="0.8"
+                      [attr.stroke]="getHighlightStroke(drawable)" stroke-width="1.5"
+                      style="pointer-events: none;" />
+                  }
+                  @if (isNote(drawable)) {
+                    <image
+                      class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
+                      [attr.height]="drawable.ref.liquescent ? 40 : 60"
+                      [attr.width]="drawable.ref.liquescent ? 8 : 12"
+                      [attr.href]="getGlyphDataUri(drawable.ref.noteType, hasCurrentFocus(drawable, i))" />
+                  }
+                  @if (isTie(drawable)) {
+                    <path [attr.d]="drawable.getPath()" stroke="black" stroke-width="2"
+                      fill="transparent" />
+                  }
+                  @if (isHelperLine(drawable)) {
+                    <rect [attr.x]="drawable.x -3" [attr.y]="drawable.y - 0.5"
+                      fill="black" width="15px" height="1px" />
+                  }
+                  @if (!readOnly && isCommentStart(drawable)) {
+                    <rect [attr.x]="drawable.x" [attr.y]="30"
+                      width="2px" height="60px" [attr.fill]="drawableBracketColor(drawable)" />
+                  }
+                  @if (!readOnly && isCommentStart(drawable)) {
+                    <rect [attr.x]="drawable.x" [attr.y]="30"
+                      width="10px" height="2px" [attr.fill]="drawableBracketColor(drawable)" />
+                  }
+                  @if (!readOnly && isCommentEnd(drawable)) {
+                    <rect [attr.x]="drawable.x" [attr.y]="30"
+                      width="2px" height="60px" [attr.fill]="drawableBracketColor(drawable)" />
+                  }
+                  @if (!readOnly && isCommentEnd(drawable)) {
+                    <rect [attr.x]="drawable.x -10" [attr.y]="30"
+                      width="10px" height="2px" [attr.fill]="drawableBracketColor(drawable)" />
+                  }
+                </g>
+              }
+            </g>
+          }
+          @if (!readOnly && isThisCommentEnd()) {
+            <rect [attr.x]="getWidth()-2" [attr.y]="30"
+              width="2px" height="60px" [attr.fill]="syllableBracketColor('end')" />
+          }
+          @if (!readOnly && isThisCommentEnd()) {
+            <rect [attr.x]="getWidth()-14" [attr.y]="30"
+              width="10px" height="2px" [attr.fill]="syllableBracketColor('end')" />
+          }
+        </g>
+        @if (!isNormal()) {
+          <g [attr.transform]="'translate(' + ((getWidth() - 40)/2) + ', 0)'">
+            <rect x="5" y="60" fill="none" width="40px" height="10px"
+              [attr.stroke]=" hasFocus && !readOnly ? '#00FF00' : '#000000'" stroke-width="4" />
+          </g>
+        }
+      </svg>
+    </div>
+    <div (click)="setCodeAsPreferredFocus(i)" [class.vhidden]="!isNormal()" tabindex="-1" #noteText class="noteText voice-{{i}}"
+      spellcheck="false" (keyup)="changeNoteText($event, i)" (keydown)="onNoteTextDown($event, i)" [attr.contenteditable]="readOnly ? 'false' : 'true'">
+    </div>
+  }
+  <div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || isSourceEllipsis() || isEditorEllipsis()" tabindex="-1"
+    #syllableText class="syllableText" spellcheck="false" (keydown)="changeSyllableTextDown($event)"
+    (keyup)="changeSyllableText($event)" (focusin)="setSyllFocus(true)" (focusout)="setSyllFocus(false)"
+  [attr.contenteditable]="readOnly ? 'false' : 'true'" (contextmenu)="onSyllableContextMenu($event)"></div>
+  <div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isSourceEllipsis()" class="syllableText">...</div>
+  <div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isEditorEllipsis()" class="syllableText">&lt;...&gt;</div>
 </div>
 
 <ng-template #shortcutsConfigModal let-modal>

@@ -1,51 +1,57 @@
 <div class="container">
-  <div
-    [class.danger]="states[name].warning"
-    class="row"
-    *ngFor="let name of names"
-  >
-    <div class="col">
-      <div class="main">
-        <div class="name">{{ name }}</div>
-        <div class="warning">{{ states[name].warning }}</div>
-        <input type="file" (change)="fileSelected(name, $event)" />
-        <button
+  @for (name of names; track name) {
+    <div
+      [class.danger]="states[name].warning"
+      class="row"
+      >
+      <div class="col">
+        <div class="main">
+          <div class="name">{{ name }}</div>
+          <div class="warning">{{ states[name].warning }}</div>
+          <input type="file" (change)="fileSelected(name, $event)" />
+          <button
           [disabled]="
             states[name].state === 'initial' ||
             states[name].state === 'browser-uploading'
           "
-          class="btn btn-primary"
-          (click)="upload(name)"
-        >
-          Start Import
-        </button>
-        <span
-          *ngIf="
+            class="btn btn-primary"
+            (click)="upload(name)"
+            >
+            Start Import
+          </button>
+          @if (
             states[name].state === 'uploading' ||
             states[name].state === 'browser-uploading'
-          "
-        >
-          uploading
-        </span>
-        <div
-          class="errors"
-          *ngIf="
+            ) {
+            <span
+              >
+              uploading
+            </span>
+          }
+          @if (
             states[name].errors.length > 0 && states[name].state === 'uploaded'
-          "
-        >
-          <div class="message" *ngFor="let message of states[name].errors">
-            {{ message }}
-          </div>
-        </div>
-        <div
-          class="success"
-          *ngIf="
+            ) {
+            <div
+              class="errors"
+              >
+              @for (message of states[name].errors; track message) {
+                <div class="message">
+                  {{ message }}
+                </div>
+              }
+            </div>
+          }
+          @if (
             states[name].errors.length == 0 && states[name].state === 'uploaded'
-          "
-        >
-          Erfolgreich hochgeladen.
+            ) {
+            <div
+              class="success"
+              >
+              Erfolgreich hochgeladen.
+            </div>
+          }
         </div>
       </div>
     </div>
-  </div>
+  }
 </div>
