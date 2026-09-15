@@ -706,7 +706,11 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const mainKey = parts[parts.length - 1];
     const requiredCtrl = parts.includes('ctrl') || parts.includes('control');
     const requiredAlt = parts.includes('alt') || parts.includes('option');
-    const requiredShift = parts.includes('shift') && parts.length > 1; // only modifier if combined with other key
+    // 'shift' is required whenever it appears — including a lone "Shift" shortcut
+    // (e.g. insert-connected-note). The previous `&& parts.length > 1` guard made
+    // requiredShift=false for a lone Shift, so line below then rejected the event
+    // (e.shiftKey is true) and the `mainKey === 'shift'` case was never reached.
+    const requiredShift = parts.includes('shift');
     const requiredMeta = parts.includes('cmd') || parts.includes('meta');
 
     if (requiredCtrl !== (e.ctrlKey || (requiredCtrl && e.metaKey))) return false;
