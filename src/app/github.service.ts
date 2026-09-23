@@ -10,6 +10,41 @@ export interface GithubConfig {
   branch: string;
 }
 
+export interface SyncProgress {
+  phase: string;
+  current: number;
+  total: number;
+}
+
+export type ProgressCallback = (p: SyncProgress) => void;
+
+/**
+ * Runs `worker` over every item with at most `concurrency` promises in flight.
+ * Reports progress as each item settles. Keeps large syncs responsive and
+ * gives the UI something to show instead of an opaque spinner.
+ */
+async function runPool<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>,
+  onSettled?: () => void
+): Promise<void> {
+  let cursor = 0;
+  const runNext = async (): Promise<void> => {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      await worker(items[index], index);
+      if (onSettled) onSettled();
+    }
+  };
+  const runners = [];
+  for (let i = 0; i < Math.min(concurrency, items.length); i++) {
+    runners.push(runNext());
+  }
+  await Promise.all(runners);
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -90,11 +125,13 @@ export class GithubService {
     return btoa(unescape(encodeURIComponent(content)));
   }
 
-  public async pullDatabase(): Promise<{ sources: any[], documents: any[], notes: any, settings: any } | null> {
+  public async pullDatabase(onProgress?: ProgressCallback): Promise<{ sources: any[], documents: any[], notes: any, settings: any } | null> {
     if (!this.octokit || !this.config) return null;
     try {
       const db = { sources: [] as any[], documents: [] as any[], notes: {} as any, settings: null as any };
-      
+
+      if (onProgress) onProgress({ phase: 'Reading repository index…', current: 0, total: 0 });
+
       const treeResp = await this.octokit.rest.git.getTree({
         owner: this.config.owner,
         repo: this.config.repo,
@@ -102,24 +139,51 @@ export class GithubService {
         recursive: "true"
       });
 
-      for (const item of treeResp.data.tree) {
-        if (item.type !== 'blob' || !item.path) continue;
-        
-        if (item.path === 'settings.json') {
-           const file = await this.octokit.rest.git.getBlob({ owner: this.config.owner, repo: this.config.repo, file_sha: item.sha! });
-           db.settings = JSON.parse(this.decodeContent(file.data.content));
-        } else if (item.path.startsWith('sources/') && item.path.endsWith('.json')) {
-           const file = await this.octokit.rest.git.getBlob({ owner: this.config.owner, repo: this.config.repo, file_sha: item.sha! });
-           db.sources.push(JSON.parse(this.decodeContent(file.data.content)));
-        } else if (item.path.startsWith('documents/') && item.path.endsWith('.json')) {
-           const file = await this.octokit.rest.git.getBlob({ owner: this.config.owner, repo: this.config.repo, file_sha: item.sha! });
-           db.documents.push(JSON.parse(this.decodeContent(file.data.content)));
-        } else if (item.path.startsWith('notes/') && item.path.endsWith('.json')) {
-           const file = await this.octokit.rest.git.getBlob({ owner: this.config.owner, repo: this.config.repo, file_sha: item.sha! });
-           const docId = item.path.replace('notes/', '').replace('.json', '');
-           db.notes[docId] = JSON.parse(this.decodeContent(file.data.content));
-        }
+      if (treeResp.data.truncated) {
+        // GitHub caps the recursive tree response; beyond that limit files are
+        // silently omitted, so a partial pull would look like data loss.
+        this.toastr.error('Repository is too large to pull in one request (GitHub truncated the file list). Please split the data across branches.');
+        return null;
       }
+
+      // Collect the blobs we actually care about, then fetch them with a
+      // small worker pool so a big workspace doesn't turn into hundreds of
+      // serial round-trips (the old "frozen" behaviour).
+      const blobs = treeResp.data.tree.filter(item =>
+        item.type === 'blob' && !!item.path && !!item.sha && (
+          item.path === 'settings.json' ||
+          (item.path.startsWith('sources/') && item.path.endsWith('.json')) ||
+          (item.path.startsWith('documents/') && item.path.endsWith('.json')) ||
+          (item.path.startsWith('notes/') && item.path.endsWith('.json'))
+        )
+      );
+
+      const total = blobs.length;
+      let done = 0;
+      if (onProgress) onProgress({ phase: 'Downloading files', current: 0, total });
+
+      await runPool(blobs, 6, async (item) => {
+        const file = await this.octokit!.rest.git.getBlob({
+          owner: this.config!.owner,
+          repo: this.config!.repo,
+          file_sha: item.sha!
+        });
+        const parsed = JSON.parse(this.decodeContent(file.data.content));
+        const path = item.path!;
+        if (path === 'settings.json') {
+          db.settings = parsed;
+        } else if (path.startsWith('sources/')) {
+          db.sources.push(parsed);
+        } else if (path.startsWith('documents/')) {
+          db.documents.push(parsed);
+        } else if (path.startsWith('notes/')) {
+          const docId = path.replace('notes/', '').replace('.json', '');
+          db.notes[docId] = parsed;
+        }
+      }, () => {
+        done++;
+        if (onProgress) onProgress({ phase: 'Downloading files', current: done, total });
+      });
 
       return db;
     } catch (e: any) {
@@ -133,9 +197,10 @@ export class GithubService {
     }
   }
 
-  public async pushDatabase(db: { sources: any[], documents: any[], notes: any, settings: any }, message: string): Promise<boolean> {
+  public async pushDatabase(db: { sources: any[], documents: any[], notes: any, settings: any }, message: string, onProgress?: ProgressCallback): Promise<boolean> {
      if (!this.octokit || !this.config) return false;
      try {
+        if (onProgress) onProgress({ phase: 'Preparing…', current: 0, total: 0 });
         let latestCommitSha: string | undefined = undefined;
         let baseTreeSha: string | undefined = undefined;
         let isInitialCommit = false;
@@ -178,47 +243,49 @@ export class GithubService {
            isInitialCommit = false; // We now have a base commit!
         }
 
-        const treeItems: any[] = [];
+        // Gather every file we intend to write as (path, content) pairs.
+        const files: { path: string, content: string }[] = [];
 
-        // settings.json
         if (db.settings) {
-          treeItems.push({
-            path: 'settings.json',
-            mode: '100644',
-            type: 'blob',
-            content: JSON.stringify(db.settings, null, 2)
-          });
+          files.push({ path: 'settings.json', content: JSON.stringify(db.settings, null, 2) });
         }
-
-        // sources
         for (const source of db.sources) {
-          treeItems.push({
-            path: `sources/${source.id}.json`,
-            mode: '100644',
-            type: 'blob',
-            content: JSON.stringify(source, null, 2)
-          });
+          files.push({ path: `sources/${source.id}.json`, content: JSON.stringify(source, null, 2) });
         }
-
-        // documents
         for (const doc of db.documents) {
-          treeItems.push({
-            path: `documents/${doc.id}.json`,
-            mode: '100644',
-            type: 'blob',
-            content: JSON.stringify(doc, null, 2)
-          });
+          files.push({ path: `documents/${doc.id}.json`, content: JSON.stringify(doc, null, 2) });
+        }
+        for (const docId of Object.keys(db.notes)) {
+          files.push({ path: `notes/${docId}.json`, content: JSON.stringify(db.notes[docId], null, 2) });
         }
 
-        // notes
-        for (const docId of Object.keys(db.notes)) {
-          treeItems.push({
-            path: `notes/${docId}.json`,
+        // Upload each file as its own blob, in "stacks" via a small worker
+        // pool, instead of stuffing every file's content into one giant
+        // createTree request. This is far more reliable for large workspaces
+        // and lets us report real progress.
+        const treeItems: any[] = new Array(files.length);
+        let uploaded = 0;
+        if (onProgress) onProgress({ phase: 'Uploading files', current: 0, total: files.length });
+
+        await runPool(files, 6, async (file, index) => {
+          const blob = await this.octokit!.rest.git.createBlob({
+            owner: this.config!.owner,
+            repo: this.config!.repo,
+            content: this.encodeContent(file.content),
+            encoding: 'base64'
+          });
+          treeItems[index] = {
+            path: file.path,
             mode: '100644',
             type: 'blob',
-            content: JSON.stringify(db.notes[docId], null, 2)
-          });
-        }
+            sha: blob.data.sha
+          };
+        }, () => {
+          uploaded++;
+          if (onProgress) onProgress({ phase: 'Uploading files', current: uploaded, total: files.length });
+        });
+
+        if (onProgress) onProgress({ phase: 'Committing…', current: files.length, total: files.length });
 
         // We can't use base_tree if it's the initial commit.
         // Wait, if we use base_tree, GitHub creates a delta tree. 

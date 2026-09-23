@@ -24,7 +24,13 @@ export class AppComponent {
   tools!: StackEntry;
   toolHasParent: boolean = false;
   isSyncing = false;
+  syncProgress: { phase: string; current: number; total: number } | null = null;
   isOnline: boolean = navigator.onLine;
+
+  get syncPercent(): number {
+    if (!this.syncProgress || this.syncProgress.total <= 0) return 0;
+    return Math.round((this.syncProgress.current / this.syncProgress.total) * 100);
+  }
   showBackupReminder = false;
   /** Mobile/tablet navbar collapse state (driven by ng-bootstrap's ngbCollapse). */
   isNavCollapsed = true;
@@ -135,9 +141,11 @@ export class AppComponent {
   async sync(action: 'pull' | 'push') {
     this.isSyncing = true;
     this.pendingAction = action;
-    const remoteDb = await this.github.pullDatabase();
+    this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
+    const remoteDb = await this.github.pullDatabase(p => this.syncProgress = p);
     if (!remoteDb) {
       this.isSyncing = false;
+      this.syncProgress = null;
       return;
     }
 
@@ -225,6 +233,7 @@ export class AppComponent {
     }
 
     this.isSyncing = false;
+    this.syncProgress = null;
 
     if (this.conflicts.length > 0) {
        this.showMergeDialog = true;
@@ -256,7 +265,8 @@ export class AppComponent {
 
     if (this.pendingAction === 'push') {
        const date = new Date().toLocaleString();
-       const success = await this.github.pushDatabase(this.resolvedDb, `Update from Monodi-Light (${date})`);
+       this.syncProgress = { phase: 'Preparing…', current: 0, total: 0 };
+       const success = await this.github.pushDatabase(this.resolvedDb, `Update from Monodi-Light (${date})`, p => this.syncProgress = p);
        if (success) {
          this.backupReminder.markBackup();
          alert('Successfully synced and pushed to GitHub!');
@@ -264,8 +274,9 @@ export class AppComponent {
     } else {
        alert('Pull successful! Local database updated with remote changes.');
     }
-    
+
     this.isSyncing = false;
+    this.syncProgress = null;
     window.location.reload();
   }
 }
