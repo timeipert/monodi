@@ -87,6 +87,62 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
   throw lastErr;
 }
 
+export interface Db {
+  sources: any[];
+  documents: any[];
+  notes: { [docId: string]: any };
+  settings: any;
+}
+
+/** One manuscript's slice of the database, stored as a single file on GitHub. */
+interface Bundle {
+  source: any | null;
+  documents: any[];
+  notes: { [docId: string]: any };
+}
+
+const ORPHAN_BUNDLE_ID = '__unassigned__';
+
+/**
+ * Regroups the flat database into one bundle per manuscript (keyed by source
+ * id / document `quelle_id`). Documents with no source and notes with no
+ * document land in a single `__unassigned__` bundle so nothing is lost.
+ */
+function groupIntoBundles(db: Db): Map<string, Bundle> {
+  const bundles = new Map<string, Bundle>();
+  const bundleFor = (id: string): Bundle => {
+    let b = bundles.get(id);
+    if (!b) { b = { source: null, documents: [], notes: {} }; bundles.set(id, b); }
+    return b;
+  };
+
+  for (const source of db.sources) {
+    if (source && source.id) bundleFor(source.id).source = source;
+  }
+  const docToBundle = new Map<string, string>();
+  for (const doc of db.documents) {
+    const key = (doc && doc.quelle_id) ? doc.quelle_id : ORPHAN_BUNDLE_ID;
+    bundleFor(key).documents.push(doc);
+    if (doc && doc.id) docToBundle.set(doc.id, key);
+  }
+  for (const docId of Object.keys(db.notes)) {
+    const key = docToBundle.get(docId) || ORPHAN_BUNDLE_ID;
+    bundleFor(key).notes[docId] = db.notes[docId];
+  }
+  return bundles;
+}
+
+/** Flattens a manuscript bundle back into the flat database being assembled. */
+function mergeBundleIntoDb(bundle: Bundle, db: Db): void {
+  if (bundle.source) db.sources.push(bundle.source);
+  if (Array.isArray(bundle.documents)) {
+    for (const doc of bundle.documents) db.documents.push(doc);
+  }
+  if (bundle.notes) {
+    for (const docId of Object.keys(bundle.notes)) db.notes[docId] = bundle.notes[docId];
+  }
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -188,32 +244,39 @@ export class GithubService {
         return null;
       }
 
-      // Collect the blobs we actually care about, then fetch them with a
-      // small worker pool so a big workspace doesn't turn into hundreds of
-      // serial round-trips (the old "frozen" behaviour).
-      const blobs = treeResp.data.tree.filter(item =>
-        item.type === 'blob' && !!item.path && !!item.sha && (
-          item.path === 'settings.json' ||
+      // v2 layout stores one bundle per manuscript under `manuscripts/`.
+      // Legacy layout stored one file per chant under sources/documents/notes.
+      // We read whichever is present (v2 wins) so old repos still open.
+      const hasV2 = treeResp.data.tree.some(item =>
+        item.type === 'blob' && item.path?.startsWith('manuscripts/') && item.path.endsWith('.json'));
+
+      const blobs = treeResp.data.tree.filter(item => {
+        if (item.type !== 'blob' || !item.path || !item.sha) return false;
+        if (item.path === 'settings.json') return true;
+        if (hasV2) return item.path.startsWith('manuscripts/') && item.path.endsWith('.json');
+        return (
           (item.path.startsWith('sources/') && item.path.endsWith('.json')) ||
           (item.path.startsWith('documents/') && item.path.endsWith('.json')) ||
           (item.path.startsWith('notes/') && item.path.endsWith('.json'))
-        )
-      );
+        );
+      });
 
       const total = blobs.length;
       let done = 0;
       if (onProgress) onProgress({ phase: 'Downloading files', current: 0, total });
 
       await runPool(blobs, 6, async (item) => {
-        const file = await this.octokit!.rest.git.getBlob({
+        const file = await withRetry(() => this.octokit!.rest.git.getBlob({
           owner: this.config!.owner,
           repo: this.config!.repo,
           file_sha: item.sha!
-        });
+        }));
         const parsed = JSON.parse(this.decodeContent(file.data.content));
         const path = item.path!;
         if (path === 'settings.json') {
           db.settings = parsed;
+        } else if (path.startsWith('manuscripts/')) {
+          mergeBundleIntoDb(parsed as Bundle, db);
         } else if (path.startsWith('sources/')) {
           db.sources.push(parsed);
         } else if (path.startsWith('documents/')) {
@@ -285,20 +348,17 @@ export class GithubService {
            isInitialCommit = false; // We now have a base commit!
         }
 
-        // Gather every file we intend to write as (path, content) pairs.
+        // Store one bundle per manuscript instead of one file per chant. This
+        // turns tens of thousands of tiny files into a few hundred, which is
+        // the only way the initial upload of a large corpus stays feasible.
         const files: { path: string, content: string }[] = [];
 
         if (db.settings) {
           files.push({ path: 'settings.json', content: JSON.stringify(db.settings, null, 2) });
         }
-        for (const source of db.sources) {
-          files.push({ path: `sources/${source.id}.json`, content: JSON.stringify(source, null, 2) });
-        }
-        for (const doc of db.documents) {
-          files.push({ path: `documents/${doc.id}.json`, content: JSON.stringify(doc, null, 2) });
-        }
-        for (const docId of Object.keys(db.notes)) {
-          files.push({ path: `notes/${docId}.json`, content: JSON.stringify(db.notes[docId], null, 2) });
+        const bundles = groupIntoBundles(db);
+        for (const [id, bundle] of bundles.entries()) {
+          files.push({ path: `manuscripts/${id}.json`, content: JSON.stringify(bundle, null, 2) });
         }
 
         // Fetch the current remote tree so we can skip files that are already
@@ -326,7 +386,8 @@ export class GithubService {
 
         // Decide per file whether it needs uploading. Unchanged files are
         // referenced by their existing SHA; changed/new ones get uploaded.
-        const treeItems: { path: string, mode: '100644', type: 'blob', sha: string }[] = new Array(files.length);
+        type TreeItem = { path: string, mode: '100644', type: 'blob', sha: string | null };
+        const treeItems: TreeItem[] = new Array(files.length);
         const toUpload: number[] = [];
         for (let i = 0; i < files.length; i++) {
           const localSha = await gitBlobSha(files[i].content);
@@ -335,6 +396,16 @@ export class GithubService {
             treeItems[i] = { path: files[i].path, mode: '100644', type: 'blob', sha: remoteSha };
           } else {
             toUpload.push(i);
+          }
+        }
+
+        // Remove leftover legacy per-chant files (sources/documents/notes) once
+        // we've migrated to the manuscripts/ layout, so the repo isn't left with
+        // stale duplicates. A null sha deletes the path in the tree API.
+        const deletions: TreeItem[] = [];
+        for (const path of remoteShaByPath.keys()) {
+          if (path.startsWith('sources/') || path.startsWith('documents/') || path.startsWith('notes/')) {
+            deletions.push({ path, mode: '100644', type: 'blob', sha: null });
           }
         }
 
@@ -358,14 +429,16 @@ export class GithubService {
 
         // Commit in batches so progress is persisted incrementally: if the
         // process is interrupted, everything committed so far survives and a
-        // later push resumes from there (skipping the unchanged files).
+        // later push resumes from there (skipping the unchanged files). The
+        // manuscript writes come first, legacy deletions last.
+        const ops: TreeItem[] = [...treeItems, ...deletions];
         const BATCH_SIZE = 100;
         let currentTreeSha = baseTreeSha!;
         let currentCommitSha = latestCommitSha!;
-        const totalBatches = Math.ceil(treeItems.length / BATCH_SIZE) || 1;
+        const totalBatches = Math.ceil(ops.length / BATCH_SIZE) || 1;
 
         for (let b = 0; b < totalBatches; b++) {
-          const batch = treeItems.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
+          const batch = ops.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
           if (batch.length === 0) break;
 
           if (onProgress) onProgress({ phase: `Committing (batch ${b + 1}/${totalBatches})…`, current: b, total: totalBatches });
@@ -374,7 +447,7 @@ export class GithubService {
             owner: this.config!.owner,
             repo: this.config!.repo,
             base_tree: currentTreeSha,
-            tree: batch
+            tree: batch as any
           }));
 
           // Skip an empty commit if this batch changed nothing.
