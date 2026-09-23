@@ -271,6 +271,126 @@ export class GithubService {
   }
 
   /**
+   * Streams remote manuscript bundles one at a time.
+   *
+   * Each bundle is handed to `onBundle` and then released, so the caller can
+   * merge a multi-GB corpus without the whole remote side ever being resident
+   * in memory. Blobs are prefetched a few at a time for network throughput,
+   * but callbacks run strictly sequentially — they write to IndexedDB, and
+   * NotesStore's index row is read-modify-write, so concurrent callbacks
+   * would race and lose entries.
+   *
+   * Returns false if the repository still uses the legacy per-chant layout,
+   * in which case the caller should fall back to `pullDatabase`.
+   */
+  public async streamManuscripts(
+    onBundle: (id: string, bundle: Bundle) => Promise<void>,
+    onProgress?: ProgressCallback,
+    only?: Set<string>
+  ): Promise<boolean> {
+    if (!this.octokit || !this.config) return false;
+
+    if (onProgress) onProgress({ phase: 'Reading repository index…', current: 0, total: 0 });
+
+    let treeResp;
+    try {
+      treeResp = await withRetry(() => this.octokit!.rest.git.getTree({
+        owner: this.config!.owner,
+        repo: this.config!.repo,
+        tree_sha: this.config!.branch,
+        recursive: 'true'
+      }));
+    } catch (e: any) {
+      if (e.status === 404 || e.status === 409) return true; // empty repo: nothing to stream
+      throw e;
+    }
+
+    const manuscripts = treeResp.data.tree.filter(i =>
+      i.type === 'blob' && i.path?.startsWith('manuscripts/') && i.path.endsWith('.json') && i.sha);
+
+    // Legacy repo (one file per chant): caller falls back to the old path.
+    if (manuscripts.length === 0) {
+      const hasLegacy = treeResp.data.tree.some(i =>
+        i.type === 'blob' && (i.path?.startsWith('sources/') || i.path?.startsWith('documents/') || i.path?.startsWith('notes/')));
+      if (hasLegacy) return false;
+      return true;
+    }
+
+    const wanted = manuscripts.filter(i => {
+      if (!only) return true;
+      const id = i.path!.replace('manuscripts/', '').replace(/\.json$/, '');
+      return only.has(id);
+    });
+
+    // The tree carries each blob's size, so the bar can track real bytes.
+    const bytesTotal = wanted.reduce((sum, i) => sum + (i.size || 0), 0);
+    let bytesDone = 0;
+    let done = 0;
+    const startedAt = Date.now();
+
+    const report = (detail?: string) => {
+      if (!onProgress) return;
+      const elapsed = (Date.now() - startedAt) / 1000;
+      const etaSeconds = bytesDone > 0 && bytesTotal > bytesDone
+        ? Math.round(elapsed * (bytesTotal - bytesDone) / bytesDone)
+        : undefined;
+      onProgress({
+        phase: 'Merging from GitHub', detail,
+        current: done, total: wanted.length,
+        bytesDone, bytesTotal, etaSeconds
+      });
+    };
+
+    report();
+
+    const PREFETCH = 4;
+    for (let i = 0; i < wanted.length; i += PREFETCH) {
+      const chunk = wanted.slice(i, i + PREFETCH);
+      const fetched: (string | null)[] = await Promise.all(chunk.map(item =>
+        withRetry(() => this.octokit!.rest.git.getBlob({
+          owner: this.config!.owner,
+          repo: this.config!.repo,
+          file_sha: item.sha!
+        })).then(r => this.decodeContent(r.data.content))
+      ));
+
+      for (let j = 0; j < chunk.length; j++) {
+        const id = chunk[j].path!.replace('manuscripts/', '').replace(/\.json$/, '');
+        const raw = fetched[j]!;
+        fetched[j] = null; // release the encoded copy before parsing
+        const bundle = JSON.parse(raw) as Bundle;
+        report(id);
+        await onBundle(id, bundle);
+        bytesDone += chunk[j].size || 0;
+        done++;
+        report(id);
+      }
+    }
+
+    report();
+    return true;
+  }
+
+  /** Reads just `settings.json` (small) without pulling the rest of the repo. */
+  public async getRemoteSettings(): Promise<any | null> {
+    if (!this.octokit || !this.config) return null;
+    try {
+      const resp = await withRetry(() => this.octokit!.rest.repos.getContent({
+        owner: this.config!.owner,
+        repo: this.config!.repo,
+        path: 'settings.json',
+        ref: this.config!.branch
+      }));
+      const data: any = resp.data;
+      if (Array.isArray(data) || data.type !== 'file' || !data.content) return null;
+      return JSON.parse(this.decodeContent(data.content.replace(/\n/g, '')));
+    } catch (e: any) {
+      if (e.status === 404) return null;
+      throw e;
+    }
+  }
+
+  /**
    * Pulls the whole (or a scoped subset of the) database. Wraps the actual
    * work in an outer retry: if the operation fails partway (typically a
    * transient network error mid-way through hundreds of requests), the whole

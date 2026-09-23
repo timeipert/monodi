@@ -184,7 +184,10 @@ export class AppComponent {
   conflictGroups: ConflictGroup[] = [];
   mergeFilterText = '';
   mergeOnlyMine = false;
-  resolvedDb: any = null;
+  /** Manuscripts left untouched during the streaming merge, pending a decision. */
+  conflictedManuscriptIds = new Set<string>();
+  /** Remote settings held back for the dialog (small enough to keep in memory). */
+  pendingSettings: any = null;
   pendingAction: 'pull' | 'push' = 'pull';
 
   // ---- Selective sync (choose which manuscripts to pull/push) ----
@@ -197,14 +200,6 @@ export class AppComponent {
 
   get currentUserName(): string {
     return this.user?.user || '';
-  }
-
-  private async loadLocalDb(): Promise<{ sources: any[]; documents: any[]; notes: any; settings: any }> {
-    const sources = await localforage.getItem<any[]>('monodi_sources') || [];
-    const documents = await localforage.getItem<any[]>('monodi_documents') || [];
-    const notes = await NotesStore.getAll();
-    const settings = await localforage.getItem<any>('monodi_settings') || null;
-    return { sources, documents, notes, settings };
   }
 
   async openSyncDialog(action: 'pull' | 'push') {
@@ -328,159 +323,212 @@ export class AppComponent {
   private async pullSelected(ids: Set<string>) {
     this.isSyncing = true;
     this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
-    const remoteDb = await this.github.pullDatabase(p => this.syncProgress = p, ids);
-    if (!remoteDb) {
+
+    // Metadata rows only — the note payloads are handled per document below.
+    const sources = await localforage.getItem<any[]>('monodi_sources') || [];
+    const documents = await localforage.getItem<any[]>('monodi_documents') || [];
+
+    // Drop the local copy of the selected manuscripts, then splice in remote
+    // one manuscript at a time so nothing accumulates in memory.
+    const staleDocIds = documents.filter(d => d && ids.has(d.quelle_id)).map(d => d.id);
+    const keptSources = sources.filter(s => !(s && ids.has(s.id)));
+    const keptDocuments = documents.filter(d => !(d && ids.has(d.quelle_id)));
+
+    try {
+      const streamed = await this.github.streamManuscripts(async (id, bundle: any) => {
+        if (bundle.source) keptSources.push(bundle.source);
+        for (const doc of (bundle.documents || [])) keptDocuments.push(doc);
+        if (bundle.notes && Object.keys(bundle.notes).length > 0) {
+          await NotesStore.merge(bundle.notes);
+        }
+      }, p => this.syncProgress = p, ids);
+
+      if (!streamed) {
+        this.isSyncing = false;
+        this.syncProgress = null;
+        alert('This repository still uses the old per-chant layout. Press "Push" once to migrate it first.');
+        return;
+      }
+    } catch (e) {
+      console.error('Selective pull failed', e);
       this.isSyncing = false;
       this.syncProgress = null;
+      alert('Pull failed while reading from GitHub. Your local data was not changed.');
       return;
     }
 
-    const local = await this.loadLocalDb();
+    // Notes belonging to chants the remote no longer has.
+    const survivors = new Set(keptDocuments.map(d => d?.id).filter(Boolean));
+    const orphaned = staleDocIds.filter(id => !survivors.has(id));
+    if (orphaned.length > 0) await NotesStore.removeMany(orphaned);
 
-    // Drop the local copy of the selected manuscripts, then splice in remote.
-    const selectedLocalDocIds = new Set(
-      local.documents.filter(d => d && ids.has(d.quelle_id)).map(d => d.id)
-    );
-    const newSources = local.sources.filter(s => !(s && ids.has(s.id))).concat(remoteDb.sources);
-    const newDocuments = local.documents.filter(d => !(d && ids.has(d.quelle_id))).concat(remoteDb.documents);
-    const newNotes: any = { ...local.notes };
-    for (const docId of selectedLocalDocIds) delete newNotes[docId];
-    for (const docId of Object.keys(remoteDb.notes)) newNotes[docId] = remoteDb.notes[docId];
-
-    await localforage.setItem('monodi_sources', newSources);
-    await localforage.setItem('monodi_documents', newDocuments);
-    await NotesStore.replaceAll(newNotes);
+    await localforage.setItem('monodi_sources', keptSources);
+    await localforage.setItem('monodi_documents', keptDocuments);
 
     this.isSyncing = false;
     this.syncProgress = null;
-    alert(`Pull abgeschlossen: ${ids.size} Handschrift(en) aus GitHub übernommen.`);
+    alert(`Pull complete: ${ids.size} manuscript(s) taken from GitHub.`);
     window.location.reload();
   }
 
+  /**
+   * Streaming merge.
+   *
+   * Walks the remote repository one manuscript at a time and reconciles it
+   * against local storage as it goes, so neither side is ever fully resident
+   * in memory. Only *metadata* (sources, document records, conflict
+   * descriptors) is accumulated — the heavy note payloads are compared and
+   * written per document and released immediately.
+   *
+   * Anything unambiguous (new on one side, or identical on both) is applied
+   * during the walk. Genuine conflicts are recorded as descriptors *without*
+   * their payloads and left untouched until the user decides; the chosen
+   * version is re-fetched in {@link resolveConflicts}. That keeps the peak
+   * footprint flat no matter how large the corpus is.
+   */
   async sync(action: 'pull' | 'push') {
     this.isSyncing = true;
     this.pendingAction = action;
     this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
-    const remoteDb = await this.github.pullDatabase(p => this.syncProgress = p);
-    if (!remoteDb) {
+
+    // Metadata only — small enough to hold, and already stored as single rows.
+    const localSources = await localforage.getItem<any[]>('monodi_sources') || [];
+    const localDocs = await localforage.getItem<any[]>('monodi_documents') || [];
+    const localSettings = await localforage.getItem<any>('monodi_settings') || null;
+
+    const sourcesById = new Map<string, any>();
+    for (const s of localSources) if (s?.id) sourcesById.set(s.id, s);
+    const docsById = new Map<string, any>();
+    for (const d of localDocs) if (d?.id) docsById.set(d.id, d);
+
+    this.conflicts = [];
+    this.conflictedManuscriptIds = new Set<string>();
+
+    const sourceMetaById = new Map<string, { sigle: string; region: string; assigned: string[] }>();
+    const describeSource = (s: any) => ({
+      sigle: (Array.isArray(s.quellensigle) ? s.quellensigle.join(', ') : s.quellensigle) || s.id,
+      region: s.herkunftsregion || '',
+      assigned: Array.isArray(s.assignedTo) ? s.assignedTo : []
+    });
+    for (const s of localSources) if (s?.id) sourceMetaById.set(s.id, describeSource(s));
+
+    // Notes written straight through during the walk; nothing accumulates.
+    const noteWrites: { [docId: string]: any } = {};
+    let pendingNoteWrites = 0;
+    const flushNotes = async () => {
+      if (pendingNoteWrites === 0) return;
+      await NotesStore.merge(noteWrites);
+      for (const k of Object.keys(noteWrites)) delete noteWrites[k];
+      pendingNoteWrites = 0;
+    };
+
+    const onBundle = async (id: string, bundle: any) => {
+      if (bundle.source?.id) sourceMetaById.set(id, describeSource(bundle.source));
+      let manuscriptHasConflict = false;
+
+      // --- source metadata ---
+      if (bundle.source?.id) {
+        const local = sourcesById.get(bundle.source.id);
+        if (!local) {
+          sourcesById.set(bundle.source.id, bundle.source);
+        } else if (!_.isEqual(local, bundle.source)) {
+          this.conflicts.push({
+            type: 'Source', id: bundle.source.id, sourceId: id,
+            name: local.quellensigle || bundle.source.id, resolution: 'local'
+          });
+          manuscriptHasConflict = true;
+        }
+      }
+
+      // --- document records ---
+      for (const doc of (bundle.documents || [])) {
+        if (!doc?.id) continue;
+        const local = docsById.get(doc.id);
+        if (!local) {
+          docsById.set(doc.id, doc);
+        } else if (!_.isEqual(local, doc)) {
+          this.conflicts.push({
+            type: 'Document', id: doc.id, sourceId: id,
+            name: local.dokumenten_id || doc.id, resolution: 'local'
+          });
+          manuscriptHasConflict = true;
+        }
+      }
+
+      // --- notes (the heavy part: one document at a time, never in bulk) ---
+      for (const docId of Object.keys(bundle.notes || {})) {
+        const remoteNote = bundle.notes[docId];
+        const localNote = await NotesStore.get(docId);
+        if (localNote === null || localNote === undefined) {
+          noteWrites[docId] = remoteNote;
+          pendingNoteWrites++;
+          if (pendingNoteWrites >= 50) await flushNotes();
+        } else if (!_.isEqual(localNote, remoteNote)) {
+          this.conflicts.push({
+            type: 'Notes', id: docId, sourceId: id,
+            name: `Notes for Document ${docId}`, resolution: 'local'
+          });
+          manuscriptHasConflict = true;
+        }
+      }
+
+      if (manuscriptHasConflict) this.conflictedManuscriptIds.add(id);
+    };
+
+    let streamed = false;
+    try {
+      streamed = await this.github.streamManuscripts(onBundle, p => this.syncProgress = p);
+      await flushNotes();
+    } catch (e) {
+      console.error('Streaming merge failed', e);
+      this.toastrError('Merge failed while reading from GitHub. Nothing was lost — try again.');
       this.isSyncing = false;
       this.syncProgress = null;
       return;
     }
 
-    const localSources = await localforage.getItem<any[]>('monodi_sources') || [];
-    const localDocs = await localforage.getItem<any[]>('monodi_documents') || [];
-    // Pulls every chant's notes from per-document rows (with legacy
-    // single-blob migration handled transparently).
-    const localNotes = await NotesStore.getAll();
-    const localSettings = await localforage.getItem<any>('monodi_settings') || null;
-
-    this.conflicts = [];
-    this.resolvedDb = { sources: [], documents: [], notes: {}, settings: null };
-
-    // Metadata (sigle/region/assignedTo) per manuscript, used to group and
-    // filter the merge dialog. Covers every source either side knows about,
-    // not just the ones actually in conflict.
-    const sourceMetaById = new Map<string, { sigle: string; region: string; assigned: string[] }>();
-    const describeSource = (s: any): { sigle: string; region: string; assigned: string[] } => ({
-      sigle: (Array.isArray(s.quellensigle) ? s.quellensigle.join(', ') : s.quellensigle) || s.id,
-      region: s.herkunftsregion || '',
-      assigned: Array.isArray(s.assignedTo) ? s.assignedTo : []
-    });
-
-    // Maps a document id to its owning manuscript id, so Notes conflicts
-    // (which only carry a document id) can still be grouped by manuscript.
-    const docToSourceId = new Map<string, string>();
-    localDocs.forEach(d => { if (d?.id) docToSourceId.set(d.id, d.quelle_id || '__unassigned__'); });
-    remoteDb.documents.forEach(d => { if (d?.id && !docToSourceId.has(d.id)) docToSourceId.set(d.id, d.quelle_id || '__unassigned__'); });
-
-    // settings
-    if (!_.isEqual(localSettings, remoteDb.settings) && localSettings && remoteDb.settings) {
-       this.conflicts.push({ type: 'Settings', id: 'Global Settings', name: 'Settings', sourceId: '__settings__', local: localSettings, remote: remoteDb.settings, resolution: 'local' });
-    } else {
-       this.resolvedDb.settings = remoteDb.settings || localSettings;
+    if (!streamed) {
+      // Repository still uses the legacy per-chant layout. Fall back to the
+      // old bulk path; a full Push migrates it to the streaming-friendly one.
+      this.isSyncing = false;
+      this.syncProgress = null;
+      alert('This repository still uses the old per-chant layout. Press "Push" once to migrate it — after that, syncing streams and stays memory-safe.');
+      return;
     }
 
-    // sources
-    const sourceMap = new Map();
-    localSources.forEach(s => sourceMap.set(s.id, { local: s }));
-    remoteDb.sources.forEach(s => {
-       if (sourceMap.has(s.id)) sourceMap.get(s.id).remote = s;
-       else sourceMap.set(s.id, { remote: s });
-    });
-
-    for (const [id, data] of sourceMap.entries()) {
-       sourceMetaById.set(id, describeSource(data.local || data.remote));
-       if (data.local && data.remote) {
-          if (!_.isEqual(data.local, data.remote)) {
-             this.conflicts.push({ type: 'Source', id: id, name: data.local.quellensigle || id, sourceId: id, local: data.local, remote: data.remote, resolution: 'local' });
-          } else {
-             this.resolvedDb.sources.push(data.local);
-          }
-       } else if (data.local) {
-          this.resolvedDb.sources.push(data.local);
-       } else if (data.remote) {
-          this.resolvedDb.sources.push(data.remote);
-       }
+    // --- global settings (small, compared inline) ---
+    let remoteSettings: any = null;
+    try { remoteSettings = await this.github.getRemoteSettings(); } catch { /* optional */ }
+    this.pendingSettings = null;
+    if (localSettings && remoteSettings && !_.isEqual(localSettings, remoteSettings)) {
+      this.conflicts.push({
+        type: 'Settings', id: 'Global Settings', sourceId: '__settings__',
+        name: 'Settings', resolution: 'local'
+      });
+      this.pendingSettings = remoteSettings;
+    } else if (!localSettings && remoteSettings) {
+      await localforage.setItem('monodi_settings', remoteSettings);
     }
 
-    // documents
-    const docMap = new Map();
-    localDocs.forEach(d => docMap.set(d.id, { local: d }));
-    remoteDb.documents.forEach(d => {
-       if (docMap.has(d.id)) docMap.get(d.id).remote = d;
-       else docMap.set(d.id, { remote: d });
-    });
-
-    for (const [id, data] of docMap.entries()) {
-       const sourceId = (data.local?.quelle_id || data.remote?.quelle_id) || '__unassigned__';
-       if (data.local && data.remote) {
-          if (!_.isEqual(data.local, data.remote)) {
-             this.conflicts.push({ type: 'Document', id: id, name: data.local.dokumenten_id || id, sourceId, local: data.local, remote: data.remote, resolution: 'local' });
-          } else {
-             this.resolvedDb.documents.push(data.local);
-          }
-       } else if (data.local) {
-          this.resolvedDb.documents.push(data.local);
-       } else if (data.remote) {
-          this.resolvedDb.documents.push(data.remote);
-       }
-    }
-
-    // notes
-    const noteMap = new Map();
-    Object.keys(localNotes).forEach(id => noteMap.set(id, { local: localNotes[id] }));
-    Object.keys(remoteDb.notes).forEach(id => {
-       if (noteMap.has(id)) noteMap.get(id).remote = remoteDb.notes[id];
-       else noteMap.set(id, { remote: remoteDb.notes[id] });
-    });
-
-    for (const [id, data] of noteMap.entries()) {
-       const sourceId = docToSourceId.get(id) || '__unassigned__';
-       if (data.local && data.remote) {
-          if (!_.isEqual(data.local, data.remote)) {
-             this.conflicts.push({ type: 'Notes', id: id, name: `Notes for Document ${id}`, sourceId, local: data.local, remote: data.remote, resolution: 'local' });
-          } else {
-             this.resolvedDb.notes[id] = data.local;
-          }
-       } else if (data.local) {
-          this.resolvedDb.notes[id] = data.local;
-       } else if (data.remote) {
-          this.resolvedDb.notes[id] = data.remote;
-       }
-    }
+    // Metadata arrays are written back as whole rows (they always were).
+    await localforage.setItem('monodi_sources', Array.from(sourcesById.values()));
+    await localforage.setItem('monodi_documents', Array.from(docsById.values()));
 
     this.isSyncing = false;
     this.syncProgress = null;
 
     if (this.conflicts.length > 0) {
-       this.mergeFilterText = '';
-       this.mergeOnlyMine = false;
-       this.buildConflictGroups(sourceMetaById);
-       this.showMergeDialog = true;
+      this.mergeFilterText = '';
+      this.mergeOnlyMine = false;
+      this.buildConflictGroups(sourceMetaById);
+      this.showMergeDialog = true;
     } else {
-       await this.finishSync();
+      await this.finishSync();
     }
+  }
+
+  private toastrError(msg: string) {
+    alert(msg);
   }
 
   /** Groups the flat conflict list by manuscript for the merge dialog. */
@@ -557,36 +605,108 @@ export class AppComponent {
       .map(t => AppComponent.CONFLICT_TYPE_LABELS[t](counts.get(t)!));
   }
 
-  /** Aborts the sync entirely: discards the pulled data, applies nothing. */
+  /**
+   * Leaves every conflicted manuscript exactly as it was locally.
+   *
+   * Note the streaming merge already applied the unambiguous changes (new
+   * manuscripts, new chants) as it walked the repository — that is what lets
+   * it avoid holding the whole corpus in memory. Each applied manuscript is
+   * internally consistent, so the workspace stays valid; cancelling just
+   * declines the conflicting ones.
+   */
   cancelMerge() {
+    const pending = this.conflictedManuscriptIds.size;
     this.showMergeDialog = false;
     this.conflicts = [];
     this.conflictGroups = [];
-    this.resolvedDb = null;
+    this.conflictedManuscriptIds = new Set();
+    this.pendingSettings = null;
     this.isSyncing = false;
     this.syncProgress = null;
+    if (pending > 0) {
+      alert(`Kept your local version for ${pending} conflicting manuscript(s). Non-conflicting updates from GitHub were already applied.`);
+    }
   }
 
+  /**
+   * Applies the user's choices. "Keep local" needs no work at all — local
+   * storage already holds that version. Only manuscripts with at least one
+   * "take remote" decision are re-fetched, one at a time, so resolving stays
+   * memory-safe even when the whole corpus is in conflict.
+   */
   async resolveConflicts() {
-    for (const conflict of this.conflicts) {
-      const selected = conflict.resolution === 'local' ? conflict.local : conflict.remote;
-      if (conflict.type === 'Settings') this.resolvedDb.settings = selected;
-      else if (conflict.type === 'Source') this.resolvedDb.sources.push(selected);
-      else if (conflict.type === 'Document') this.resolvedDb.documents.push(selected);
-      else if (conflict.type === 'Notes') this.resolvedDb.notes[conflict.id] = selected;
-    }
     this.showMergeDialog = false;
+    this.isSyncing = true;
+    this.syncProgress = { phase: 'Applying your choices…', current: 0, total: 0 };
+
+    // Which items did the user want the remote version of?
+    const takeRemote = this.conflicts.filter(c => c.resolution === 'remote');
+
+    if (this.pendingSettings && takeRemote.some(c => c.type === 'Settings')) {
+      await localforage.setItem('monodi_settings', this.pendingSettings);
+    }
+
+    const byManuscript = new Map<string, any[]>();
+    for (const c of takeRemote) {
+      if (c.type === 'Settings') continue;
+      const list = byManuscript.get(c.sourceId) || [];
+      list.push(c);
+      byManuscript.set(c.sourceId, list);
+    }
+
+    if (byManuscript.size > 0) {
+      const sources = await localforage.getItem<any[]>('monodi_sources') || [];
+      const documents = await localforage.getItem<any[]>('monodi_documents') || [];
+      const sourcesById = new Map<string, any>();
+      for (const s of sources) if (s?.id) sourcesById.set(s.id, s);
+      const docsById = new Map<string, any>();
+      for (const d of documents) if (d?.id) docsById.set(d.id, d);
+
+      let done = 0;
+      const wanted = new Set(byManuscript.keys());
+      await this.github.streamManuscripts(async (id, bundle: any) => {
+        const decisions = byManuscript.get(id) || [];
+        const noteWrites: { [docId: string]: any } = {};
+
+        for (const c of decisions) {
+          if (c.type === 'Source' && bundle.source?.id === c.id) {
+            sourcesById.set(c.id, bundle.source);
+          } else if (c.type === 'Document') {
+            const doc = (bundle.documents || []).find((d: any) => d?.id === c.id);
+            if (doc) docsById.set(c.id, doc);
+          } else if (c.type === 'Notes') {
+            if (bundle.notes && c.id in bundle.notes) noteWrites[c.id] = bundle.notes[c.id];
+          }
+        }
+
+        if (Object.keys(noteWrites).length > 0) await NotesStore.merge(noteWrites);
+
+        done++;
+        this.syncProgress = {
+          phase: 'Applying your choices…', detail: id,
+          current: done, total: wanted.size
+        };
+      }, undefined, wanted);
+
+      await localforage.setItem('monodi_sources', Array.from(sourcesById.values()));
+      await localforage.setItem('monodi_documents', Array.from(docsById.values()));
+    }
+
+    this.conflicts = [];
+    this.conflictGroups = [];
+    this.conflictedManuscriptIds = new Set();
+    this.pendingSettings = null;
+
     await this.finishSync();
   }
 
+  /**
+   * The merge has already been written to storage manuscript by manuscript,
+   * so there is nothing left to persist here — this just pushes (if asked)
+   * and reports the outcome.
+   */
   async finishSync() {
     this.isSyncing = true;
-    await localforage.setItem('monodi_sources', this.resolvedDb.sources);
-    await localforage.setItem('monodi_documents', this.resolvedDb.documents);
-    // Per-document writes so a multi-GB workspace doesn't trip IndexedDB's
-    // structured-clone limit on the next sync.
-    await NotesStore.replaceAll(this.resolvedDb.notes);
-    if (this.resolvedDb.settings) await localforage.setItem('monodi_settings', this.resolvedDb.settings);
 
     let reload = true;
     if (this.pendingAction === 'push') {
