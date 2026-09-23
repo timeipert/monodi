@@ -263,6 +263,7 @@ export class AppComponent {
     await NotesStore.replaceAll(this.resolvedDb.notes);
     if (this.resolvedDb.settings) await localforage.setItem('monodi_settings', this.resolvedDb.settings);
 
+    let reload = true;
     if (this.pendingAction === 'push') {
        const date = new Date().toLocaleString();
        this.syncProgress = { phase: 'Preparing…', current: 0, total: 0 };
@@ -270,6 +271,10 @@ export class AppComponent {
        if (success) {
          this.backupReminder.markBackup();
          alert('Successfully synced and pushed to GitHub!');
+       } else {
+         // Partial progress is already committed on GitHub; keep the page as
+         // is so the user sees the error and can press Push again to resume.
+         reload = false;
        }
     } else {
        alert('Pull successful! Local database updated with remote changes.');
@@ -277,6 +282,6 @@ export class AppComponent {
 
     this.isSyncing = false;
     this.syncProgress = null;
-    window.location.reload();
+    if (reload) window.location.reload();
   }
 }

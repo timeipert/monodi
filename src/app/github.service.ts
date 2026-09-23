@@ -45,6 +45,48 @@ async function runPool<T>(
   await Promise.all(runners);
 }
 
+/**
+ * Computes the Git blob SHA-1 for a UTF-8 string, exactly as Git/GitHub does:
+ * sha1("blob " + byteLength + "\0" + bytes). Lets us tell which files already
+ * exist unchanged on the remote so we can skip re-uploading them.
+ */
+async function gitBlobSha(content: string): Promise<string> {
+  const body = new TextEncoder().encode(content);
+  const header = new TextEncoder().encode(`blob ${body.length}\0`);
+  const bytes = new Uint8Array(header.length + body.length);
+  bytes.set(header, 0);
+  bytes.set(body, header.length);
+  const digest = await crypto.subtle.digest('SHA-1', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Retries a request with exponential backoff, chiefly to ride out GitHub's
+ * secondary rate limits (HTTP 403/429) that otherwise abort a large push
+ * partway through.
+ */
+async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
+  let lastErr: any;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastErr = e;
+      const status = e?.status;
+      const retriable = status === 403 || status === 429 || status === 500 || status === 502 || status === 503;
+      if (!retriable || attempt === attempts - 1) throw e;
+      const retryAfter = Number(e?.response?.headers?.['retry-after']);
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : Math.min(1000 * Math.pow(2, attempt), 30000);
+      await new Promise(res => setTimeout(res, waitMs));
+    }
+  }
+  throw lastErr;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -259,82 +301,110 @@ export class GithubService {
           files.push({ path: `notes/${docId}.json`, content: JSON.stringify(db.notes[docId], null, 2) });
         }
 
-        // Upload each file as its own blob, in "stacks" via a small worker
-        // pool, instead of stuffing every file's content into one giant
-        // createTree request. This is far more reliable for large workspaces
-        // and lets us report real progress.
-        const treeItems: any[] = new Array(files.length);
-        let uploaded = 0;
-        if (onProgress) onProgress({ phase: 'Uploading files', current: 0, total: files.length });
+        // Fetch the current remote tree so we can skip files that are already
+        // identical (matching Git blob SHA) — on a re-sync most files are
+        // unchanged and don't need uploading at all.
+        const remoteShaByPath = new Map<string, string>();
+        try {
+          const existing = await withRetry(() => this.octokit!.rest.git.getTree({
+            owner: this.config!.owner,
+            repo: this.config!.repo,
+            tree_sha: baseTreeSha!,
+            recursive: 'true'
+          }));
+          for (const item of existing.data.tree) {
+            if (item.type === 'blob' && item.path && item.sha) {
+              remoteShaByPath.set(item.path, item.sha);
+            }
+          }
+        } catch (e) {
+          // Non-fatal: without the remote tree we simply upload everything.
+          console.warn('Could not read remote tree; uploading all files.', e);
+        }
 
-        await runPool(files, 6, async (file, index) => {
-          const blob = await this.octokit!.rest.git.createBlob({
+        if (onProgress) onProgress({ phase: 'Checking for changes…', current: 0, total: files.length });
+
+        // Decide per file whether it needs uploading. Unchanged files are
+        // referenced by their existing SHA; changed/new ones get uploaded.
+        const treeItems: { path: string, mode: '100644', type: 'blob', sha: string }[] = new Array(files.length);
+        const toUpload: number[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const localSha = await gitBlobSha(files[i].content);
+          const remoteSha = remoteShaByPath.get(files[i].path);
+          if (remoteSha === localSha) {
+            treeItems[i] = { path: files[i].path, mode: '100644', type: 'blob', sha: remoteSha };
+          } else {
+            toUpload.push(i);
+          }
+        }
+
+        // Upload only the changed blobs, in "stacks" via a bounded worker pool
+        // with retry/backoff so a large push rides out rate limits.
+        let uploaded = 0;
+        if (onProgress) onProgress({ phase: 'Uploading files', current: 0, total: toUpload.length });
+        await runPool(toUpload, 6, async (index) => {
+          const file = files[index];
+          const blob = await withRetry(() => this.octokit!.rest.git.createBlob({
             owner: this.config!.owner,
             repo: this.config!.repo,
             content: this.encodeContent(file.content),
             encoding: 'base64'
-          });
-          treeItems[index] = {
-            path: file.path,
-            mode: '100644',
-            type: 'blob',
-            sha: blob.data.sha
-          };
+          }));
+          treeItems[index] = { path: file.path, mode: '100644', type: 'blob', sha: blob.data.sha };
         }, () => {
           uploaded++;
-          if (onProgress) onProgress({ phase: 'Uploading files', current: uploaded, total: files.length });
+          if (onProgress) onProgress({ phase: 'Uploading files', current: uploaded, total: toUpload.length });
         });
 
-        if (onProgress) onProgress({ phase: 'Committing…', current: files.length, total: files.length });
+        // Commit in batches so progress is persisted incrementally: if the
+        // process is interrupted, everything committed so far survives and a
+        // later push resumes from there (skipping the unchanged files).
+        const BATCH_SIZE = 100;
+        let currentTreeSha = baseTreeSha!;
+        let currentCommitSha = latestCommitSha!;
+        const totalBatches = Math.ceil(treeItems.length / BATCH_SIZE) || 1;
 
-        // We can't use base_tree if it's the initial commit.
-        // Wait, if we use base_tree, GitHub creates a delta tree. 
-        // If we want to DELETE files that were removed locally, we need to explicitly delete them in the Tree API,
-        // or just recreate the entire tree without a base_tree (which replaces the repo contents entirely).
-        // Since we want `sources/`, `documents/`, `notes/`, `settings.json` to be exactly what we send, 
-        // passing no base_tree means the new commit will only contain what we send.
-        // Let's create an isolated tree to replace the repository content completely.
+        for (let b = 0; b < totalBatches; b++) {
+          const batch = treeItems.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
+          if (batch.length === 0) break;
 
-        const newTreeResp = await this.octokit.rest.git.createTree({
-            owner: this.config.owner,
-            repo: this.config.repo,
-            base_tree: baseTreeSha,
-            tree: treeItems
-        });
+          if (onProgress) onProgress({ phase: `Committing (batch ${b + 1}/${totalBatches})…`, current: b, total: totalBatches });
 
-        const commitParams: any = {
-             owner: this.config.owner,
-             repo: this.config.repo,
-             message: message,
-             tree: newTreeResp.data.sha,
-        };
+          const newTreeResp = await withRetry(() => this.octokit!.rest.git.createTree({
+            owner: this.config!.owner,
+            repo: this.config!.repo,
+            base_tree: currentTreeSha,
+            tree: batch
+          }));
 
-        if (!isInitialCommit && latestCommitSha) {
-          commitParams.parents = [latestCommitSha];
+          // Skip an empty commit if this batch changed nothing.
+          if (newTreeResp.data.sha === currentTreeSha) continue;
+
+          const commitLabel = totalBatches > 1 ? `${message} (${b + 1}/${totalBatches})` : message;
+          const newCommitResp = await withRetry(() => this.octokit!.rest.git.createCommit({
+            owner: this.config!.owner,
+            repo: this.config!.repo,
+            message: commitLabel,
+            tree: newTreeResp.data.sha,
+            parents: [currentCommitSha]
+          }));
+
+          await withRetry(() => this.octokit!.rest.git.updateRef({
+            owner: this.config!.owner,
+            repo: this.config!.repo,
+            ref: `heads/${this.config!.branch}`,
+            sha: newCommitResp.data.sha
+          }));
+
+          currentTreeSha = newTreeResp.data.sha;
+          currentCommitSha = newCommitResp.data.sha;
         }
 
-        const newCommitResp = await this.octokit.rest.git.createCommit(commitParams);
-
-        if (isInitialCommit) {
-           await this.octokit.rest.git.createRef({
-               owner: this.config.owner,
-               repo: this.config.repo,
-               ref: `refs/heads/${this.config.branch}`,
-               sha: newCommitResp.data.sha
-           });
-        } else {
-           await this.octokit.rest.git.updateRef({
-               owner: this.config.owner,
-               repo: this.config.repo,
-               ref: `heads/${this.config.branch}`,
-               sha: newCommitResp.data.sha
-           });
-        }
-        
+        if (onProgress) onProgress({ phase: 'Done', current: totalBatches, total: totalBatches });
         return true;
      } catch(e) {
          console.error(e);
-         this.toastr.error('Failed to push to GitHub');
+         this.toastr.error('Push interrupted — progress committed so far is saved on GitHub. Press Push again to resume.');
          return false;
      }
   }
