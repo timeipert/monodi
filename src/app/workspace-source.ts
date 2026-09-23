@@ -60,27 +60,41 @@ export class LocalWorkspaceSource implements ManuscriptSource {
     return Array.from(ids);
   }
 
-  async load(id: string): Promise<Bundle> {
+  async loadMeta(id: string): Promise<{ source: any | null; documents: any[] }> {
+    await this.index();
+    return {
+      source: (this.sources || []).find(s => s?.id === id) || null,
+      documents: this.docsByManuscript!.get(id) || []
+    };
+  }
+
+  /**
+   * Yields one document's notes at a time and never accumulates them, so a
+   * manuscript with hundreds of MB of neume data can be chunked and uploaded
+   * without ever being resident in full.
+   */
+  async streamNotes(id: string, onNote: (docId: string, note: any) => Promise<void>): Promise<void> {
     await this.index();
 
-    const source = (this.sources || []).find(s => s?.id === id) || null;
-    const documents = this.docsByManuscript!.get(id) || [];
-
-    const notes: { [docId: string]: any } = {};
-    for (const d of documents) {
+    for (const d of (this.docsByManuscript!.get(id) || [])) {
       if (!d?.id) continue;
       const n = await NotesStore.get(d.id);
-      if (n !== null && n !== undefined) notes[d.id] = n;
+      if (n !== null && n !== undefined) await onNote(d.id, n);
     }
 
     if (id === ORPHAN_BUNDLE_ID) {
       for (const noteId of await NotesStore.getIndex()) {
         if (this.knownDocIds!.has(noteId)) continue;
         const n = await NotesStore.get(noteId);
-        if (n !== null && n !== undefined) notes[noteId] = n;
+        if (n !== null && n !== undefined) await onNote(noteId, n);
       }
     }
+  }
 
+  async load(id: string): Promise<Bundle> {
+    const { source, documents } = await this.loadMeta(id);
+    const notes: { [docId: string]: any } = {};
+    await this.streamNotes(id, async (docId, note) => { notes[docId] = note; });
     return { source, documents, notes };
   }
 

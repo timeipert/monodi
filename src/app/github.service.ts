@@ -33,6 +33,14 @@ export type ProgressCallback = (p: SyncProgress) => void;
  */
 export interface ManuscriptSource {
   listIds(): Promise<string[]>;
+  /** Source record + document records only — small, no note payloads. */
+  loadMeta(id: string): Promise<{ source: any | null; documents: any[] }>;
+  /**
+   * Hands over one document's notes at a time. Lets the push chunk a
+   * manuscript whose full note payload would be far too big to hold, let
+   * alone send in one request.
+   */
+  streamNotes(id: string, onNote: (docId: string, note: any) => Promise<void>): Promise<void>;
   load(id: string): Promise<Bundle>;
   loadSettings(): Promise<any>;
 }
@@ -71,20 +79,57 @@ type TreeEntry =
 
 /**
  * Payload budget for one createTree request. The Trees API creates blobs
- * inline, so one request can carry many manuscripts — which means the number
- * of API calls scales with total bytes instead of file count. Kept modest so
- * a flaky connection only ever loses one small request's worth of work.
+ * inline, so one request can carry many files — the number of API calls
+ * scales with total bytes instead of file count. Starts here and halves
+ * automatically if a request fails, so a connection that can't cope with a
+ * given payload size backs off instead of failing forever.
  */
-const PUSH_BATCH_BYTES = 3 * 1024 * 1024;
+const PUSH_BATCH_BYTES_START = 2 * 1024 * 1024;
 
-/** Above this, a manuscript is sent as its own blob rather than inline. */
-const PUSH_BIG_FILE_BYTES = 6 * 1024 * 1024;
+/** Never shrink adaptive batches below this. */
+const PUSH_BATCH_BYTES_MIN = 128 * 1024;
+
+/**
+ * Target size for one notes chunk file.
+ *
+ * A whole manuscript's neume data can run to hundreds of MB, which is far
+ * too much for a single HTTP request — that is what "works for the metadata,
+ * breaks on the documents" was. Notes are therefore split across
+ * `manuscripts/<id>/notes-NN.json` files of roughly this size, so no single
+ * request is ever large. File *count* is cheap now that batches are sized by
+ * bytes, but we still chunk by size rather than one-file-per-chant: tens of
+ * thousands of entries would overflow the recursive tree listing (~7 MB)
+ * and come back truncated.
+ */
+const PUSH_NOTES_CHUNK_BYTES = 1024 * 1024;
+
+/** Above this, a file is sent as its own blob rather than inline in a tree. */
+const PUSH_BIG_FILE_BYTES = 4 * 1024 * 1024;
 
 /** How much serialized content pass 1 may keep, to avoid serializing twice. */
-const PUSH_CACHE_BUDGET_BYTES = 64 * 1024 * 1024;
+const PUSH_CACHE_BUDGET_BYTES = 48 * 1024 * 1024;
 
 /** Deletions carry no payload, so they batch far more aggressively. */
 const PUSH_DELETE_BATCH = 500;
+
+/** Abort a single request after this long, so a stalled socket can't hang the sync. */
+const REQUEST_TIMEOUT_MS = 120000;
+
+/** Path prefix holding one manuscript's notes chunks. */
+function notesChunkPath(manuscriptId: string, index: number): string {
+  return `manuscripts/${manuscriptId}/notes-${String(index).padStart(4, '0')}.json`;
+}
+
+/**
+ * Runs a request under a timeout. Octokit/fetch will otherwise wait forever
+ * on a half-open connection, which the user experiences as a frozen sync
+ * rather than an error that could be retried.
+ */
+function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms = REQUEST_TIMEOUT_MS): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fn(ctrl.signal).finally(() => clearTimeout(timer));
+}
 
 /** UTF-8 byte length of a string (not the same as `.length` for non-ASCII). */
 function byteLength(s: string): number {
@@ -261,7 +306,8 @@ export class GithubService {
         recursive: 'true'
       }));
       return treeResp.data.tree
-        .filter(i => i.type === 'blob' && i.path?.startsWith('manuscripts/') && i.path.endsWith('.json'))
+        .filter(i => i.type === 'blob' && i.path?.startsWith('manuscripts/') && i.path.endsWith('.json')
+          && !/\/notes-\d+\.json$/.test(i.path)) // chunk files aren't manuscripts
         .map(i => i.path!.replace('manuscripts/', '').replace(/\.json$/, ''));
     } catch (e: any) {
       if (e.status === 404 || e.status === 409) return [];
@@ -305,25 +351,45 @@ export class GithubService {
       throw e;
     }
 
-    const manuscripts = treeResp.data.tree.filter(i =>
-      i.type === 'blob' && i.path?.startsWith('manuscripts/') && i.path.endsWith('.json') && i.sha);
+    // A manuscript is a metadata file plus zero or more notes chunks. Older
+    // pushes kept the notes inside the metadata file; both are read here.
+    const metaFiles = treeResp.data.tree.filter(i =>
+      i.type === 'blob' && i.sha && i.path?.startsWith('manuscripts/') &&
+      i.path.endsWith('.json') && !/\/notes-\d+\.json$/.test(i.path));
+
+    const chunksByManuscript = new Map<string, any[]>();
+    for (const i of treeResp.data.tree) {
+      if (i.type !== 'blob' || !i.sha || !i.path) continue;
+      const m = /^manuscripts\/(.+)\/notes-\d+\.json$/.exec(i.path);
+      if (!m) continue;
+      const list = chunksByManuscript.get(m[1]) || [];
+      list.push(i);
+      chunksByManuscript.set(m[1], list);
+    }
+    for (const list of chunksByManuscript.values()) {
+      list.sort((a, b) => a.path.localeCompare(b.path));
+    }
 
     // Legacy repo (one file per chant): caller falls back to the old path.
-    if (manuscripts.length === 0) {
+    if (metaFiles.length === 0) {
       const hasLegacy = treeResp.data.tree.some(i =>
         i.type === 'blob' && (i.path?.startsWith('sources/') || i.path?.startsWith('documents/') || i.path?.startsWith('notes/')));
       if (hasLegacy) return false;
       return true;
     }
 
-    const wanted = manuscripts.filter(i => {
+    const wanted = metaFiles.filter(i => {
       if (!only) return true;
       const id = i.path!.replace('manuscripts/', '').replace(/\.json$/, '');
       return only.has(id);
     });
 
     // The tree carries each blob's size, so the bar can track real bytes.
-    const bytesTotal = wanted.reduce((sum, i) => sum + (i.size || 0), 0);
+    const bytesTotal = wanted.reduce((sum, i) => {
+      const id = i.path!.replace('manuscripts/', '').replace(/\.json$/, '');
+      const chunkBytes = (chunksByManuscript.get(id) || []).reduce((s, c) => s + (c.size || 0), 0);
+      return sum + (i.size || 0) + chunkBytes;
+    }, 0);
     let bytesDone = 0;
     let done = 0;
     const startedAt = Date.now();
@@ -343,25 +409,45 @@ export class GithubService {
 
     report();
 
+    const fetchBlob = async (sha: string): Promise<string> => {
+      const r = await withRetry(() => withTimeout(signal => this.octokit!.rest.git.getBlob({
+        owner: this.config!.owner,
+        repo: this.config!.repo,
+        file_sha: sha,
+        request: { signal }
+      })));
+      return this.decodeContent(r.data.content);
+    };
+
     const PREFETCH = 4;
     for (let i = 0; i < wanted.length; i += PREFETCH) {
-      const chunk = wanted.slice(i, i + PREFETCH);
-      const fetched: (string | null)[] = await Promise.all(chunk.map(item =>
-        withRetry(() => this.octokit!.rest.git.getBlob({
-          owner: this.config!.owner,
-          repo: this.config!.repo,
-          file_sha: item.sha!
-        })).then(r => this.decodeContent(r.data.content))
-      ));
+      const group = wanted.slice(i, i + PREFETCH);
+      const metas: (string | null)[] = await Promise.all(group.map(item => fetchBlob(item.sha!)));
 
-      for (let j = 0; j < chunk.length; j++) {
-        const id = chunk[j].path!.replace('manuscripts/', '').replace(/\.json$/, '');
-        const raw = fetched[j]!;
-        fetched[j] = null; // release the encoded copy before parsing
-        const bundle = JSON.parse(raw) as Bundle;
+      for (let j = 0; j < group.length; j++) {
+        const id = group[j].path!.replace('manuscripts/', '').replace(/\.json$/, '');
+        const raw = metas[j]!;
+        metas[j] = null; // release the encoded copy before parsing
+        const parsed = JSON.parse(raw);
+
+        const bundle: Bundle = {
+          source: parsed.source ?? null,
+          documents: parsed.documents ?? [],
+          // Pushes before notes were split out kept them inline.
+          notes: parsed.notes ?? {}
+        };
+        bytesDone += group[j].size || 0;
         report(id);
+
+        // Pull this manuscript's notes chunks in sequence, merging as we go.
+        for (const c of (chunksByManuscript.get(id) || [])) {
+          const chunkRaw = await fetchBlob(c.sha!);
+          Object.assign(bundle.notes, JSON.parse(chunkRaw));
+          bytesDone += c.size || 0;
+          report(id);
+        }
+
         await onBundle(id, bundle);
-        bytesDone += chunk[j].size || 0;
         done++;
         report(id);
       }
@@ -485,6 +571,9 @@ export class GithubService {
         const path = item.path!;
         if (path === 'settings.json') {
           db.settings = parsed;
+        } else if (/^manuscripts\/.+\/notes-\d+\.json$/.test(path)) {
+          // A notes chunk: a plain { docId: notes } map, not a bundle.
+          Object.assign(db.notes, parsed);
         } else if (path.startsWith('manuscripts/')) {
           mergeBundleIntoDb(parsed as Bundle, db);
         } else if (path.startsWith('sources/')) {
@@ -608,13 +697,16 @@ export class GithubService {
         if (only) ids = ids.filter(id => only.has(id));
         ids.sort();
 
-        type Pending = { path: string; size: number; cached: string | null };
+        type Pending = { path: string; size: number; cached: string | null; manuscriptId: string; chunk: number };
         const pending: Pending[] = [];
         let cacheBudget = PUSH_CACHE_BUDGET_BYTES;
         let skipped = 0;
         let bytesTotal = 0;
+        /** Every path this push intends the repo to end up with. */
+        const expectedPaths = new Set<string>();
 
-        const considerFile = async (path: string, content: string) => {
+        const considerFile = async (path: string, content: string, manuscriptId = '', chunk = -1) => {
+          expectedPaths.add(path);
           const size = byteLength(content);
           const localSha = await gitBlobSha(content);
           if (remoteShaByPath.get(path) === localSha) {
@@ -623,7 +715,7 @@ export class GithubService {
           }
           let cached: string | null = null;
           if (size <= cacheBudget) { cached = content; cacheBudget -= size; }
-          pending.push({ path, size, cached });
+          pending.push({ path, size, cached, manuscriptId, chunk });
           bytesTotal += size;
         };
 
@@ -633,10 +725,39 @@ export class GithubService {
             phase: 'Scanning workspace', current: i, total: ids.length,
             detail: id, skipped
           });
-          const bundle = await source.load(id);
+
+          // Metadata only — small, and separate from the heavy neume data so
+          // a huge manuscript no longer produces one unsendable file.
           // Compact JSON: indentation can be a third of the bytes on deeply
-          // nested neume data, and this payload is machine-written anyway.
-          await considerFile(`manuscripts/${id}.json`, JSON.stringify(bundle));
+          // nested data, and this payload is machine-written anyway.
+          const meta = await source.loadMeta(id);
+          await considerFile(`manuscripts/${id}.json`, JSON.stringify(meta));
+
+          // Notes are packed into size-bounded chunks, streamed one document
+          // at a time so the full manuscript is never resident.
+          let chunkIndex = 0;
+          let chunk: { [docId: string]: any } = {};
+          let chunkBytes = 0;
+          let chunkCount = 0;
+
+          const flushChunk = async () => {
+            if (chunkCount === 0) return;
+            await considerFile(notesChunkPath(id, chunkIndex), JSON.stringify(chunk), id, chunkIndex);
+            chunkIndex++;
+            chunk = {}; chunkBytes = 0; chunkCount = 0;
+          };
+
+          await source.streamNotes(id, async (docId, note) => {
+            const piece = JSON.stringify(note);
+            const pieceBytes = piece.length + docId.length + 8;
+            if (chunkCount > 0 && chunkBytes + pieceBytes > PUSH_NOTES_CHUNK_BYTES) {
+              await flushChunk();
+            }
+            chunk[docId] = note;
+            chunkBytes += pieceBytes;
+            chunkCount++;
+          });
+          await flushChunk();
         }
 
         // A scoped push leaves everything else on the remote untouched,
@@ -644,14 +765,22 @@ export class GithubService {
         if (!only) {
           const settings = await source.loadSettings();
           if (settings) await considerFile('settings.json', JSON.stringify(settings));
+          expectedPaths.add('README.md');
         }
 
-        // Remove leftover legacy per-chant files once we've migrated to the
-        // manuscripts/ layout. A null sha deletes the path in the tree API.
         const deletions: TreeEntry[] = [];
-        if (!only) {
-          for (const path of remoteShaByPath.keys()) {
-            if (path.startsWith('sources/') || path.startsWith('documents/') || path.startsWith('notes/')) {
+        for (const path of remoteShaByPath.keys()) {
+          // Leftover legacy per-chant files from before the manuscripts/ layout.
+          if (!only && (path.startsWith('sources/') || path.startsWith('documents/') || path.startsWith('notes/'))) {
+            deletions.push({ path, mode: '100644', type: 'blob', sha: null });
+            continue;
+          }
+          // Stale notes chunks: a manuscript that shrank, or one previously
+          // written as a single bundle before notes were split out.
+          const m = /^manuscripts\/(.+)\/notes-\d+\.json$/.exec(path);
+          if (m && !expectedPaths.has(path)) {
+            const owner = m[1];
+            if (!only || only.has(owner)) {
               deletions.push({ path, mode: '100644', type: 'blob', sha: null });
             }
           }
@@ -674,10 +803,19 @@ export class GithubService {
         let commitIndex = 0;
         const startedAt = Date.now();
 
+        // Batches shrink automatically when a request fails, so a connection
+        // that can't cope with a given payload size adapts instead of
+        // retrying the same doomed request over and over.
+        let batchLimit = PUSH_BATCH_BYTES_START;
+
         const report = (phase: string, detail?: string) => {
           if (!onProgress) return;
           const elapsed = (Date.now() - startedAt) / 1000;
-          const etaSeconds = bytesDone > 0 && bytesTotal > bytesDone
+          // Only offer an ETA once there's a real sample. Extrapolating from
+          // the first few seconds (which include connection setup) produced
+          // alarming "6 hours remaining" guesses that were pure noise.
+          const enoughSamples = elapsed >= 15 && bytesDone >= bytesTotal * 0.05;
+          const etaSeconds = enoughSamples && bytesDone > 0 && bytesTotal > bytesDone
             ? Math.round(elapsed * (bytesTotal - bytesDone) / bytesDone)
             : undefined;
           onProgress({
@@ -687,35 +825,55 @@ export class GithubService {
           });
         };
 
-        const commitBatch = async (entries: TreeEntry[], batchBytes: number) => {
-          if (entries.length === 0) return;
-          const newTree = await withRetry(() => this.octokit!.rest.git.createTree({
+        const sendBatch = async (entries: TreeEntry[]) => {
+          const newTree = await withRetry(() => withTimeout(signal => this.octokit!.rest.git.createTree({
             owner: this.config!.owner,
             repo: this.config!.repo,
             base_tree: currentTreeSha,
-            tree: entries as any
-          }));
+            tree: entries as any,
+            request: { signal }
+          })));
 
           // Nothing actually changed in this batch — don't make an empty commit.
-          if (newTree.data.sha !== currentTreeSha) {
-            commitIndex++;
-            const newCommit = await withRetry(() => this.octokit!.rest.git.createCommit({
-              owner: this.config!.owner,
-              repo: this.config!.repo,
-              message: `${message} [${commitIndex}]`,
-              tree: newTree.data.sha,
-              parents: [currentCommitSha]
-            }));
-            // Advancing the branch after every batch is what makes the push
-            // resumable: an interruption keeps everything committed so far.
-            await withRetry(() => this.octokit!.rest.git.updateRef({
-              owner: this.config!.owner,
-              repo: this.config!.repo,
-              ref: `heads/${this.config!.branch}`,
-              sha: newCommit.data.sha
-            }));
-            currentTreeSha = newTree.data.sha;
-            currentCommitSha = newCommit.data.sha;
+          if (newTree.data.sha === currentTreeSha) return;
+
+          commitIndex++;
+          const newCommit = await withRetry(() => withTimeout(signal => this.octokit!.rest.git.createCommit({
+            owner: this.config!.owner,
+            repo: this.config!.repo,
+            message: `${message} [${commitIndex}]`,
+            tree: newTree.data.sha,
+            parents: [currentCommitSha],
+            request: { signal }
+          })));
+          // Advancing the branch after every batch is what makes the push
+          // resumable: an interruption keeps everything committed so far.
+          await withRetry(() => withTimeout(signal => this.octokit!.rest.git.updateRef({
+            owner: this.config!.owner,
+            repo: this.config!.repo,
+            ref: `heads/${this.config!.branch}`,
+            sha: newCommit.data.sha,
+            request: { signal }
+          })));
+          currentTreeSha = newTree.data.sha;
+          currentCommitSha = newCommit.data.sha;
+        };
+
+        /** Sends a batch, splitting it in half on failure rather than giving up. */
+        const commitBatch = async (entries: TreeEntry[], batchBytes: number, depth = 0): Promise<void> => {
+          if (entries.length === 0) return;
+          try {
+            await sendBatch(entries);
+          } catch (e) {
+            if (entries.length > 1 && depth < 8) {
+              batchLimit = Math.max(PUSH_BATCH_BYTES_MIN, Math.floor(batchLimit / 2));
+              console.warn(`Batch of ${entries.length} failed; splitting (limit now ${batchLimit} bytes)`, e);
+              const mid = Math.ceil(entries.length / 2);
+              await commitBatch(entries.slice(0, mid), Math.floor(batchBytes / 2), depth + 1);
+              await commitBatch(entries.slice(mid), batchBytes - Math.floor(batchBytes / 2), depth + 1);
+              return;
+            }
+            throw e;
           }
 
           bytesDone += batchBytes;
@@ -724,33 +882,60 @@ export class GithubService {
           report('Uploading');
         };
 
+        /** Re-serializes one pending file when pass 1 couldn't cache it. */
+        const materialize = async (item: Pending): Promise<string> => {
+          if (item.cached !== null) return item.cached;
+          if (item.path === 'settings.json') return JSON.stringify(await source.loadSettings());
+          if (item.chunk < 0) {
+            const id = item.path.replace('manuscripts/', '').replace(/\.json$/, '');
+            return JSON.stringify(await source.loadMeta(id));
+          }
+          // Rebuild exactly the same chunk by replaying the same packing.
+          const wanted = item.chunk;
+          let index = 0, bytes = 0, count = 0;
+          let chunk: { [docId: string]: any } = {};
+          let result: string | null = null;
+          await source.streamNotes(item.manuscriptId, async (docId, note) => {
+            if (result !== null) return;
+            const piece = JSON.stringify(note);
+            const pieceBytes = piece.length + docId.length + 8;
+            if (count > 0 && bytes + pieceBytes > PUSH_NOTES_CHUNK_BYTES) {
+              if (index === wanted) { result = JSON.stringify(chunk); return; }
+              index++; chunk = {}; bytes = 0; count = 0;
+            }
+            chunk[docId] = note;
+            bytes += pieceBytes; count++;
+          });
+          if (result !== null) return result;
+          return JSON.stringify(chunk);
+        };
+
         let batch: TreeEntry[] = [];
         let batchBytes = 0;
 
         for (const item of pending) {
-          report('Uploading', item.path.replace('manuscripts/', '').replace(/\.json$/, ''));
-          const content = item.cached ?? JSON.stringify(await source.load(
-            item.path.replace('manuscripts/', '').replace(/\.json$/, '')
-          ));
+          report('Uploading', item.manuscriptId || item.path);
+          const content = await materialize(item);
           item.cached = null; // release as soon as it's been used
 
           if (item.size > PUSH_BIG_FILE_BYTES) {
-            // Too big to ride along inline — flush what we have, then send
-            // this one as its own blob so the request stays a sane size.
+            // Still too big to ride along inline — flush what we have, then
+            // send this one as its own blob.
             await commitBatch(batch, batchBytes);
             batch = []; batchBytes = 0;
 
-            const blob = await withRetry(() => this.octokit!.rest.git.createBlob({
+            const blob = await withRetry(() => withTimeout(signal => this.octokit!.rest.git.createBlob({
               owner: this.config!.owner,
               repo: this.config!.repo,
               content: this.encodeContent(content),
-              encoding: 'base64'
-            }));
+              encoding: 'base64',
+              request: { signal }
+            })));
             await commitBatch([{ path: item.path, mode: '100644', type: 'blob', sha: blob.data.sha }], item.size);
             continue;
           }
 
-          if (batchBytes + item.size > PUSH_BATCH_BYTES && batch.length > 0) {
+          if (batchBytes + item.size > batchLimit && batch.length > 0) {
             await commitBatch(batch, batchBytes);
             batch = []; batchBytes = 0;
           }
@@ -780,18 +965,13 @@ export class GithubService {
    */
   public async getManuscript(id: string): Promise<Bundle | null> {
     if (!this.octokit || !this.config) return null;
+    let found: Bundle | null = null;
     try {
-      const resp = await withRetry(() => this.octokit!.rest.repos.getContent({
-        owner: this.config!.owner,
-        repo: this.config!.repo,
-        path: `manuscripts/${id}.json`,
-        ref: this.config!.branch
-      }));
-      const data: any = resp.data;
-      if (Array.isArray(data) || data.type !== 'file' || !data.content) return null;
-      return JSON.parse(this.decodeContent(data.content.replace(/\n/g, '')));
+      const ok = await this.streamManuscripts(async (_id, bundle) => { found = bundle; },
+        undefined, new Set([id]));
+      if (!ok) return null; // legacy layout
+      return found;
     } catch (e: any) {
-      if (e.status === 404) return null;
       console.error(e);
       this.toastr.error('Failed to load manuscript from GitHub');
       return null;
@@ -799,36 +979,70 @@ export class GithubService {
   }
 
   /**
-   * Writes a single manuscript bundle directly via the Contents API (one
-   * request to read the current sha, one to write) — the cheap, simple path
-   * for saving one manuscript's worth of edits, as opposed to a full
-   * database sync. Also the entry point future tools (e.g. a neume editor)
-   * should use for "save this one piece".
+   * Writes one manuscript — metadata file plus size-bounded notes chunks —
+   * in a single commit. The cheap path for saving one manuscript's worth of
+   * edits, and the entry point a tool that works on a single piece (e.g. a
+   * neume editor) should use instead of a full database sync.
    */
   public async putManuscript(id: string, bundle: Bundle, message: string): Promise<boolean> {
     if (!this.octokit || !this.config) return false;
     try {
-      let sha: string | undefined;
-      try {
-        const existing = await withRetry(() => this.octokit!.rest.repos.getContent({
-          owner: this.config!.owner,
-          repo: this.config!.repo,
-          path: `manuscripts/${id}.json`,
-          ref: this.config!.branch
-        }));
-        sha = Array.isArray(existing.data) ? undefined : (existing.data as any).sha;
-      } catch (e: any) {
-        if (e.status !== 404) throw e;
-      }
-
-      await withRetry(() => this.octokit!.rest.repos.createOrUpdateFileContents({
+      const branch = await withRetry(() => this.octokit!.rest.repos.getBranch({
         owner: this.config!.owner,
         repo: this.config!.repo,
+        branch: this.config!.branch
+      }));
+      const baseTreeSha = branch.data.commit.commit.tree.sha;
+
+      const entries: TreeEntry[] = [{
         path: `manuscripts/${id}.json`,
-        message,
-        content: this.encodeContent(JSON.stringify(bundle, null, 2)),
-        branch: this.config!.branch,
-        sha
+        mode: '100644', type: 'blob',
+        content: JSON.stringify({ source: bundle.source, documents: bundle.documents })
+      }];
+
+      // Same chunking the full push uses, so the two stay interchangeable.
+      const written = new Set<string>();
+      let index = 0, chunkBytes = 0, count = 0;
+      let chunk: { [docId: string]: any } = {};
+      const flush = () => {
+        if (count === 0) return;
+        const path = notesChunkPath(id, index);
+        entries.push({ path, mode: '100644', type: 'blob', content: JSON.stringify(chunk) });
+        written.add(path);
+        index++; chunk = {}; chunkBytes = 0; count = 0;
+      };
+      for (const docId of Object.keys(bundle.notes || {}).sort()) {
+        const pieceBytes = JSON.stringify(bundle.notes[docId]).length + docId.length + 8;
+        if (count > 0 && chunkBytes + pieceBytes > PUSH_NOTES_CHUNK_BYTES) flush();
+        chunk[docId] = bundle.notes[docId];
+        chunkBytes += pieceBytes; count++;
+      }
+      flush();
+
+      // Drop chunks this manuscript no longer needs.
+      const existing = await withRetry(() => this.octokit!.rest.git.getTree({
+        owner: this.config!.owner, repo: this.config!.repo,
+        tree_sha: baseTreeSha, recursive: 'true'
+      }));
+      for (const item of existing.data.tree) {
+        if (item.type !== 'blob' || !item.path) continue;
+        const m = /^manuscripts\/(.+)\/notes-\d+\.json$/.exec(item.path);
+        if (m && m[1] === id && !written.has(item.path)) {
+          entries.push({ path: item.path, mode: '100644', type: 'blob', sha: null });
+        }
+      }
+
+      const newTree = await withRetry(() => this.octokit!.rest.git.createTree({
+        owner: this.config!.owner, repo: this.config!.repo,
+        base_tree: baseTreeSha, tree: entries as any
+      }));
+      const newCommit = await withRetry(() => this.octokit!.rest.git.createCommit({
+        owner: this.config!.owner, repo: this.config!.repo,
+        message, tree: newTree.data.sha, parents: [branch.data.commit.sha]
+      }));
+      await withRetry(() => this.octokit!.rest.git.updateRef({
+        owner: this.config!.owner, repo: this.config!.repo,
+        ref: `heads/${this.config!.branch}`, sha: newCommit.data.sha
       }));
       return true;
     } catch (e) {
