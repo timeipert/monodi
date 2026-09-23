@@ -11,6 +11,18 @@ import * as localforage from 'localforage';
 import * as _ from 'lodash';
 import { NotesStore } from './notes-store';
 
+/** One manuscript's worth of merge conflicts, grouped for the merge dialog. */
+interface ConflictGroup {
+  key: string;          // source id, or '__settings__' / '__unassigned__'
+  isSettings: boolean;
+  sigle: string;
+  region: string;
+  assigned: string[];
+  items: any[];          // the individual Source/Document/Notes conflict entries
+  expanded: boolean;
+  resolution: 'local' | 'remote' | 'custom';
+}
+
 @Component({
     selector: 'app-root',
     templateUrl: './app.component.html',
@@ -135,6 +147,9 @@ export class AppComponent {
 
   showMergeDialog = false;
   conflicts: any[] = [];
+  conflictGroups: ConflictGroup[] = [];
+  mergeFilterText = '';
+  mergeOnlyMine = false;
   resolvedDb: any = null;
   pendingAction: 'pull' | 'push' = 'pull';
 
@@ -329,9 +344,25 @@ export class AppComponent {
     this.conflicts = [];
     this.resolvedDb = { sources: [], documents: [], notes: {}, settings: null };
 
+    // Metadata (sigle/region/assignedTo) per manuscript, used to group and
+    // filter the merge dialog. Covers every source either side knows about,
+    // not just the ones actually in conflict.
+    const sourceMetaById = new Map<string, { sigle: string; region: string; assigned: string[] }>();
+    const describeSource = (s: any): { sigle: string; region: string; assigned: string[] } => ({
+      sigle: (Array.isArray(s.quellensigle) ? s.quellensigle.join(', ') : s.quellensigle) || s.id,
+      region: s.herkunftsregion || '',
+      assigned: Array.isArray(s.assignedTo) ? s.assignedTo : []
+    });
+
+    // Maps a document id to its owning manuscript id, so Notes conflicts
+    // (which only carry a document id) can still be grouped by manuscript.
+    const docToSourceId = new Map<string, string>();
+    localDocs.forEach(d => { if (d?.id) docToSourceId.set(d.id, d.quelle_id || '__unassigned__'); });
+    remoteDb.documents.forEach(d => { if (d?.id && !docToSourceId.has(d.id)) docToSourceId.set(d.id, d.quelle_id || '__unassigned__'); });
+
     // settings
     if (!_.isEqual(localSettings, remoteDb.settings) && localSettings && remoteDb.settings) {
-       this.conflicts.push({ type: 'Settings', id: 'Global Settings', name: 'Settings', local: localSettings, remote: remoteDb.settings, resolution: 'local' });
+       this.conflicts.push({ type: 'Settings', id: 'Global Settings', name: 'Settings', sourceId: '__settings__', local: localSettings, remote: remoteDb.settings, resolution: 'local' });
     } else {
        this.resolvedDb.settings = remoteDb.settings || localSettings;
     }
@@ -345,9 +376,10 @@ export class AppComponent {
     });
 
     for (const [id, data] of sourceMap.entries()) {
+       sourceMetaById.set(id, describeSource(data.local || data.remote));
        if (data.local && data.remote) {
           if (!_.isEqual(data.local, data.remote)) {
-             this.conflicts.push({ type: 'Source', id: id, name: data.local.quellensigle || id, local: data.local, remote: data.remote, resolution: 'local' });
+             this.conflicts.push({ type: 'Source', id: id, name: data.local.quellensigle || id, sourceId: id, local: data.local, remote: data.remote, resolution: 'local' });
           } else {
              this.resolvedDb.sources.push(data.local);
           }
@@ -367,9 +399,10 @@ export class AppComponent {
     });
 
     for (const [id, data] of docMap.entries()) {
+       const sourceId = (data.local?.quelle_id || data.remote?.quelle_id) || '__unassigned__';
        if (data.local && data.remote) {
           if (!_.isEqual(data.local, data.remote)) {
-             this.conflicts.push({ type: 'Document', id: id, name: data.local.dokumenten_id || id, local: data.local, remote: data.remote, resolution: 'local' });
+             this.conflicts.push({ type: 'Document', id: id, name: data.local.dokumenten_id || id, sourceId, local: data.local, remote: data.remote, resolution: 'local' });
           } else {
              this.resolvedDb.documents.push(data.local);
           }
@@ -389,9 +422,10 @@ export class AppComponent {
     });
 
     for (const [id, data] of noteMap.entries()) {
+       const sourceId = docToSourceId.get(id) || '__unassigned__';
        if (data.local && data.remote) {
           if (!_.isEqual(data.local, data.remote)) {
-             this.conflicts.push({ type: 'Notes', id: id, name: `Notes for Document ${id}`, local: data.local, remote: data.remote, resolution: 'local' });
+             this.conflicts.push({ type: 'Notes', id: id, name: `Notes for Document ${id}`, sourceId, local: data.local, remote: data.remote, resolution: 'local' });
           } else {
              this.resolvedDb.notes[id] = data.local;
           }
@@ -406,10 +440,97 @@ export class AppComponent {
     this.syncProgress = null;
 
     if (this.conflicts.length > 0) {
+       this.mergeFilterText = '';
+       this.mergeOnlyMine = false;
+       this.buildConflictGroups(sourceMetaById);
        this.showMergeDialog = true;
     } else {
        await this.finishSync();
     }
+  }
+
+  /** Groups the flat conflict list by manuscript for the merge dialog. */
+  private buildConflictGroups(sourceMetaById: Map<string, { sigle: string; region: string; assigned: string[] }>) {
+    const groups = new Map<string, ConflictGroup>();
+    for (const item of this.conflicts) {
+      const key = item.sourceId || '__unassigned__';
+      let g = groups.get(key);
+      if (!g) {
+        const meta = sourceMetaById.get(key);
+        g = {
+          key,
+          isSettings: key === '__settings__',
+          sigle: key === '__settings__' ? 'Global settings' : (meta?.sigle || (key === '__unassigned__' ? '(no manuscript)' : key)),
+          region: meta?.region || '',
+          assigned: meta?.assigned || [],
+          items: [],
+          expanded: false,
+          resolution: 'local'
+        };
+        groups.set(key, g);
+      }
+      g.items.push(item);
+    }
+    this.conflictGroups = Array.from(groups.values()).sort((a, b) => {
+      if (a.isSettings !== b.isSettings) return a.isSettings ? -1 : 1;
+      return a.sigle.localeCompare(b.sigle);
+    });
+  }
+
+  get filteredConflictGroups(): ConflictGroup[] {
+    const q = this.mergeFilterText.trim().toLowerCase();
+    const me = this.currentUserName;
+    return this.conflictGroups.filter(g => {
+      if (g.isSettings) return true; // always keep global settings visible
+      if (this.mergeOnlyMine && !(me && g.assigned.includes(me))) return false;
+      if (!q) return true;
+      return g.key.toLowerCase().includes(q) || g.sigle.toLowerCase().includes(q) || g.region.toLowerCase().includes(q);
+    });
+  }
+
+  /** Sets every item in a manuscript group to the same resolution. */
+  setGroupResolution(group: ConflictGroup, value: 'local' | 'remote') {
+    for (const item of group.items) item.resolution = value;
+    group.resolution = value;
+  }
+
+  /** Overrides a single item within a group; marks the group 'custom' if that makes it non-uniform. */
+  setItemResolution(group: ConflictGroup, item: any, value: 'local' | 'remote') {
+    item.resolution = value;
+    const allLocal = group.items.every(i => i.resolution === 'local');
+    const allRemote = group.items.every(i => i.resolution === 'remote');
+    group.resolution = allLocal ? 'local' : allRemote ? 'remote' : 'custom';
+  }
+
+  /** Applies a bulk choice to every currently visible (filtered) group. */
+  bulkSetResolution(value: 'local' | 'remote') {
+    for (const g of this.filteredConflictGroups) this.setGroupResolution(g, value);
+  }
+
+  private static readonly CONFLICT_TYPE_LABELS: { [type: string]: (n: number) => string } = {
+    Settings: () => 'global settings',
+    Source: () => 'manuscript metadata',
+    Document: n => n === 1 ? '1 document' : `${n} documents`,
+    Notes: n => n === 1 ? '1 note' : `${n} notes`
+  };
+
+  /** Short badges summarizing what's in conflict within a group, e.g. ["manuscript metadata", "3 documents"]. */
+  groupTypeSummary(group: ConflictGroup): string[] {
+    const counts = new Map<string, number>();
+    for (const item of group.items) counts.set(item.type, (counts.get(item.type) || 0) + 1);
+    return ['Settings', 'Source', 'Document', 'Notes']
+      .filter(t => counts.has(t))
+      .map(t => AppComponent.CONFLICT_TYPE_LABELS[t](counts.get(t)!));
+  }
+
+  /** Aborts the sync entirely: discards the pulled data, applies nothing. */
+  cancelMerge() {
+    this.showMergeDialog = false;
+    this.conflicts = [];
+    this.conflictGroups = [];
+    this.resolvedDb = null;
+    this.isSyncing = false;
+    this.syncProgress = null;
   }
 
   async resolveConflicts() {

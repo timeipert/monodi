@@ -210,55 +210,102 @@
 <!-- Merge Collision Dialog -->
 @if (showMergeDialog) {
   <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content shadow-lg">
         <div class="modal-header bg-warning text-dark border-0">
           <h5 class="modal-title fw-bold">
             <i class="bi bi-exclamation-triangle-fill me-2"></i>Merge Conflicts Detected
           </h5>
+          <button type="button" class="btn-close" (click)="cancelMerge()" title="Cancel sync"></button>
         </div>
-        <div class="modal-body bg-light p-4">
-          <p class="mb-4 text-muted">The remote repository contains changes that conflict with your local edits. Please select which version to keep for each file.</p>
-          @for (conflict of conflicts; track conflict; let i = $index) {
-            <div class="card shadow-sm border-0 mb-3">
-              <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-                <h6 class="mb-0 fw-bold text-primary">{{ conflict.type }}: <span class="text-dark">{{ conflict.name }}</span></h6>
-                <small class="text-muted font-monospace" style="font-size: 0.75rem;">{{ conflict.id }}</small>
+        <div class="modal-body bg-light p-3">
+          <p class="text-muted small mb-3">
+            {{ conflicts.length }} conflicting item(s) across {{ conflictGroups.length }} manuscript(s)/areas.
+            Pick Local or Remote per manuscript, or expand one to resolve individual documents/notes.
+          </p>
+
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <input type="text" class="form-control form-control-sm" style="max-width: 240px;"
+                   placeholder="Filter: sigle / region / id" [(ngModel)]="mergeFilterText">
+            @if (currentUserName) {
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="checkbox" id="mergeOnlyMine" [(ngModel)]="mergeOnlyMine">
+                <label class="form-check-label small" for="mergeOnlyMine">Assigned to me only</label>
               </div>
-              <div class="card-body">
-                <div class="row g-3">
-                  <!-- Local Option -->
-                  <div class="col-md-6">
-                    <div class="position-relative">
-                      <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'local-' + i" [(ngModel)]="conflict.resolution" value="local">
-                      <label class="btn btn-outline-secondary w-100 text-start p-3 h-100" [for]="'local-' + i">
-                        <div class="d-flex align-items-center mb-2">
-                          <i class="bi bi-laptop me-2 fs-5"></i>
-                          <strong class="d-block">Keep Local Version</strong>
-                        </div>
-                        <small class="d-block text-muted text-truncate">Preserve your unpushed browser edits.</small>
-                      </label>
+            }
+            <div class="btn-group btn-group-sm ms-auto">
+              <button class="btn btn-outline-secondary" (click)="bulkSetResolution('local')" title="Applies to every manuscript matching the current filter">
+                <i class="bi bi-laptop"></i> Visible: keep Local
+              </button>
+              <button class="btn btn-outline-success" (click)="bulkSetResolution('remote')" title="Applies to every manuscript matching the current filter">
+                <i class="bi bi-github"></i> Visible: take Remote
+              </button>
+            </div>
+          </div>
+
+          @if (filteredConflictGroups.length === 0) {
+            <div class="text-center text-muted py-4">No manuscripts match this filter.</div>
+          } @else {
+            <div class="list-group">
+              @for (group of filteredConflictGroups; track group.key) {
+                <div class="list-group-item p-0">
+                  <div class="d-flex align-items-center gap-2 p-2">
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-dark" (click)="group.expanded = !group.expanded" title="Show individual items">
+                      <i class="bi" [class.bi-chevron-right]="!group.expanded" [class.bi-chevron-down]="group.expanded"></i>
+                    </button>
+                    <div class="flex-grow-1 min-width-0">
+                      <span class="fw-medium">{{ group.sigle }}</span>
+                      @if (group.region) { <span class="text-muted small">· {{ group.region }}</span> }
+                      @if (currentUserName && group.assigned.includes(currentUserName)) {
+                        <span class="badge bg-primary ms-1">assigned to me</span>
+                      }
+                      @if (group.resolution === 'custom') {
+                        <span class="badge bg-warning text-dark ms-1">mixed</span>
+                      }
+                      <div class="small text-muted">
+                        @for (label of groupTypeSummary(group); track label) {
+                          <span class="me-2">{{ label }}</span>
+                        }
+                      </div>
+                    </div>
+                    <div class="btn-group btn-group-sm flex-shrink-0">
+                      <button type="button" class="btn"
+                              [class.btn-secondary]="group.resolution === 'local'" [class.btn-outline-secondary]="group.resolution !== 'local'"
+                              (click)="setGroupResolution(group, 'local')">
+                        <i class="bi bi-laptop"></i> Local
+                      </button>
+                      <button type="button" class="btn"
+                              [class.btn-success]="group.resolution === 'remote'" [class.btn-outline-success]="group.resolution !== 'remote'"
+                              (click)="setGroupResolution(group, 'remote')">
+                        <i class="bi bi-github"></i> Remote
+                      </button>
                     </div>
                   </div>
-                  <!-- Remote Option -->
-                  <div class="col-md-6">
-                    <div class="position-relative">
-                      <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'remote-' + i" [(ngModel)]="conflict.resolution" value="remote">
-                      <label class="btn btn-outline-success w-100 text-start p-3 h-100" [for]="'remote-' + i">
-                        <div class="d-flex align-items-center mb-2">
-                          <i class="bi bi-github me-2 fs-5"></i>
-                          <strong class="d-block">Take Remote Version</strong>
+                  @if (group.expanded) {
+                    <div class="border-top bg-white">
+                      @for (item of group.items; track item) {
+                        <div class="d-flex align-items-center gap-2 py-2 px-3 border-bottom">
+                          <span class="badge bg-light text-dark border" style="min-width: 4.5rem;">{{ item.type }}</span>
+                          <span class="flex-grow-1 small text-truncate" [title]="item.name">{{ item.name }}</span>
+                          <div class="btn-group btn-group-sm flex-shrink-0">
+                            <button type="button" class="btn btn-sm"
+                                    [class.btn-secondary]="item.resolution === 'local'" [class.btn-outline-secondary]="item.resolution !== 'local'"
+                                    (click)="setItemResolution(group, item, 'local')">Local</button>
+                            <button type="button" class="btn btn-sm"
+                                    [class.btn-success]="item.resolution === 'remote'" [class.btn-outline-success]="item.resolution !== 'remote'"
+                                    (click)="setItemResolution(group, item, 'remote')">Remote</button>
+                          </div>
                         </div>
-                        <small class="d-block text-muted text-truncate">Overwrite with GitHub's version.</small>
-                      </label>
+                      }
                     </div>
-                  </div>
+                  }
                 </div>
-              </div>
+              }
             </div>
           }
         </div>
         <div class="modal-footer border-0 bg-white">
+          <button type="button" class="btn btn-outline-secondary" (click)="cancelMerge()">Cancel</button>
           <button type="button" class="btn btn-primary px-4 fw-medium" (click)="resolveConflicts()">
             Resolve & Apply <i class="bi bi-check2-circle ms-1"></i>
           </button>
