@@ -138,6 +138,176 @@ export class AppComponent {
   resolvedDb: any = null;
   pendingAction: 'pull' | 'push' = 'pull';
 
+  // ---- Selective sync (choose which manuscripts to pull/push) ----
+  showSyncDialog = false;
+  syncDialogAction: 'pull' | 'push' = 'push';
+  manuscriptList: { id: string; sigle: string; region: string; assigned: string[]; remoteOnly: boolean; selected: boolean }[] = [];
+  syncFilterText = '';
+  syncOnlyMine = false;
+  loadingManuscripts = false;
+
+  get currentUserName(): string {
+    return this.user?.user || '';
+  }
+
+  private async loadLocalDb(): Promise<{ sources: any[]; documents: any[]; notes: any; settings: any }> {
+    const sources = await localforage.getItem<any[]>('monodi_sources') || [];
+    const documents = await localforage.getItem<any[]>('monodi_documents') || [];
+    const notes = await NotesStore.getAll();
+    const settings = await localforage.getItem<any>('monodi_settings') || null;
+    return { sources, documents, notes, settings };
+  }
+
+  async openSyncDialog(action: 'pull' | 'push') {
+    this.syncDialogAction = action;
+    this.syncFilterText = '';
+    this.syncOnlyMine = false;
+    this.loadingManuscripts = true;
+    this.showSyncDialog = true;
+
+    const localSources = await localforage.getItem<any[]>('monodi_sources') || [];
+    const byId = new Map<string, any>();
+    for (const s of localSources) if (s && s.id) byId.set(s.id, s);
+
+    const list = localSources
+      .filter(s => s && s.id)
+      .map(s => ({
+        id: s.id as string,
+        sigle: (Array.isArray(s.quellensigle) ? s.quellensigle.join(', ') : s.quellensigle) || '(ohne Sigle)',
+        region: s.herkunftsregion || '',
+        assigned: Array.isArray(s.assignedTo) ? s.assignedTo : [],
+        remoteOnly: false,
+        selected: false
+      }));
+
+    // For a pull, also offer manuscripts that exist on the remote but not locally.
+    if (action === 'pull') {
+      try {
+        const remoteIds = await this.github.listRemoteManuscriptIds();
+        for (const id of remoteIds) {
+          if (id === '__unassigned__') continue;
+          if (!byId.has(id)) {
+            list.push({ id, sigle: '(nur auf GitHub)', region: '', assigned: [], remoteOnly: true, selected: false });
+          }
+        }
+      } catch { /* offline / empty repo: local list only */ }
+    }
+
+    list.sort((a, b) => a.sigle.localeCompare(b.sigle));
+    this.manuscriptList = list;
+    this.loadingManuscripts = false;
+  }
+
+  get filteredManuscripts() {
+    const q = this.syncFilterText.trim().toLowerCase();
+    const me = this.currentUserName;
+    return this.manuscriptList.filter(m => {
+      if (this.syncOnlyMine && !(me && m.assigned.includes(me))) return false;
+      if (!q) return true;
+      return m.id.toLowerCase().includes(q)
+        || m.sigle.toLowerCase().includes(q)
+        || m.region.toLowerCase().includes(q);
+    });
+  }
+
+  get selectedManuscriptCount(): number {
+    return this.manuscriptList.filter(m => m.selected).length;
+  }
+
+  selectAllVisible(selected: boolean) {
+    for (const m of this.filteredManuscripts) m.selected = selected;
+  }
+
+  /** Tags the selected manuscripts as assigned to the current user (locally). */
+  async assignSelectedToMe() {
+    const me = this.currentUserName;
+    if (!me) return;
+    const selectedIds = new Set(this.manuscriptList.filter(m => m.selected && !m.remoteOnly).map(m => m.id));
+    if (selectedIds.size === 0) return;
+    const sources = await localforage.getItem<any[]>('monodi_sources') || [];
+    for (const s of sources) {
+      if (s && selectedIds.has(s.id)) {
+        const assigned: string[] = Array.isArray(s.assignedTo) ? s.assignedTo : [];
+        if (!assigned.includes(me)) assigned.push(me);
+        s.assignedTo = assigned;
+      }
+    }
+    await localforage.setItem('monodi_sources', sources);
+    for (const m of this.manuscriptList) {
+      if (selectedIds.has(m.id) && !m.assigned.includes(me)) m.assigned.push(me);
+    }
+    alert(`${selectedIds.size} Handschrift(en) dir zugewiesen. Push die Auswahl, um es auf GitHub zu speichern.`);
+  }
+
+  async confirmSyncSelection() {
+    const ids = new Set(this.manuscriptList.filter(m => m.selected).map(m => m.id));
+    if (ids.size === 0) return;
+    const action = this.syncDialogAction;
+    this.showSyncDialog = false;
+
+    if (action === 'push') {
+      await this.pushSelected(ids);
+    } else {
+      await this.pullSelected(ids);
+    }
+  }
+
+  /** Pushes only the chosen manuscripts; everything else on GitHub is left as-is. */
+  private async pushSelected(ids: Set<string>) {
+    this.isSyncing = true;
+    this.syncProgress = { phase: 'Preparing…', current: 0, total: 0 };
+    const db = await this.loadLocalDb();
+    const date = new Date().toLocaleString();
+    const ok = await this.github.pushDatabase(
+      db,
+      `Update ${ids.size} manuscript(s) from Monodi-Light (${date})`,
+      p => this.syncProgress = p,
+      ids
+    );
+    this.isSyncing = false;
+    this.syncProgress = null;
+    if (ok) {
+      this.backupReminder.markBackup();
+      alert(`Push abgeschlossen: ${ids.size} Handschrift(en) auf GitHub aktualisiert.`);
+    }
+  }
+
+  /**
+   * Pulls the chosen manuscripts and replaces the local copy of just those
+   * manuscripts; all other local data is left untouched.
+   */
+  private async pullSelected(ids: Set<string>) {
+    this.isSyncing = true;
+    this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
+    const remoteDb = await this.github.pullDatabase(p => this.syncProgress = p, ids);
+    if (!remoteDb) {
+      this.isSyncing = false;
+      this.syncProgress = null;
+      return;
+    }
+
+    const local = await this.loadLocalDb();
+
+    // Drop the local copy of the selected manuscripts, then splice in remote.
+    const selectedLocalDocIds = new Set(
+      local.documents.filter(d => d && ids.has(d.quelle_id)).map(d => d.id)
+    );
+    const newSources = local.sources.filter(s => !(s && ids.has(s.id))).concat(remoteDb.sources);
+    const newDocuments = local.documents.filter(d => !(d && ids.has(d.quelle_id))).concat(remoteDb.documents);
+    const newNotes: any = { ...local.notes };
+    for (const docId of selectedLocalDocIds) delete newNotes[docId];
+    for (const docId of Object.keys(remoteDb.notes)) newNotes[docId] = remoteDb.notes[docId];
+
+    await localforage.setItem('monodi_sources', newSources);
+    await localforage.setItem('monodi_documents', newDocuments);
+    await NotesStore.replaceAll(newNotes);
+
+    this.isSyncing = false;
+    this.syncProgress = null;
+    alert(`Pull abgeschlossen: ${ids.size} Handschrift(en) aus GitHub übernommen.`);
+    window.location.reload();
+  }
+
   async sync(action: 'pull' | 'push') {
     this.isSyncing = true;
     this.pendingAction = action;

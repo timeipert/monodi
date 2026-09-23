@@ -223,7 +223,31 @@ export class GithubService {
     return btoa(unescape(encodeURIComponent(content)));
   }
 
-  public async pullDatabase(onProgress?: ProgressCallback): Promise<{ sources: any[], documents: any[], notes: any, settings: any } | null> {
+  /**
+   * Lists the manuscript ids currently stored on the remote (v2 layout).
+   * Cheap — reads only the tree, no blobs — so the selection dialog can offer
+   * manuscripts that exist remotely but aren't held locally.
+   */
+  public async listRemoteManuscriptIds(): Promise<string[]> {
+    if (!this.octokit || !this.config) return [];
+    try {
+      const treeResp = await withRetry(() => this.octokit!.rest.git.getTree({
+        owner: this.config!.owner,
+        repo: this.config!.repo,
+        tree_sha: this.config!.branch,
+        recursive: 'true'
+      }));
+      return treeResp.data.tree
+        .filter(i => i.type === 'blob' && i.path?.startsWith('manuscripts/') && i.path.endsWith('.json'))
+        .map(i => i.path!.replace('manuscripts/', '').replace(/\.json$/, ''));
+    } catch (e: any) {
+      if (e.status === 404 || e.status === 409) return [];
+      console.error(e);
+      return [];
+    }
+  }
+
+  public async pullDatabase(onProgress?: ProgressCallback, only?: Set<string>): Promise<{ sources: any[], documents: any[], notes: any, settings: any } | null> {
     if (!this.octokit || !this.config) return null;
     try {
       const db = { sources: [] as any[], documents: [] as any[], notes: {} as any, settings: null as any };
@@ -253,7 +277,14 @@ export class GithubService {
       const blobs = treeResp.data.tree.filter(item => {
         if (item.type !== 'blob' || !item.path || !item.sha) return false;
         if (item.path === 'settings.json') return true;
-        if (hasV2) return item.path.startsWith('manuscripts/') && item.path.endsWith('.json');
+        if (hasV2) {
+          if (!(item.path.startsWith('manuscripts/') && item.path.endsWith('.json'))) return false;
+          if (only) {
+            const id = item.path.replace('manuscripts/', '').replace(/\.json$/, '');
+            return only.has(id);
+          }
+          return true;
+        }
         return (
           (item.path.startsWith('sources/') && item.path.endsWith('.json')) ||
           (item.path.startsWith('documents/') && item.path.endsWith('.json')) ||
@@ -302,7 +333,7 @@ export class GithubService {
     }
   }
 
-  public async pushDatabase(db: { sources: any[], documents: any[], notes: any, settings: any }, message: string, onProgress?: ProgressCallback): Promise<boolean> {
+  public async pushDatabase(db: { sources: any[], documents: any[], notes: any, settings: any }, message: string, onProgress?: ProgressCallback, only?: Set<string>): Promise<boolean> {
      if (!this.octokit || !this.config) return false;
      try {
         if (onProgress) onProgress({ phase: 'Preparing…', current: 0, total: 0 });
@@ -353,11 +384,14 @@ export class GithubService {
         // the only way the initial upload of a large corpus stays feasible.
         const files: { path: string, content: string }[] = [];
 
-        if (db.settings) {
+        // A scoped push (only certain manuscripts) leaves everything else on
+        // the remote untouched — including settings and other manuscripts.
+        if (db.settings && !only) {
           files.push({ path: 'settings.json', content: JSON.stringify(db.settings, null, 2) });
         }
         const bundles = groupIntoBundles(db);
         for (const [id, bundle] of bundles.entries()) {
+          if (only && !only.has(id)) continue;
           files.push({ path: `manuscripts/${id}.json`, content: JSON.stringify(bundle, null, 2) });
         }
 
@@ -403,9 +437,11 @@ export class GithubService {
         // we've migrated to the manuscripts/ layout, so the repo isn't left with
         // stale duplicates. A null sha deletes the path in the tree API.
         const deletions: TreeItem[] = [];
-        for (const path of remoteShaByPath.keys()) {
-          if (path.startsWith('sources/') || path.startsWith('documents/') || path.startsWith('notes/')) {
-            deletions.push({ path, mode: '100644', type: 'blob', sha: null });
+        if (!only) {
+          for (const path of remoteShaByPath.keys()) {
+            if (path.startsWith('sources/') || path.startsWith('documents/') || path.startsWith('notes/')) {
+              deletions.push({ path, mode: '100644', type: 'blob', sha: null });
+            }
           }
         }
 

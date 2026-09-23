@@ -65,7 +65,7 @@
                 }
                 Pull
               </button>
-              <button class="btn btn-success d-flex align-items-center gap-1" (click)="sync('push')" [disabled]="isSyncing" title="Push to GitHub">
+              <button class="btn btn-success d-flex align-items-center gap-1" (click)="sync('push')" [disabled]="isSyncing" title="Push everything to GitHub">
                 @if (!isSyncing) {
                   <i class="bi bi-cloud-arrow-up"></i>
                 }
@@ -73,6 +73,10 @@
                   <span class="spinner-border spinner-border-sm"></span>
                 }
                 Push
+              </button>
+              <button class="btn btn-outline-secondary d-flex align-items-center gap-1" (click)="openSyncDialog('push')" [disabled]="isSyncing" title="Nur ausgewählte Handschriften synchronisieren">
+                <i class="bi bi-list-check"></i>
+                Auswahl…
               </button>
             </div>
           </li>
@@ -257,6 +261,82 @@
         <div class="modal-footer border-0 bg-white">
           <button type="button" class="btn btn-primary px-4 fw-medium" (click)="resolveConflicts()">
             Resolve & Apply <i class="bi bi-check2-circle ms-1"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showSyncDialog) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content shadow-lg">
+        <div class="modal-header bg-success text-white border-0">
+          <h5 class="modal-title fw-bold">
+            <i class="bi bi-list-check me-2"></i>
+            Handschriften {{ syncDialogAction === 'push' ? 'pushen' : 'pullen' }}
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="showSyncDialog = false"></button>
+        </div>
+        <div class="modal-body bg-light p-3">
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-success" (click)="syncDialogAction = 'push'" [class.active]="syncDialogAction === 'push'">
+                <i class="bi bi-cloud-arrow-up"></i> Push
+              </button>
+              <button class="btn btn-outline-success" (click)="syncDialogAction = 'pull'; openSyncDialog('pull')" [class.active]="syncDialogAction === 'pull'">
+                <i class="bi bi-cloud-arrow-down"></i> Pull
+              </button>
+            </div>
+            <input type="text" class="form-control form-control-sm" style="max-width: 220px;"
+                   placeholder="Filter: Sigle / Region / ID" [(ngModel)]="syncFilterText">
+            @if (currentUserName) {
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="checkbox" id="onlyMine" [(ngModel)]="syncOnlyMine">
+                <label class="form-check-label small" for="onlyMine">Nur mir zugeteilt</label>
+              </div>
+            }
+          </div>
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <button class="btn btn-sm btn-outline-secondary" (click)="selectAllVisible(true)">Alle sichtbaren</button>
+            <button class="btn btn-sm btn-outline-secondary" (click)="selectAllVisible(false)">Keine</button>
+            @if (currentUserName) {
+              <button class="btn btn-sm btn-outline-primary" (click)="assignSelectedToMe()" [disabled]="selectedManuscriptCount === 0">
+                <i class="bi bi-person-check"></i> Auswahl mir zuteilen
+              </button>
+            }
+            <span class="small text-muted ms-auto">{{ selectedManuscriptCount }} ausgewählt</span>
+          </div>
+
+          @if (loadingManuscripts) {
+            <div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Lade Handschriften…</div>
+          } @else if (filteredManuscripts.length === 0) {
+            <div class="text-center text-muted py-4">Keine Handschriften gefunden.</div>
+          } @else {
+            <div class="list-group">
+              @for (m of filteredManuscripts; track m.id) {
+                <label class="list-group-item d-flex align-items-center gap-2">
+                  <input class="form-check-input m-0" type="checkbox" [(ngModel)]="m.selected">
+                  <span class="flex-grow-1">
+                    <span class="fw-medium">{{ m.sigle }}</span>
+                    @if (m.region) { <span class="text-muted small">· {{ m.region }}</span> }
+                    @if (m.remoteOnly) { <span class="badge bg-info text-dark ms-1">nur GitHub</span> }
+                    @if (currentUserName && m.assigned.includes(currentUserName)) { <span class="badge bg-primary ms-1">mir zugeteilt</span> }
+                  </span>
+                </label>
+              }
+            </div>
+          }
+        </div>
+        <div class="modal-footer border-0 bg-white">
+          @if (syncDialogAction === 'pull') {
+            <small class="text-muted me-auto">Pull ersetzt die lokale Version der gewählten Handschriften.</small>
+          }
+          <button type="button" class="btn btn-outline-secondary" (click)="showSyncDialog = false">Abbrechen</button>
+          <button type="button" class="btn btn-success px-4 fw-medium" (click)="confirmSyncSelection()" [disabled]="selectedManuscriptCount === 0">
+            {{ syncDialogAction === 'push' ? 'Auswahl pushen' : 'Auswahl pullen' }} ({{ selectedManuscriptCount }})
+            <i class="bi bi-check2-circle ms-1"></i>
           </button>
         </div>
       </div>
