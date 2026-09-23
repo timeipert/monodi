@@ -3,13 +3,14 @@ import { Router } from '@angular/router';
 import { APIService } from './api.service'
 import { StackEntry, ToolsService, Tool} from './tools.service';
 import { UserService, User } from './user.service';
-import { GithubService } from './github.service';
+import { GithubService, SyncProgress } from './github.service';
 import { UndoService } from './undoService';
 import { ContextMenuService } from './context-menu/context-menu.service';
 import { BackupReminderService } from './backup-reminder.service';
 import * as localforage from 'localforage';
 import * as _ from 'lodash';
 import { NotesStore } from './notes-store';
+import { LocalWorkspaceSource } from './workspace-source';
 
 /** One manuscript's worth of merge conflicts, grouped for the merge dialog. */
 interface ConflictGroup {
@@ -36,12 +37,45 @@ export class AppComponent {
   tools!: StackEntry;
   toolHasParent: boolean = false;
   isSyncing = false;
-  syncProgress: { phase: string; current: number; total: number } | null = null;
+  syncProgress: SyncProgress | null = null;
   isOnline: boolean = navigator.onLine;
 
+  /**
+   * Percentage for the bar. Prefers bytes over file counts: one manuscript can
+   * be a thousand times bigger than another, so a file-count bar would crawl
+   * and then leap. Falls back to counts while we don't know the byte total.
+   */
   get syncPercent(): number {
-    if (!this.syncProgress || this.syncProgress.total <= 0) return 0;
-    return Math.round((this.syncProgress.current / this.syncProgress.total) * 100);
+    const p = this.syncProgress;
+    if (!p) return 0;
+    if (p.bytesTotal && p.bytesTotal > 0) {
+      return Math.min(100, Math.round(((p.bytesDone || 0) / p.bytesTotal) * 100));
+    }
+    if (p.total > 0) return Math.min(100, Math.round((p.current / p.total) * 100));
+    return 0;
+  }
+
+  /** True while we can't say how much work there is (indeterminate bar). */
+  get syncIndeterminate(): boolean {
+    const p = this.syncProgress;
+    if (!p) return true;
+    return !(p.bytesTotal && p.bytesTotal > 0) && p.total <= 0;
+  }
+
+  formatBytes(n: number | undefined): string {
+    if (!n || n <= 0) return '0 MB';
+    const mb = n / (1024 * 1024);
+    if (mb < 1) return `${Math.max(1, Math.round(n / 1024))} KB`;
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    return `${(mb / 1024).toFixed(2)} GB`;
+  }
+
+  formatEta(seconds: number | undefined): string {
+    if (seconds === undefined || !isFinite(seconds) || seconds < 0) return '';
+    if (seconds < 60) return `${Math.round(seconds)}s remaining`;
+    const m = Math.floor(seconds / 60);
+    if (m < 60) return `${m} min remaining`;
+    return `${Math.floor(m / 60)}h ${m % 60}min remaining`;
   }
   showBackupReminder = false;
   /** Mobile/tablet navbar collapse state (driven by ng-bootstrap's ngbCollapse). */
@@ -271,10 +305,10 @@ export class AppComponent {
   private async pushSelected(ids: Set<string>) {
     this.isSyncing = true;
     this.syncProgress = { phase: 'Preparing…', current: 0, total: 0 };
-    const db = await this.loadLocalDb();
     const date = new Date().toLocaleString();
+    // Streams straight from IndexedDB — never materialises the workspace.
     const ok = await this.github.pushDatabase(
-      db,
+      new LocalWorkspaceSource(),
       `Update ${ids.size} manuscript(s) from Monodi-Light (${date})`,
       p => this.syncProgress = p,
       ids
@@ -558,7 +592,10 @@ export class AppComponent {
     if (this.pendingAction === 'push') {
        const date = new Date().toLocaleString();
        this.syncProgress = { phase: 'Preparing…', current: 0, total: 0 };
-       const success = await this.github.pushDatabase(this.resolvedDb, `Update from Monodi-Light (${date})`, p => this.syncProgress = p);
+       // The merged result was just written to storage above, so the push can
+       // stream it back out manuscript by manuscript instead of holding the
+       // whole (potentially multi-GB) workspace serialized in memory.
+       const success = await this.github.pushDatabase(new LocalWorkspaceSource(), `Update from Monodi-Light (${date})`, p => this.syncProgress = p);
        if (success) {
          this.backupReminder.markBackup();
          alert('Successfully synced and pushed to GitHub!');

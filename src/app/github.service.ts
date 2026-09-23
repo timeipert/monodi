@@ -14,9 +14,28 @@ export interface SyncProgress {
   phase: string;
   current: number;
   total: number;
+  /** What is being worked on right now, e.g. a manuscript sigle. */
+  detail?: string;
+  /** Payload progress, so the bar reflects real work rather than file counts. */
+  bytesDone?: number;
+  bytesTotal?: number;
+  /** How many manuscripts were already up to date and skipped. */
+  skipped?: number;
+  /** Rough seconds remaining, derived from throughput so far. */
+  etaSeconds?: number;
 }
 
 export type ProgressCallback = (p: SyncProgress) => void;
+
+/**
+ * Supplies the workspace to the sync layer lazily, one manuscript at a time,
+ * so a multi-GB corpus never has to exist in memory all at once.
+ */
+export interface ManuscriptSource {
+  listIds(): Promise<string[]>;
+  load(id: string): Promise<Bundle>;
+  loadSettings(): Promise<any>;
+}
 
 /**
  * Runs `worker` over every item with at most `concurrency` promises in flight.
@@ -43,6 +62,33 @@ async function runPool<T>(
     runners.push(runNext());
   }
   await Promise.all(runners);
+}
+
+/** A single entry in a Git tree: inline `content`, an existing `sha`, or `sha: null` to delete. */
+type TreeEntry =
+  | { path: string; mode: '100644'; type: 'blob'; content: string }
+  | { path: string; mode: '100644'; type: 'blob'; sha: string | null };
+
+/**
+ * Payload budget for one createTree request. The Trees API creates blobs
+ * inline, so one request can carry many manuscripts — which means the number
+ * of API calls scales with total bytes instead of file count. Kept modest so
+ * a flaky connection only ever loses one small request's worth of work.
+ */
+const PUSH_BATCH_BYTES = 3 * 1024 * 1024;
+
+/** Above this, a manuscript is sent as its own blob rather than inline. */
+const PUSH_BIG_FILE_BYTES = 6 * 1024 * 1024;
+
+/** How much serialized content pass 1 may keep, to avoid serializing twice. */
+const PUSH_CACHE_BUDGET_BYTES = 64 * 1024 * 1024;
+
+/** Deletions carry no payload, so they batch far more aggressively. */
+const PUSH_DELETE_BATCH = 500;
+
+/** UTF-8 byte length of a string (not the same as `.length` for non-ASCII). */
+function byteLength(s: string): number {
+  return new Blob([s]).size;
 }
 
 /**
@@ -107,37 +153,6 @@ export interface Bundle {
   source: any | null;
   documents: any[];
   notes: { [docId: string]: any };
-}
-
-const ORPHAN_BUNDLE_ID = '__unassigned__';
-
-/**
- * Regroups the flat database into one bundle per manuscript (keyed by source
- * id / document `quelle_id`). Documents with no source and notes with no
- * document land in a single `__unassigned__` bundle so nothing is lost.
- */
-function groupIntoBundles(db: Db): Map<string, Bundle> {
-  const bundles = new Map<string, Bundle>();
-  const bundleFor = (id: string): Bundle => {
-    let b = bundles.get(id);
-    if (!b) { b = { source: null, documents: [], notes: {} }; bundles.set(id, b); }
-    return b;
-  };
-
-  for (const source of db.sources) {
-    if (source && source.id) bundleFor(source.id).source = source;
-  }
-  const docToBundle = new Map<string, string>();
-  for (const doc of db.documents) {
-    const key = (doc && doc.quelle_id) ? doc.quelle_id : ORPHAN_BUNDLE_ID;
-    bundleFor(key).documents.push(doc);
-    if (doc && doc.id) docToBundle.set(doc.id, key);
-  }
-  for (const docId of Object.keys(db.notes)) {
-    const key = docToBundle.get(docId) || ORPHAN_BUNDLE_ID;
-    bundleFor(key).notes[docId] = db.notes[docId];
-  }
-  return bundles;
 }
 
 /** Flattens a manuscript bundle back into the flat database being assembled. */
@@ -376,12 +391,12 @@ export class GithubService {
    * safe, so most transient failures now resolve themselves without the
    * user having to notice or press Push again.
    */
-  public async pushDatabase(db: Db, message: string, onProgress?: ProgressCallback, only?: Set<string>): Promise<boolean> {
+  public async pushDatabase(source: ManuscriptSource, message: string, onProgress?: ProgressCallback, only?: Set<string>): Promise<boolean> {
     if (!this.octokit || !this.config) return false;
     const maxAttempts = 3;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        await this.pushDatabaseOnce(db, message, onProgress, only);
+        await this.pushDatabaseOnce(source, message, onProgress, only);
         return true;
       } catch (e) {
         console.error(`Push attempt ${attempt}/${maxAttempts} failed`, e);
@@ -397,7 +412,7 @@ export class GithubService {
     return false;
   }
 
-  private async pushDatabaseOnce(db: Db, message: string, onProgress?: ProgressCallback, only?: Set<string>): Promise<void> {
+  private async pushDatabaseOnce(source: ManuscriptSource, message: string, onProgress?: ProgressCallback, only?: Set<string>): Promise<void> {
         if (!this.octokit || !this.config) throw new Error('Not connected to GitHub');
         if (onProgress) onProgress({ phase: 'Preparing…', current: 0, total: 0 });
         let latestCommitSha: string | undefined = undefined;
@@ -442,25 +457,9 @@ export class GithubService {
            isInitialCommit = false; // We now have a base commit!
         }
 
-        // Store one bundle per manuscript instead of one file per chant. This
-        // turns tens of thousands of tiny files into a few hundred, which is
-        // the only way the initial upload of a large corpus stays feasible.
-        const files: { path: string, content: string }[] = [];
-
-        // A scoped push (only certain manuscripts) leaves everything else on
-        // the remote untouched — including settings and other manuscripts.
-        if (db.settings && !only) {
-          files.push({ path: 'settings.json', content: JSON.stringify(db.settings, null, 2) });
-        }
-        const bundles = groupIntoBundles(db);
-        for (const [id, bundle] of bundles.entries()) {
-          if (only && !only.has(id)) continue;
-          files.push({ path: `manuscripts/${id}.json`, content: JSON.stringify(bundle, null, 2) });
-        }
-
-        // Fetch the current remote tree so we can skip files that are already
-        // identical (matching Git blob SHA) — on a re-sync most files are
-        // unchanged and don't need uploading at all.
+        // Fetch the current remote tree so we can skip manuscripts that are
+        // already identical (matching Git blob SHA). On a re-sync most of the
+        // corpus is unchanged and never needs to be sent at all.
         const remoteShaByPath = new Map<string, string>();
         try {
           const existing = await withRetry(() => this.octokit!.rest.git.getTree({
@@ -479,27 +478,57 @@ export class GithubService {
           console.warn('Could not read remote tree; uploading all files.', e);
         }
 
-        if (onProgress) onProgress({ phase: 'Checking for changes…', current: 0, total: files.length });
+        // ---- Pass 1: scan ------------------------------------------------
+        // Serialize each manuscript one at a time to get its Git SHA and
+        // size, then throw the string away again. This tells us exactly what
+        // changed and how many bytes are due — without ever holding the whole
+        // workspace in memory. Small payloads are cached so the common case
+        // doesn't pay for serializing twice.
+        let ids = await source.listIds();
+        if (only) ids = ids.filter(id => only.has(id));
+        ids.sort();
 
-        // Decide per file whether it needs uploading. Unchanged files are
-        // referenced by their existing SHA; changed/new ones get uploaded.
-        type TreeItem = { path: string, mode: '100644', type: 'blob', sha: string | null };
-        const treeItems: TreeItem[] = new Array(files.length);
-        const toUpload: number[] = [];
-        for (let i = 0; i < files.length; i++) {
-          const localSha = await gitBlobSha(files[i].content);
-          const remoteSha = remoteShaByPath.get(files[i].path);
-          if (remoteSha === localSha) {
-            treeItems[i] = { path: files[i].path, mode: '100644', type: 'blob', sha: remoteSha };
-          } else {
-            toUpload.push(i);
+        type Pending = { path: string; size: number; cached: string | null };
+        const pending: Pending[] = [];
+        let cacheBudget = PUSH_CACHE_BUDGET_BYTES;
+        let skipped = 0;
+        let bytesTotal = 0;
+
+        const considerFile = async (path: string, content: string) => {
+          const size = byteLength(content);
+          const localSha = await gitBlobSha(content);
+          if (remoteShaByPath.get(path) === localSha) {
+            skipped++;
+            return; // already on GitHub, byte for byte
           }
+          let cached: string | null = null;
+          if (size <= cacheBudget) { cached = content; cacheBudget -= size; }
+          pending.push({ path, size, cached });
+          bytesTotal += size;
+        };
+
+        for (let i = 0; i < ids.length; i++) {
+          const id = ids[i];
+          if (onProgress) onProgress({
+            phase: 'Scanning workspace', current: i, total: ids.length,
+            detail: id, skipped
+          });
+          const bundle = await source.load(id);
+          // Compact JSON: indentation can be a third of the bytes on deeply
+          // nested neume data, and this payload is machine-written anyway.
+          await considerFile(`manuscripts/${id}.json`, JSON.stringify(bundle));
         }
 
-        // Remove leftover legacy per-chant files (sources/documents/notes) once
-        // we've migrated to the manuscripts/ layout, so the repo isn't left with
-        // stale duplicates. A null sha deletes the path in the tree API.
-        const deletions: TreeItem[] = [];
+        // A scoped push leaves everything else on the remote untouched,
+        // including global settings and other manuscripts.
+        if (!only) {
+          const settings = await source.loadSettings();
+          if (settings) await considerFile('settings.json', JSON.stringify(settings));
+        }
+
+        // Remove leftover legacy per-chant files once we've migrated to the
+        // manuscripts/ layout. A null sha deletes the path in the tree API.
+        const deletions: TreeEntry[] = [];
         if (!only) {
           for (const path of remoteShaByPath.keys()) {
             if (path.startsWith('sources/') || path.startsWith('documents/') || path.startsWith('notes/')) {
@@ -508,71 +537,119 @@ export class GithubService {
           }
         }
 
-        // Upload only the changed blobs, in "stacks" via a bounded worker pool
-        // with retry/backoff so a large push rides out rate limits.
-        let uploaded = 0;
-        if (onProgress) onProgress({ phase: 'Uploading files', current: 0, total: toUpload.length });
-        await runPool(toUpload, 6, async (index) => {
-          const file = files[index];
-          const blob = await withRetry(() => this.octokit!.rest.git.createBlob({
-            owner: this.config!.owner,
-            repo: this.config!.repo,
-            content: this.encodeContent(file.content),
-            encoding: 'base64'
-          }));
-          treeItems[index] = { path: file.path, mode: '100644', type: 'blob', sha: blob.data.sha };
-        }, () => {
-          uploaded++;
-          if (onProgress) onProgress({ phase: 'Uploading files', current: uploaded, total: toUpload.length });
-        });
+        if (pending.length === 0 && deletions.length === 0) {
+          if (onProgress) onProgress({ phase: 'Already up to date', current: 1, total: 1, skipped });
+          return;
+        }
 
-        // Commit in batches so progress is persisted incrementally: if the
-        // process is interrupted, everything committed so far survives and a
-        // later push resumes from there (skipping the unchanged files). The
-        // manuscript writes come first, legacy deletions last.
-        const ops: TreeItem[] = [...treeItems, ...deletions];
-        const BATCH_SIZE = 100;
+        // ---- Pass 2: upload ----------------------------------------------
+        // Batch by *payload size*, not file count, and let the Trees API
+        // create the blobs inline. One request carries many manuscripts, so
+        // the call count scales with total bytes rather than file count —
+        // and no single request is ever huge.
         let currentTreeSha = baseTreeSha!;
         let currentCommitSha = latestCommitSha!;
-        const totalBatches = Math.ceil(ops.length / BATCH_SIZE) || 1;
+        let bytesDone = 0;
+        let filesDone = 0;
+        let commitIndex = 0;
+        const startedAt = Date.now();
 
-        for (let b = 0; b < totalBatches; b++) {
-          const batch = ops.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
-          if (batch.length === 0) break;
+        const report = (phase: string, detail?: string) => {
+          if (!onProgress) return;
+          const elapsed = (Date.now() - startedAt) / 1000;
+          const etaSeconds = bytesDone > 0 && bytesTotal > bytesDone
+            ? Math.round(elapsed * (bytesTotal - bytesDone) / bytesDone)
+            : undefined;
+          onProgress({
+            phase, detail,
+            current: filesDone, total: pending.length,
+            bytesDone, bytesTotal, skipped, etaSeconds
+          });
+        };
 
-          if (onProgress) onProgress({ phase: `Committing (batch ${b + 1}/${totalBatches})…`, current: b, total: totalBatches });
-
-          const newTreeResp = await withRetry(() => this.octokit!.rest.git.createTree({
+        const commitBatch = async (entries: TreeEntry[], batchBytes: number) => {
+          if (entries.length === 0) return;
+          const newTree = await withRetry(() => this.octokit!.rest.git.createTree({
             owner: this.config!.owner,
             repo: this.config!.repo,
             base_tree: currentTreeSha,
-            tree: batch as any
+            tree: entries as any
           }));
 
-          // Skip an empty commit if this batch changed nothing.
-          if (newTreeResp.data.sha === currentTreeSha) continue;
+          // Nothing actually changed in this batch — don't make an empty commit.
+          if (newTree.data.sha !== currentTreeSha) {
+            commitIndex++;
+            const newCommit = await withRetry(() => this.octokit!.rest.git.createCommit({
+              owner: this.config!.owner,
+              repo: this.config!.repo,
+              message: `${message} [${commitIndex}]`,
+              tree: newTree.data.sha,
+              parents: [currentCommitSha]
+            }));
+            // Advancing the branch after every batch is what makes the push
+            // resumable: an interruption keeps everything committed so far.
+            await withRetry(() => this.octokit!.rest.git.updateRef({
+              owner: this.config!.owner,
+              repo: this.config!.repo,
+              ref: `heads/${this.config!.branch}`,
+              sha: newCommit.data.sha
+            }));
+            currentTreeSha = newTree.data.sha;
+            currentCommitSha = newCommit.data.sha;
+          }
 
-          const commitLabel = totalBatches > 1 ? `${message} (${b + 1}/${totalBatches})` : message;
-          const newCommitResp = await withRetry(() => this.octokit!.rest.git.createCommit({
-            owner: this.config!.owner,
-            repo: this.config!.repo,
-            message: commitLabel,
-            tree: newTreeResp.data.sha,
-            parents: [currentCommitSha]
-          }));
+          bytesDone += batchBytes;
+          // Deletions (sha: null) aren't "files uploaded", so don't count them.
+          filesDone += entries.filter(e => !('sha' in e && e.sha === null)).length;
+          report('Uploading');
+        };
 
-          await withRetry(() => this.octokit!.rest.git.updateRef({
-            owner: this.config!.owner,
-            repo: this.config!.repo,
-            ref: `heads/${this.config!.branch}`,
-            sha: newCommitResp.data.sha
-          }));
+        let batch: TreeEntry[] = [];
+        let batchBytes = 0;
 
-          currentTreeSha = newTreeResp.data.sha;
-          currentCommitSha = newCommitResp.data.sha;
+        for (const item of pending) {
+          report('Uploading', item.path.replace('manuscripts/', '').replace(/\.json$/, ''));
+          const content = item.cached ?? JSON.stringify(await source.load(
+            item.path.replace('manuscripts/', '').replace(/\.json$/, '')
+          ));
+          item.cached = null; // release as soon as it's been used
+
+          if (item.size > PUSH_BIG_FILE_BYTES) {
+            // Too big to ride along inline — flush what we have, then send
+            // this one as its own blob so the request stays a sane size.
+            await commitBatch(batch, batchBytes);
+            batch = []; batchBytes = 0;
+
+            const blob = await withRetry(() => this.octokit!.rest.git.createBlob({
+              owner: this.config!.owner,
+              repo: this.config!.repo,
+              content: this.encodeContent(content),
+              encoding: 'base64'
+            }));
+            await commitBatch([{ path: item.path, mode: '100644', type: 'blob', sha: blob.data.sha }], item.size);
+            continue;
+          }
+
+          if (batchBytes + item.size > PUSH_BATCH_BYTES && batch.length > 0) {
+            await commitBatch(batch, batchBytes);
+            batch = []; batchBytes = 0;
+          }
+          batch.push({ path: item.path, mode: '100644', type: 'blob', content });
+          batchBytes += item.size;
+        }
+        await commitBatch(batch, batchBytes);
+
+        // Legacy cleanup last: deletions carry no payload, so they can go in
+        // large chunks.
+        for (let i = 0; i < deletions.length; i += PUSH_DELETE_BATCH) {
+          report('Cleaning up old files');
+          await commitBatch(deletions.slice(i, i + PUSH_DELETE_BATCH), 0);
         }
 
-        if (onProgress) onProgress({ phase: 'Done', current: totalBatches, total: totalBatches });
+        if (onProgress) onProgress({
+          phase: 'Done', current: pending.length, total: pending.length,
+          bytesDone, bytesTotal, skipped
+        });
   }
 
   /**

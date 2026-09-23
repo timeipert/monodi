@@ -30,29 +30,6 @@
         </li>
       </ul>
       <ul class="navbar-nav ms-auto align-items-lg-center mt-2 mt-lg-0 gap-2 gap-lg-0">
-        @if (isSyncing && syncProgress) {
-          <div class="sync-progress-overlay">
-            <div class="sync-progress-card shadow">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="spinner-border spinner-border-sm text-success"></span>
-                <span class="fw-medium">{{ syncProgress.phase }}</span>
-              </div>
-              <div class="progress" style="height: 10px;">
-                <div class="progress-bar bg-success"
-                     [class.progress-bar-striped]="syncProgress.total <= 0"
-                     [class.progress-bar-animated]="syncProgress.total <= 0"
-                     role="progressbar"
-                     [style.width.%]="syncProgress.total > 0 ? syncPercent : 100">
-                </div>
-              </div>
-              @if (syncProgress.total > 0) {
-                <div class="small text-muted mt-1 text-end">
-                  {{ syncProgress.current }} / {{ syncProgress.total }} ({{ syncPercent }}%)
-                </div>
-              }
-            </div>
-          </div>
-        }
         @if (github.isConnected) {
           <li class="nav-item me-3">
             <div class="btn-group btn-group-sm">
@@ -203,6 +180,61 @@
     </div>
   }
 </div>
+<!-- Sync progress. Deliberately outside the navbar: nested inside the
+     collapsible nav it was hidden on narrow screens, which is exactly when
+     you most need to see that a long sync is still alive. -->
+@if (isSyncing && syncProgress) {
+  <div class="sync-progress-overlay">
+    <div class="sync-progress-card shadow">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="spinner-border spinner-border-sm text-success flex-shrink-0"></span>
+        <span class="fw-medium text-truncate">{{ syncProgress.phase }}</span>
+        @if (!syncIndeterminate) {
+          <span class="ms-auto fw-bold flex-shrink-0">{{ syncPercent }}%</span>
+        }
+      </div>
+
+      @if (syncProgress.detail) {
+        <div class="small text-muted text-truncate mb-1" [title]="syncProgress.detail">
+          {{ syncProgress.detail }}
+        </div>
+      }
+
+      <div class="progress" style="height: 10px;">
+        <div class="progress-bar bg-success"
+             [class.progress-bar-striped]="syncIndeterminate"
+             [class.progress-bar-animated]="syncIndeterminate"
+             role="progressbar"
+             [style.width.%]="syncIndeterminate ? 100 : syncPercent">
+        </div>
+      </div>
+
+      <div class="small text-muted mt-1 d-flex justify-content-between gap-2">
+        <span>
+          @if (syncProgress.bytesTotal) {
+            {{ formatBytes(syncProgress.bytesDone) }} / {{ formatBytes(syncProgress.bytesTotal) }}
+          } @else if (syncProgress.total > 0) {
+            {{ syncProgress.current }} / {{ syncProgress.total }}
+          }
+        </span>
+        <span>{{ formatEta(syncProgress.etaSeconds) }}</span>
+      </div>
+
+      @if (syncProgress.total > 0 && syncProgress.bytesTotal) {
+        <div class="small text-muted">
+          {{ syncProgress.current }} / {{ syncProgress.total }} manuscripts
+        </div>
+      }
+      @if (syncProgress.skipped) {
+        <div class="small text-muted">
+          <i class="bi bi-check2 text-success"></i>
+          {{ syncProgress.skipped }} already up to date (skipped)
+        </div>
+      }
+    </div>
+  </div>
+}
+
 <div class="main-content">
   <router-outlet></router-outlet>
 </div>
