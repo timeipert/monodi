@@ -1,6 +1,7 @@
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { Bundle, ManuscriptSource } from './github.service';
+import { PushCache } from './push-cache';
 
 /** Bundle id used for documents/notes that have no owning manuscript. */
 export const ORPHAN_BUNDLE_ID = '__unassigned__';
@@ -48,6 +49,16 @@ export class LocalWorkspaceSource implements ManuscriptSource {
     this.knownDocIds = known;
   }
 
+  /**
+   * Manuscript ids the push actually needs to look at.
+   *
+   * Skips anything {@link PushCache} already knows matches the remote —
+   * which means push no longer reads a single note out of IndexedDB for a
+   * manuscript nothing has touched since the last successful push. That I/O
+   * (one read per document, for every manuscript, every time) was the real
+   * cost of "pushing again right after a push still takes forever" — it had
+   * nothing to do with GitHub or the network.
+   */
   async listIds(): Promise<string[]> {
     await this.index();
     const ids = new Set<string>(this.docsByManuscript!.keys());
@@ -57,7 +68,8 @@ export class LocalWorkspaceSource implements ManuscriptSource {
     const noteIds = await NotesStore.getIndex();
     if (noteIds.some(id => !this.knownDocIds!.has(id))) ids.add(ORPHAN_BUNDLE_ID);
 
-    return Array.from(ids);
+    const clean = await PushCache.getCleanIds();
+    return Array.from(ids).filter(id => !clean.has(id));
   }
 
   async loadMeta(id: string): Promise<{ source: any | null; documents: any[] }> {

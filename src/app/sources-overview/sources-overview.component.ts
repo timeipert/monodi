@@ -15,6 +15,7 @@ import { HttpClient } from '@angular/common/http';
 import * as localforage from 'localforage';
 import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
+import { PushCache } from '../push-cache';
 import { WORKSPACE_SCHEMA_VERSION } from '../schema';
 import { buildWorkspaceExport, parseWorkspaceImport, BackwardsCompatMode } from '../workspace-io';
 import { 
@@ -516,6 +517,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           await localforage.setItem('monodi_documents', existingDocs);
 
           this.api.invalidateCache();
+          // Bulk write whose exact effect on individual manuscripts isn't
+          // cheaply known here — invalidate the push cache wholesale so the
+          // next push does a full (correct) scan instead of risking a false
+          // "clean" for something this import actually changed.
+          await PushCache.invalidateAll();
           this.updateList();
 
           this.toastr.success(
@@ -564,6 +570,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           if (data.settings) await localforage.setItem('monodi_settings', data.settings);
           
           this.api.invalidateCache();
+          // Bulk write whose exact effect on individual manuscripts isn't
+          // cheaply known here — invalidate the push cache wholesale so the
+          // next push does a full (correct) scan instead of risking a false
+          // "clean" for something this import actually changed.
+          await PushCache.invalidateAll();
           this.toastr.success("Workspace imported successfully.");
           this.updateList();
         } catch (err) {
@@ -934,6 +945,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       this.updateProgress({ message: 'Saving document index…', current: 1 });
       await localforage.setItem('monodi_documents', documents);
       this.api.invalidateCache();
+      // Bulk import touched an unknown subset of manuscripts — invalidate
+      // wholesale so the next push scans everything rather than risking a
+      // false "clean" for something this import actually changed.
+      await PushCache.invalidateAll();
       this.updateProgress({ current: 2 });
 
       // -----------------------------------------------------------------

@@ -9,6 +9,8 @@ import { ensureSchemaVersion } from './schema';
 import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings } from './mei/mei-mapping.model';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
+import { PushCache } from './push-cache';
+import { ORPHAN_BUNDLE_ID } from './workspace-source';
 
 @Injectable({
   providedIn: 'root'
@@ -119,6 +121,7 @@ export class APIService {
       if (index !== -1) {
         sources[index] = source;
         await this.saveSources(sources);
+        await PushCache.markDirty(source.id);
         return { kind: "Ok" as const };
       }
       return { kind: "SourceNotFound" as const };
@@ -185,6 +188,7 @@ export class APIService {
       source.id = newId;
       sources.push(source);
       await this.saveSources(sources);
+      await PushCache.markDirty(newId);
       return { kind: "SourceCreated" as const, id: newId };
     })());
   }
@@ -206,12 +210,18 @@ export class APIService {
       const docIdsToRemove = JSON.parse(data) as string[];
       let documents = await this.getDocuments();
 
+      // The manuscripts losing a document still exist remotely and need a
+      // push to reflect the removal, so they're dirty — not deleted.
+      const removed = documents.filter((d: Document) => docIdsToRemove.includes(d.id));
+      const affectedManuscripts = [...new Set(removed.map(d => d.quelle_id || ORPHAN_BUNDLE_ID))];
+
       documents = documents.filter((d: Document) => !docIdsToRemove.includes(d.id));
       await this.saveDocuments(documents);
       // Per-document deletion via NotesStore avoids re-saving the whole
       // notes dict (which can exceed the IndexedDB structured-clone limit
       // on large workspaces).
       await NotesStore.removeMany(docIdsToRemove);
+      await PushCache.markDirty(affectedManuscripts);
       return { kind: "UploadFinished" as const, errors: [] };
     })());
   }
@@ -230,6 +240,9 @@ export class APIService {
       await this.saveSources(sources);
       await this.saveDocuments(documents);
       await NotesStore.removeMany(docIdsToRemove);
+      // The whole manuscript is gone: the next push should remove its files
+      // from GitHub rather than just re-upload a changed version of them.
+      await PushCache.markDeleted(sourceIdsToRemove);
       return { kind: "UploadFinished" as const, errors: [] };
     })());
   }
@@ -247,9 +260,14 @@ export class APIService {
 
       const index = documents.findIndex((d: Document) => d.id === update.document.id);
       if (index !== -1) {
+        // A document can move between manuscripts (quelle_id changed) — both
+        // the old and new owner need a push to pick up the change.
+        const oldOwner = documents[index].quelle_id || ORPHAN_BUNDLE_ID;
+        const newOwner = update.document.quelle_id || ORPHAN_BUNDLE_ID;
         documents[index] = update.document;
         await this.saveDocuments(documents);
         await NotesStore.set(update.document.id, update.notes);
+        await PushCache.markDirty(oldOwner === newOwner ? [newOwner] : [oldOwner, newOwner]);
         return { kind: "Ok" as const };
       }
       return { kind: "DocumentNotFound" as const };
@@ -270,9 +288,11 @@ export class APIService {
   public removeDocument(token: string, id: string): Observable<LoginRequired | Ok> {
     return from((async () => {
       let documents = await this.getDocuments();
+      const removed = documents.find((d: Document) => d.id === id);
       documents = documents.filter((d: Document) => d.id !== id);
       await this.saveDocuments(documents);
       await NotesStore.remove(id);
+      await PushCache.markDirty(removed?.quelle_id || ORPHAN_BUNDLE_ID);
       return { kind: "Ok" as const };
     })());
   }
@@ -286,6 +306,7 @@ export class APIService {
       documents.push(creation.document);
       await this.saveDocuments(documents);
       await NotesStore.set(newId, creation.notes);
+      await PushCache.markDirty(creation.document.quelle_id || ORPHAN_BUNDLE_ID);
       return { kind: "DocumentCreated" as const, id: newId };
     })());
   }

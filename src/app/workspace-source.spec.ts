@@ -1,6 +1,7 @@
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { LocalWorkspaceSource, ORPHAN_BUNDLE_ID } from './workspace-source';
+import { PushCache } from './push-cache';
 
 /**
  * These guard the streaming push path: it must produce exactly the same
@@ -25,6 +26,8 @@ describe('LocalWorkspaceSource', () => {
     });
 
     (NotesStore as any).migrationPromise = null;
+    (PushCache as any).cleanIds = null;
+    (PushCache as any).deletedIds = null;
   });
 
   /** Seeds sources, documents and per-document notes into the mock store. */
@@ -145,5 +148,55 @@ describe('LocalWorkspaceSource', () => {
     await seed([], [], {});
     mockStore.set('monodi_settings', { theme: 'dark' });
     expect(await new LocalWorkspaceSource().loadSettings()).toEqual({ theme: 'dark' });
+  });
+
+  describe('with PushCache (repeat-push performance)', () => {
+    it('excludes manuscripts already marked clean', async () => {
+      await seed(
+        [{ id: 'ms-a' }, { id: 'ms-b' }, { id: 'ms-c' }],
+        [{ id: 'd1', quelle_id: 'ms-a' }, { id: 'd2', quelle_id: 'ms-b' }, { id: 'd3', quelle_id: 'ms-c' }],
+        { d1: { n: 1 }, d2: { n: 2 }, d3: { n: 3 } }
+      );
+      await PushCache.markClean(['ms-a', 'ms-c']);
+
+      const ids = await new LocalWorkspaceSource().listIds();
+      expect(ids.sort()).toEqual(['ms-b']);
+    });
+
+    it('with nothing marked clean (fresh cache), scans everything — same as before this feature existed', async () => {
+      await seed(
+        [{ id: 'ms-a' }, { id: 'ms-b' }],
+        [{ id: 'd1', quelle_id: 'ms-a' }, { id: 'd2', quelle_id: 'ms-b' }],
+        { d1: { n: 1 }, d2: { n: 2 } }
+      );
+      const ids = await new LocalWorkspaceSource().listIds();
+      expect(ids.sort()).toEqual(['ms-a', 'ms-b']);
+    });
+
+    it('a manuscript marked dirty again after being clean is scanned once more', async () => {
+      await seed([{ id: 'ms-a' }], [{ id: 'd1', quelle_id: 'ms-a' }], { d1: { n: 1 } });
+      await PushCache.markClean(['ms-a']);
+      expect(await new LocalWorkspaceSource().listIds()).toEqual([]);
+
+      await PushCache.markDirty('ms-a');
+      expect(await new LocalWorkspaceSource().listIds()).toEqual(['ms-a']);
+    });
+
+    it('never reads a clean manuscript\'s notes at all', async () => {
+      await seed(
+        [{ id: 'ms-a' }, { id: 'ms-b' }],
+        [{ id: 'd1', quelle_id: 'ms-a' }, { id: 'd2', quelle_id: 'ms-b' }],
+        { d1: { n: 1 }, d2: { n: 2 } }
+      );
+      await PushCache.markClean(['ms-a']);
+
+      const src = new LocalWorkspaceSource();
+      const ids = await src.listIds(); // what a real push loop would iterate
+      for (const id of ids) await src.load(id);
+
+      const touched = (localforage.getItem as jasmine.Spy).calls.allArgs().map(a => a[0]);
+      expect(touched).not.toContain('monodi_notes_doc_d1'); // ms-a: skipped entirely
+      expect(touched).toContain('monodi_notes_doc_d2');      // ms-b: still dirty, read normally
+    });
   });
 });

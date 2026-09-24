@@ -11,6 +11,7 @@ import * as localforage from 'localforage';
 import * as _ from 'lodash';
 import { NotesStore } from './notes-store';
 import { LocalWorkspaceSource } from './workspace-source';
+import { PushCache } from './push-cache';
 
 /** One manuscript's worth of merge conflicts, grouped for the merge dialog. */
 interface ConflictGroup {
@@ -277,6 +278,7 @@ export class AppComponent {
       }
     }
     await localforage.setItem('monodi_sources', sources);
+    await PushCache.markDirty(Array.from(selectedIds));
     for (const m of this.manuscriptList) {
       if (selectedIds.has(m.id) && !m.assigned.includes(me)) m.assigned.push(me);
     }
@@ -364,6 +366,8 @@ export class AppComponent {
 
     await localforage.setItem('monodi_sources', keptSources);
     await localforage.setItem('monodi_documents', keptDocuments);
+    // Local now holds exactly what GitHub had — no push needed for these.
+    await PushCache.markClean(ids);
 
     this.isSyncing = false;
     this.syncProgress = null;
@@ -422,7 +426,9 @@ export class AppComponent {
       pendingNoteWrites = 0;
     };
 
+    const visitedIds = new Set<string>();
     const onBundle = async (id: string, bundle: any) => {
+      visitedIds.add(id);
       if (bundle.source?.id) sourceMetaById.set(id, describeSource(bundle.source));
       let manuscriptHasConflict = false;
 
@@ -495,6 +501,12 @@ export class AppComponent {
       alert('This repository still uses the old per-chant layout. Press "Push" once to migrate it — after that, syncing streams and stays memory-safe.');
       return;
     }
+
+    // Manuscripts the walk confirmed match the remote (no conflict) need no
+    // push to reflect that — mark them clean so the next push skips them
+    // instead of re-reading and re-hashing all their notes for nothing.
+    const confirmedClean = Array.from(visitedIds).filter(id => !this.conflictedManuscriptIds.has(id));
+    await PushCache.markClean(confirmedClean);
 
     // --- global settings (small, compared inline) ---
     let remoteSettings: any = null;
@@ -614,8 +626,8 @@ export class AppComponent {
    * internally consistent, so the workspace stays valid; cancelling just
    * declines the conflicting ones.
    */
-  cancelMerge() {
-    const pending = this.conflictedManuscriptIds.size;
+  async cancelMerge() {
+    const declined = Array.from(this.conflictedManuscriptIds);
     this.showMergeDialog = false;
     this.conflicts = [];
     this.conflictGroups = [];
@@ -623,8 +635,11 @@ export class AppComponent {
     this.pendingSettings = null;
     this.isSyncing = false;
     this.syncProgress = null;
-    if (pending > 0) {
-      alert(`Kept your local version for ${pending} conflicting manuscript(s). Non-conflicting updates from GitHub were already applied.`);
+    // Local still differs from remote for these — make sure a future push
+    // doesn't mistake them for already in sync.
+    await PushCache.markDirty(declined);
+    if (declined.length > 0) {
+      alert(`Kept your local version for ${declined.length} conflicting manuscript(s). Non-conflicting updates from GitHub were already applied.`);
     }
   }
 
@@ -652,6 +667,17 @@ export class AppComponent {
       const list = byManuscript.get(c.sourceId) || [];
       list.push(c);
       byManuscript.set(c.sourceId, list);
+    }
+
+    // A manuscript whose every conflicting item was resolved "remote" now
+    // matches GitHub and needs no push. One with any "local" choice still
+    // differs from GitHub and must stay dirty so a future push uploads it.
+    const nowClean: string[] = [];
+    const stillDirty: string[] = [];
+    for (const id of this.conflictedManuscriptIds) {
+      const items = this.conflicts.filter(c => c.sourceId === id);
+      const allRemote = items.length > 0 && items.every(c => c.resolution === 'remote');
+      (allRemote ? nowClean : stillDirty).push(id);
     }
 
     if (byManuscript.size > 0) {
@@ -691,6 +717,9 @@ export class AppComponent {
       await localforage.setItem('monodi_sources', Array.from(sourcesById.values()));
       await localforage.setItem('monodi_documents', Array.from(docsById.values()));
     }
+
+    if (nowClean.length > 0) await PushCache.markClean(nowClean);
+    if (stillDirty.length > 0) await PushCache.markDirty(stillDirty);
 
     this.conflicts = [];
     this.conflictGroups = [];

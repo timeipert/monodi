@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Octokit } from '@octokit/rest';
 import { ToastrService } from 'ngx-toastr';
 import * as localforage from 'localforage';
+import { PushCache } from './push-cache';
 
 export interface GithubConfig {
   token: string;
@@ -768,6 +769,13 @@ export class GithubService {
           expectedPaths.add('README.md');
         }
 
+        // Only manuscripts we actually scanned this run (`ids`) have a
+        // complete `expectedPaths` picture — for anything skipped as
+        // already-clean, we never computed what chunks it should have, so
+        // its real chunks would wrongly look "stale" and get deleted. Scope
+        // the stale-chunk check to what was scanned to avoid that.
+        const scannedIds = new Set(ids);
+
         const deletions: TreeEntry[] = [];
         for (const path of remoteShaByPath.keys()) {
           // Leftover legacy per-chant files from before the manuscripts/ layout.
@@ -778,15 +786,27 @@ export class GithubService {
           // Stale notes chunks: a manuscript that shrank, or one previously
           // written as a single bundle before notes were split out.
           const m = /^manuscripts\/(.+)\/notes-\d+\.json$/.exec(path);
-          if (m && !expectedPaths.has(path)) {
-            const owner = m[1];
-            if (!only || only.has(owner)) {
+          if (m && scannedIds.has(m[1]) && !expectedPaths.has(path)) {
+            deletions.push({ path, mode: '100644', type: 'blob', sha: null });
+          }
+        }
+
+        // Manuscripts deleted locally since the last push: remove their
+        // files from the remote too. Independent of `only` — a deletion is
+        // an explicit action that should eventually reach GitHub regardless
+        // of what else is currently selected for push.
+        const pendingDeletedIds = await PushCache.getPendingDeletions();
+        for (const delId of pendingDeletedIds) {
+          for (const path of remoteShaByPath.keys()) {
+            if (path === `manuscripts/${delId}.json` || path.startsWith(`manuscripts/${delId}/`)) {
               deletions.push({ path, mode: '100644', type: 'blob', sha: null });
             }
           }
         }
 
         if (pending.length === 0 && deletions.length === 0) {
+          if (ids.length > 0) await PushCache.markClean(ids);
+          if (pendingDeletedIds.size > 0) await PushCache.clearDeleted(pendingDeletedIds);
           if (onProgress) onProgress({ phase: 'Already up to date', current: 1, total: 1, skipped });
           return;
         }
@@ -950,6 +970,14 @@ export class GithubService {
           report('Cleaning up old files');
           await commitBatch(deletions.slice(i, i + PUSH_DELETE_BATCH), 0);
         }
+
+        // Everything we scanned is now confirmed to match the remote — mark
+        // it clean so the *next* push doesn't have to touch it again. Only
+        // reached once every batch above has committed without throwing; a
+        // mid-way failure leaves these manuscripts exactly as dirty as
+        // before, so a retry rescans them rather than risking a false clean.
+        if (ids.length > 0) await PushCache.markClean(ids);
+        if (pendingDeletedIds.size > 0) await PushCache.clearDeleted(pendingDeletedIds);
 
         if (onProgress) onProgress({
           phase: 'Done', current: pending.length, total: pending.length,

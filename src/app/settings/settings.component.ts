@@ -7,6 +7,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { PageTitleService } from '../page-title.service';
 import { ToastrService } from 'ngx-toastr';
 import { NotesStore } from '../notes-store';
+import { PushCache } from '../push-cache';
 import * as localforage from 'localforage';
 import { FileSystemService } from '../file-system.service';
 import { buildWorkspaceExport } from '../workspace-io';
@@ -99,7 +100,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /** Tracks which action is currently in-flight so the UI can disable the
    *  whole row of destructive buttons and show a spinner on the active one. */
-  busyAction: '' | 'reset-settings' | 'reset-cols' | 'orphan-notes' | 'orphan-docs'
+  busyAction: '' | 'reset-settings' | 'reset-cols' | 'reset-push-cache' | 'orphan-notes' | 'orphan-docs'
             | 'wipe-docs' | 'wipe-all' = '';
 
   /** Two-step confirmation: clicking a destructive button arms it; the
@@ -760,6 +761,24 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Forgets which manuscripts Push believes already match GitHub. Push
+   * normally skips anything it already knows is in sync, so it only takes
+   * as long as however much actually changed — this button is the manual
+   * escape hatch if that ever seems wrong (e.g. after editing the workspace
+   * from outside the app), forcing the next push to fully re-check
+   * everything against GitHub again, safely.
+   */
+  async resetPushCache(): Promise<void> {
+    this.busyAction = 'reset-push-cache';
+    try {
+      await PushCache.invalidateAll();
+      this.toastr.success('The next push will fully re-check every manuscript against GitHub.', 'Push cache reset');
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
   /** Deletes notes rows whose document no longer exists. */
   async cleanOrphanNotes(): Promise<void> {
     this.busyAction = 'orphan-notes';
@@ -772,6 +791,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.toastr.info('No orphan notes found.', 'Already clean');
       } else {
         await NotesStore.removeMany(orphans);
+        await PushCache.invalidateAll();
         this.toastr.success(`Removed ${orphans.length} orphan note row${orphans.length === 1 ? '' : 's'}.`);
       }
       await this.refreshWorkspaceStats();
@@ -797,6 +817,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         await localforage.setItem('monodi_documents', keep);
         this.api.invalidateCache();
         await NotesStore.removeMany(orphans.map(d => d.id));
+        await PushCache.invalidateAll();
         this.toastr.success(`Removed ${orphans.length} orphan document${orphans.length === 1 ? '' : 's'} and their notes.`);
       }
       await this.refreshWorkspaceStats();
@@ -815,6 +836,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       await localforage.setItem('monodi_documents', []);
       this.api.invalidateCache();
       await NotesStore.removeMany(noteIds);
+      // Sources survive, now empty — a push needs to pick that up.
+      await PushCache.invalidateAll();
       localStorage.removeItem('monodi_cached_pattern_stats');
       localStorage.removeItem('monodi_pattern_params');
       await localforage.removeItem('monodi_cached_pattern_stats'); // IndexedDB copy
@@ -832,6 +855,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.busyAction = 'wipe-all';
     try {
       const noteIds = await NotesStore.getIndex();
+      // Every manuscript is genuinely gone (not just emptied) — a future
+      // push should remove them from GitHub too, so record them as deleted
+      // rather than merely dirty.
+      const previousSourceIds = ((await localforage.getItem<Source[]>('monodi_sources')) || [])
+        .map(s => s.id).filter((id): id is string => !!id);
+
       await NotesStore.removeMany(noteIds);
       await localforage.removeItem('monodi_notes_index');
       await localforage.removeItem('monodi_notes_migrated_v1');
@@ -839,6 +868,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       await localforage.setItem('monodi_sources', []);
       await localforage.setItem('monodi_documents', []);
       this.api.invalidateCache();
+      await PushCache.markDeleted(previousSourceIds);
       await localforage.removeItem('monodi_settings');
       localStorage.removeItem('monodi_source_cols');
       localStorage.removeItem('monodi_doc_cols');

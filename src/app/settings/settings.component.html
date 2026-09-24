@@ -1270,6 +1270,23 @@
                             Reset UI prefs
                           </button>
                         </div>
+                        <!-- Reset push cache -->
+                        <div class="ws-action-row">
+                          <div class="ws-action-row-text">
+                            <div class="fw-semibold">Reset push cache</div>
+                            <div class="text-muted small">Push normally skips manuscripts already known to match GitHub, so it only takes as long as what actually changed. If that ever seems wrong, force a full re-check on the next push. Safe — never loses data.</div>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="busyAction"
+                            (click)="resetPushCache()">
+                            @if (busyAction === 'reset-push-cache') {
+                              <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            @if (busyAction !== 'reset-push-cache') {
+                              <i class="bi bi-arrow-repeat me-1"></i>
+                            }
+                            Reset push cache
+                          </button>
+                        </div>
                         <!-- Orphan notes -->
                         <div class="ws-action-row">
                           <div class="ws-action-row-text">
