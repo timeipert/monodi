@@ -2,6 +2,9 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.service';
 import { UserService, User } from '../user.service';
 import { GithubService, GithubConfig } from '../github.service';
+import { GithubSessionService } from '../github-session.service';
+import { GithubRepo, listBranches, listRepositories } from '../github-api';
+import { environment } from '../../environments/environment';
 import { Subscription } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PageTitleService } from '../page-title.service';
@@ -186,10 +189,22 @@ export class SettingsComponent implements OnInit, OnDestroy {
   githubConfig: GithubConfig = { token: '', owner: '', repo: '', branch: 'main' };
   isGithubConnecting = false;
 
+  // "Sign in with GitHub" state
+  isGithubSigningIn = false;
+  isLoadingRepos = false;
+  isLoadingBranches = false;
+  repoError = '';
+  githubRepos: GithubRepo[] = [];
+  githubBranches: string[] = [];
+  selectedRepo = '';
+  selectedBranch = '';
+  readonly githubAppUrl: string = environment.githubAppUrl;
+
   constructor(
     public api: APIService,
     private userService: UserService,
     public github: GithubService,
+    public session: GithubSessionService,
     private pageTitle: PageTitleService,
     private toastr: ToastrService,
     private cdRef: ChangeDetectorRef,
@@ -256,6 +271,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
         }
       }
     }));
+    // The sign-in finishes in the background right after GitHub sends the
+    // person back here; pick up its result whenever it lands.
+    this.subs.push(this.session.changes.subscribe(() => {
+      this.isGithubSigningIn = false;
+      if (this.session.signedIn && !this.github.isConnected) this.loadGithubRepos();
+      this.cdRef.markForCheck();
+    }));
+    if (this.session.signedIn && !this.github.isConnected) this.loadGithubRepos();
     this.subs.push(this.userService.user.subscribe(user => {
       this.user = user;
       if (this.user) {
@@ -488,6 +511,89 @@ export class SettingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  get isWebOrigin(): boolean {
+    return /^https?:$/.test(window.location.protocol);
+  }
+
+  get selectedRepoIsPublic(): boolean {
+    const r = this.githubRepos.find(x => x.fullName === this.selectedRepo);
+    return !!r && !r.private;
+  }
+
+  signInWithGithub() {
+    this.isGithubSigningIn = true;
+    this.session.startLogin().catch(e => {
+      this.isGithubSigningIn = false;
+      this.toastr.error(e?.message || 'Could not start the sign-in.');
+      this.cdRef.markForCheck();
+    });
+  }
+
+  signOutGithub() {
+    this.session.signOut();
+    this.githubRepos = [];
+    this.githubBranches = [];
+  }
+
+  /** Repositories the app is installed on and the person may write to. */
+  async loadGithubRepos() {
+    this.isLoadingRepos = true;
+    this.repoError = '';
+    this.cdRef.markForCheck();
+    try {
+      const token = await this.session.token();
+      this.githubRepos = await listRepositories(token, this.session.deps.fetchFn);
+      const remembered = this.github.config?.auth === 'app'
+        ? `${this.github.config.owner}/${this.github.config.repo}` : '';
+      const pick = this.githubRepos.find(r => r.fullName === remembered)
+        ?? (this.githubRepos.length === 1 ? this.githubRepos[0] : undefined);
+      this.selectedRepo = pick?.fullName ?? '';
+      if (pick) {
+        await this.onRepoSelected(pick.fullName === remembered ? this.github.config?.branch : undefined);
+      }
+    } catch (e: any) {
+      this.repoError = e?.message || 'Could not load your repositories.';
+    } finally {
+      this.isLoadingRepos = false;
+      this.cdRef.markForCheck();
+    }
+  }
+
+  async onRepoSelected(preferredBranch?: string) {
+    const repo = this.githubRepos.find(r => r.fullName === this.selectedRepo);
+    this.githubBranches = [];
+    this.selectedBranch = '';
+    if (!repo) return;
+    this.isLoadingBranches = true;
+    this.cdRef.markForCheck();
+    try {
+      this.githubBranches = await listBranches(repo.fullName, await this.session.token(), this.session.deps.fetchFn);
+      this.selectedBranch = [preferredBranch, repo.defaultBranch]
+        .find(b => !!b && this.githubBranches.includes(b)) ?? this.githubBranches[0] ?? '';
+    } catch (e: any) {
+      this.repoError = e?.message || 'Could not load the branches.';
+    } finally {
+      this.isLoadingBranches = false;
+      this.cdRef.markForCheck();
+    }
+  }
+
+  async connectWithApp() {
+    const repo = this.githubRepos.find(r => r.fullName === this.selectedRepo);
+    if (!repo || !this.selectedBranch) return;
+    this.isGithubConnecting = true;
+    this.github.connectWithApp(repo.owner, repo.name, this.selectedBranch);
+    this.githubConfig = { ...this.github.config! };
+    const ok = await this.github.testConnection();
+    this.isGithubConnecting = false;
+    if (ok) {
+      this.toastr.success(`Connected to ${repo.fullName}. Use the Sync button in the top bar to push or pull.`);
+    } else {
+      this.toastr.error('The repository could not be reached with this sign-in. Check that the app is installed on it.');
+    }
+    this.cdRef.markForCheck();
+  }
+
   async connectGithub() {
     this.isGithubConnecting = true;
     this.github.saveConfig(this.githubConfig);
@@ -501,7 +607,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   disconnectGithub() {
+    if (this.github.config?.auth === 'app') this.session.signOut();
     this.github.clearConfig();
+    this.githubRepos = [];
+    this.githubBranches = [];
     this.githubConfig = { token: '', owner: '', repo: '', branch: 'main' };
   }
 

@@ -4,7 +4,13 @@
 
 export const environment = {
   production: false,
-  apiPrefix: "http://localhost:9070/api/"
+  apiPrefix: "http://localhost:9070/api/",
+  // "Sign in with GitHub" (GitHub App + sign-in proxy). See GITHUB-LOGIN.md.
+  // For local development put your own values here (do not commit a secret —
+  // there is none in this file: the client id is public).
+  githubClientId: "",
+  githubAuthProxyUrl: "",
+  githubAppUrl: ""
 };
 
 /*

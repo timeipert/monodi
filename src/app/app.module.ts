@@ -1,5 +1,6 @@
 import { BrowserModule } from '@angular/platform-browser';
-import { NgModule, isDevMode, ErrorHandler } from '@angular/core';
+import { NgModule, isDevMode, ErrorHandler, inject, provideAppInitializer } from '@angular/core';
+import { GithubSessionService } from './github-session.service';
 import { GlobalErrorHandler } from './global-error-handler';
 import { ServiceWorkerModule } from '@angular/service-worker';
 import { FormsModule } from '@angular/forms';
@@ -7,7 +8,7 @@ import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { ToastrModule } from 'ngx-toastr';
+import { ToastrModule, ToastrService } from 'ngx-toastr';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { ScrollingModule } from '@angular/cdk/scrolling';
@@ -126,5 +127,20 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
           enabled: !isDevMode() && typeof window !== 'undefined' && window.location.protocol !== 'file:',
           registrationStrategy: 'registerWhenStable:30000'
         })
-    ], providers: [ConfirmDeactivateGuard, provideHttpClient(withInterceptorsFromDi()), { provide: ErrorHandler, useClass: GlobalErrorHandler }] })
+    ], providers: [
+      ConfirmDeactivateGuard,
+      // Finish "Sign in with GitHub" when GitHub has just sent the person back
+      // with ?code=. The address is cleaned synchronously (before the router
+      // starts, so it lands on the saved route); the token exchange runs in the
+      // background and reports with a toast.
+      provideAppInitializer(() => {
+        const session = inject(GithubSessionService);
+        const toastr = inject(ToastrService);
+        session.completeLogin().then(outcome => {
+          if (!outcome) return;
+          if (outcome.error) toastr.error(outcome.error, 'GitHub sign-in');
+          else toastr.success(`Signed in as ${outcome.login}`, 'GitHub');
+        });
+      }),
+      provideHttpClient(withInterceptorsFromDi()), { provide: ErrorHandler, useClass: GlobalErrorHandler }] })
 export class AppModule { }

@@ -1,6 +1,7 @@
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { GithubService } from './github.service';
+import { GithubSessionService } from './github-session.service';
 import { LocalWorkspaceSource } from './workspace-source';
 import { PushCache } from './push-cache';
 
@@ -77,7 +78,7 @@ describe('Push performance (repeat pushes and dirty tracking)', () => {
     (PushCache as any).deletedIds = null;
 
     const toastr = jasmine.createSpyObj('ToastrService', ['error', 'success', 'info']);
-    github = new GithubService(toastr);
+    github = new GithubService(toastr, new GithubSessionService());
     (github as any).octokit = makeOctokitMock();
     (github as any).config = { token: 'x', owner: 'o', repo: 'r', branch: 'main' };
   });
