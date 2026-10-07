@@ -3,9 +3,16 @@ import { Octokit } from '@octokit/rest';
 import { ToastrService } from 'ngx-toastr';
 import * as localforage from 'localforage';
 import { PushCache } from './push-cache';
+import { GithubSessionService } from './github-session.service';
 
 export interface GithubConfig {
+  /**
+   * Personal access token (token fallback only). Empty when the person signed
+   * in with GitHub: that token lives in GithubSessionService, never in here.
+   */
   token: string;
+  /** 'app' = signed in with GitHub; absent/'pat' = personal access token. */
+  auth?: 'app' | 'pat';
   owner: string;
   repo: string;
   branch: string;
@@ -219,8 +226,13 @@ export class GithubService {
   private octokit: Octokit | null = null;
   public config: GithubConfig | null = null;
 
-  constructor(private toastr: ToastrService) {
+  constructor(private toastr: ToastrService, private session: GithubSessionService) {
     this.loadConfig();
+    // Signing out (or a failed renewal) must disconnect sync at once.
+    this.session.changes.subscribe(() => {
+      if (this.config?.auth === 'app' && !this.session.signedIn) this.octokit = null;
+      else if (this.config?.auth === 'app') this.initOctokit();
+    });
   }
 
   private async loadConfig() {
@@ -262,9 +274,28 @@ export class GithubService {
   }
 
   private initOctokit() {
-    if (this.config && this.config.token) {
+    if (!this.config) return;
+    if (this.config.auth === 'app') {
+      if (!this.session.signedIn) { this.octokit = null; return; }
+      // No `auth` option on purpose: the token is attached per request so a
+      // long push keeps working across the 8 h token renewal.
+      const octokit = new Octokit({});
+      octokit.hook.before('request', async options => {
+        options.headers.authorization = `Bearer ${await this.session.token()}`;
+      });
+      octokit.hook.error('request', async error => {
+        if ((error as any)?.status === 401) this.session.signOut();
+        throw error;
+      });
+      this.octokit = octokit;
+    } else if (this.config.token) {
       this.octokit = new Octokit({ auth: this.config.token });
     }
+  }
+
+  /** Remember the repository picked after "Sign in with GitHub". */
+  public connectWithApp(owner: string, repo: string, branch: string) {
+    this.saveConfig({ token: '', auth: 'app', owner, repo, branch });
   }
 
   public get isConnected(): boolean {

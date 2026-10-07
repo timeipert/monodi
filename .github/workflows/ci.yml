@@ -62,6 +62,16 @@ jobs:
 
       # `npm run build` = ng build --configuration production --base-href ./
       # Emits into docs/ and copies src/CNAME → docs/CNAME (custom domain).
+      # Repository variables (Settings → Secrets and variables → Actions →
+      # Variables). They are baked in at build time, so changing them needs a
+      # new run. The client SECRET is never used here; it lives in the proxy.
+      - name: Inject GitHub sign-in settings
+        run: node scripts/inject-github-env.js
+        env:
+          MONODI_GH_CLIENT_ID: ${{ vars.MONODI_GH_CLIENT_ID }}
+          MONODI_GH_PROXY_URL: ${{ vars.MONODI_GH_PROXY_URL }}
+          MONODI_GH_APP_URL: ${{ vars.MONODI_GH_APP_URL }}
+
       - name: Build production app
         run: npm run build
 

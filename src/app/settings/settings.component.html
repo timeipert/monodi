@@ -199,43 +199,166 @@
                       <div>
                         <strong>Connected to GitHub!</strong><br>
                         Repository: {{githubConfig.owner}}/{{githubConfig.repo}} ({{githubConfig.branch}})
+                        @if (github.config?.auth === 'app' && session.login) {
+                          <br><span class="small">Signed in as <strong>{{ session.login }}</strong></span>
+                        }
                       </div>
-                      <button class="btn btn-outline-danger btn-sm ms-auto" (click)="disconnectGithub()">Disconnect</button>
+                      <button class="btn btn-outline-danger btn-sm ms-auto" (click)="disconnectGithub()">
+                        {{ github.config?.auth === 'app' ? 'Sign out' : 'Disconnect' }}
+                      </button>
                     </div>
+                    @if (github.config?.auth === 'app') {
+                      <small class="text-muted d-block">
+                        You can review or remove what this app may access in your
+                        <a href="https://github.com/settings/installations" target="_blank" rel="noopener">GitHub installations</a>
+                        and <a href="https://github.com/settings/apps/authorizations" target="_blank" rel="noopener">authorized apps</a>.
+                      </small>
+                    }
                   }
+
                   @if (!github.isConnected) {
-                    <div class="row g-3 align-items-end">
-                      <div class="col-md-6">
-                        <label class="form-label small text-muted mb-1">GitHub PAT (Token)</label>
-                        <input type="password" class="form-control form-control-sm" [(ngModel)]="githubConfig.token" placeholder="ghp_xxxxxxxx">
-                      </div>
-                      <div class="col-md-6">
-                        <label class="form-label small text-muted mb-1">Owner (Username/Org)</label>
-                        <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.owner" placeholder="e.g. johndoe">
-                      </div>
-                      <div class="col-md-6">
-                        <label class="form-label small text-muted mb-1">Repository Name</label>
-                        <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.repo" placeholder="e.g. monodi-data">
-                      </div>
-                      <div class="col-md-4">
-                        <label class="form-label small text-muted mb-1">Branch</label>
-                        <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.branch" placeholder="main">
-                      </div>
-                      <div class="col-md-2">
-                        <button class="btn btn-primary btn-sm w-100" (click)="connectGithub()" [disabled]="isGithubConnecting">
-                          @if (!isGithubConnecting) {
-                            <i class="bi bi-link-45deg me-1"></i>
+                    @if (session.configured) {
+                      <!-- Sign in with GitHub -->
+                      @if (!session.signedIn) {
+                        @if (github.config?.auth === 'app') {
+                          <div class="alert alert-warning small py-2">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Your GitHub sign-in has ended. Please sign in again to continue syncing
+                            <strong>{{ githubConfig.owner }}/{{ githubConfig.repo }}</strong>.
+                          </div>
+                        }
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                          <button class="btn btn-dark" (click)="signInWithGithub()" [disabled]="isGithubSigningIn">
+                            @if (isGithubSigningIn) {
+                              <span class="spinner-border spinner-border-sm me-2"></span>
+                            } @else {
+                              <i class="bi bi-github me-2"></i>
+                            }
+                            Sign in with GitHub
+                          </button>
+                          <small class="text-muted flex-grow-1" style="min-width: 240px;">
+                            You are sent to GitHub and come back here. Monodi only asks for write access
+                            to the repositories you install the app on — nothing else.
+                          </small>
+                        </div>
+                      } @else {
+                        <div class="d-flex align-items-center mb-3">
+                          <span>Signed in as <strong>{{ session.login }}</strong></span>
+                          <button class="btn btn-link btn-sm ms-2 p-0" (click)="signOutGithub()">Sign out</button>
+                        </div>
+
+                        @if (isLoadingRepos) {
+                          <div class="text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>Looking for your repositories…</div>
+                        } @else if (repoError) {
+                          <div class="alert alert-danger small py-2">{{ repoError }}</div>
+                          <button class="btn btn-outline-secondary btn-sm" (click)="loadGithubRepos()">Try again</button>
+                        } @else if (githubRepos.length === 0) {
+                          <div class="alert alert-info small">
+                            <strong>The app is not installed on any repository you can write to yet.</strong><br>
+                            Install it on the repository (or repositories) you want to sync with, then come back and check again.
+                          </div>
+                          <div class="d-flex gap-2">
+                            @if (githubAppUrl) {
+                              <a class="btn btn-primary btn-sm" [href]="githubAppUrl" target="_blank" rel="noopener">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Install the app
+                              </a>
+                            }
+                            <button class="btn btn-outline-secondary btn-sm" (click)="loadGithubRepos()">Check again</button>
+                          </div>
+                        } @else {
+                          <div class="row g-3 align-items-end">
+                            <div class="col-md-6">
+                              <label class="form-label small text-muted mb-1">Repository</label>
+                              <select class="form-select form-select-sm" [(ngModel)]="selectedRepo" (ngModelChange)="onRepoSelected()">
+                                <option value="" disabled>Choose a repository…</option>
+                                @for (r of githubRepos; track r.fullName) {
+                                  <option [value]="r.fullName">{{ r.fullName }}{{ r.private ? ' (private)' : ' (public)' }}</option>
+                                }
+                              </select>
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label small text-muted mb-1">Branch</label>
+                              <select class="form-select form-select-sm" [(ngModel)]="selectedBranch" [disabled]="githubBranches.length === 0">
+                                @for (b of githubBranches; track b) {
+                                  <option [value]="b">{{ b }}</option>
+                                }
+                              </select>
+                            </div>
+                            <div class="col-md-2">
+                              <button class="btn btn-primary btn-sm w-100" (click)="connectWithApp()" [disabled]="isGithubConnecting || !selectedRepo || !selectedBranch">
+                                @if (isGithubConnecting) {
+                                  <span class="spinner-border spinner-border-sm me-1"></span>
+                                } @else {
+                                  <i class="bi bi-link-45deg me-1"></i>
+                                }
+                                Connect
+                              </button>
+                            </div>
+                          </div>
+                          @if (!isLoadingBranches && githubBranches.length === 0 && selectedRepo) {
+                            <div class="alert alert-warning small py-2 mt-3 mb-0">
+                              This repository is empty. Make a first commit on GitHub first (for example by adding a README), then choose it again.
+                            </div>
                           }
-                          @if (isGithubConnecting) {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
+                          @if (selectedRepoIsPublic) {
+                            <div class="alert alert-warning small py-2 mt-3 mb-0">
+                              <i class="bi bi-exclamation-triangle me-1"></i>
+                              <strong>This repository is public.</strong> Everything you push — and its history — is readable by anyone, and stays that way even if you delete it later.
+                            </div>
                           }
-                          Connect
-                        </button>
+                          <div class="d-flex gap-3 mt-3 small">
+                            <button class="btn btn-link btn-sm p-0" (click)="loadGithubRepos()">Check again for repositories</button>
+                            @if (githubAppUrl) {
+                              <a [href]="githubAppUrl" target="_blank" rel="noopener">Install the app on another repository</a>
+                            }
+                          </div>
+                        }
+                      }
+                    } @else {
+                      <div class="text-muted small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        "Sign in with GitHub" is not available here
+                        @if (!isWebOrigin) { (it works in the web version, not in the desktop app) } @else { (it is not set up in this build) }.
+                        Use a personal access token instead.
                       </div>
-                    </div>
-                  }
-                  @if (!github.isConnected) {
-                    <small class="text-muted mt-2 d-block">Create a Personal Access Token with 'repo' scope to sync your project data.</small>
+                    }
+
+                    <!-- Fallback: personal access token -->
+                    <details class="mt-3" [open]="!session.configured || github.config?.auth === 'pat'">
+                      <summary class="small text-muted" style="cursor: pointer;">
+                        {{ session.configured ? 'Advanced: use a personal access token instead' : 'Personal access token' }}
+                      </summary>
+                      <div class="row g-3 align-items-end mt-1">
+                        <div class="col-md-6">
+                          <label class="form-label small text-muted mb-1">GitHub PAT (Token)</label>
+                          <input type="password" class="form-control form-control-sm" [(ngModel)]="githubConfig.token" placeholder="ghp_xxxxxxxx">
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label small text-muted mb-1">Owner (Username/Org)</label>
+                          <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.owner" placeholder="e.g. johndoe">
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label small text-muted mb-1">Repository Name</label>
+                          <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.repo" placeholder="e.g. monodi-data">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small text-muted mb-1">Branch</label>
+                          <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.branch" placeholder="main">
+                        </div>
+                        <div class="col-md-2">
+                          <button class="btn btn-primary btn-sm w-100" (click)="connectGithub()" [disabled]="isGithubConnecting">
+                            @if (!isGithubConnecting) {
+                              <i class="bi bi-link-45deg me-1"></i>
+                            }
+                            @if (isGithubConnecting) {
+                              <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Connect
+                          </button>
+                        </div>
+                      </div>
+                      <small class="text-muted mt-2 d-block">Create a Personal Access Token with 'repo' scope to sync your project data.</small>
+                    </details>
                   }
                 </div>
               </div>

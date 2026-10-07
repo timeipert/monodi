@@ -120,7 +120,7 @@ export class WelcomeComponent implements OnInit {
   }
 
   loadGithubStatus() {
-    this.isGithubConnected = !!(this.github.config && this.github.config.token);
+    this.isGithubConnected = this.github.isConnected;
     this.githubRepo = this.isGithubConnected ? `${this.github.config?.owner}/${this.github.config?.repo}` : '';
   }
 
