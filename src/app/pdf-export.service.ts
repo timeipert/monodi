@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
 import * as VM from './types/model';
@@ -14,6 +14,7 @@ import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFi
 import { getCategoryDetails } from './comment/comment-categories';
 import { FocusService } from './focus.service';
 import { minNoteYOf, requiredPadTop } from './notes/Drawables';
+import { GLYPH_PATHS } from './notes/notes.component';
 
 /** Internal-unit width of an injected clef (same as NotesComponent.CLEF_WIDTH). */
 const PDF_CLEF_WIDTH = 32;
@@ -108,12 +109,16 @@ export interface PdfExportStats {
   apparatusPage: number;
   /** Lines of the contents table: "ID | incipit | genre", page. */
   outline: { label: string; page: number }[];
+  /** Where the time went (ms): render, measure, svg (drawing the notes), apparatus, save, total. */
+  timings: { [phase: string]: number };
 }
 
 /** The hidden DOM in which one document at a time is rendered for measuring and drawing. */
 export interface PdfRenderHost {
   element: HTMLElement;
   render(job: PdfDocJob, settings?: ProjectSettings | null): Promise<void>;
+  /** Optional: time per render phase (ms), summed over all renders. */
+  phaseMs?: { [phase: string]: number };
   /** Empties the host again. */
   clear(): void;
 }
@@ -121,12 +126,33 @@ export interface PdfRenderHost {
 @Injectable({ providedIn: 'root' })
 export class PdfExportService {
   private host: PdfRenderHost | null = null;
-  lastStats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [] };
+  lastStats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
 
-  constructor(private focus: FocusService) {}
+  constructor(private focus: FocusService, private zone: NgZone) {}
 
   registerHost(host: PdfRenderHost | null): void { this.host = host; }
   get hasHost(): boolean { return !!this.host; }
+
+  /**
+   * Replaces the note-head images of an SVG by vector paths with the same outline. The images
+   * are base64 SVG data URIs that svg2pdf would have to decode and render for every single
+   * note; as paths they draw faster, stay sharp at any zoom and make the PDF smaller.
+   */
+  private vectorizeNoteHeads(svg: Element, color: string): void {
+    const ns = 'http://www.w3.org/2000/svg';
+    svg.querySelectorAll('image[data-glyph]').forEach((img) => {
+      const d = GLYPH_PATHS[img.getAttribute('data-glyph') || ''] || GLYPH_PATHS['Normal'];
+      const x = parseFloat(img.getAttribute('x') || '0');
+      const y = parseFloat(img.getAttribute('y') || '0');
+      const k = parseFloat(img.getAttribute('width') || '12') / 12; // 12 wide normal, 8 wide liquescent
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', color);
+      // the glyph's viewBox starts at x = 24; uniform scale like preserveAspectRatio "meet"
+      path.setAttribute('transform', `translate(${x} ${y}) scale(${k}) translate(-24 0)`);
+      img.replaceWith(path);
+    });
+  }
 
   /** Measure one `app-notes` / `app-line-change` / `app-folio-change` element for
    *  the PDF layout. Returns null for parts without a drawable section. */
@@ -339,10 +365,29 @@ export class PdfExportService {
    * page, and one collected apparatus that is divided by document.
    */
   async exportDocuments(jobs: PdfDocJob[], opts: PdfExportOptions): Promise<PdfExportStats> {
+    // Outside Angular's zone: every promise and timer that finishes inside it would trigger a
+    // change detection of the whole page behind the dialog — thousands of them while drawing.
+    // Progress is reported back into the zone so the dialog still updates.
+    const inZoneOpts: PdfExportOptions = { ...opts, onProgress: opts.onProgress ? (m, d, t) => this.zone.run(() => opts.onProgress!(m, d, t)) : undefined };
+    return this.zone.runOutsideAngular(() => this.exportInner(jobs, inZoneOpts));
+  }
+
+  private async exportInner(jobs: PdfDocJob[], opts: PdfExportOptions): Promise<PdfExportStats> {
     if (!this.host) throw new Error('PDF render host is not available');
     if (!jobs.length) throw new Error('Nothing to print');
     const hostEl = this.host.element;
-    const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [] };
+    const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
+    const t0 = performance.now();
+    if (this.host.phaseMs) this.host.phaseMs = {};
+    /** Adds the time `fn` takes to the phase `name` (also for async work). */
+    const timed = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
+      const a = performance.now();
+      try { return await fn(); } finally { stats.timings[name] = (stats.timings[name] || 0) + (performance.now() - a); }
+    };
+    const timedSync = <T>(name: string, fn: () => T): T => {
+      const a = performance.now();
+      try { return fn(); } finally { stats.timings[name] = (stats.timings[name] || 0) + (performance.now() - a); }
+    };
     this.lastStats = stats;
     const multi = jobs.length > 1;
 
@@ -350,7 +395,7 @@ export class PdfExportService {
     const saved = { clef: this.focus.clefDisplayMode, color: this.focus.notationColor, first: this.focus.firstSyllableUuid, pad: this.focus.docPadTop };
     try {
         const s: any = { ...(opts.settings || {}), ...(opts.pageFormat ? { pdfFormat: opts.pageFormat, pdfOrientation: 'portrait' } : {}) };
-        const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait') });
+        const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait'), compress: true });
         const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
         const fontFamily = embeddedFamily(fontSetting) || fontSetting;
         if (embeddedFamily(fontFamily)) {
@@ -687,7 +732,7 @@ export class PdfExportService {
             
                 // Pass 1: measure every part, then let the pure layout decide systems,
                 // indents and clefs (see pdf-layout.ts).
-                const entries = Array.from(parts).map((pt) => this.measurePdfPart(pt as HTMLElement, doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, pdfSyllableTextOffset));
+                const entries = timedSync('measure', () => Array.from(parts).map((pt) => this.measurePdfPart(pt as HTMLElement, doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, pdfSyllableTextOffset)));
                 const measured = entries.filter((e): e is PdfMeasuredPart => e !== null);
                 // All-caps syllables ("SA– LUS") are set in small capitals; the first letter of a
                 // word stays full size, the continuation of a hyphenated word is all small.
@@ -909,7 +954,8 @@ export class PdfExportService {
                         svg.setAttribute('viewBox', `0 ${-extra} ${finalRawWidth} ${rawHeight + extra}`);
                       }
                   
-                      await doc.svg(svg, { x: cursorX, y: currentSvgY, width: finalSecWidth, height: svgSecHeight });
+                      this.vectorizeNoteHeads(svg, this.focus.notationColor);
+                  await timed('svg', () => doc.svg(svg, { x: cursorX, y: currentSvgY, width: finalSecWidth, height: svgSecHeight }));
                       currentSvgY += svgSecHeight;
                   
                       if (!originalViewBox) {
@@ -1009,11 +1055,11 @@ export class PdfExportService {
         };
 
         // ── Critical apparatus of one document ──────────────────────────────────────────────
-        const drawApparatusFor = async (job: PdfDocJob, ji: number) => {
+        const drawApparatusFor = async (job: PdfDocJob, ji: number, hasDom: boolean) => {
           const jobParts = VM.getAllLineParts(job.cont);
         // Critical apparatus: one entry per comment in text order, each cited by the text its
         // grey corner marks frame ("lemma] comment"), as in the printed edition.
-        const commentsArea = hostEl.querySelector('#pdf-comments-render-area') as HTMLElement | null;
+        const commentsArea = (hasDom ? hostEl.querySelector('#pdf-comments-render-area') : hostEl) as HTMLElement | null;
         const hasComments = (job.cont.comments && job.cont.comments.length > 0) || job.cont.globalComment;
         if (commentsArea && hasComments) {
             if (!apparatusStarted) {
@@ -1087,7 +1133,7 @@ export class PdfExportService {
                     if (!originalViewBox) {
                         el.setAttribute('viewBox', `0 0 ${rawWidth} ${rawHeight}`);
                     }
-                    await doc.svg(el as unknown as SVGElement, { x: drawX, y: drawY, width: svgWidth, height: svgHeight });
+                    await timed('apparatusSvg', () => doc.svg(el as unknown as SVGElement, { x: drawX, y: drawY, width: svgWidth, height: svgHeight }));
                     if (!originalViewBox) {
                         el.removeAttribute('viewBox');
                     }
@@ -1275,7 +1321,7 @@ export class PdfExportService {
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
-          await this.host.render(jobs[ji], opts.settings);
+          await timed('render', () => this.host!.render(jobs[ji], opts.settings));
           if (ji > 0) {
             if (opts.newPagePerDocument) { doc.addPage(); cursorY = pdfMarginTop; }
             else {
@@ -1294,8 +1340,11 @@ export class PdfExportService {
             const c = jobs[ji].cont;
             if (!((c.comments && c.comments.length) || c.globalComment)) continue;
             opts.onProgress?.('Apparatus ' + (jobs[ji].document.dokumenten_id || ''), ji, jobs.length);
-            await this.host.render(jobs[ji], opts.settings);
-            await drawApparatusFor(jobs[ji], ji);
+            // Only tree/line comments and the global comment are drawn from the DOM; plain-text
+            // comments are typeset directly, so such a document needs no second render.
+            const needsDom = !!c.globalComment || (c.comments || []).some((cm) => commentType(cm) !== 'text');
+            if (needsDom) await timed('renderApparatus', () => this.host!.render(jobs[ji], opts.settings));
+            await drawApparatusFor(jobs[ji], ji, needsDom);
           }
         }
         stats.documents = docEntries.map((e) => ({ id: jobs[e.job].document.dokumenten_id || '', page: e.page }));
@@ -1487,7 +1536,12 @@ export class PdfExportService {
 
 
         stats.pages = doc.getNumberOfPages();
+        const tSave = performance.now();
         doc.save(opts.fileName || (multi ? 'Documents.pdf' : 'Document_' + (jobs[0].document.dokumenten_id || 'Export') + '.pdf'));
+        for (const [k, v] of Object.entries(this.host?.phaseMs || {})) stats.timings[k] = v;
+        stats.timings['save'] = performance.now() - tSave;
+        stats.timings['total'] = performance.now() - t0;
+        console.debug('[pdf-export]', JSON.stringify({ documents: jobs.length, pages: stats.pages, ms: Object.fromEntries(Object.entries(stats.timings).map(([k, v]) => [k, Math.round(v)])) }));
         return stats;
     } finally {
       this.focus.clefDisplayMode = saved.clef;

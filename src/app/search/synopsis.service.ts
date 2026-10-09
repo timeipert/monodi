@@ -810,6 +810,7 @@ export class SynopsisService {
       }
 
       const doc = new jsPDF({
+        compress: true,
         unit: 'mm',
         // One-line synopsis is auto-sized to its content; the stacked view uses
         // the configured page format/orientation.

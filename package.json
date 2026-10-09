@@ -11,6 +11,7 @@
     "e2e:synopsis": "node e2e-synopsis.js",
     "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
     "test:pdf": "node scripts/pdf-e2e.mjs",
+    "test:pdf-perf": "node scripts/pdf-perf.mjs",
     "fixtures": "node scripts/extract-fixtures.mjs && node scripts/make-extreme-fixtures.mjs && node scripts/gen-testdata-index.mjs",
     "build:electron": "ng build --configuration production,electron",
     "electron:start": "npm run build:electron && electron .",

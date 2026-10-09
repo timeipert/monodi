@@ -76,6 +76,12 @@ export class PdfRenderHostComponent implements PdfRenderHost, OnDestroy {
   job: PdfDocJob | null = null;
   settings: ProjectSettings | null = null;
   getCategoryDetails = getCategoryDetails;
+  /** Time spent per render phase (ms), summed over all renders — read by the export service. */
+  phaseMs: { [phase: string]: number } = {};
+  private phase<T>(name: string, fn: () => T): T {
+    const a = performance.now();
+    try { return fn(); } finally { this.phaseMs[name] = (this.phaseMs[name] || 0) + (performance.now() - a); }
+  }
 
   constructor(private cdr: ChangeDetectorRef, private focus: FocusService, private pdf: PdfExportService) {
     this.pdf.registerHost(this);
@@ -91,8 +97,7 @@ export class PdfRenderHostComponent implements PdfRenderHost, OnDestroy {
   /** Renders `job`; resolves when the sections have laid themselves out (their size is stable). */
   async render(job: PdfDocJob, settings?: ProjectSettings | null): Promise<void> {
     this.settings = settings ?? null;
-    this.job = null;
-    this.cdr.detectChanges();
+    this.phase('hostDestroy', () => { this.job = null; this.cdr.detectChanges(); });
 
     // What the note components read from the focus service for "their" document.
     const sylls = VM.getSyllables(job.cont);
@@ -104,9 +109,10 @@ export class PdfRenderHostComponent implements PdfRenderHost, OnDestroy {
     }
     this.focus.docPadTop = Number.isFinite(minY) ? requiredPadTop(minY) : 0;
 
-    this.job = job;
-    this.cdr.detectChanges();
+    this.phase('hostBuild', () => { this.job = job; this.cdr.detectChanges(); });
+    const a = performance.now();
     await this.settle();
+    this.phaseMs['hostSettle'] = (this.phaseMs['hostSettle'] || 0) + (performance.now() - a);
   }
 
   clear(): void {
@@ -114,7 +120,13 @@ export class PdfRenderHostComponent implements PdfRenderHost, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  /** Waits until the number and total width of the rendered syllables stop changing. */
+  /**
+   * Waits until the rendered syllables have settled: their number and total width are the
+   * same on two consecutive ticks. After a synchronous change detection that is normally the
+   * case within a couple of macrotasks (the note components only fill their editor-only
+   * pitch fields in a timeout, which the PDF does not read), so this costs ~30 ms instead of
+   * the several hundred a fixed polling interval needed.
+   */
   private async settle(): Promise<void> {
     const sample = () => {
       const notes = this.element.querySelectorAll('app-notes');
@@ -122,14 +134,28 @@ export class PdfRenderHostComponent implements PdfRenderHost, OnDestroy {
       notes.forEach((n) => { w += (n as HTMLElement).offsetWidth; });
       return `${notes.length}:${w}`;
     };
-    let last = '';
-    let stable = 0;
-    for (let i = 0; i < 40 && stable < 3; i++) {
-      await new Promise((r) => setTimeout(r, 80));
-      this.cdr.detectChanges();
-      const now = sample();
-      stable = now === last ? stable + 1 : 0;
+    // A MessageChannel message is a macrotask boundary without the >=4 ms clamp of setTimeout.
+    const channel = new MessageChannel();
+    const tick = (ms: number) => ms > 0
+      ? new Promise<void>((r) => setTimeout(r, ms))
+      : new Promise<void>((r) => { channel.port1.onmessage = () => r(); channel.port2.postMessage(0); });
+    // One macrotask lets the queued timeouts of the note components run; if nothing changed
+    // meanwhile we are done. Otherwise keep polling (safety net for slow machines).
+    const ph = (n: string, a: number) => { this.phaseMs[n] = (this.phaseMs[n] || 0) + (performance.now() - a); };
+    let a = performance.now();
+    let last = sample();
+    ph('settleSample0', a);
+    try {
+    for (let i = 0; i < 80; i++) {
+      a = performance.now(); await tick(i === 0 ? 0 : 16); ph('settleTick', a);
+      if (i === 0) { a = performance.now(); this.cdr.detectChanges(); ph('settleCd', a); }
+      a = performance.now(); const now = sample(); ph('settleSample', a);
+      if (now === last) return;
       last = now;
+    }
+    } finally {
+      channel.port1.close();
+      channel.port2.close();
     }
   }
 }
