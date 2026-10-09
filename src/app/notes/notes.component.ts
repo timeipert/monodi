@@ -48,6 +48,9 @@ const GLYPH_PATHS: { [key: string]: string } = {
     standalone: false
 })
 export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, AfterViewInit {
+  /** Top padding actually used: the configured one, or more if the document has very high notes. */
+  get padTopEff(): number { return Math.max(this.readOnlyPadTop, this.focusService.docPadTop); }
+
   /** Colour of all notation graphics (project setting `notationColor`). */
   get color(): string { return this.focusService.notationColor; }
   readonly gClefPath = G_CLEF_PATH;
@@ -1093,6 +1096,20 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       }
       f(focused);
     }
+  }
+
+  /**
+   * Bottom padding of the read-only SVG (units). Notes and ledger lines far below the
+   * staff (A3 and lower) used to be cut at the fixed edge; the SVG now grows as far as
+   * the lowest drawable needs. (The visible area ends at y = 85 + padBottom.)
+   */
+  readOnlyPadBottomFor(voiceIndex: number): number {
+    let lowest = 0;
+    for (const d of this.getDrawables(voiceIndex)) {
+      if (d instanceof DNote) lowest = Math.max(lowest, d.y + (d.ref.noteType === VM.NoteType.Descending ? 43 : 36));
+      else if (d instanceof DHelperLine) lowest = Math.max(lowest, d.y + 1);
+    }
+    return Math.max(this.readOnlyPadBottom, Math.ceil(lowest + 2 - 85));
   }
 
   getDrawables(voiceIndex: number): Drawable[] {

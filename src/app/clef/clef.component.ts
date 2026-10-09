@@ -63,6 +63,9 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
     return 90 - ((this.model.octave - 4) * 35) - VM.baseNotes.indexOf(this.model.base) * 5;
   }
 
+  /** Top padding actually used: the configured one, or more if the document has very high notes. */
+  get padTopEff(): number { return Math.max(this.readOnlyPadTop, this.focusService.docPadTop); }
+
   /** Colour of all notation graphics (project setting `notationColor`). */
   get color(): string { return this.focusService.notationColor; }
   readonly gClefPath = G_CLEF_PATH;

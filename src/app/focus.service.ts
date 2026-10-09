@@ -40,6 +40,10 @@ export class FocusService {
   /** Colour of staff lines, notes, slurs and clef (project setting `notationColor`). */
   notationColor: string = DEFAULT_NOTATION_COLOR;
 
+  /** Extra top padding (units) of the read-only SVGs so the document's highest note fits;
+   *  one value per document keeps the staves of neighbouring syllables aligned. */
+  docPadTop = 0;
+
   /** UUID of the note currently considered "selected" in the document.
    *  Used as a global cross-syllable signal: notes.component instances
    *  subscribe to this to know when to color their comment brackets in

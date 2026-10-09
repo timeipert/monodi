@@ -33,6 +33,9 @@ import { sanitizeClefDisplayMode } from '../clef-policy';
 import { sanitizeNotationColor } from '../notation-color';
 import { layoutPdfLine } from '../pdf-layout';
 import { G_CLEF_PATH } from '../clef-glyph';
+import { commentLemma } from '../comment-lemma';
+import { minNoteYOf, requiredPadTop } from '../notes/Drawables';
+import { PRINT_PDF_DEFAULTS } from '../pdf-defaults';
 import { FileSystemService } from '../file-system.service';
 
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
@@ -42,11 +45,18 @@ const PDF_CLEF_WIDTH = 32;
 /** Distance between the two strokes of a folio-change marker (pt). */
 const PDF_MARKER_TICK_GAP = 2;
 /** Gap below the last paratext baseline before the system starts (descender room). */
-const PDF_PARATEXT_BELOW = 3;
+const PDF_PARATEXT_BELOW = 5;
 /** Minimum room above the top staff line inside a system (raw SVG units). */
 const PDF_MIN_HEADROOM_UNITS = 10;
 /** Small-capital size relative to the text size. */
 const SMALL_CAPS = 0.8;
+/** Comment corner marks: grey, thin, small. */
+const PDF_CORNER_GREY = 140;
+/** Light grey of keys / labels in front matter and tables. */
+const PDF_KEY_GREY = 150;
+const PDF_CORNER_WIDTH = 0.5;
+const PDF_CORNER_LEG = 3;
+const PDF_CORNER_FOOT = 3;
 /** Text edge relative to the staff start (print edition: 89.1 - 83.7 pt). */
 const PDF_TEXT_INSET = 5.4;
 
@@ -73,6 +83,12 @@ interface PdfMeasuredPart {
   svgWidth: number;
   /** Raw SVG units of the 30 above the top staff line that this part does not need. */
   trimUnits?: number;
+  /** Raw SVG y that sits at the top edge of the SVG (20 - top padding; 10 in the standard layout). */
+  rawTop?: number;
+  /** Left edge of the lyric relative to the part (pt): it starts at the first note head, not at the staff start / clef. */
+  lyricShift: number;
+  /** Width of the lyric in pt (0 without lyric). */
+  lyricWidth: number;
   /** Lyric set in small capitals (all-caps syllables, as in the printed edition). */
   smallCaps?: 'all' | 'first';
 }
@@ -91,6 +107,12 @@ export class DocumentComponent implements OnInit {
   private setFirstSyllable(): void {
     const sylls = this.cont ? VM.getSyllables(this.cont) : [];
     this.focusService.firstSyllableUuid = sylls.length > 0 ? sylls[0].uuid : null;
+    let minY = Infinity;
+    for (const sy of sylls) {
+      minY = Math.min(minY, minNoteYOf(sy.notes));
+      for (const extra of (sy as any).additionalMelodies || []) minY = Math.min(minY, minNoteYOf(extra));
+    }
+    this.focusService.docPadTop = Number.isFinite(minY) ? requiredPadTop(minY) : 0;
   }
 
   getCategoryDetails = getCategoryDetails;
@@ -1055,7 +1077,7 @@ export class DocumentComponent implements OnInit {
           doc.setFontSize(pdfFontSize);
         }
       }
-      return { part, isMarker: true, svgs: [], txt: '', secHeight: 0, finalSecWidth: width, width, svgWidth: 0, hasClef: false, folioLabel, labelWidth };
+      return { part, isMarker: true, svgs: [], txt: '', secHeight: 0, finalSecWidth: width, width, svgWidth: 0, hasClef: false, folioLabel, labelWidth, lyricShift: 0, lyricWidth: 0 };
     }
 
     const sec = part.querySelector('.section') as HTMLElement | null;
@@ -1065,6 +1087,7 @@ export class DocumentComponent implements OnInit {
 
     let maxRawWidth = 50;
     let totalRawHeight = 0;
+    let noteShiftUnits = -1; // -1: this part has no note group (boxes, missing notes)
     for (let v = 0; v < svgs.length; v++) {
       const s = svgs[v];
       let w = parseFloat(s.getAttribute('width') || '50');
@@ -1082,13 +1105,13 @@ export class DocumentComponent implements OnInit {
         if (Number.isFinite(right) && right > maxContentRight) maxContentRight = right;
       });
       if (maxContentRight > 0) {
-        // Find the inner layout translation amount (default 12)
+        // The notes group is shifted right by 12 units (44 with a clef) — find that shift.
         let translateAmt = 12;
-        const gTranslate = s.querySelector('g[transform*="translate"]');
-        if (gTranslate) {
-          const match = (gTranslate.getAttribute('transform') || '').match(/translate\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)/);
+        s.querySelectorAll('g[transform]').forEach((g) => {
+          const match = /^translate\(\s*([0-9.]+)\s*,\s*0\s*\)$/.exec(g.getAttribute('transform') || '');
           if (match) translateAmt = parseFloat(match[1]);
-        }
+        });
+        if (v === 0) noteShiftUnits = translateAmt;
         const contentWidth = maxContentRight + translateAmt + 8;
         if (contentWidth > w) w = contentWidth;
       }
@@ -1114,12 +1137,15 @@ export class DocumentComponent implements OnInit {
         txt = '';
       }
     }
-    const finalSecWidth = Math.max(svgWidth, textWidth + extraSyllableSpacing);
+    // The lyric starts at the first note head (print edition), i.e. right of the clef.
+    const lyricShift = noteShiftUnits >= 0 ? Math.max(0, noteShiftUnits - 0.5) * SCALE : 0;
+    const finalSecWidth = Math.max(svgWidth, lyricShift + textWidth + extraSyllableSpacing - 12 * SCALE);
 
     // How much of the 30 units above the top staff line (y = 40) is actually needed:
     // note heads/stems, neume brackets and ledger lines above. The rest is trimmed so
     // systems sit as tight as in print; high notes or brackets keep their room.
     let trimUnits = 0;
+    let rawTop = 10;
     if (svgs.length === 1) {
       let minTop = 40;
       svgs[0].querySelectorAll('image').forEach((img) => {
@@ -1133,8 +1159,12 @@ export class DocumentComponent implements OnInit {
           minTop = Math.min(minTop, parseFloat(r.getAttribute('y') || '40'));
         }
       });
-      const headroom = Math.min(30, Math.max(PDF_MIN_HEADROOM_UNITS, 40 - minTop + 3));
-      trimUnits = 30 - headroom;
+      // Negative trim = very high notes: the system gets more room than the SVG itself has.
+      const headroom = Math.max(PDF_MIN_HEADROOM_UNITS, 40 - minTop + 3);
+      const rootG = svgs[0].querySelector('g[transform*="translate"]');
+      const mt = /translate\(\s*0\s*,\s*(-?[0-9.]+)\s*\)/.exec(rootG?.getAttribute('transform') || '');
+      if (mt) rawTop = -parseFloat(mt[1]);
+      trimUnits = (40 - rawTop) - headroom;
     }
 
     // Ledger lines below the staff (rects 15 wide, 1 high at y = 90/100/110) must not
@@ -1147,13 +1177,13 @@ export class DocumentComponent implements OnInit {
     });
     let belowExtra = 0;
     if (lowestLedger > 80) {
-      const clearTop = SCALE * (lowestLedger - 10 + 5);          // ledger line + note head, from svg top
+      const clearTop = SCALE * (lowestLedger - rawTop + 5);       // ledger line + note head, from svg top
       const textTop = secHeight + textOffset - pdfFontSize * 0.7; // cap height of the lyric
       belowExtra = Math.max(0, clearTop - textTop);
     }
     return {
       part, isMarker: false, svgs, txt, secHeight, finalSecWidth, width: finalSecWidth, svgWidth,
-      hasClef: !!sec.querySelector('.auto-clef'), belowExtra, trimUnits,
+      hasClef: !!sec.querySelector('.auto-clef'), belowExtra, trimUnits, rawTop, lyricShift, lyricWidth: textWidth,
     };
   }
 
@@ -1195,9 +1225,9 @@ export class DocumentComponent implements OnInit {
   /** Staff + G-clef segment for a wrapped system (clef setting "every line break").
    *  Built as an SVG with the same geometry as the note SVGs and drawn through svg2pdf,
    *  so it matches the clef of the first system exactly. */
-  private async drawPdfStaffClef(doc: jsPDF, x: number, top: number, width: number, SCALE: number, color: string): Promise<void> {
+  private async drawPdfStaffClef(doc: jsPDF, x: number, top: number, width: number, SCALE: number, color: string, rawTop = 10): Promise<void> {
     const units = width / SCALE;
-    const H = 91; // read-only note SVG height: 65 + padTop 10 + padBottom 16
+    const H = 101 - rawTop; // staff + clef plus the usual 21 units below the bottom line (91 in the standard layout)
     const ns = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(ns, 'svg');
     svg.setAttribute('width', String(units));
@@ -1205,7 +1235,7 @@ export class DocumentComponent implements OnInit {
     svg.setAttribute('viewBox', `0 0 ${units} ${H}`);
     svg.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden';
     const g = document.createElementNS(ns, 'g');
-    g.setAttribute('transform', 'translate(0, -10)');
+    g.setAttribute('transform', `translate(0, ${-rawTop})`);
     for (let ly = 40; ly <= 80; ly += 10) {
       const line = document.createElementNS(ns, 'line');
       line.setAttribute('x1', '0'); line.setAttribute('x2', String(units));
@@ -1243,47 +1273,48 @@ export class DocumentComponent implements OnInit {
       try {
         const s: any = this.settings || {};
         const doc = new jsPDF({ unit: 'pt', format: (s.pdfFormat || 'a4'), orientation: (s.pdfOrientation || 'portrait') });
-        const fontFamily = embeddedFamily(s.pdfFontFamily) || s.pdfFontFamily || 'times';
+        const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
+        const fontFamily = embeddedFamily(fontSetting) || fontSetting;
         if (embeddedFamily(fontFamily)) {
           await registerEmbeddedFont(doc, fontFamily);
         }
-        const pdfMarginLeft = Number(s.pdfMarginLeft ?? 40);
-        const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
-        const pdfMarginTop = Number(s.pdfMarginTop ?? 40);
-        const pdfMarginBottom = Number(s.pdfMarginBottom ?? 40);
-        const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? 2);
+        const pdfMarginLeft = Number(s.pdfMarginLeft ?? PRINT_PDF_DEFAULTS.pdfMarginLeft);
+        const pdfMarginRight = Number(s.pdfMarginRight ?? PRINT_PDF_DEFAULTS.pdfMarginRight);
+        const pdfMarginTop = Number(s.pdfMarginTop ?? PRINT_PDF_DEFAULTS.pdfMarginTop);
+        const pdfMarginBottom = Number(s.pdfMarginBottom ?? PRINT_PDF_DEFAULTS.pdfMarginBottom);
+        const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? PRINT_PDF_DEFAULTS.pdfStaffSpacing);
         const pdfBracketGap = Number(s.pdfBracketGap ?? 5);
         const pdfBracketTick = Number(s.pdfBracketTick ?? 4);
-        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? 8);
+        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? PRINT_PDF_DEFAULTS.pdfSyllableTextOffset);
         const pdfTextBlockGap = Number(s.pdfTextBlockGap ?? 10);
         
         // Coerced layout parameters
-        const titleFontSize = Number(s.pdfTitleFontSize ?? 16);
+        const titleFontSize = Number(s.pdfTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfTitleFontSize);
         const pdfTitleVerticalSpace = Number(s.pdfTitleVerticalSpace ?? 20);
         const headerSource = s.pdfHeaderSource || 'textinitium';
-        const metaFontSize = Number(s.pdfMetadataFontSize ?? 9);
+        const metaFontSize = Number(s.pdfMetadataFontSize ?? PRINT_PDF_DEFAULTS.pdfMetadataFontSize);
         const pdfMetadataVerticalSpace = Number(s.pdfMetadataVerticalSpace ?? 15);
         const pdfBracketThickness = Number(s.pdfBracketThickness ?? 1.2);
-        const pdfCommentTitleFontSize = Number(s.pdfCommentTitleFontSize ?? 8);
-        const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? 8);
-        const SCALE = Number(s.pdfScale ?? 0.36);
-        const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? 10);
-        const pdfContinuationIndent = Number(s.pdfContinuationIndent ?? 20);
-        const pdfFontSize = Number(s.pdfFontSize ?? 10);
-        const pdfSignaturSpace = Number(s.pdfSignaturSpace ?? 60);
+        const pdfCommentTitleFontSize = Number(s.pdfCommentTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentTitleFontSize);
+        const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? PRINT_PDF_DEFAULTS.pdfVerticalSpace);
+        const SCALE = Number(s.pdfScale ?? PRINT_PDF_DEFAULTS.pdfScale);
+        const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? PRINT_PDF_DEFAULTS.pdfSyllableSpacing);
+        const pdfContinuationIndent = Number(s.pdfContinuationIndent ?? PRINT_PDF_DEFAULTS.pdfContinuationIndent);
+        const pdfFontSize = Number(s.pdfFontSize ?? PRINT_PDF_DEFAULTS.pdfFontSize);
+        const pdfSignaturSpace = Number(s.pdfSignaturSpace ?? PRINT_PDF_DEFAULTS.pdfSignaturSpace);
         // Titles, metadata and paratexts share one left edge, set just inside the staff
         // start (print edition: staff at 83.7 pt, text at 89.1 pt).
         const textX = pdfMarginLeft + pdfSignaturSpace + PDF_TEXT_INSET;
         const notationColor = hexToRgb(sanitizeNotationColor(s.notationColor));
-        const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? 10);
-        const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? 4.3);
-        const pdfCommentStaffScale = Number(s.pdfCommentStaffScale ?? s.pdfScale ?? 0.40);
-        const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? 9);
-        const pdfCommentTitleFontSizeActual = Number(s.pdfCommentTitleFontSize ?? 10);
-        const pdfCommentBlockGap = Number(s.pdfCommentBlockGap ?? 25);
+        const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? PRINT_PDF_DEFAULTS.pdfParatextFontSize);
+        const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? PRINT_PDF_DEFAULTS.pdfParatextSpacing);
+        const pdfCommentStaffScale = Number(s.pdfCommentStaffScale ?? s.pdfScale ?? PRINT_PDF_DEFAULTS.pdfScale);
+        const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentFontSize);
+        const pdfCommentTitleFontSizeActual = Number(s.pdfCommentTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentTitleFontSize);
+        const pdfCommentBlockGap = Number(s.pdfCommentBlockGap ?? PRINT_PDF_DEFAULTS.pdfCommentBlockGap);
         const pdfShowPageNumbers = s.pdfShowPageNumbers === true || s.pdfShowPageNumbers === 'true';
-        const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? 8);
-        const pdfHeadlineFontSize = Number(s.pdfHeadlineFontSize ?? 8);
+        const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? PRINT_PDF_DEFAULTS.pdfPageNumberFontSize);
+        const pdfHeadlineFontSize = Number(s.pdfHeadlineFontSize ?? PRINT_PDF_DEFAULTS.pdfHeadlineFontSize);
         const pdfHeadlineMetadataFields = s.pdfHeadlineMetadataFields || [];
 
         let cursorY = pdfMarginTop;
@@ -1301,7 +1332,7 @@ export class DocumentComponent implements OnInit {
 
         // Title (wrapped to the printable width)
         doc.setFontSize(titleFontSize);
-        doc.setFont(fontFamily, "bold");
+        doc.setFont(fontFamily, "normal");
         const headerText = this.getMetadataFieldValue(headerSource) || (this.document?.textinitium || "New Document");
         const titleLineH = titleFontSize * 1.15;
         for (const line of doc.splitTextToSize(headerText, Math.max(60, pageWidth - pdfMarginRight - textX))) {
@@ -1328,8 +1359,10 @@ export class DocumentComponent implements OnInit {
           // (CJK has no spaces, so it must be able to wrap mid-run).
           const CJK = '\\u3000-\\u9fff\\u3400-\\u4dbf\\uf900-\\ufaff\\uff00-\\uffef';
           const tokenRe = new RegExp(`[${CJK}]|\\s+|[^\\s${CJK}]+`, 'g');
-          const drawWords = (text: string, style: 'bold' | 'normal') => {
+          const drawWords = (text: string, style: 'bold' | 'normal', key = false) => {
             doc.setFont(fontFamily, style);
+            // Keys ("ID:", "Initium:") stay in the background: light grey, regular weight.
+            if (key) doc.setTextColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY); else doc.setTextColor(0, 0, 0);
             for (const w of (text.match(tokenRe) || [])) {
               if (!w) continue;
               const isSpace = /^\s+$/.test(w);
@@ -1346,7 +1379,7 @@ export class DocumentComponent implements OnInit {
           };
 
           for (let k = 0; k < items.length; k++) {
-            drawWords(items[k].label + ": ", 'bold');
+            drawWords(items[k].label + ": ", 'normal', true);
             drawWords(items[k].val, 'normal');
             if (k < items.length - 1) drawWords("   •   ", 'normal');
           }
@@ -1358,20 +1391,17 @@ export class DocumentComponent implements OnInit {
         // DOM Traversal for Structural Layout
         doc.setFontSize(12);
         
-        const drawActiveBracket = (startX: number, endX: number, bY: number, label: string) => {
-           doc.setLineWidth(pdfBracketThickness);
-           doc.setDrawColor(0, 0, 0);
-           doc.line(startX, bY - pdfBracketTick, startX, bY);
-           doc.line(startX, bY, endX, bY);
-           doc.line(endX, bY - pdfBracketTick, endX, bY);
-           
-           if (label) {
-               const cleanLabel = label.replace(/^\[|\]$/g, '');
-               doc.setFontSize(pdfCommentTitleFontSizeActual);
-               doc.setFont(fontFamily, "italic");
-               const txtX = startX + (endX - startX) / 2 - (doc.getTextWidth(cleanLabel) / 2);
-               doc.text(cleanLabel, txtX, bY + pdfBracketTick + 4);
-           }
+        // Comment spans are marked like in the printed edition: only the corners of a
+        // horizontal bracket, in grey, around the lyric they refer to (the apparatus
+        // cites that text instead of a number).
+        const drawActiveBracket = (startX: number, endX: number, bY: number, _label: string) => {
+           const foot = Math.min(PDF_CORNER_FOOT, Math.max(1, (endX - startX) / 3));
+           doc.setLineWidth(PDF_CORNER_WIDTH);
+           doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
+           doc.line(startX, bY - PDF_CORNER_LEG, startX, bY);
+           doc.line(startX, bY, startX + foot, bY);
+           doc.line(endX, bY - PDF_CORNER_LEG, endX, bY);
+           doc.line(endX - foot, bY, endX, bY);
         };
         
         // Grab all app-containers in document order, only from the main document area
@@ -1455,6 +1485,7 @@ export class DocumentComponent implements OnInit {
             let lineStartY = cursorY;
             let cursorX = musicStartX;
             let lineMaxHeight = 0;
+            let lastContentEndX = musicStartX;
             let lineHasLyrics = false;
             let lineHasBrackets = Object.keys(activeBrackets).length > 0;
             
@@ -1469,7 +1500,8 @@ export class DocumentComponent implements OnInit {
               if (m.isMarker) continue;
               if (m.txt && /\p{Lu}/u.test(m.txt) && !/\p{Ll}/u.test(m.txt) && (m.txt.match(/\p{L}/gu) || []).length >= 2) {
                 m.smallCaps = /[\u2013-]$/.test(prevLyric) ? 'all' : 'first';
-                m.finalSecWidth = m.width = Math.max(m.svgWidth, this.lyricWidth(doc, fontFamily, m.txt, pdfFontSize, m.smallCaps) + extraSyllableSpacing);
+                m.lyricWidth = this.lyricWidth(doc, fontFamily, m.txt, pdfFontSize, m.smallCaps);
+                m.finalSecWidth = m.width = Math.max(m.svgWidth, m.lyricShift + m.lyricWidth + extraSyllableSpacing - 12 * SCALE);
               }
               if (m.txt) prevLyric = m.txt;
             }
@@ -1511,6 +1543,10 @@ export class DocumentComponent implements OnInit {
               for (let k = sys.first; k <= sys.last; k++) if (!measured[k].isMarker) t = Math.min(t, (measured[k].trimUnits || 0) * SCALE);
               return Number.isFinite(t) ? t : 0;
             });
+            const sysRawTops = layout.systems.map((sys) => {
+              for (let k = sys.first; k <= sys.last; k++) if (!measured[k].isMarker) return measured[k].rawTop ?? 10;
+              return 10;
+            });
             const sysHeights = layout.systems.map((sys, si) => {
               let h = 0, extra = 0;
               for (let k = sys.first; k <= sys.last; k++) { h = Math.max(h, measured[k].secHeight); extra = Math.max(extra, measured[k].belowExtra || 0); }
@@ -1519,6 +1555,13 @@ export class DocumentComponent implements OnInit {
             // Like the printed edition: the first system follows its rubric closely.
             if (afterParatext && lastParatextPage === doc.getNumberOfPages()) {
               cursorY = Math.min(cursorY, lastParatextBaselineY + PDF_PARATEXT_BELOW);
+              lineStartY = cursorY;
+            }
+            // A system never starts so low that its lyrics would run into the bottom margin.
+            const systemNeed = (si: number) => (sysHeights[si] || 30) + pdfSyllableTextOffset + pdfFontSize * 0.5;
+            if (cursorY + systemNeed(0) > maxContentY && cursorY > pdfMarginTop + 1) {
+              doc.addPage();
+              cursorY = pdfMarginTop;
               lineStartY = cursorY;
             }
             let curSystem = 0;
@@ -1546,7 +1589,7 @@ export class DocumentComponent implements OnInit {
                   doc.setDrawColor(notationColor[0], notationColor[1], notationColor[2]);
                   doc.setLineWidth(0.4);
                   for (let ly = 40; ly <= 80; ly += 10) {
-                    const y = cursorY - trim + (ly - 10) * SCALE;
+                    const y = cursorY - trim + (ly - sysRawTops[pl.system]) * SCALE;
                     doc.line(cursorX, y, cursorX + m.width, y);
                   }
                 }
@@ -1598,7 +1641,7 @@ export class DocumentComponent implements OnInit {
                           const c = startingComments[ci];
                           const key = `${c.startUUID}_${c.endUUID}`;
                           const idx = documentComments.indexOf(c) + 1;
-                          activeBrackets[key] = { startX: cursorX, startLineY: lineStartY, label: `[${idx}]` };
+                          activeBrackets[key] = { startX: pl.x + m.lyricShift - 1, startLineY: lineStartY, label: `[${idx}]` };
                       }
                   }
               }
@@ -1611,27 +1654,27 @@ export class DocumentComponent implements OnInit {
                   const sigWidth = doc.getTextWidth(sigText);
                   const sigX = pdfMarginLeft + sigWidth + 6 <= musicStartX ? pdfMarginLeft : musicStartX - sigWidth - 6;
                   // Print edition: the signature's baseline sits ~2.9 pt above the bottom staff line.
-                  doc.text(sigText, sigX, cursorY - trim + 70 * SCALE - 2.9);
+                  doc.text(sigText, sigX, cursorY - trim + (80 - sysRawTops[pl.system]) * SCALE - 2.9);
                   currentSignatures = [];
               }
               
               // Wrap to next line if it exceeds page width
               if (pl.system !== curSystem) {
-                 const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
+                 const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + 3) : pdfBracketGap);
                  for (const key in activeBrackets) {
                      const b = activeBrackets[key];
-                     drawActiveBracket(b.startX, cursorX, bracketY, b.label);
+                     drawActiveBracket(b.startX, lastContentEndX, bracketY, b.label);
                  }
                  
                  let lineBottomY = lineStartY + lineMaxHeight;
-                 if (lineHasBrackets) {
-                     lineBottomY = bracketY + pdfBracketTick + 8;
-                 } else if (lineHasLyrics) {
+                 if (lineHasLyrics) {
                      lineBottomY = lineStartY + lineMaxHeight + pdfSyllableTextOffset + pdfFontSize;
+                 } else if (lineHasBrackets) {
+                     lineBottomY = bracketY + 3;
                  }
                  
                  cursorY = lineBottomY + pdfStaffSpacing;
-                 checkPageOverflow(40);
+                 checkPageOverflow(systemNeed(pl.system));
                  
                  lineStartY = cursorY;
                  cursorX = pl.clefX;
@@ -1642,28 +1685,32 @@ export class DocumentComponent implements OnInit {
                  
                  for (const key in activeBrackets) {
                      const b = activeBrackets[key];
-                     b.startX = pl.clefX;
+                     b.startX = pl.x + m.lyricShift - 1;
                      b.startLineY = lineStartY;
                  }
               }
               
               lineMaxHeight = Math.max(lineMaxHeight, sysHeights[pl.system] || secHeight);
               if (pl.injectClef) {
-                await this.drawPdfStaffClef(doc, pl.clefX, cursorY - trim, PDF_CLEF_WIDTH * SCALE, SCALE, sanitizeNotationColor(s.notationColor));
+                await this.drawPdfStaffClef(doc, pl.clefX, cursorY - trim, PDF_CLEF_WIDTH * SCALE, SCALE, sanitizeNotationColor(s.notationColor), sysRawTops[pl.system]);
               }
               cursorX = pl.x;
               
               // Draw SVGs
               if (svgs.length > 0) {
-                let currentSvgY = cursorY - trim;
+                // High notes need more room than the SVG has: widen its view upwards (the
+                // SVG would clip them) and start the drawing that much higher.
+                const topExtra = trim < 0 ? -trim / SCALE : 0;
+                let currentSvgY = cursorY - trim - topExtra * SCALE;
                 for (let v = 0; v < svgs.length; v++) {
                   const svg = svgs[v];
                   const rawHeight = svg.getBoundingClientRect().height || 80;
-                  const svgSecHeight = rawHeight * SCALE;
+                  const extra = v === 0 ? topExtra : 0;
+                  const svgSecHeight = (rawHeight + extra) * SCALE;
                   const originalViewBox = svg.getAttribute('viewBox');
                   if (!originalViewBox) {
                     const finalRawWidth = finalSecWidth / SCALE;
-                    svg.setAttribute('viewBox', `0 0 ${finalRawWidth} ${rawHeight}`);
+                    svg.setAttribute('viewBox', `0 ${-extra} ${finalRawWidth} ${rawHeight + extra}`);
                   }
                   
                   await doc.svg(svg, { x: cursorX, y: currentSvgY, width: finalSecWidth, height: svgSecHeight });
@@ -1677,7 +1724,7 @@ export class DocumentComponent implements OnInit {
               
               // Draw Syllable Text below the SVG
               if (txt) {
-                this.drawLyric(doc, fontFamily, txt, cursorX, cursorY + lineMaxHeight + pdfSyllableTextOffset, pdfFontSize, m.smallCaps);
+                this.drawLyric(doc, fontFamily, txt, cursorX + m.lyricShift, cursorY + lineMaxHeight + pdfSyllableTextOffset, pdfFontSize, m.smallCaps);
               }
               
               // 2. Check if any comments end here
@@ -1690,30 +1737,31 @@ export class DocumentComponent implements OnInit {
                           const key = `${c.startUUID}_${c.endUUID}`;
                           if (activeBrackets[key]) {
                               const b = activeBrackets[key];
-                              const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
-                              drawActiveBracket(b.startX, cursorX + finalSecWidth, bracketY, b.label);
+                              const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + 3) : pdfBracketGap);
+                              drawActiveBracket(b.startX, pl.x + m.lyricShift + (m.lyricWidth > 0 ? m.lyricWidth : Math.max(4, m.svgWidth - m.lyricShift - 4)) + 1, bracketY, b.label);
                               delete activeBrackets[key];
                           }
                       }
                   }
               }
               
+              lastContentEndX = pl.x + m.lyricShift + (m.lyricWidth > 0 ? m.lyricWidth : Math.max(4, m.svgWidth - m.lyricShift - 4)) + 1;
               cursorX += finalSecWidth;
             }
             
             // Close active brackets at the very end of the ZeileContainer
-            const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
+            const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + 3) : pdfBracketGap);
             for (const key in activeBrackets) {
                 const b = activeBrackets[key];
-                drawActiveBracket(b.startX, cursorX, bracketY, b.label);
+                drawActiveBracket(b.startX, lastContentEndX, bracketY, b.label);
                 delete activeBrackets[key];
             }
             
             let lineBottomY = lineStartY + lineMaxHeight;
-            if (lineHasBrackets) {
-                lineBottomY = bracketY + pdfBracketTick + 8;
-            } else if (lineHasLyrics) {
+            if (lineHasLyrics) {
                 lineBottomY = lineStartY + lineMaxHeight + pdfSyllableTextOffset + pdfFontSize;
+            } else if (lineHasBrackets) {
+                lineBottomY = bracketY + 3;
             }
             cursorY = lineBottomY + pdfStaffSpacing;
             checkPageOverflow(0);
@@ -1755,8 +1803,8 @@ export class DocumentComponent implements OnInit {
             doc.addPage();
             let cursorY = pdfMarginTop;
             doc.setFontSize(titleFontSize);
-            doc.setFont(fontFamily, "bold");
-            doc.text("Critical Apparatus", pdfMarginLeft, cursorY);
+            doc.setFont(fontFamily, "normal");
+            doc.text("Critical Apparatus", textX, cursorY);
             cursorY += pdfTitleVerticalSpace;
             checkPageOverflow(0);
 
@@ -1766,7 +1814,7 @@ export class DocumentComponent implements OnInit {
                 const blockRect = block.getBoundingClientRect();
                 const blockWidth = blockRect.width > 0 ? blockRect.width : 1000;
                 const maxScale = pdfCommentStaffScale;
-                const SCALE_C = Math.min(maxScale, (pageWidth - pdfMarginLeft - pdfMarginRight) / blockWidth);
+                const SCALE_C = Math.min(maxScale, (pageWidth - textX - pdfMarginRight) / blockWidth);
                 
                 let bHeight = blockRect.height * SCALE_C;
                 if (cursorY + bHeight > maxContentY) {
@@ -1785,7 +1833,7 @@ export class DocumentComponent implements OnInit {
                     
                     const sRelX = relX * SCALE_C;
                     const sRelY = relY * SCALE_C;
-                    const drawX = pdfMarginLeft + sRelX;
+                    const drawX = textX + sRelX;
                     const drawY = cursorY + sRelY;
                     
                     if (el.tagName.toLowerCase() === 'svg') {
@@ -1867,7 +1915,7 @@ export class DocumentComponent implements OnInit {
                     else if (el.tagName.toLowerCase() === 'h4' || el.classList.contains('app-index')) {
                         const val = el.innerText.trim();
                         doc.setFontSize(pdfCommentTitleFontSizeActual);
-                        doc.setFont(fontFamily, "bolditalic");
+                        doc.setFont(fontFamily, "bold");
                         doc.text(val, drawX, drawY + pdfCommentTitleFontSizeActual);
                     }
                     else if (el.classList.contains('app-category')) {
@@ -1885,8 +1933,8 @@ export class DocumentComponent implements OnInit {
                     else if (el.classList.contains('bracket')) {
                         const bWidth = elRect.width * SCALE_C;
                         const bHeight = elRect.height * SCALE_C;
-                        doc.setDrawColor(0,0,0);
-                        doc.setLineWidth(pdfBracketThickness);
+                        doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
+                        doc.setLineWidth(PDF_CORNER_WIDTH);
                         doc.line(drawX, drawY, drawX + bWidth, drawY); // top
                         doc.line(drawX + bWidth, drawY, drawX + bWidth, drawY + bHeight); // right
                         doc.line(drawX + bWidth, drawY + bHeight, drawX, drawY + bHeight); // bottom
@@ -1897,12 +1945,41 @@ export class DocumentComponent implements OnInit {
             }
         }
 
-        // Draw page numbers and running headlines on all pages
+        // Page furniture. 'print' (default) follows the printed edition: a running head on
+        // EVERY page — source line left, page number right, a thin rule underneath — and no
+        // footer. 'classic' keeps the old footer ("Page n of m") and headline from page 2.
         const totalPages = doc.getNumberOfPages();
+        const printStyle = (s.pdfPageStyle ?? PRINT_PDF_DEFAULTS.pdfPageStyle) !== 'classic';
+        const src: any = this.sourceData || {};
+        const sourceLine = [src.bibliotheksort || src.herkunftsort, src.bibliothek, src.bibliothekssignatur]
+          .map((v: any) => (v || '').toString().trim()).filter(Boolean).join(', ');
+        const sourceSiglum = (this.sourceSigle || src.quellensigle || '').toString().trim();
+        const printHead = [sourceLine, sourceSiglum].filter(Boolean).join(' | ')
+          || this.buildHeadlineText(pdfHeadlineMetadataFields) || (this.document?.dokumenten_id || '');
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
           doc.setPage(pageNum);
-          
-          // Page Numbers
+          doc.setTextColor(0, 0, 0);
+
+          if (printStyle) {
+            const headY = Math.max(14, pdfMarginTop - 22);
+            doc.setFont(fontFamily, "normal");
+            doc.setFontSize(pdfHeadlineFontSize);
+            const maxHeadW = printWidth - 30;
+            let headText = printHead;
+            while (headText.length > 1 && doc.getTextWidth(headText) > maxHeadW) headText = headText.slice(0, -1);
+            if (headText) doc.text(headText, pdfMarginLeft, headY);
+            if (pdfShowPageNumbers) {
+              doc.setFontSize(pdfPageNumberFontSize);
+              const num = String(pageNum);
+              doc.text(num, pageWidth - pdfMarginRight - doc.getTextWidth(num), headY);
+            }
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.4);
+            doc.line(pdfMarginLeft, headY + 5.5, pageWidth - pdfMarginRight, headY + 5.5);
+            continue;
+          }
+
+          // Classic page numbers
           if (pdfShowPageNumbers) {
             doc.setFontSize(pdfPageNumberFontSize);
             doc.setFont(fontFamily, "normal");
@@ -1913,7 +1990,7 @@ export class DocumentComponent implements OnInit {
             doc.text(pageNumText, pdfMarginLeft + printWidth / 2 - pageNumWidth / 2, textY);
           }
 
-          // Running Headline on page 2+
+          // Classic running headline on page 2+
           if (pageNum > 1) {
             const headlineText = this.buildHeadlineText(pdfHeadlineMetadataFields);
             if (headlineText) {
@@ -1949,6 +2026,14 @@ export class DocumentComponent implements OnInit {
         this.readOnly = originalReadOnly;
       }
     }, 200);
+  }
+
+  /**
+   * The text a comment's brackets frame (the apparatus cites it instead of a number):
+   * the lyrics from the start to the end syllable, word-joined by dropping hyphens.
+   */
+  getCommentLemma(comment: VM.Comment): string {
+    return this.cont ? commentLemma(VM.getAllLineParts(this.cont), comment) : '';
   }
 
   getInlineMetadataItems(): { label: string, val: string }[] {

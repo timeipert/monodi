@@ -85,7 +85,7 @@ function verify(name, mode, file, root) {
   }
   // right margin (skip stress cases that are wider than the page by design)
   if (!/long-syllable|one-syllable|300-notes/.test(name)) {
-    const over = words.filter((w) => w.x1 > pageW - 40 + 1);
+    const over = words.filter((w) => w.x1 > pageW - 56.7 + 1);
     if (over.length) problems.push(`${over.length} words beyond right margin (e.g. "${over[0].t}")`);
   }
   // folio labels must all be present; those with room are set flush right at the margin
@@ -93,6 +93,12 @@ function verify(name, mode, file, root) {
   for (const f of folios) {
     const last = f.split(/\s+/).pop();
     if (!words.some((w) => w.t === last || f.includes(w.t) && w.t.length > 2)) problems.push(`folio label "${f}" missing`);
+  }
+  // running head on every page: the page number sits flush right at the top
+  const pageCount = Math.max(...words.map((w) => w.page)) + 1;
+  for (let pg = 0; pg < pageCount; pg++) {
+    const head = words.find((w) => w.page === pg && w.t === String(pg + 1) && w.y1 < 70 && w.x1 > pageW - 56.7 - 3);
+    if (!head) problems.push(`page ${pg + 1}: no page number in the running head`);
   }
   const clefs = words.filter((w) => w.t === 'G').length;
   return { problems, clefs, diastematic: exp.diastematic };

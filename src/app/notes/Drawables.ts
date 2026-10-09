@@ -162,6 +162,24 @@ function fromGrouped(g: Grouped, comments: Comment[]): Drawable[] {
   return notes;
 }
 
+/** Vertical position of a note's glyph box (staff lines are at y = 40..80, 5 units per step). */
+export function noteY(n: Note): number {
+  return 60 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5 + (n.liquescent ? 10 : 0);
+}
+
+/** Top padding (units) the read-only SVG needs so that a note at `minNoteY`, with its
+ *  neume bracket, is not cut off. The visible area starts at y = 20 - padTop. */
+export function requiredPadTop(minNoteY: number): number {
+  return Math.max(0, Math.ceil(8 - minNoteY));
+}
+
+/** Highest (smallest-y) note of a voice, or +Infinity without notes. */
+export function minNoteYOf(sd: Spaced | undefined): number {
+  let m = Infinity;
+  for (const ns of sd?.spaced || []) for (const g of ns.nonSpaced) for (const n of g.grouped) m = Math.min(m, noteY(n));
+  return m;
+}
+
 function fromNote(n: Note, comments: Comment[]): Drawable[] {
   let ret: Drawable[] = [];
   let xOffset = 0;
@@ -187,11 +205,7 @@ function fromNote(n: Note, comments: Comment[]): Drawable[] {
   }
 
   //ret.push(new DNote(xOffset + 5, 92 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5, n));
-  if (n.liquescent) {
-    ret.push(new DNote(0, 60 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5 + 10, n));
-  } else {
-    ret.push(new DNote(-1, 60 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5, n));
-  }
+  ret.push(new DNote(n.liquescent ? 0 : -1, noteY(n), n));
   const startComment = comments.find(c => c.startUUID === n.uuid);
   const endComment = comments.find(c => c.endUUID === n.uuid);
 

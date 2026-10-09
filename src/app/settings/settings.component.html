@@ -592,6 +592,10 @@
                     </div>
                   </div>
                   <hr>
+                    <div class="alert alert-light border small d-flex align-items-center justify-content-between gap-3 mb-3">
+                      <span>Typeset like the printed edition: one book serif, 10&nbsp;pt lyrics, tight systems, running head with a rule on every page, grey notation.</span>
+                      <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" (click)="applyPrintPreset()">Apply print-edition preset</button>
+                    </div>
                     <div class="row g-3 mb-3">
                       <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Clef display (G-clef)</label>
@@ -613,6 +617,13 @@
                         <div class="form-text small">Applies to staff lines, notes, slurs and the clef in the editor, PDF and HTML export.</div>
                       </div>
                       <div class="col-md-6">
+                        <label class="form-label small fw-medium text-muted mb-1">Page style</label>
+                        <select class="form-select form-select-sm" [(ngModel)]="settings.pdfPageStyle" (ngModelChange)="onSettingsChange()">
+                          <option value="print">Print edition: running head with rule on every page, page number in the head</option>
+                          <option value="classic">Classic: footer "Page n of m", headline from page 2</option>
+                        </select>
+                      </div>
+                      <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Continuation indent (pt)</label>
                         <input type="number" class="form-control form-control-sm" min="0" max="80" step="1" [(ngModel)]="settings.pdfContinuationIndent" (ngModelChange)="onSettingsChange()">
                         <div class="form-text small">Indent of automatically wrapped systems in the PDF (print edition: about 20).</div>
@@ -622,6 +633,7 @@
                       <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Font Family</label>
                         <select class="form-select form-select-sm" [(ngModel)]="settings.pdfFontFamily" (ngModelChange)="onSettingsChange()">
+                          <option value="CrimsonText">Crimson Text (print edition, Minion-like)</option>
                           <option value="times">Times (Classic Serif)</option>
                           <option value="helvetica">Helvetica (Modern Sans-Serif)</option>
                           <option value="NotoSans">Noto Sans (Unicode — Latin/Greek/Cyrillic)</option>
@@ -1564,7 +1576,7 @@
                 </div>
                 <div class="card-body bg-dark-subtle p-3 d-flex flex-column align-items-center gap-3 overflow-auto" style="max-height: calc(100vh - 160px);">
                   <!-- PAGE 1: Content Mockup (Title, Metadata, Staves, Lyrics, Brackets) -->
-                  <div class="virtual-page shadow" [style.font-family]="settings.pdfFontFamily === 'times' ? 'Times New Roman, Georgia, serif' : 'sans-serif'">
+                  <div class="virtual-page shadow" [style.font-family]="(settings.pdfFontFamily === 'times' || settings.pdfFontFamily === 'CrimsonText') ? 'Crimson Text, Times New Roman, Georgia, serif' : 'sans-serif'">
                     <div class="margin-guideline"
                       [style.top.px]="(settings.pdfMarginTop ?? 40) * previewScale"
                       [style.left.px]="(settings.pdfMarginLeft ?? 40) * previewScale"
@@ -1746,7 +1758,7 @@
                     }
                   </div>
                   <!-- PAGE 2: Critical Apparatus Mockup (Marginal comments trees) -->
-                  <div class="virtual-page shadow" [style.font-family]="settings.pdfFontFamily === 'times' ? 'Times New Roman, Georgia, serif' : 'sans-serif'">
+                  <div class="virtual-page shadow" [style.font-family]="(settings.pdfFontFamily === 'times' || settings.pdfFontFamily === 'CrimsonText') ? 'Crimson Text, Times New Roman, Georgia, serif' : 'sans-serif'">
                     <div class="margin-guideline"
                       [style.top.px]="(settings.pdfMarginTop ?? 40) * previewScale"
                       [style.left.px]="(settings.pdfMarginLeft ?? 40) * previewScale"

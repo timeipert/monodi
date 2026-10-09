@@ -99,4 +99,28 @@ save('x11-small-caps', root([formteil([zeile([
   ...['No-', 'LI', 'E-', 'MU-', 'LARI'].map((t) => syl(t, [randNeume(2, 3, 4)])),
 ])])]));
 
+// 12. Low register (A3 and below: ledger lines, notes close to the SVG edge) and comments
+//     framing lyrics: inside one system, across a line break, and on the very first syllable.
+{
+  const sy = ['Ter-', 'ri-', 'bi-', 'lis', 'est', 'lo-', 'cus', 'is-', 'te', 'Quam', 'di-', 'le-', 'cta', 'Men-', 'te', 'to-', 'ta', 'sit', 'de-', 'uo-', 'ta', 'et', 'per', 'uo-', 'cem', 'fi-', 'et', 'no-', 'ta']
+    .map((t, k) => syl(t, [neume(group(...Array.from({ length: 1 + (k % 3) }, (_, i) => note(BASES[(k + i * 2) % 7], 3 - (k % 2))))), ...(k % 4 === 1 ? [randNeume(2, 3, 4)] : [])]));
+  const firstNote = (x) => x.notes.spaced[0].nonSpaced[0].grouped[0].uuid;
+  const lastNote = (x) => { const g = x.notes.spaced.at(-1).nonSpaced.at(-1).grouped; return g.at(-1).uuid; };
+  const doc12 = root([formteil([para('LOW REGISTER AND COMMENTS'), zeile(sy)])]);
+  doc12.comments = [
+    { startUUID: firstNote(sy[0]), endUUID: lastNote(sy[2]), commentType: 'text', text: 'Zeichen im Editionskorpus singulär.' },
+    { startUUID: firstNote(sy[11]), endUUID: lastNote(sy[12]), commentType: 'text', text: 'Lesart unsicher, vgl. Pa 1235.' },
+    { startUUID: firstNote(sy[16]), endUUID: lastNote(sy[21]), commentType: 'text', text: 'Kommentar über mehrere Silben und einen Zeilenumbruch hinweg.', emendation: true },
+  ];
+  save('x12-low-notes-comments', doc12);
+}
+
+// 13. Very high notes (octaves 6 and 7, with neume brackets): must never be cut off, and the
+//     staves of all syllables of a line must stay aligned.
+save('x13-very-high-notes', root([formteil([
+  para('VERY HIGH NOTES'),
+  zeile(Array.from({ length: 16 }, (_, k) => syl(sylText(k), [neume(group(note(BASES[k % 7], 6 + (k % 2)), note(BASES[(k + 3) % 7], 5 + (k % 3))))]))),
+  zeile(Array.from({ length: 8 }, (_, k) => syl(sylText(k + 3), [randNeume(3, 3, 4)]))),
+])]));
+
 console.log('wrote extreme fixtures to', out);

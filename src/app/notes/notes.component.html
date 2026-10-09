@@ -2,8 +2,8 @@
   @for (voice of getVoices(); track trackByIndex(i, voice); let i = $index) {
     <div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
       (focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
-      <svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
-        <g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
+      <svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + padTopEff + readOnlyPadBottomFor(i)) * staffScale) : 120">
+        <g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (padTopEff - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
           <!-- Staff lines: only for diastematic notation. Adiastematic draws no staff. -->
           @if (!adiastematic) {
             <ng-container>

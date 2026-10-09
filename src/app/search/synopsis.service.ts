@@ -1,4 +1,7 @@
-import { Injectable } from '@angular/core';
+import { FocusService } from '../focus.service';
+import { minNoteYOf, requiredPadTop } from '../notes/Drawables';
+import { PRINT_PDF_DEFAULTS } from '../pdf-defaults';
+import { Injectable, inject } from '@angular/core';
 import { Subject, forkJoin, Subscription } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { jsPDF } from 'jspdf';
@@ -212,6 +215,7 @@ export class SynopsisService {
 
   user: User | null = null;
   private subs: Subscription[] = [];
+  private readonly focusSvc = inject(FocusService);
 
   constructor(
     private api: APIService,
@@ -616,6 +620,13 @@ export class SynopsisService {
   }
 
   runAlignment(rootContainers: VM.RootContainer[]) {
+    // One top padding for all witnesses so that their highest note fits and staves stay aligned.
+    let minY = Infinity;
+    for (const r of rootContainers) for (const sy of VM.getSyllables(r)) {
+      minY = Math.min(minY, minNoteYOf(sy.notes));
+      for (const extra of (sy as any).additionalMelodies || []) minY = Math.min(minY, minNoteYOf(extra));
+    }
+    this.focusSvc.docPadTop = Number.isFinite(minY) ? requiredPadTop(minY) : 0;
     if (this.alignmentMode === 'signature') {
       this.alignedTree = this.alignBySignature(rootContainers);
     } else if (this.alignmentMode === 'structure') {
@@ -809,8 +820,9 @@ export class SynopsisService {
       pageH = doc.internal.pageSize.getHeight();
 
       // Use the embedded Unicode/CJK font when selected, so non-western text renders.
-      const embFam = embeddedFamily((settings as any)?.pdfFontFamily);
-      const font = embFam || 'times';
+      const famSetting: string = (settings as any)?.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
+      const embFam = embeddedFamily(famSetting);
+      const font = embFam || famSetting;
       if (embFam) { await registerEmbeddedFont(doc, embFam); }
 
       const contentX = margin;
@@ -850,9 +862,9 @@ export class SynopsisService {
       }
 
       if (showMeta && visibleSynopsisCols.length && selectedDocs.length) {
-        doc.setFont(font, 'bold');
+        doc.setFont(font, 'normal');
         doc.setFontSize(7.5);
-        doc.setTextColor(80, 80, 80);
+        doc.setTextColor(150, 150, 150);
         doc.text('WITNESSES', contentX, y);
         y += 1.5;
         autoTable(doc, {
@@ -872,9 +884,10 @@ export class SynopsisService {
             cellPadding: { top: 1, bottom: 1, left: 0, right: 3 },
             lineColor: [226, 232, 240], lineWidth: 0
           },
+          // Column keys stay in the background: light grey, regular, hairline rule.
           headStyles: {
-            fontStyle: 'bold', fontSize: 7, textColor: [51, 65, 85],
-            lineColor: [15, 23, 42], lineWidth: { top: 0.4, bottom: 0.25 }
+            fontStyle: 'normal', fontSize: 7, textColor: [150, 150, 150],
+            lineColor: [200, 200, 200], lineWidth: { top: 0, bottom: 0.15 }
           },
           bodyStyles: { lineWidth: { bottom: 0.1 } },
           didParseCell: data => {

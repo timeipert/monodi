@@ -1,5 +1,6 @@
 import { ClefDisplayMode, sanitizeClefDisplayMode } from './clef-policy';
 import { sanitizeNotationColor } from './notation-color';
+import { PRINT_PDF_DEFAULTS } from './pdf-defaults';
 import { Injectable } from '@angular/core';
 import { Observable, from, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
@@ -383,7 +384,12 @@ export class APIService {
     })());
   }
 
+  /** Fresh settings: structural defaults plus the print-edition look. */
   private defaultSettings(): ProjectSettings {
+    return { ...this.baseDefaultSettings(), ...PRINT_PDF_DEFAULTS };
+  }
+
+  private baseDefaultSettings(): ProjectSettings {
     return {
       quellensigle: [],
       herkunftsregion: [],
@@ -406,7 +412,7 @@ export class APIService {
       pdfFormat: 'a4',
       pdfOrientation: 'portrait',
       pdfSyllableSpacing: 10,
-      pdfVerticalSpace: 8,
+      pdfVerticalSpace: 12,
       pdfMarginLeft: 40,
       pdfSignaturSpace: 60,
       pdfFontSize: 10,
@@ -436,7 +442,7 @@ export class APIService {
       pdfHeadlineFontSize: 8,
       pdfPageNumberFontSize: 8,
       pdfParatextFontSize: 10,
-      pdfParatextSpacing: 4.3,
+      pdfParatextSpacing: 6.5,
       pdfFontFamily: 'times',
       clefDisplayMode: 'document-start',
       notationColor: '#333333',
@@ -552,7 +558,10 @@ export interface ProjectSettings {
   pdfPageNumberFontSize?: number;
   pdfParatextFontSize?: number;
   pdfParatextSpacing?: number;
-  pdfFontFamily?: 'times' | 'helvetica';
+  /** 'CrimsonText' (print edition), 'times', 'helvetica' or an embedded Noto family. */
+  pdfFontFamily?: string;
+  /** 'print': running head + rule on every page, page number in the head; 'classic': footer "Page n of m". */
+  pdfPageStyle?: 'print' | 'classic';
   /** When the automatic G-clef is drawn: chant start only (print edition), every manuscript line, or every line break. */
   clefDisplayMode?: ClefDisplayMode;
   /** Colour of staff lines, notes, slurs and clef in editor, PDF and HTML export (#rrggbb). */

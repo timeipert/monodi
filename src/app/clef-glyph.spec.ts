@@ -1,4 +1,4 @@
-import { G_CLEF_PATH, G_CLEF_WIDTH } from './clef-glyph';
+import { G_CLEF_PATH, G_CLEF_WIDTH, G_CLEF_LEFT } from './clef-glyph';
 import { DEFAULT_NOTATION_COLOR, sanitizeNotationColor } from './notation-color';
 
 /** Bounding box of an absolute-coordinate SVG path (M L H V Q C Z, upper case only). */
@@ -25,9 +25,9 @@ describe('G clef glyph', () => {
     expect(b.y1 - b.y0).toBeGreaterThan(19.5); // control points may overshoot slightly, never undershoot
   });
 
-  it('starts at x = 3 and fits into the clef space', () => {
+  it('starts at the configured left edge and fits into the clef space', () => {
     const b = bbox(G_CLEF_PATH);
-    expect(b.x0).toBeGreaterThanOrEqual(2.9);
+    expect(b.x0).toBeGreaterThanOrEqual(G_CLEF_LEFT - 0.1);
     expect(b.x1).toBeLessThan(32);
     expect(G_CLEF_WIDTH).toBeGreaterThan(10);
   });

@@ -129,7 +129,7 @@
               @if (comment.category && getCategoryDetails(comment.category); as cat) {
                 <span class="app-category" style="font-family: times; font-style: italic; font-size: 10pt; margin-right: 5px;">{{cat.label}}</span>
               }
-              <span class="app-index" style="font-family: times; font-weight: bold; font-size: 10pt;">{{i + 1}}@if (comment.emendation) {
+              <span class="app-index" style="font-family: times; font-weight: bold; font-size: 10pt;">{{ getCommentLemma(comment) || (i + 1) }}]@if (comment.emendation) {
                 <span> ⟨em.⟩</span>
               }</span>
             </div>
