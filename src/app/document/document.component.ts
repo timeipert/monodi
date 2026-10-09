@@ -41,6 +41,12 @@ import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './searc
 const PDF_CLEF_WIDTH = 32;
 /** Distance between the two strokes of a folio-change marker (pt). */
 const PDF_MARKER_TICK_GAP = 2;
+/** Gap below the last paratext baseline before the system starts (descender room). */
+const PDF_PARATEXT_BELOW = 3;
+/** Minimum room above the top staff line inside a system (raw SVG units). */
+const PDF_MIN_HEADROOM_UNITS = 10;
+/** Small-capital size relative to the text size. */
+const SMALL_CAPS = 0.8;
 /** Text edge relative to the staff start (print edition: 89.1 - 83.7 pt). */
 const PDF_TEXT_INSET = 5.4;
 
@@ -63,6 +69,12 @@ interface PdfMeasuredPart {
   labelWidth?: number;
   /** Extra space (pt) the syllable text must move down to clear ledger lines below the staff. */
   belowExtra?: number;
+  /** SVG width in pt (the lyric width may widen the part beyond it). */
+  svgWidth: number;
+  /** Raw SVG units of the 30 above the top staff line that this part does not need. */
+  trimUnits?: number;
+  /** Lyric set in small capitals (all-caps syllables, as in the printed edition). */
+  smallCaps?: 'all' | 'first';
 }
 
 
@@ -1043,7 +1055,7 @@ export class DocumentComponent implements OnInit {
           doc.setFontSize(pdfFontSize);
         }
       }
-      return { part, isMarker: true, svgs: [], txt: '', secHeight: 0, finalSecWidth: width, width, hasClef: false, folioLabel, labelWidth };
+      return { part, isMarker: true, svgs: [], txt: '', secHeight: 0, finalSecWidth: width, width, svgWidth: 0, hasClef: false, folioLabel, labelWidth };
     }
 
     const sec = part.querySelector('.section') as HTMLElement | null;
@@ -1104,6 +1116,27 @@ export class DocumentComponent implements OnInit {
     }
     const finalSecWidth = Math.max(svgWidth, textWidth + extraSyllableSpacing);
 
+    // How much of the 30 units above the top staff line (y = 40) is actually needed:
+    // note heads/stems, neume brackets and ledger lines above. The rest is trimmed so
+    // systems sit as tight as in print; high notes or brackets keep their room.
+    let trimUnits = 0;
+    if (svgs.length === 1) {
+      let minTop = 40;
+      svgs[0].querySelectorAll('image').forEach((img) => {
+        minTop = Math.min(minTop, parseFloat(img.getAttribute('y') || '40') + 18); // stem top of an ascending note
+      });
+      svgs[0].querySelectorAll('path[data-right]').forEach((p) => {
+        try { minTop = Math.min(minTop, (p as unknown as SVGGraphicsElement).getBBox().y - 1); } catch { /* not rendered */ }
+      });
+      svgs[0].querySelectorAll('rect').forEach((r) => {
+        if (r.getAttribute('width') === '15px' && r.getAttribute('height') === '1px') {
+          minTop = Math.min(minTop, parseFloat(r.getAttribute('y') || '40'));
+        }
+      });
+      const headroom = Math.min(30, Math.max(PDF_MIN_HEADROOM_UNITS, 40 - minTop + 3));
+      trimUnits = 30 - headroom;
+    }
+
     // Ledger lines below the staff (rects 15 wide, 1 high at y = 90/100/110) must not
     // run into the syllable text: push the text down by what is missing.
     let lowestLedger = 0;
@@ -1119,9 +1152,44 @@ export class DocumentComponent implements OnInit {
       belowExtra = Math.max(0, clearTop - textTop);
     }
     return {
-      part, isMarker: false, svgs, txt, secHeight, finalSecWidth, width: finalSecWidth,
-      hasClef: !!sec.querySelector('.auto-clef'), belowExtra,
+      part, isMarker: false, svgs, txt, secHeight, finalSecWidth, width: finalSecWidth, svgWidth,
+      hasClef: !!sec.querySelector('.auto-clef'), belowExtra, trimUnits,
     };
+  }
+
+  /** Splits a small-caps lyric into runs of equal size (first letter full size, the rest small). */
+  private lyricRuns(txt: string, caps: 'all' | 'first'): { text: string; big: boolean }[] {
+    const runs: { text: string; big: boolean }[] = [];
+    let first = caps === 'first';
+    for (const ch of Array.from(txt)) {
+      const big = first && /\p{L}/u.test(ch);
+      if (/\p{L}/u.test(ch)) first = false;
+      const last = runs[runs.length - 1];
+      if (last && last.big === big) last.text += ch; else runs.push({ text: ch, big });
+    }
+    return runs;
+  }
+
+  /** Width of a lyric in pt; all-caps syllables are measured as small capitals. */
+  private lyricWidth(doc: jsPDF, fontFamily: string, txt: string, fs: number, caps?: 'all' | 'first'): number {
+    doc.setFont(fontFamily, 'normal');
+    if (!caps) { doc.setFontSize(fs); return doc.getTextWidth(txt); }
+    let w = 0;
+    for (const r of this.lyricRuns(txt, caps)) { doc.setFontSize(r.big ? fs : fs * SMALL_CAPS); w += doc.getTextWidth(r.text); }
+    doc.setFontSize(fs);
+    return w;
+  }
+
+  private drawLyric(doc: jsPDF, fontFamily: string, txt: string, x: number, y: number, fs: number, caps?: 'all' | 'first'): void {
+    doc.setFont(fontFamily, 'normal');
+    if (!caps) { doc.setFontSize(fs); doc.text(txt, x, y); return; }
+    let cx = x;
+    for (const r of this.lyricRuns(txt, caps)) {
+      doc.setFontSize(r.big ? fs : fs * SMALL_CAPS);
+      doc.text(r.text, cx, y);
+      cx += doc.getTextWidth(r.text);
+    }
+    doc.setFontSize(fs);
   }
 
   /** Staff + G-clef segment for a wrapped system (clef setting "every line break").
@@ -1186,7 +1254,7 @@ export class DocumentComponent implements OnInit {
         const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? 2);
         const pdfBracketGap = Number(s.pdfBracketGap ?? 5);
         const pdfBracketTick = Number(s.pdfBracketTick ?? 4);
-        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? 6);
+        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? 8);
         const pdfTextBlockGap = Number(s.pdfTextBlockGap ?? 10);
         
         // Coerced layout parameters
@@ -1197,7 +1265,7 @@ export class DocumentComponent implements OnInit {
         const pdfMetadataVerticalSpace = Number(s.pdfMetadataVerticalSpace ?? 15);
         const pdfBracketThickness = Number(s.pdfBracketThickness ?? 1.2);
         const pdfCommentTitleFontSize = Number(s.pdfCommentTitleFontSize ?? 8);
-        const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? 15);
+        const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? 8);
         const SCALE = Number(s.pdfScale ?? 0.36);
         const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? 10);
         const pdfContinuationIndent = Number(s.pdfContinuationIndent ?? 20);
@@ -1208,7 +1276,7 @@ export class DocumentComponent implements OnInit {
         const textX = pdfMarginLeft + pdfSignaturSpace + PDF_TEXT_INSET;
         const notationColor = hexToRgb(sanitizeNotationColor(s.notationColor));
         const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? 10);
-        const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? 12);
+        const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? 4.3);
         const pdfCommentStaffScale = Number(s.pdfCommentStaffScale ?? s.pdfScale ?? 0.40);
         const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? 9);
         const pdfCommentTitleFontSizeActual = Number(s.pdfCommentTitleFontSize ?? 10);
@@ -1325,6 +1393,9 @@ export class DocumentComponent implements OnInit {
         // Track the current Signatures to print before the next Zeile
         let currentSignatures: string[] = [];
         let wasLastElementParatext = false;
+        let lastParatextBaselineY = 0;
+        let paratextPending = false; // no staff drawn since the last paratext (structure rows in between don't count)
+        let lastParatextPage = 0;
 
         for (let i = 0; i < containers.length; i++) {
           const container = containers[i] as HTMLElement;
@@ -1374,6 +1445,8 @@ export class DocumentComponent implements OnInit {
           const parts = contentRow.querySelectorAll('app-notes, app-line-change, app-folio-change');
           
           if (parts.length > 0) {
+            const afterParatext = paratextPending;
+            paratextPending = false;
             wasLastElementParatext = false;
             // Horizontal layout for notes and breaks
             
@@ -1389,6 +1462,17 @@ export class DocumentComponent implements OnInit {
             // indents and clefs (see pdf-layout.ts).
             const entries = Array.from(parts).map((pt) => this.measurePdfPart(pt as HTMLElement, doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, pdfSyllableTextOffset));
             const measured = entries.filter((e): e is PdfMeasuredPart => e !== null);
+            // All-caps syllables ("SA– LUS") are set in small capitals; the first letter of a
+            // word stays full size, the continuation of a hyphenated word is all small.
+            let prevLyric = '';
+            for (const m of measured) {
+              if (m.isMarker) continue;
+              if (m.txt && /\p{Lu}/u.test(m.txt) && !/\p{Ll}/u.test(m.txt) && (m.txt.match(/\p{L}/gu) || []).length >= 2) {
+                m.smallCaps = /[\u2013-]$/.test(prevLyric) ? 'all' : 'first';
+                m.finalSecWidth = m.width = Math.max(m.svgWidth, this.lyricWidth(doc, fontFamily, m.txt, pdfFontSize, m.smallCaps) + extraSyllableSpacing);
+              }
+              if (m.txt) prevLyric = m.txt;
+            }
             const layoutOpts = {
               startX: musicStartX,
               maxX: pageWidth - pdfMarginRight,
@@ -1422,11 +1506,21 @@ export class DocumentComponent implements OnInit {
               if (!changed) break;
             }
             // Per system: tallest syllable plus the room needed for ledger lines below.
-            const sysHeights = layout.systems.map((sys) => {
+            const sysTrims = layout.systems.map((sys) => {
+              let t = Infinity;
+              for (let k = sys.first; k <= sys.last; k++) if (!measured[k].isMarker) t = Math.min(t, (measured[k].trimUnits || 0) * SCALE);
+              return Number.isFinite(t) ? t : 0;
+            });
+            const sysHeights = layout.systems.map((sys, si) => {
               let h = 0, extra = 0;
               for (let k = sys.first; k <= sys.last; k++) { h = Math.max(h, measured[k].secHeight); extra = Math.max(extra, measured[k].belowExtra || 0); }
-              return h > 0 ? h + extra : 0;
+              return h > 0 ? h + extra - sysTrims[si] : 0;
             });
+            // Like the printed edition: the first system follows its rubric closely.
+            if (afterParatext && lastParatextPage === doc.getNumberOfPages()) {
+              cursorY = Math.min(cursorY, lastParatextBaselineY + PDF_PARATEXT_BELOW);
+              lineStartY = cursorY;
+            }
             let curSystem = 0;
             this.lastPdfStats.systems += layout.systems.length;
             this.lastPdfStats.clefs += measured.filter((m) => m.hasClef).length + layout.placed.filter((pl) => pl.injectClef).length;
@@ -1434,6 +1528,7 @@ export class DocumentComponent implements OnInit {
             for (let j = 0; j < measured.length; j++) {
               const m = measured[j];
               const pl = layout.placed[j];
+              const trim = sysTrims[pl.system] || 0;
               const part = m.part;
               const tagName = part.tagName.toLowerCase();
               
@@ -1451,12 +1546,12 @@ export class DocumentComponent implements OnInit {
                   doc.setDrawColor(notationColor[0], notationColor[1], notationColor[2]);
                   doc.setLineWidth(0.4);
                   for (let ly = 40; ly <= 80; ly += 10) {
-                    const y = cursorY + (ly - 10) * SCALE;
+                    const y = cursorY - trim + (ly - 10) * SCALE;
                     doc.line(cursorX, y, cursorX + m.width, y);
                   }
                 }
                 const mx = cursorX + gap;
-                const h = lineMaxHeight > 0 ? lineMaxHeight : 24;
+                const h = sysHeights[pl.system] || lineMaxHeight || 24;
                 // Like the printed edition: a thin stroke set in the lyric row
                 // between two syllables (not hanging off the staff).
                 const tickTop = cursorY + h + pdfSyllableTextOffset - pdfFontSize * 0.78;
@@ -1515,7 +1610,8 @@ export class DocumentComponent implements OnInit {
                   const sigText = currentSignatures.join(" ");
                   const sigWidth = doc.getTextWidth(sigText);
                   const sigX = pdfMarginLeft + sigWidth + 6 <= musicStartX ? pdfMarginLeft : musicStartX - sigWidth - 6;
-                  doc.text(sigText, sigX, cursorY + (secHeight / 2) + (pdfFontSize * 0.35));
+                  // Print edition: the signature's baseline sits ~2.9 pt above the bottom staff line.
+                  doc.text(sigText, sigX, cursorY - trim + 70 * SCALE - 2.9);
                   currentSignatures = [];
               }
               
@@ -1553,13 +1649,13 @@ export class DocumentComponent implements OnInit {
               
               lineMaxHeight = Math.max(lineMaxHeight, sysHeights[pl.system] || secHeight);
               if (pl.injectClef) {
-                await this.drawPdfStaffClef(doc, pl.clefX, cursorY, PDF_CLEF_WIDTH * SCALE, SCALE, sanitizeNotationColor(s.notationColor));
+                await this.drawPdfStaffClef(doc, pl.clefX, cursorY - trim, PDF_CLEF_WIDTH * SCALE, SCALE, sanitizeNotationColor(s.notationColor));
               }
               cursorX = pl.x;
               
               // Draw SVGs
               if (svgs.length > 0) {
-                let currentSvgY = cursorY;
+                let currentSvgY = cursorY - trim;
                 for (let v = 0; v < svgs.length; v++) {
                   const svg = svgs[v];
                   const rawHeight = svg.getBoundingClientRect().height || 80;
@@ -1581,7 +1677,7 @@ export class DocumentComponent implements OnInit {
               
               // Draw Syllable Text below the SVG
               if (txt) {
-                doc.text(txt, cursorX, cursorY + lineMaxHeight + pdfSyllableTextOffset);
+                this.drawLyric(doc, fontFamily, txt, cursorX, cursorY + lineMaxHeight + pdfSyllableTextOffset, pdfFontSize, m.smallCaps);
               }
               
               // 2. Check if any comments end here
@@ -1642,6 +1738,9 @@ export class DocumentComponent implements OnInit {
               
               const splitText = doc.splitTextToSize(txt, Math.max(60, pageWidth - pdfMarginRight - textX));
               doc.text(splitText, textX, cursorY);
+              lastParatextBaselineY = cursorY + (splitText.length - 1) * pdfParatextFontSize * doc.getLineHeightFactor();
+              lastParatextPage = doc.getNumberOfPages();
+              paratextPending = true;
               cursorY += (splitText.length * (pdfParatextFontSize * 1.4)) + pdfParatextSpacing;
               checkPageOverflow(0);
               wasLastElementParatext = true;

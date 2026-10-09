@@ -60,7 +60,15 @@ function verify(name, mode, file, root) {
   if (pages < 1) problems.push('no pages');
   const exp = expectedSyllables(root);
   // order-preserving subsequence match (ignoring hyphens, title and paratext words)
-  const sorted = [...words].sort((a, b) => a.page - b.page || a.y0 - b.y0 || a.x0 - b.x0);
+  // reading order: cluster words into lines by their bottom edge (runs of different size
+  // differ by a fraction of a point), then left to right
+  const byBottom = [...words].sort((a, b) => a.page - b.page || a.y1 - b.y1);
+  let lineNo = -1, lineY = -1e9, linePage = -1;
+  for (const w of byBottom) {
+    if (w.page !== linePage || w.y1 - lineY > 2.5) { lineNo++; lineY = w.y1; linePage = w.page; }
+    w.line = lineNo;
+  }
+  const sorted = byBottom.sort((a, b) => a.line - b.line || a.x0 - b.x0);
   const got = sorted.map((w) => w.t.replace(/[-–]+$/g, ''));
   let gi = 0, missing = 0;
   for (const e of exp.syllables) {
@@ -68,7 +76,13 @@ function verify(name, mode, file, root) {
     if (k < 0) { missing++; } else gi = k + 1;
   }
   // syllables on one system share a text row but y can jitter by <1pt: allow 2% to be mis-sorted
-  if (missing > Math.max(2, exp.syllables.length * 0.02)) problems.push(`${missing}/${exp.syllables.length} syllables missing or out of order`);
+  if (missing > Math.max(2, exp.syllables.length * 0.02)) {
+    // small capitals split a syllable into several words: fall back to the concatenated text
+    const joined = got.join('');
+    let pos = 0, miss2 = 0;
+    for (const e of exp.syllables) { const k = joined.indexOf(e.replace(/[-–]/g, ''), pos); if (k < 0) miss2++; else pos = k + e.length; }
+    if (miss2 > Math.max(2, exp.syllables.length * 0.02)) problems.push(`${miss2}/${exp.syllables.length} syllables missing or out of order`);
+  }
   // right margin (skip stress cases that are wider than the page by design)
   if (!/long-syllable|one-syllable|300-notes/.test(name)) {
     const over = words.filter((w) => w.x1 > pageW - 40 + 1);

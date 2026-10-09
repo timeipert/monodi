@@ -92,4 +92,11 @@ save('x09-many-zeilen', root([formteil(Array.from({ length: 12 }, (_, z) =>
   ])]));
 }
 
+// 11. Small capitals: all-caps syllables inside and between words, mixed with lower case.
+save('x11-small-caps', root([formteil([zeile([
+  ...['SA-', 'LUS', 'AU-', 'TEM', 'ET', 'PRO-', 'TE-', 'CTOR', 'Re-', 'gi-', 'a', 'X', 'IN', 'TEM-', 'PO-', 'RE'].map((t) => syl(t, [randNeume(3, 3, 4)])),
+  lineChange(),
+  ...['No-', 'LI', 'E-', 'MU-', 'LARI'].map((t) => syl(t, [randNeume(2, 3, 4)])),
+])])]));
+
 console.log('wrote extreme fixtures to', out);

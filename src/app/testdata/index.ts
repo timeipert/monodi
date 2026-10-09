@@ -30,6 +30,7 @@ import f26 from './extreme/x07-markers.json';
 import f27 from './extreme/x08-adiastematic.json';
 import f28 from './extreme/x09-many-zeilen.json';
 import f29 from './extreme/x10-folio-positions.json';
+import f30 from './extreme/x11-small-caps.json';
 
 export const FIXTURES: { name: string; kind: 'real' | 'extreme'; doc: any }[] = [
   { name: "Aa_13__254326a3-ead7-4a1d-a49b-57e3b12e6f6a", kind: 'real' as const, doc: f0 as any },
@@ -62,4 +63,5 @@ export const FIXTURES: { name: string; kind: 'real' | 'extreme'; doc: any }[] = 
   { name: "x08-adiastematic", kind: 'extreme' as const, doc: f27 as any },
   { name: "x09-many-zeilen", kind: 'extreme' as const, doc: f28 as any },
   { name: "x10-folio-positions", kind: 'extreme' as const, doc: f29 as any },
+  { name: "x11-small-caps", kind: 'extreme' as const, doc: f30 as any },
 ];
