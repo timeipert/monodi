@@ -123,4 +123,11 @@ save('x13-very-high-notes', root([formteil([
   zeile(Array.from({ length: 8 }, (_, k) => syl(sylText(k + 3), [randNeume(3, 3, 4)]))),
 ])]));
 
+// 14. Many chants over several pages, each with a rubric: page breaks must never strand a
+//     rubric alone at the bottom of a page, nor run into the bottom margin.
+save('x14-page-breaks', root(Array.from({ length: 14 }, (_, c) => formteil([
+  para('RUBRIKBLOCK-' + (c + 1)),
+  zeile(Array.from({ length: 6 + ((c * 7) % 5) * 11 }, (_, k) => syl(sylText(k + c), [randNeume(3, 3, 4)]))),
+]))));
+
 console.log('wrote extreme fixtures to', out);

@@ -1,6 +1,6 @@
 import { FocusService } from '../focus.service';
 import { minNoteYOf, requiredPadTop } from '../notes/Drawables';
-import { PRINT_PDF_DEFAULTS } from '../pdf-defaults';
+import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { Injectable, inject } from '@angular/core';
 import { Subject, forkJoin, Subscription } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
@@ -813,7 +813,7 @@ export class SynopsisService {
         unit: 'mm',
         // One-line synopsis is auto-sized to its content; the stacked view uses
         // the configured page format/orientation.
-        format: singleLine ? [pageW, pageH] : ((settings as any)?.pdfFormat || 'a4'),
+        format: singleLine ? [pageW, pageH] : pdfPageFormat((settings as any)?.pdfFormat),
         orientation: singleLine ? 'landscape' : (((settings as any)?.pdfOrientation) || 'portrait')
       });
       pageW = doc.internal.pageSize.getWidth();

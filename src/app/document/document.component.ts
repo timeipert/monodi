@@ -35,7 +35,7 @@ import { layoutPdfLine } from '../pdf-layout';
 import { G_CLEF_PATH } from '../clef-glyph';
 import { commentLemma } from '../comment-lemma';
 import { minNoteYOf, requiredPadTop } from '../notes/Drawables';
-import { PRINT_PDF_DEFAULTS } from '../pdf-defaults';
+import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { FileSystemService } from '../file-system.service';
 
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
@@ -1272,7 +1272,7 @@ export class DocumentComponent implements OnInit {
     setTimeout(async () => {
       try {
         const s: any = this.settings || {};
-        const doc = new jsPDF({ unit: 'pt', format: (s.pdfFormat || 'a4'), orientation: (s.pdfOrientation || 'portrait') });
+        const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait') });
         const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
         const fontFamily = embeddedFamily(fontSetting) || fontSetting;
         if (embeddedFamily(fontFamily)) {
@@ -1335,6 +1335,18 @@ export class DocumentComponent implements OnInit {
         doc.setFont(fontFamily, "normal");
         const headerText = this.getMetadataFieldValue(headerSource) || (this.document?.textinitium || "New Document");
         const titleLineH = titleFontSize * 1.15;
+        // The edition number ("Print Edition" field) stands framed in the left margin, level
+        // with the first title line, as the chant numbers do in the printed edition.
+        const editionNo = (this.document?.druckausgabe || '').toString().trim();
+        if (editionNo && s.pdfShowEditionBox !== false) {
+          doc.setFontSize(pdfFontSize);
+          const w = doc.getTextWidth(editionNo) + 7;
+          doc.setLineWidth(0.5);
+          doc.setDrawColor(0, 0, 0);
+          doc.rect(pdfMarginLeft, cursorY - pdfFontSize * 0.82 - 2, w, pdfFontSize + 4);
+          doc.text(editionNo, pdfMarginLeft + 3.5, cursorY);
+          doc.setFontSize(titleFontSize);
+        }
         for (const line of doc.splitTextToSize(headerText, Math.max(60, pageWidth - pdfMarginRight - textX))) {
           checkPageOverflow(titleLineH);
           doc.text(line, textX, cursorY);
@@ -1779,12 +1791,26 @@ export class DocumentComponent implements OnInit {
             }
             
             if (txt) {
-              checkPageOverflow(pdfParatextFontSize * 2);
-              
               doc.setFontSize(pdfParatextFontSize);
               doc.setFont(fontFamily, "normal");
               
               const splitText = doc.splitTextToSize(txt, Math.max(60, pageWidth - pdfMarginRight - textX));
+              // Keep with next: a rubric (or a run of rubrics) must not be left alone at the
+              // bottom of a page — the first system that follows has to fit with it.
+              let followNeed = 0;
+              for (let k = i + 1; k < Math.min(containers.length, i + 8); k++) {
+                const row = (containers[k] as HTMLElement).children[0]?.querySelector('.content-row') as HTMLElement | null;
+                if (!row) continue;
+                if (row.querySelector('app-notes')) { followNeed += 55; break; }
+                if (row.classList.contains('formteil-section')) continue;
+                followNeed += pdfParatextFontSize * 1.4 + pdfParatextSpacing; // another rubric in between
+              }
+              const ownNeed = splitText.length * pdfParatextFontSize * 1.4 + pdfParatextSpacing;
+              if (cursorY + ownNeed + followNeed > maxContentY && cursorY > pdfMarginTop + 1 && ownNeed + followNeed < maxContentY - pdfMarginTop) {
+                doc.addPage();
+                cursorY = pdfMarginTop;
+              }
+              checkPageOverflow(pdfParatextFontSize * 2);
               doc.text(splitText, textX, cursorY);
               lastParatextBaselineY = cursorY + (splitText.length - 1) * pdfParatextFontSize * doc.getLineHeightFactor();
               lastParatextPage = doc.getNumberOfPages();

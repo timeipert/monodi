@@ -1,4 +1,4 @@
-import { PRINT_PDF_DEFAULTS } from '../pdf-defaults';
+import { PRINT_PRESET } from '../pdf-defaults';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.service';
 import { UserService, User } from '../user.service';
@@ -120,7 +120,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   /** Sets every print-related value to the printed-edition look (fonts, sizes, spacing, margins, colour). */
   applyPrintPreset(): void {
     if (!this.settings) return;
-    Object.assign(this.settings, PRINT_PDF_DEFAULTS);
+    Object.assign(this.settings, PRINT_PRESET);
     this.onSettingsChange();
   }
 

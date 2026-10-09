@@ -562,6 +562,8 @@ export interface ProjectSettings {
   pdfFontFamily?: string;
   /** 'print': running head + rule on every page, page number in the head; 'classic': footer "Page n of m". */
   pdfPageStyle?: 'print' | 'classic';
+  /** Frame the edition number (document field "Print Edition") in the margin next to the title. */
+  pdfShowEditionBox?: boolean;
   /** When the automatic G-clef is drawn: chant start only (print edition), every manuscript line, or every line break. */
   clefDisplayMode?: ClefDisplayMode;
   /** Colour of staff lines, notes, slurs and clef in editor, PDF and HTML export (#rrggbb). */

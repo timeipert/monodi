@@ -56,6 +56,21 @@ function pdfWords(file) {
 function verify(name, mode, file, root) {
   const problems = [];
   const { pageW, words } = pdfWords(file);
+  const pageH = +(/<page width="[\d.]+" height="([\d.]+)"/.exec(execFileSync(PDFTOTEXT, ['-bbox', file, '-']).toString())?.[1] ?? 0);
+  // page format: the 'cm' run is the printed edition's 21 x 27 cm, the others A4
+  const [wantW, wantH] = mode === 'every-line' ? [595.28, 765.35] : [595.28, 841.89];
+  if (Math.abs(pageW - wantW) > 1 || Math.abs(pageH - wantH) > 1) problems.push(`page size ${pageW}x${pageH}, expected ${wantW}x${wantH}`);
+  // nothing may run into the bottom margin, and no rubric may end a page by itself
+  const pageCountAll = Math.max(...words.map((w) => w.page)) + 1;
+  for (let pg = 0; pg < pageCountAll; pg++) {
+    const onPage = words.filter((w) => w.page === pg);
+    const low = onPage.filter((w) => w.y1 > pageH - 56.7 + 2);
+    if (low.length) problems.push(`page ${pg + 1}: "${low[0].t}" runs into the bottom margin`);
+    const lastY = Math.max(...onPage.map((w) => w.y1));
+    if (onPage.some((w) => /^RUBRIKBLOCK/.test(w.t) && Math.abs(w.y1 - lastY) < 3) && pg < pageCountAll - 1) problems.push(`page ${pg + 1} ends with a rubric`);
+  }
+  // the edition number stands framed in the left margin
+  if (!words.some((w) => w.page === 0 && w.t === '9' && w.x0 >= 56.7 && w.x0 < 70)) problems.push('edition number "9" not set in the left margin');
   const pages = +(/Pages:\s+(\d+)/.exec(execFileSync(PDFINFO, [file]).toString())?.[1] ?? 0);
   if (pages < 1) problems.push('no pages');
   const exp = expectedSyllables(root);
@@ -121,7 +136,7 @@ for (const file of files) {
       let resolveDl; const dl = new Promise((r) => (resolveDl = r));
       await capturePdfDownloads(page, (buf) => { writeFileSync(out, buf); resolveDl(); });
       await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });
-      await seedWorkspace(page, [{ id, label: 'FIX-' + id.slice(0, 6), root }], { clefDisplayMode: mode, pdfFormat: 'a4', pdfOrientation: 'portrait' });
+      await seedWorkspace(page, [{ id, label: 'FIX-' + id.slice(0, 6), root, edition: '9' }], { clefDisplayMode: mode, pdfFormat: mode === 'every-line' ? 'cm' : 'a4', pdfOrientation: 'portrait' });
       await page.goto(BASE + `/#/document/src1/${id}`, { waitUntil: 'networkidle0' });
       await page.reload({ waitUntil: 'networkidle0' }); // APIService caches sources/documents at first read
       await page.waitForSelector('app-root-section', { timeout: 20000 });

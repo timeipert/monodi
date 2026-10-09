@@ -387,6 +387,7 @@
                         <option value="a5">A5</option>
                         <option value="a4">A4</option>
                         <option value="a3">A3</option>
+                        <option value="cm">Print edition (21 × 27 cm)</option>
                         <option value="letter">Letter (US / Canada)</option>
                         <option value="legal">Legal (US / Canada)</option>
                         <option value="tabloid">Tabloid / Ledger (US)</option>
@@ -615,6 +616,12 @@
                           <button type="button" class="btn btn-outline-secondary btn-sm" (click)="settings.notationColor = '#000000'; onSettingsChange()">Black</button>
                         </div>
                         <div class="form-text small">Applies to staff lines, notes, slurs and the clef in the editor, PDF and HTML export.</div>
+                      </div>
+                      <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="pdfShowEditionBox" [ngModel]="settings.pdfShowEditionBox !== false" (ngModelChange)="settings.pdfShowEditionBox = $event; onSettingsChange()">
+                          <label class="form-check-label small" for="pdfShowEditionBox">Frame the edition number (field “Print Edition”) in the margin next to the title</label>
+                        </div>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Page style</label>

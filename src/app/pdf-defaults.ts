@@ -31,3 +31,14 @@ export const PRINT_PDF_DEFAULTS = {
   notationColor: '#333333',
   clefDisplayMode: 'document-start' as const,
 };
+
+/** Page size of the printed edition: 21 x 27 cm. */
+export const PRINT_PAGE_PT: [number, number] = [595.28, 765.35];
+
+/** Everything "Apply print-edition preset" sets: the defaults plus the page size. */
+export const PRINT_PRESET = { ...PRINT_PDF_DEFAULTS, pdfFormat: 'cm', pdfOrientation: 'portrait' };
+
+/** jsPDF `format` for the configured page format ('cm' = the printed edition's 21 x 27 cm). */
+export function pdfPageFormat(setting: string | undefined | null): string | [number, number] {
+  return setting === 'cm' ? PRINT_PAGE_PT : (setting || 'a4');
+}
