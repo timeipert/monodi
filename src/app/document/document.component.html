@@ -736,45 +736,6 @@
   </div>
 }
 
-<!-- PDF Export Modal -->
-@if (showPdfExportDialog) {
-  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content shadow">
-        <div class="modal-header bg-light border-bottom">
-          <h5 class="modal-title fw-bold">
-            <i class="bi bi-file-pdf me-2 text-danger"></i>Export to PDF
-          </h5>
-        </div>
-        <div class="modal-body p-4">
-          <p class="text-muted mb-3">Creates a PDF typeset like the printed edition. Choose what to include:</p>
-          <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" id="titlePageSwitch" [(ngModel)]="printTitlePage">
-            <label class="form-check-label fw-medium" for="titlePageSwitch">Title page</label>
-            <div class="form-text mt-1">A first page with the title, the source and the metadata. The running head and page numbering start after it.</div>
-          </div>
-          <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" id="includeMetadataSwitch" [(ngModel)]="printIncludeMetadata">
-            <label class="form-check-label fw-medium" for="includeMetadataSwitch">Include metadata as table</label>
-            <div class="form-text mt-1">With a title page the metadata stands there as a table (keys in light grey); without one it is a line below the title. To print several documents at once (with a contents table and a collected apparatus), select them in the search or open a manuscript.</div>
-          </div>
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="apparatusSwitch" [(ngModel)]="printApparatus">
-            <label class="form-check-label fw-medium" for="apparatusSwitch">Critical apparatus</label>
-            <div class="form-text mt-1">The comments, cited by the text they frame, on pages after the edition.</div>
-          </div>
-        </div>
-        <div class="modal-footer border-0 bg-light">
-          <button type="button" class="btn btn-outline-secondary px-3" (click)="showPdfExportDialog = false">Cancel</button>
-          <button type="button" class="btn btn-danger px-4" (click)="confirmPdfExport()">
-            <i class="bi bi-printer me-1"></i> Print / Save PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-}
-
 <!-- JSON Export Modal -->
 @if (showJsonExportDialog) {
   <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">

@@ -35,6 +35,14 @@
             <i class="bi bi-pencil-square"></i>
             <span>Set Column Value...</span>
           </button>
+          @if (printable) {
+            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+              (click)="onBatchPrint.emit(getSelectedArray())"
+              title="Print the selected documents as one PDF">
+              <i class="bi bi-file-pdf"></i>
+              <span>Print Selected</span>
+            </button>
+          }
           @if (canDelete) {
             <button
               class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"

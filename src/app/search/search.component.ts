@@ -1532,11 +1532,35 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.saveSearchStateToIndexedDB();
   }
 
-  /** Prints the selected documents as one PDF with contents table and collected apparatus. */
-  printSelected() {
-    if (!this.selectedDocs.length) return;
-    this.pdfDialog.open([...this.selectedDocs], this.selectedDocs.length + ' documents');
+  /** Ids of the documents a print would contain: the selection, or else all results of the current tab. */
+  private printIds(): string[] {
+    if (this.selectedDocs.length) return this.selectedDocs.map((d) => d.id);
+    const ids: string[] = [];
+    switch (this.activeTab) {
+      case 'quick': for (const r of this.filteredQuickResults) if (r.kind === 'document') ids.push(r.id); break;
+      case 'documents': for (const d of this.filteredDocumentResults) ids.push(d.id); break;
+      case 'melody': for (const r of this.filteredMelodyResults) ids.push(r.document.id); break;
+      default: break;
+    }
+    return Array.from(new Set(ids));
   }
+
+  /** Number shown on the print button: the selection if there is one, else all results. */
+  printCount(): number { return this.printIds().length; }
+
+  /** Opens the print dialog for the selection — or, with none, for all results of the tab. */
+  printResults(): void {
+    const ids = this.printIds();
+    if (!ids.length) return;
+    this.pdfDialog.open({
+      ids,
+      docs: this.selectedDocs.length ? [...this.selectedDocs] : undefined,
+      title: ids.length === 1 ? '' : (this.selectedDocs.length ? 'Selected documents' : 'Search results'),
+    });
+  }
+
+  /** Prints one result as a PDF of its own. */
+  printOne(id: string): void { this.pdfDialog.open({ ids: [id] }); }
 
   exitSynopsis() {
     this.showSynopsis = false;

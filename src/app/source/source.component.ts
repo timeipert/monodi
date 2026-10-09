@@ -126,7 +126,14 @@ export class SourceComponent implements OnInit {
     if (!this.documents.length) return;
     const docs = [...this.documents].sort((a, b) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
     const title = [this.source?.quellensigle, this.source?.bibliothekssignatur].filter(Boolean).join(' · ') || 'Manuscript';
-    this.pdfDialog.open(docs, title);
+    this.pdfDialog.open({ docs, title });
+  }
+
+  /** The documents selected in the table, as one PDF. */
+  printDocuments(selected: Document[]) {
+    if (!selected.length) return;
+    const docs = [...selected].sort((a, b) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+    this.pdfDialog.open({ docs, title: this.source?.quellensigle || '' });
   }
 
   ngOnInit() {

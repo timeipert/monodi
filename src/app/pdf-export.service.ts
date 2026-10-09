@@ -86,6 +86,12 @@ export interface PdfExportOptions {
   includeMetadata: boolean;
   /** The collected critical apparatus. */
   apparatus: boolean;
+  /** Several documents: the contents table on the title page (needs a title page). Default: yes. */
+  contents?: boolean;
+  /** Several documents: every document starts on a new page. Default: no — they run on in one flow. */
+  newPagePerDocument?: boolean;
+  /** Override of the configured page format ('a4', 'cm' = 21 x 27 cm, ...). */
+  pageFormat?: string;
   /** Title of a multi-document print (title page). */
   title?: string;
   fileName?: string;
@@ -343,7 +349,7 @@ export class PdfExportService {
     // The renderer reads these from the focus service; remember them for the editor behind us.
     const saved = { clef: this.focus.clefDisplayMode, color: this.focus.notationColor, first: this.focus.firstSyllableUuid, pad: this.focus.docPadTop };
     try {
-        const s: any = opts.settings || {};
+        const s: any = { ...(opts.settings || {}), ...(opts.pageFormat ? { pdfFormat: opts.pageFormat, pdfOrientation: 'portrait' } : {}) };
         const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait') });
         const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
         const fontFamily = embeddedFamily(fontSetting) || fontSetting;
@@ -405,7 +411,7 @@ export class PdfExportService {
 
         this.focus.clefDisplayMode = sanitizeClefDisplayMode(s.clefDisplayMode);
         this.focus.notationColor = sanitizeNotationColor(s.notationColor);
-        const useTitlePage = multi || opts.titlePage;
+        const useTitlePage = opts.titlePage;
         let titlePageCount = 0;
         if (useTitlePage) {
           titlePageCount = 1;
@@ -414,7 +420,7 @@ export class PdfExportService {
         }
         const editionPage = () => doc.getNumberOfPages() - titlePageCount;
         const docEntries: { job: number; page: number }[] = [];
-        const editionSpans: { job: number; from: number; to: number }[] = [];
+        const docStart: number[] = [];   // physical page on which each document starts
         const apparatusSpans: { job: number; from: number }[] = [];
         let apparatusStarted = false;
         let apparatusPage = 0;
@@ -432,9 +438,13 @@ export class PdfExportService {
             || buildHeadline(j.document, pdfHeadlineMetadataFields, opts.settings) || (j.document.dokumenten_id || '');
         };
         const ownerOf = (page: number): number => {
-          for (const sp of editionSpans) if (page >= sp.from && page <= sp.to) return sp.job;
+          if (apparatusSpans.length && page >= apparatusSpans[0].from) {
+            let owner = apparatusSpans[0].job;
+            for (const sp of apparatusSpans) if (sp.from <= page) owner = sp.job;
+            return owner;
+          }
           let owner = 0;
-          for (const sp of apparatusSpans) if (sp.from <= page) owner = sp.job;
+          docStart.forEach((p, i) => { if (p <= page) owner = i; });
           return owner;
         };
 
@@ -461,8 +471,48 @@ export class PdfExportService {
           if (!(useTitlePage && !multi)) {
             doc.setFontSize(titleFontSize);
             doc.setFont(fontFamily, "normal");
-            doc.setFontSize(titleFontSize);
-            doc.setFont(fontFamily, "normal");
+            if (multi) {
+              // Several documents run on in one flow. A document begins with a hairline and one
+              // heading line — framed edition number, ID in bold, incipit, genre in grey — instead
+              // of a page of its own.
+              const fsH = pdfFontSize + 1;
+              const editionNoM = (job.document.druckausgabe || '').toString().trim();
+              const idText = job.document.dokumenten_id || '';
+              const incipitText = job.document.textinitium || '';
+              const genreText = genreOf(job.document);
+              doc.setFontSize(fsH);
+              doc.setFont(fontFamily, 'bold');
+              const idW = idText ? doc.getTextWidth(idText) + 10 : 0;
+              doc.setFont(fontFamily, 'normal');
+              const incLines: string[] = doc.splitTextToSize(incipitText, Math.max(60, pageWidth - pdfMarginRight - textX - idW));
+              const lineHM = fsH * 1.25;
+              if (cursorY > pdfMarginTop + 1) {
+                doc.setDrawColor(PDF_KEY_GREY + 40, PDF_KEY_GREY + 40, PDF_KEY_GREY + 40);
+                doc.setLineWidth(0.4);
+                doc.line(textX, cursorY - fsH - 3, pageWidth - pdfMarginRight, cursorY - fsH - 3);
+              }
+              if (editionNoM && s.pdfShowEditionBox !== false) {
+                const wBox = doc.getTextWidth(editionNoM) + 7;
+                doc.setLineWidth(0.5);
+                doc.setDrawColor(0, 0, 0);
+                doc.rect(pdfMarginLeft, cursorY - fsH * 0.82 - 2, wBox, fsH + 4);
+                doc.text(editionNoM, pdfMarginLeft + 3.5, cursorY);
+              }
+              doc.setTextColor(0, 0, 0);
+              if (idText) { doc.setFont(fontFamily, 'bold'); doc.text(idText, textX, cursorY); }
+              doc.setFont(fontFamily, 'normal');
+              incLines.forEach((l, li) => doc.text(l, textX + idW, cursorY + li * lineHM));
+              const lastLine = incLines[incLines.length - 1] || '';
+              if (genreText) {
+                const lastW = doc.getTextWidth(lastLine);
+                doc.setFontSize(pdfFontSize - 1);
+                doc.setTextColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY);
+                const gx = textX + idW + lastW + 10;
+                doc.text(genreText, Math.min(gx, pageWidth - pdfMarginRight - doc.getTextWidth(genreText)), cursorY + (incLines.length - 1) * lineHM);
+                doc.setTextColor(0, 0, 0);
+              }
+              cursorY += incLines.length * lineHM + (opts.includeMetadata ? 3 : 7);
+            } else {
             // The edition number ("Print Edition" field) stands framed in the left margin, level
             // with the first title line, as the chant numbers do in the printed edition.
             const editionNo = (job.document.druckausgabe || '').toString().trim();
@@ -482,12 +532,15 @@ export class PdfExportService {
             }
             cursorY += Math.max(0, pdfTitleVerticalSpace - titleLineH);
             checkPageOverflow(0);
+            }
 
             // Metadata inline, styled & dense
             if (opts.includeMetadata) {
               doc.setFontSize(metaFontSize);
           
-              const items = inlineMetadataItems(job.document, opts.settings);
+              // several documents: ID, incipit, genre and edition number are in the heading already
+              const items = inlineMetadataItems(job.document, opts.settings)
+                .filter((it) => !multi || !['ID', 'Initium', 'Genre', 'Edition'].includes(it.label));
               let curX = textX;
               let curY = cursorY;
               const rightEdge = pageWidth - pdfMarginRight;
@@ -524,7 +577,7 @@ export class PdfExportService {
                 if (k < items.length - 1) drawWords("   •   ", 'normal');
               }
 
-              cursorY = curY + pdfMetadataVerticalSpace;
+              cursorY = curY + (multi ? 9 : pdfMetadataVerticalSpace);
               checkPageOverflow(0);
             }
 
@@ -1223,11 +1276,18 @@ export class PdfExportService {
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
           await this.host.render(jobs[ji], opts.settings);
-          if (ji > 0) { doc.addPage(); cursorY = pdfMarginTop; }
+          if (ji > 0) {
+            if (opts.newPagePerDocument) { doc.addPage(); cursorY = pdfMarginTop; }
+            else {
+              // the next document follows with a gap; heading, metadata and the first system
+              // must fit with it, otherwise it starts the next page
+              cursorY += pdfVerticalSpace * 2 + 6;
+              if (cursorY + 120 > maxContentY) { doc.addPage(); cursorY = pdfMarginTop; }
+            }
+          }
           docEntries.push({ job: ji, page: editionPage() });
-          const from = doc.getNumberOfPages();
+          docStart.push(doc.getNumberOfPages());
           await layoutDocument(jobs[ji], ji);
-          editionSpans.push({ job: ji, from, to: doc.getNumberOfPages() });
         }
         if (opts.apparatus) {
           for (let ji = 0; ji < jobs.length; ji++) {
@@ -1301,7 +1361,7 @@ export class PdfExportService {
             }
           }
 
-          if (multi) {
+          if (multi && opts.contents !== false) {
             // Contents: one row per document — ID, incipit, genre (light grey) — with dot leaders
             // and the page the document starts on; the apparatus is listed after them.
             type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean };

@@ -258,6 +258,8 @@
               storageKey="source_documents_table"
               (onRowClick)="goToDocument($event)"
               (onDelete)="deleteDocument($event)"
+              [printable]="true"
+              (onBatchPrint)="printDocuments($event)"
               (onBatchDelete)="onBatchDeleteDocuments($event)"
               (onBatchEdit)="onBatchEditDocuments($event)">
             </app-smart-table>

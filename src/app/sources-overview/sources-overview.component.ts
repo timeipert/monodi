@@ -1,4 +1,5 @@
 import { FocusService } from '../focus.service';
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { sanitizeNotationColor } from '../notation-color';
 import { sanitizeClefDisplayMode } from '../clef-policy';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, inject } from '@angular/core';
@@ -62,6 +63,7 @@ const STORAGE_KEY = 'monodi_source_cols';
 })
 export class SourcesOverviewComponent implements OnInit, OnDestroy {
   private readonly focusSvc = inject(FocusService);
+  private readonly pdfDialog = inject(PdfDialogLauncher);
   subs: Subscription[] = [];
   sources: Source[] = [];
   user: User | null = null;
@@ -71,7 +73,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   cols: SourceColDef[] = [];
 
   showExportDialog = false;
-  exportMode: 'zip' | 'html' = 'zip';
+  exportMode: 'zip' | 'html' | 'pdf' = 'zip';
   isExporting = false;
   exportStatusMessage = '';
   allDocuments: any[] = [];
@@ -208,6 +210,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         break;
       case 'export-html':
         this.openExportDialog('html');
+        break;
+      case 'export-pdf':
+        this.openExportDialog('pdf');
         break;
       case 'export-csv':
         this.showCsvExportDialog = true;
@@ -1055,7 +1060,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
   }
 
-  async openExportDialog(mode: 'zip' | 'html') {
+  async openExportDialog(mode: 'zip' | 'html' | 'pdf') {
     this.exportMode = mode;
     this.selectedSourcesForExport = [];
     this.selectedDocsForExport = [];
@@ -1103,6 +1108,12 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     try {
       if (this.exportMode === 'zip') {
         await this.generateZipWorkspace();
+      } else if (this.exportMode === 'pdf') {
+        // hand the selection over to the print dialog (options, order, page format)
+        const docs = [...this.selectedDocsForExport]
+          .sort((a: any, b: any) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+        this.closeExportDialog();
+        this.pdfDialog.open({ docs, title: this.selectedSourcesForExport.length === 1 ? (this.selectedSourcesForExport[0].quellensigle || '') : docs.length + ' documents' });
       } else {
         await this.generateHtmlEdition();
       }

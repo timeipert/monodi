@@ -188,9 +188,6 @@
                             }
                             <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
                           </button>
-                          <button class="btn btn-sm btn-outline-secondary" (click)="printSelected()" title="Print the selected documents as one PDF (contents table, collected apparatus)">
-                            <i class="bi bi-file-pdf me-1"></i>Print PDF ({{selectedDocs.length}})
-                          </button>
                         }
                         @if (selectedDocs.length >= 2) {
                           <button class="btn btn-sm btn-primary" (click)="enterSynopsis()">
@@ -198,6 +195,12 @@
                               <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                             }
                             Open Synopsis ({{selectedDocs.length}})
+                          </button>
+                        }
+                        @if (printCount() > 0) {
+                          <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
+                            title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
+                            <i class="bi bi-file-pdf me-1"></i>Print PDF ({{printCount()}})
                           </button>
                         }
                         <span class="badge bg-primary-subtle text-primary">{{countQuickResults('source')}} source(s)</span>
@@ -229,6 +232,7 @@
                                 <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
                                   [checked]="isDocSelected(r.id)"
                                   (change)="toggleQuickResultSelection(r, $event)" />
+                                <button type="button" class="btn btn-link p-0 ms-2 text-secondary" title="Print this document as PDF" (click)="printOne(r.id)"><i class="bi bi-file-pdf"></i></button>
                               </div>
                             }
                             <!-- Spacer for Sources to align list elements -->
@@ -626,9 +630,6 @@
                             }
                             <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
                           </button>
-                          <button class="btn btn-sm btn-outline-secondary" (click)="printSelected()" title="Print the selected documents as one PDF (contents table, collected apparatus)">
-                            <i class="bi bi-file-pdf me-1"></i>Print PDF ({{selectedDocs.length}})
-                          </button>
                         }
                         @if (selectedDocs.length >= 2) {
                           <button class="btn btn-sm btn-primary" (click)="enterSynopsis()">
@@ -636,6 +637,12 @@
                               <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                             }
                             Open Synopsis ({{selectedDocs.length}})
+                          </button>
+                        }
+                        @if (printCount() > 0) {
+                          <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
+                            title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
+                            <i class="bi bi-file-pdf me-1"></i>Print PDF ({{printCount()}})
                           </button>
                         }
                         @if (filteredDocumentResults.length > 0) {
@@ -709,6 +716,7 @@
                                   <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
                                     [checked]="isDocSelected(d.id)"
                                     (change)="toggleDocSelection(d, $event)" />
+                                  <button type="button" class="btn btn-link p-0 ms-1 text-secondary" title="Print this document as PDF" (click)="printOne(d.id)"><i class="bi bi-file-pdf"></i></button>
                                 </td>
                                 @for (col of visibleDocCols; track col; let first = $first) {
                                   <td
@@ -1104,9 +1112,6 @@
                                     }
                                     <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
                                   </button>
-                                  <button class="btn btn-sm btn-outline-secondary" (click)="printSelected()" title="Print the selected documents as one PDF (contents table, collected apparatus)">
-                                    <i class="bi bi-file-pdf me-1"></i>Print PDF ({{selectedDocs.length}})
-                                  </button>
                                 }
                                 @if (selectedDocs.length >= 2) {
                                   <button class="btn btn-sm btn-primary" (click)="enterSynopsis()">
@@ -1114,6 +1119,12 @@
                                       <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                                     }
                                     Open Synopsis ({{selectedDocs.length}})
+                                  </button>
+                                }
+                                @if (printCount() > 0) {
+                                  <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
+                                    title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
+                                    <i class="bi bi-file-pdf me-1"></i>Print PDF ({{printCount()}})
                                   </button>
                                 }
                                 <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
@@ -1161,6 +1172,7 @@
                                             <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
                                               [checked]="isDocSelected(r.document.id)"
                                               (change)="toggleDocSelection(r.document, $event)" />
+                                            <button type="button" class="btn btn-link p-0 ms-1 text-secondary" title="Print this document as PDF" (click)="printOne(r.document.id)"><i class="bi bi-file-pdf"></i></button>
                                           </td>
                                           <!-- Source & Document info -->
                                           <td>
@@ -1395,6 +1407,10 @@
                         <i class="bi bi-file-earmark-pdf me-1"></i>
                         }{{ synopsisPdfExporting ? 'Generating…' : 'Export PDF' }}
                       </button>
+                    <button class="btn btn-outline-secondary btn-sm ms-2" (click)="printResults()"
+                      title="Print the compared documents as one edition (contents table, collected apparatus)">
+                      <i class="bi bi-journal-text me-1"></i>Print documents
+                    </button>
                     </div>
                   </div>
                   <!-- Classic masthead (screen + PDF page 1) -->

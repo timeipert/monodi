@@ -52,6 +52,13 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
   @Output()
   onBatchEdit = new EventEmitter<{ items: T[]; key: string; value: string }>();
 
+  /** Shows "Print Selected" in the bulk toolbar; the selected rows come out of `onBatchPrint`. */
+  @Input()
+  printable = false;
+
+  @Output()
+  onBatchPrint = new EventEmitter<T[]>();
+
   selectedObjects = new Set<T>();
   lastSelectedIndex = -1;
 

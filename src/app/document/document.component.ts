@@ -39,6 +39,7 @@ import { minNoteYOf, requiredPadTop } from '../notes/Drawables';
 import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { PdfExportService, PdfDocJob } from '../pdf-export.service';
 import { PdfHostLauncher } from '../pdf-render-host.component';
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
@@ -67,6 +68,7 @@ export class DocumentComponent implements OnInit {
   getCategoryDetails = getCategoryDetails;
   private pdfExport = inject(PdfExportService);
   private pdfHost = inject(PdfHostLauncher);
+  private pdfDialog = inject(PdfDialogLauncher);
   getInterventionLabel = getInterventionLabel;
   getInterventionIcon(key: string): string {
     const found = INTERVENTIONS.find(i => i.key === key);
@@ -900,16 +902,11 @@ export class DocumentComponent implements OnInit {
     event.preventDefault();
   }
 
+  /** Opens the print dialog for this document (as it is now, unsaved changes included). */
   openPdfExport() {
-    try {
-      const o = JSON.parse(localStorage.getItem('monodi_pdf_export_options') || 'null');
-      if (o) {
-        this.printTitlePage = o.titlePage ?? this.printTitlePage;
-        this.printIncludeMetadata = o.metadata ?? this.printIncludeMetadata;
-        this.printApparatus = o.apparatus ?? this.printApparatus;
-      }
-    } catch { /* no stored choice */ }
-    this.showPdfExportDialog = true;
+    if (!this.document || !this.cont) return;
+    const job: PdfDocJob = { document: this.document, cont: this.cont, source: this.sourceData, sigle: this.sourceSigle || '' };
+    this.pdfDialog.open({ jobs: [job] });
   }
 
   private rememberPdfExportOptions(): void {

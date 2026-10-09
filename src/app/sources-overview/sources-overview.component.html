@@ -250,8 +250,8 @@
       <div class="modal-content shadow-lg">
         <div class="modal-header bg-light border-0 px-4 pt-4 pb-2">
           <h5 class="modal-title fw-bold text-dark">
-            <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : 'bi-globe text-warning'"></i>
-            {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : 'Export Static HTML Edition' }}
+            <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : exportMode === 'pdf' ? 'bi-file-pdf text-danger' : 'bi-globe text-warning'"></i>
+            {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : exportMode === 'pdf' ? 'Print documents as PDF' : 'Export Static HTML Edition' }}
           </h5>
           <button type="button" class="btn-close" (click)="closeExportDialog()" [disabled]="isExporting"></button>
         </div>
@@ -309,9 +309,9 @@
             @if (isExporting) {
               <span class="spinner-border spinner-border-sm me-2"></span>
             }
-            {{ exportMode === 'zip' ? 'Generate & Download ZIP' : 'Generate & Download HTML' }}
+            {{ exportMode === 'zip' ? 'Generate & Download ZIP' : exportMode === 'pdf' ? 'Continue to print options' : 'Generate & Download HTML' }}
             @if (!isExporting) {
-              <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : 'bi-globe ms-1'"></i>
+              <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : exportMode === 'pdf' ? 'bi-file-pdf ms-1' : 'bi-globe ms-1'"></i>
             }
           </button>
         </div>

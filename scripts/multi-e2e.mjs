@@ -37,7 +37,8 @@ function words(file) {
   });
   return { pageW, list, pages: Math.max(...list.map((w) => w.page)) + 1 };
 }
-const lineOf = (list, w) => list.filter((x) => x.page === w.page && Math.abs(x.y1 - w.y1) < 2.5).sort((a, b) => a.x0 - b.x0);
+// same line: the centres of the boxes agree (bold and regular text have different box heights)
+const lineOf = (list, w) => list.filter((x) => x.page === w.page && Math.abs((x.y0 + x.y1) / 2 - (w.y0 + w.y1) / 2) < 4).sort((a, b) => a.x0 - b.x0);
 
 const watchdog = setTimeout(() => { console.log('FAIL  multi-document print: timed out'); process.exit(2); }, 240000);
 const step = (m) => console.log('  ..', m);
@@ -80,13 +81,19 @@ try {
   let titlePages = 0; while (titlePages < pages && !headNo(titlePages)) titlePages++;
   if (titlePages < 1) problems.push('no title page');
   for (let pg = titlePages; pg < pages; pg++) if (!headNo(pg) || headNo(pg).t !== String(pg - titlePages + 1)) problems.push(`page ${pg + 1}: head number ${headNo(pg)?.t}`);
+  // documents run on in one flow: each begins with a heading line (ID in bold, incipit, genre)
+  // on exactly the page the contents name — and not every one on a page of its own
+  const startPages = [];
   for (const r of rows.filter(Boolean)) {
-    // the incipit appears as the document's heading on exactly the page the contents name
+    const [idA, idB] = r.d.label.split(' ');
     const first = r.d.incipit.split(' ')[0];
-    const heading = list.find((w) => w.page >= titlePages && w.t === first && w.y1 < 140 && w.x0 < 130);
-    if (!heading) { problems.push(`heading of ${r.d.label} not found`); continue; }
-    if (heading.page - titlePages + 1 !== r.pageNo) problems.push(`${r.d.label}: contents says page ${r.pageNo}, heading is on ${heading.page - titlePages + 1}`);
+    const heading = list.find((w) => w.page >= titlePages && w.t === idA && lineOf(list, w).some((x) => x.t === idB) && lineOf(list, w).some((x) => x.t === first));
+    if (!heading) { problems.push(`heading line of ${r.d.label} not found`); continue; }
+    const logical = heading.page - titlePages + 1;
+    startPages.push(logical);
+    if (logical !== r.pageNo) problems.push(`${r.d.label}: contents says page ${r.pageNo}, heading is on ${logical}`);
   }
+  if (new Set(startPages).size === startPages.length && startPages.length === docs.length) problems.push('every document starts on a page of its own; they should run on in one flow');
   // --- collected apparatus, divided by document (only docs that have comments)
   if (!list.some((w) => w.t === 'APPARATUS')) problems.push('no CRITICAL APPARATUS heading');
   const apparatusRow = list.find((w) => w.page === 0 && w.t === 'Apparatus' && lineOf(list, w).some((x) => x.t === 'Critical'));
