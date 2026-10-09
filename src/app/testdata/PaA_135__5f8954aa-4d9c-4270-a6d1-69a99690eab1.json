@@ -1,0 +1,1627 @@
+{
+  "comments" : [
+  ],
+  "documentType" : "Level1",
+  "uuid" : "a24f3cd6-25bc-40ca-8113-a46fec2da426",
+  "kind" : "RootContainer",
+  "children" : [
+    {
+      "uuid" : "5cff3e23-c72b-4adc-ae1f-d9dfaa2814e8",
+      "kind" : "FormteilContainer",
+      "data" : [
+        {
+          "name" : "Signatur",
+          "data" : "1"
+        },
+        {
+          "name" : "Status",
+          "data" : "Einsatzmarke"
+        }
+      ],
+      "children" : [
+        {
+          "uuid" : "55c8c0a5-6a5f-405e-8948-9256470d0477",
+          "kind" : "ZeileContainer",
+          "children" : [
+            {
+              "uuid" : "e947d70a-1d7a-42c7-9305-fb11cba4a59c",
+              "kind" : "Syllable",
+              "text" : "A-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "570fcad1-c535-48f3-af62-63d9f232567b",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : true
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "1bb070e9-36be-464c-82f9-db16505f047b",
+              "kind" : "Syllable",
+              "text" : "gnus",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "72a19865-7112-477e-8c79-d747e6235430",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "38ba8e4e-5085-4dbc-af99-b98e624b72f2",
+              "kind" : "Syllable",
+              "text" : "de-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "109556a3-10dc-4c43-af36-c20eb67be443",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          },
+                          {
+                            "uuid" : "dfb6ee05-208a-46d6-a945-8cd95ab66225",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "f44d1c39-595b-4660-85e1-5ff99a257772",
+              "kind" : "Syllable",
+              "text" : "i",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "575b8a6f-5296-407e-98a7-58609ec39ec7",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "01bde315-ee1d-4f83-9e14-9315e58d5365",
+              "kind" : "Syllable",
+              "text" : "qui",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "ea854831-05c1-4f89-aa29-29e250c089fa",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "8e70736a-8e7a-43cb-882f-922d5428269b",
+              "kind" : "Syllable",
+              "text" : "tol-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "f6a22687-83e5-4675-bb5c-2105b70919e4",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "e4703ef9-3225-4481-94a8-ca6b2bf03e9f",
+              "kind" : "Syllable",
+              "text" : "lis",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "98afadb7-4000-4ea3-87af-80fb7b2156c8",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "11e7af8f-9837-4299-85dc-b50e9550745e",
+              "kind" : "Syllable",
+              "text" : "pec-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "1914576c-f585-4958-8c4b-dfc9d4a84a91",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "ddf0bd4a-baec-4290-8d9a-19fced532593",
+              "kind" : "Syllable",
+              "text" : "ca-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "46092f82-94fb-42d0-bdf3-9f2e6a96e922",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          },
+                          {
+                            "uuid" : "37a03920-3f80-4882-9d2e-f0c7c615e4d1",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "5f1a10f7-2584-422e-a835-f91b14d6a674",
+              "kind" : "Syllable",
+              "text" : "ta",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "3a6d5760-cf97-4b01-a61f-d6c48df50608",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "7c8c246a-b903-4682-bfce-d01107a9b564",
+              "kind" : "Syllable",
+              "text" : "mun-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "281414fc-718f-463f-b1f3-384c78134c56",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "d7f9c5ac-4fbd-46a5-af0a-be5199f1451b",
+              "kind" : "Syllable",
+              "text" : "di",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "d6df7afd-90cd-4a25-92d0-248cf7d18ce1",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uuid" : "306de166-1925-4cc0-b553-ffad5bf58fd7",
+          "kind" : "ZeileContainer",
+          "children" : [
+            {
+              "uuid" : "aedcc6e1-60f8-44f5-8121-fa1b8ab1bae7",
+              "kind" : "Syllable",
+              "text" : "mi-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "c9dd6696-e4e0-42de-816a-9184700dc157",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "f3ce6d66-d04e-4bc4-87ce-7614ca2fff6d",
+              "kind" : "LineChange",
+              "focus" : false
+            },
+            {
+              "uuid" : "6e2d461d-ea38-40ee-83ff-68dee1b4c0bb",
+              "kind" : "Syllable",
+              "text" : "se-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "4377ca7e-20ee-451c-ac22-357b6a7bad24",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "be5a351c-f200-47bb-81ff-eb3417e56597",
+              "kind" : "Syllable",
+              "text" : "re-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "6d952249-8c8f-481f-80b2-f90f7c17f171",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "24e08a0f-c313-4e8c-aff1-6817f41a1d3b",
+              "kind" : "Syllable",
+              "text" : "re",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "4a8be5fc-a80d-4797-a83e-7006c4e5e218",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "fc74b3d4-7df5-4127-b272-aeac7c5a4829",
+              "kind" : "Syllable",
+              "text" : "no-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "a106dc19-8f3b-4638-a07b-a96ca1ba3a85",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "ee83a3bd-2f29-43b3-81b1-42a58ef4744c",
+              "kind" : "Syllable",
+              "text" : "bis",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "530f59e3-03e3-4aad-8a39-d04ccb22ed78",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid" : "82474105-ff3c-4145-bba5-3d28cc9e7e16",
+      "kind" : "FormteilContainer",
+      "data" : [
+        {
+          "name" : "Signatur",
+          "data" : "2"
+        },
+        {
+          "name" : "Status",
+          "data" : "Einsatzmarke"
+        }
+      ],
+      "children" : [
+        {
+          "uuid" : "1310bdd8-7e7f-44bc-be2d-674b26a60888",
+          "kind" : "ZeileContainer",
+          "children" : [
+            {
+              "uuid" : "8cbc8ba1-28b4-461d-99fc-b1d5da3ba568",
+              "kind" : "Syllable",
+              "text" : "A-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "7d98c8fc-606e-4570-9c2e-1644cc0f3410",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "27df9aba-43fa-49cc-8976-d16041cab264",
+              "kind" : "Syllable",
+              "text" : "gnus",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "b9d2876f-a294-470a-aa7d-f530c4d94f1c",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "aaf55156-d775-47ad-a080-529ff6a115b6",
+              "kind" : "Syllable",
+              "text" : "de-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "4a0d585c-9c0e-4da9-8bec-9ab641210602",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          },
+                          {
+                            "uuid" : "889125d1-69b2-475c-8f27-d2276c180750",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "d26a8ae9-6812-4be7-826b-e3596c7776a0",
+              "kind" : "Syllable",
+              "text" : "i",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "71ad5b1a-f854-4a45-8ede-bc1edd5a3328",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "c82672d8-21ba-4ed3-a4fe-10931e0018b4",
+              "kind" : "Syllable",
+              "text" : "qui",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "b75b7566-7762-4dcc-8fd4-c7097c747cd4",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "91d8dc25-695e-4584-9948-bdbebbe32865",
+              "kind" : "Syllable",
+              "text" : "tol-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "18611914-26c0-4da9-8d49-3f607d0e098b",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "8fa13bf6-43ea-4b3e-800b-32917f372903",
+              "kind" : "Syllable",
+              "text" : "lis",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "80474cb3-4602-4175-934f-2eafaed4aead",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "c9c422b8-dce1-4ffc-ad10-a969ad3ae8f6",
+              "kind" : "Syllable",
+              "text" : "pec-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "5afbda79-fb26-49e6-80d7-37dd7f975131",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "4c6f4274-58ac-450a-a629-02d72bf4e881",
+              "kind" : "LineChange",
+              "focus" : false
+            },
+            {
+              "uuid" : "bfe53918-d638-4cc5-a33d-a5fd017054b4",
+              "kind" : "Syllable",
+              "text" : "ca-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "27067152-c225-49e0-915a-bb4d0e70fcdc",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          },
+                          {
+                            "uuid" : "03f87fb8-7b77-4767-8ae2-14950d969b85",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "5c0732ef-8237-44cc-b278-cf442a20aedf",
+              "kind" : "Syllable",
+              "text" : "ta",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "d0b1ac4e-b145-4b5d-b510-9f94892579c8",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "022407fb-edf6-4b66-afee-cb968e4b641a",
+              "kind" : "Syllable",
+              "text" : "mun-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "62c2b614-92c0-4acc-bb77-125974be2948",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "be91867c-4e5a-4072-87e2-e18cc0ec2b0e",
+              "kind" : "Syllable",
+              "text" : "di",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "cf5c706c-7339-4331-b0db-3eea7ca095de",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uuid" : "54fb9ab3-eaf6-4689-ba2c-a0165bea3ae5",
+          "kind" : "ZeileContainer",
+          "children" : [
+            {
+              "uuid" : "5f614fc1-6846-4a7d-9a60-141f1c23ea0a",
+              "kind" : "Syllable",
+              "text" : "mi-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "88d16d4b-cd16-4e64-b39d-6ee7b6c12c59",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "71337849-4526-4f45-928f-59ec86980c31",
+              "kind" : "Syllable",
+              "text" : "se-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "942a2a67-8bda-4f9f-afdf-795760883fc9",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "56560a26-2ae1-47fa-8075-f02374ab20ec",
+              "kind" : "Syllable",
+              "text" : "re-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "ed0d95c1-0093-4313-b174-f60511737d30",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "a7883744-3ef4-4218-906c-39d9b7a7b616",
+              "kind" : "Syllable",
+              "text" : "re",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "0399afef-e5aa-47a0-a0fe-39d70a7c6f2e",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "eb488504-974b-454f-8a41-05a11ff52678",
+              "kind" : "Syllable",
+              "text" : "no-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "86de87b0-bb5f-4396-a3e7-4e8a08929f1d",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "309eb3f7-945e-4697-b062-c1974a0dea82",
+              "kind" : "Syllable",
+              "text" : "bis",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "31b31f97-4dbf-4f8b-b402-63ad17d2e0c5",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "uuid" : "da52b42d-2bcc-458e-aeb7-b00c79593184",
+      "kind" : "FormteilContainer",
+      "data" : [
+        {
+          "name" : "Signatur",
+          "data" : "3"
+        },
+        {
+          "name" : "Status",
+          "data" : "Einsatzmarke"
+        }
+      ],
+      "children" : [
+        {
+          "uuid" : "2ab1d59b-149d-4f81-b551-e48686ad1b06",
+          "kind" : "ZeileContainer",
+          "children" : [
+            {
+              "uuid" : "e4fb5366-f8b9-4817-be77-978ba61f02bf",
+              "kind" : "Syllable",
+              "text" : "A-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "220068d8-8615-4112-b7ec-55c573e30f21",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "f3756832-4674-4a0f-b087-890d2a931a90",
+              "kind" : "Syllable",
+              "text" : "gnus",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "98de47a8-98ef-4479-9069-12ac25d41295",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "a574a47f-3566-4362-97d4-dd640e569f39",
+              "kind" : "LineChange",
+              "focus" : false
+            },
+            {
+              "uuid" : "7468c5ee-2dbb-460e-94f9-1037c58e43c7",
+              "kind" : "Syllable",
+              "text" : "de-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "8d868181-d0cf-4018-b8cd-5debb5158f82",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          },
+                          {
+                            "uuid" : "69046982-39bd-4791-9e09-77d1bc04f79f",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "c15f868f-050d-402f-8c9d-8a38c446c3bd",
+              "kind" : "Syllable",
+              "text" : "i",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "0a366d1b-94a5-45f4-96d6-7dcf36b4cf0e",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "3f19e3f2-5eec-465f-8617-2f87fe1e03b9",
+              "kind" : "Syllable",
+              "text" : "qui",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "0ba32dfc-0b4a-4455-8cf5-48b87362f043",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "bc52092b-39d2-463c-b889-734c3da155b1",
+              "kind" : "Syllable",
+              "text" : "tol-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "545b19b1-3d94-40c7-bbcb-9fb82fde5fc3",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "00698371-d2b2-4e19-9049-314351513417",
+              "kind" : "Syllable",
+              "text" : "lis",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "2098faed-e7e9-4aaa-8960-e7b84331357e",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "6fcf6866-757c-4349-ba6b-a01edeccdb45",
+              "kind" : "Syllable",
+              "text" : "pec-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "e7d9c020-f477-4302-a978-5f07bbc473d1",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "56da8ca9-90c1-4ec9-97da-e92fc74b54e2",
+              "kind" : "Syllable",
+              "text" : "ca-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "0e17288a-43fa-4cbf-8123-3b0beddbe680",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          },
+                          {
+                            "uuid" : "13535927-80b7-4412-9b58-7a58d3f8d86a",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "8e18a565-952a-4130-975b-2a83ff33e2a9",
+              "kind" : "Syllable",
+              "text" : "ta",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "3e837ed7-eb66-4fde-830e-483fcb275714",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "c0df318c-4007-46a5-999a-a2887c9a831d",
+              "kind" : "Syllable",
+              "text" : "mun-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "78a04711-3b12-4b1c-940b-b8ea98a6db7d",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "a524412f-49c9-480b-bd46-e4e5a18d46ef",
+              "kind" : "Syllable",
+              "text" : "di",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "4e429161-0789-4216-82d4-afe9dcb94edf",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uuid" : "3340f2c6-e6cf-4e65-a02f-9ab285d6a25f",
+          "kind" : "ZeileContainer",
+          "children" : [
+            {
+              "uuid" : "04121773-74fb-4427-b788-269a77333074",
+              "kind" : "Syllable",
+              "text" : "do-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "e2365199-de93-416e-b5ec-ed8ba9e9addf",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "398d7075-384d-4763-9233-186cca2990b5",
+              "kind" : "Syllable",
+              "text" : "na",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "6eff95a4-1ee5-48b7-92de-f5b1516502ca",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "476fb30d-d252-4acc-8daa-0be2e66ab1ee",
+              "kind" : "LineChange",
+              "focus" : false
+            },
+            {
+              "uuid" : "2b9bc464-2190-479a-9458-0774e94bf4be",
+              "kind" : "Syllable",
+              "text" : "no-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "ddbe0d4e-efef-496d-a8aa-e86369e95b63",
+                            "noteType" : "Normal",
+                            "base" : "A",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "af5e07cb-6cc5-4dc1-9de5-e44dd2b290b8",
+              "kind" : "Syllable",
+              "text" : "bis",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "1e59599d-a19f-41c4-b455-c20064474dad",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "9d6f9828-f626-41c4-aa2e-71a6a16a32d5",
+              "kind" : "Syllable",
+              "text" : "pa-",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "4b864601-c04a-4272-8812-9daad515d376",
+                            "noteType" : "Normal",
+                            "base" : "G",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          },
+                          {
+                            "uuid" : "4b8c90cc-4612-4d83-b429-ac5d2a3ec0df",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "uuid" : "f37ea62a-f709-42f0-b0a9-cb7bc1810ab2",
+              "kind" : "Syllable",
+              "text" : "cem",
+              "endsWord" : true,
+              "syllableType" : "Normal",
+              "notes" : {
+                "spaced" : [
+                  {
+                    "nonSpaced" : [
+                      {
+                        "grouped" : [
+                          {
+                            "uuid" : "60a00e25-990d-4211-bbe8-66a76c63ea91",
+                            "noteType" : "Normal",
+                            "base" : "F",
+                            "octave" : 4,
+                            "liquescent" : false,
+                            "focus" : false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
