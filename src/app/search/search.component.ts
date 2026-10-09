@@ -1,4 +1,5 @@
 import { FocusService } from '../focus.service';
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { sanitizeNotationColor } from '../notation-color';
 import { sanitizeClefDisplayMode } from '../clef-policy';
 import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef, inject } from '@angular/core';
@@ -411,6 +412,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   selectedDocs: Document[] = [];
   showSynopsis = false;
   private readonly focusSvc = inject(FocusService);
+  private readonly pdfDialog = inject(PdfDialogLauncher);
   synopsisLoading = false;
   synopsisPdfExporting = false;
 
@@ -1528,6 +1530,12 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.activeTab = tab;
     this.updateUrl();
     this.saveSearchStateToIndexedDB();
+  }
+
+  /** Prints the selected documents as one PDF with contents table and collected apparatus. */
+  printSelected() {
+    if (!this.selectedDocs.length) return;
+    this.pdfDialog.open([...this.selectedDocs], this.selectedDocs.length + ' documents');
   }
 
   exitSynopsis() {

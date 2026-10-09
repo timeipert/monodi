@@ -19,6 +19,12 @@ const outDir = join(here, '../scratch/compare');
 mkdirSync(outDir, { recursive: true });
 
 const MODES = ['document-start', 'every-line', 'every-break'];
+// export options per mode: A4 without title page / 21x27 with title page / A4 with title page
+const OPTIONS = {
+  'document-start': { titlePage: false },
+  'every-line': { titlePage: true },
+  'every-break': { titlePage: true },
+};
 const files = fixtureDirs.flatMap((d) => readdirSync(d).filter((f) => f.endsWith('.json') && f !== 'manifest.json' && f.includes(filter)).map((f) => join(d, f)));
 
 
@@ -53,7 +59,7 @@ function pdfWords(file) {
   return { pageW, words };
 }
 
-function verify(name, mode, file, root) {
+function verify(name, mode, file, root, stats = {}) {
   const problems = [];
   const { pageW, words } = pdfWords(file);
   const pageH = +(/<page width="[\d.]+" height="([\d.]+)"/.exec(execFileSync(PDFTOTEXT, ['-bbox', file, '-']).toString())?.[1] ?? 0);
@@ -67,10 +73,12 @@ function verify(name, mode, file, root) {
     const low = onPage.filter((w) => w.y1 > pageH - 56.7 + 2);
     if (low.length) problems.push(`page ${pg + 1}: "${low[0].t}" runs into the bottom margin`);
     const lastY = Math.max(...onPage.map((w) => w.y1));
-    if (onPage.some((w) => /^RUBRIKBLOCK/.test(w.t) && Math.abs(w.y1 - lastY) < 3) && pg < pageCountAll - 1) problems.push(`page ${pg + 1} ends with a rubric`);
+    const isTitlePage = OPTIONS[mode].titlePage && !words.some((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x1 > pageW - 56.7 - 3);
+    if (!isTitlePage && onPage.some((w) => /^RUBRIKBLOCK/.test(w.t) && Math.abs(w.y1 - lastY) < 3) && pg < pageCountAll - 1) problems.push(`page ${pg + 1} ends with a rubric`);
   }
   // the edition number stands framed in the left margin
-  if (!words.some((w) => w.page === 0 && w.t === '9' && w.x0 >= 56.7 && w.x0 < 70)) problems.push('edition number "9" not set in the left margin');
+  // (with a title page the edition number is a row of the metadata table instead)
+  if (!OPTIONS[mode].titlePage && !words.some((w) => w.page === 0 && w.t === '9' && w.x0 >= 56.7 && w.x0 < 70)) problems.push('edition number "9" not set in the left margin');
   const pages = +(/Pages:\s+(\d+)/.exec(execFileSync(PDFINFO, [file]).toString())?.[1] ?? 0);
   if (pages < 1) problems.push('no pages');
   const exp = expectedSyllables(root);
@@ -109,12 +117,20 @@ function verify(name, mode, file, root) {
     const last = f.split(/\s+/).pop();
     if (!words.some((w) => w.t === last || f.includes(w.t) && w.t.length > 2)) problems.push(`folio label "${f}" missing`);
   }
-  // running head on every page: the page number sits flush right at the top
+  // running head on every edition page (page number flush right at the top, numbered from 1);
+  // title page(s) carry neither head nor number
   const pageCount = Math.max(...words.map((w) => w.page)) + 1;
-  for (let pg = 0; pg < pageCount; pg++) {
-    const head = words.find((w) => w.page === pg && w.t === String(pg + 1) && w.y1 < 70 && w.x1 > pageW - 56.7 - 3);
-    if (!head) problems.push(`page ${pg + 1}: no page number in the running head`);
+  const headNo = (pg) => words.find((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x1 > pageW - 56.7 - 3);
+  let titlePages = 0;
+  while (titlePages < pageCount && !headNo(titlePages)) titlePages++;
+  const wantTitle = OPTIONS[mode].titlePage;
+  if (wantTitle ? titlePages < 1 : titlePages !== 0) problems.push(`${titlePages} title page(s), expected ${wantTitle ? 'at least 1' : 'none'}`);
+  for (let pg = titlePages; pg < pageCount; pg++) {
+    const h = headNo(pg);
+    if (!h || h.t !== String(pg - titlePages + 1)) problems.push(`page ${pg + 1}: running head shows "${h?.t}", expected ${pg - titlePages + 1}`);
   }
+  // a single document has no contents table (that belongs to printing several documents)
+  if (words.some((w) => w.page < titlePages && w.t === 'CONTENTS')) problems.push('a single document must not get a contents table');
   const clefs = words.filter((w) => w.t === 'G').length;
   return { problems, clefs, diastematic: exp.diastematic };
 }
@@ -140,18 +156,20 @@ for (const file of files) {
       await page.goto(BASE + `/#/document/src1/${id}`, { waitUntil: 'networkidle0' });
       await page.reload({ waitUntil: 'networkidle0' }); // APIService caches sources/documents at first read
       await page.waitForSelector('app-root-section', { timeout: 20000 });
-      await page.evaluate(async () => {
+      await page.evaluate(async (opts) => {
         const el = document.querySelector('app-document');
         const cmp = window.ng.getComponent(el);
         // A real click runs inside Angular's zone; from here we must flush change
         // detection ourselves so the read-only (print) rendering is in the DOM.
+        cmp.printTitlePage = opts.titlePage;
+        cmp.printIncludeMetadata = true; cmp.printApparatus = true;
         const done = cmp.confirmPdfExport();
         window.ng.applyChanges(cmp);
         await done;
-      });
+      }, OPTIONS[mode]);
       await Promise.race([dl, new Promise((_, rej) => setTimeout(() => rej(new Error('no download')), 60000))]);
       const stats = await page.evaluate(() => window.ng.getComponent(document.querySelector('app-document')).lastPdfStats);
-      const v = verify(name, mode, out, root);
+      const v = verify(name, mode, out, root, stats);
       v.clefs = stats.clefs; // the clef is a vector path now, so it is counted by the exporter
       (clefCounts[name] ||= {})[mode] = v.clefs;
       if (v.problems.length) { failures++; console.log('FAIL ', name, mode, v.problems.join('; ')); }

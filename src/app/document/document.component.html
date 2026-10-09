@@ -95,71 +95,6 @@
           </button>
         </div>
       }
-      <!-- Print-Only Metadata Inline styled & dense -->
-      @if (isPrinting && printIncludeMetadata) {
-        <div class="print-only mb-4">
-          <div class="inline-metadata" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; line-height: 1.5; color: #000; margin-bottom: 15px;">
-            @for (item of getInlineMetadataItems(); track item; let last = $last) {
-              <span>
-                <strong>{{item.label}}:</strong> {{item.val}}@if (!last) {
-                <span style="color: #000; margin: 0 8px;"> • </span>
-              }
-            </span>
-          }
-        </div>
-      </div>
-    }
-    <!-- Hidden area to pre-render comment trees for the PDF engine -->
-    @if (isPrinting) {
-      <div id="pdf-comments-render-area"
-        [style.--tree-padding]="(settings?.pdfCommentTreePadding ?? 4) + 'px'"
-        [style.--tree-gap]="(settings?.pdfCommentTreeGap ?? 4) + 'px'"
-        style="position: absolute; left: -9999px; top: 0; width: 1000px; background: white;">
-        <!-- Global Comment first -->
-        @if (cont?.globalComment) {
-          <div class="pdf-comment-block pdf-global-comment" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
-            <h4 class="app-index" style="margin-bottom: 5px;">Global comment</h4>
-            <app-comment-tree [tree]="cont.globalComment" [readOnly]="true"></app-comment-tree>
-          </div>
-        }
-        <!-- Numbered comments -->
-        @for (comment of cont?.comments; track comment; let i = $index) {
-          <div class="pdf-comment-block" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
-            <div style="display: flex; align-items: center; margin-bottom: 5px;">
-              @if (comment.category && getCategoryDetails(comment.category); as cat) {
-                <span class="app-category" style="font-family: times; font-style: italic; font-size: 10pt; margin-right: 5px;">{{cat.label}}</span>
-              }
-              <span class="app-index" style="font-family: times; font-weight: bold; font-size: 10pt;">{{ getCommentLemma(comment) || (i + 1) }}]@if (comment.emendation) {
-                <span> ⟨em.⟩</span>
-              }</span>
-            </div>
-            @if (getCommentType(comment) === 'text') {
-              <span class="text" style="font-family: helvetica; font-size: 10pt; margin-bottom: 10px;">{{comment.text}}</span>
-            }
-            @if (getCommentType(comment) === 'tree' && comment.tree) {
-              <app-comment-tree [tree]="comment.tree" [readOnly]="true"></app-comment-tree>
-            }
-            @if (getCommentType(comment) === 'lines' && comment.lines) {
-              <div class="lines-container" style="width: 100%;">
-                @for (line of comment.lines; track line; let j = $index) {
-                  <div style="margin-bottom: 10px; width: 100%;">
-                    @if (comment.readingWitnesses?.[j]) {
-                      <span class="app-witness-siglum" style="font-family: times; font-weight: bold; font-size: 9pt; display: block; margin-bottom: 2px;">{{comment.readingWitnesses[j]}}</span>
-                    }
-                    @if (line.kind === 'ZeileContainer') {
-                      <app-zeile-section [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-zeile-section>
-                    }
-                    @if (line.kind === 'ParatextContainer') {
-                      <app-paratext-section [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-paratext-section>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        }
-      </div>
-    }
     <div class="row g-4 d-flex" id="split-screen-container" [class.flex-nowrap]="splitScreen" [class.overflow-auto]="splitScreen">
       <!-- Left Sidebar: Metadata & Comments -->
       @if (!splitScreen || sidebarVisible) {
@@ -812,11 +747,21 @@
           </h5>
         </div>
         <div class="modal-body p-4">
-          <p class="text-muted mb-4">You are about to export this document to PDF using the browser's native print function. Please ensure you select "Save as PDF" in the print dialog.</p>
+          <p class="text-muted mb-3">Creates a PDF typeset like the printed edition. Choose what to include:</p>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="titlePageSwitch" [(ngModel)]="printTitlePage">
+            <label class="form-check-label fw-medium" for="titlePageSwitch">Title page</label>
+            <div class="form-text mt-1">A first page with the title, the source and the metadata. The running head and page numbering start after it.</div>
+          </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" id="includeMetadataSwitch" [(ngModel)]="printIncludeMetadata">
-            <label class="form-check-label fw-medium" for="includeMetadataSwitch">Include Metadata as Table</label>
-            <div class="form-text mt-1">If enabled, a clean table with all metadata will be printed at the top of the document.</div>
+            <label class="form-check-label fw-medium" for="includeMetadataSwitch">Include metadata as table</label>
+            <div class="form-text mt-1">With a title page the metadata stands there as a table (keys in light grey); without one it is a line below the title. To print several documents at once (with a contents table and a collected apparatus), select them in the search or open a manuscript.</div>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="apparatusSwitch" [(ngModel)]="printApparatus">
+            <label class="form-check-label fw-medium" for="apparatusSwitch">Critical apparatus</label>
+            <div class="form-text mt-1">The comments, cited by the text they frame, on pages after the edition.</div>
           </div>
         </div>
         <div class="modal-footer border-0 bg-light">

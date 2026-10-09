@@ -18,7 +18,7 @@ export const PRINT_PDF_DEFAULTS = {
   pdfFontSize: 10,
   pdfCommentFontSize: 8.5,
   pdfCommentTitleFontSize: 8.5,
-  pdfCommentBlockGap: 8,
+  pdfCommentBlockGap: 5,
   pdfHeadlineFontSize: 9,
   pdfPageNumberFontSize: 9,
   pdfMarginLeft: 56.7,

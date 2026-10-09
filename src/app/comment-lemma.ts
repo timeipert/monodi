@@ -5,6 +5,12 @@ import { Comment, LinePart, getCommentableUUIDsOfLinePart } from './types/model'
  * words joined by dropping the hyphen of a syllable break. The critical apparatus cites
  * this text instead of a running number, as in the printed edition.
  */
+/** Position (index among the line parts) where a comment starts; Infinity if its start is unknown. */
+export function commentStartIndex(parts: LinePart[], comment: Pick<Comment, 'startUUID'>): number {
+  const i = parts.findIndex((lp) => getCommentableUUIDsOfLinePart(lp).includes(comment.startUUID));
+  return i < 0 ? Infinity : i;
+}
+
 export function commentLemma(parts: LinePart[], comment: Pick<Comment, 'startUUID' | 'endUUID'>): string {
   let a = -1, b = -1;
   parts.forEach((lp, i) => {
@@ -23,4 +29,12 @@ export function commentLemma(parts: LinePart[], comment: Pick<Comment, 'startUUI
     out += /[-–]$/.test(t) ? t.slice(0, -1) : t + ' ';
   }
   return out.trim();
+}
+
+/** 'text', 'tree' or 'lines': how a comment's body is stored. */
+export function commentType(c: Pick<Comment, 'commentType' | 'tree' | 'lines'>): 'text' | 'tree' | 'lines' {
+  if (c.commentType) return c.commentType;
+  if (c.tree) return 'tree';
+  if (c.lines) return 'lines';
+  return 'text';
 }

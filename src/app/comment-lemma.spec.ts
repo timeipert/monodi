@@ -1,4 +1,4 @@
-import { commentLemma } from './comment-lemma';
+import { commentLemma, commentStartIndex } from './comment-lemma';
 import { BaseNote, NoteType, Syllable, SyllableType } from './types/model';
 
 const syl = (text: string, noteId: string): Syllable => ({
@@ -25,5 +25,11 @@ describe('commentLemma', () => {
   it('skips placeholder syllables and returns "" for unknown ids', () => {
     expect(commentLemma(parts, { startUUID: 'n5', endUUID: 'n6' })).toBe('est');
     expect(commentLemma(parts, { startUUID: 'nope', endUUID: 'n1' })).toBe('');
+  });
+
+  it('gives the start position for sorting comments in text order', () => {
+    expect(commentStartIndex(parts, { startUUID: 'n3' })).toBe(2);
+    expect(commentStartIndex(parts, { startUUID: 'n1' })).toBe(0);
+    expect(commentStartIndex(parts, { startUUID: 'unknown' })).toBe(Infinity);
   });
 });

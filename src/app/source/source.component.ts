@@ -1,3 +1,4 @@
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { ChangeDetectorRef, DoCheck, Component, OnInit, OnDestroy, ViewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -115,8 +116,17 @@ export class SourceComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private modalService: NgbModal,
     private volpiano: VolpianoService,
-    private pageTitle: PageTitleService) {
+    private pageTitle: PageTitleService,
+    private pdfDialog: PdfDialogLauncher) {
     this.loadDocCols();
+  }
+
+  /** All documents of this manuscript as one PDF: contents table, every document on its own pages, collected apparatus. */
+  printManuscript() {
+    if (!this.documents.length) return;
+    const docs = [...this.documents].sort((a, b) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+    const title = [this.source?.quellensigle, this.source?.bibliothekssignatur].filter(Boolean).join(' · ') || 'Manuscript';
+    this.pdfDialog.open(docs, title);
   }
 
   ngOnInit() {
