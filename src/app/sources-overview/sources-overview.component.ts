@@ -1,4 +1,7 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone } from '@angular/core';
+import { FocusService } from '../focus.service';
+import { sanitizeNotationColor } from '../notation-color';
+import { sanitizeClefDisplayMode } from '../clef-policy';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService, User } from '../user.service';
 import { APIService, UserInfo, Source, Document } from '../api.service'
@@ -58,6 +61,7 @@ const STORAGE_KEY = 'monodi_source_cols';
     standalone: false
 })
 export class SourcesOverviewComponent implements OnInit, OnDestroy {
+  private readonly focusSvc = inject(FocusService);
   subs: Subscription[] = [];
   sources: Source[] = [];
   user: User | null = null;
@@ -1292,7 +1296,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       try {
         if (this.user) {
           const settingsRes = await firstValueFrom(this.api.getSettings(this.user.token));
-          if (settingsRes.kind === 'SettingsRetrieved') settings = settingsRes.settings;
+          if (settingsRes.kind === 'SettingsRetrieved') {
+            settings = settingsRes.settings;
+            this.focusSvc.notationColor = sanitizeNotationColor(settings?.notationColor);
+            this.focusSvc.clefDisplayMode = sanitizeClefDisplayMode(settings?.clefDisplayMode);
+          }
         }
       } catch (e) {
         console.warn("Could not fetch settings for HTML export", e);

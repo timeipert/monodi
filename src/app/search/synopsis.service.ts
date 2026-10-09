@@ -933,7 +933,8 @@ export class SynopsisService {
           const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(cs.color);
           if (m) doc.setTextColor(+m[1], +m[2], +m[3]); else doc.setTextColor(0, 0, 0);
 
-          let text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+          // Syllable breaks are set as an en dash in the printed edition (same as the document PDF).
+          let text = (node.textContent || '').replace(/\s+/g, ' ').trim().replace(/(?<=\p{L})-$/u, '\u2013');
           const maxWmm = r.width * scale + 1.5;
           while (text.length > 1 && doc.getTextWidth(text) > maxWmm) {
             text = text.slice(0, -1);

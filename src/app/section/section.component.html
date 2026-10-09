@@ -115,18 +115,18 @@
       </div>
       @if ( ('' + data.kind) === 'ZeileContainer') {
         <div (contextmenu)="onContextMenu($event)" [class.zeile-cv]="!readOnly">
-          @for (child of data.children; track getUUID($index, child); let first = $first) {
+          @for (child of data.children; track getUUID($index, child); let first = $first; let idx = $index) {
             @if (child.kind === 'Syllable') {
               <app-notes #linechild [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
                 [adiastematic]="isAdiastematic()"
                 (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
-              [showGClef]="first"></app-notes>
+              [showGClef]="showClefAt(idx)"></app-notes>
             }
             @if (child.kind === 'LineChange') {
               <app-line-change #linechild [readOnly]="readOnly" [model]="child"
                 [adiastematic]="isAdiastematic()"
                 (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
-              [showGClef]="first"></app-line-change>
+              [showGClef]="showClefAt(idx)"></app-line-change>
             }
             @if (child.kind === 'FolioChange') {
               <app-folio-change #linechild [readOnly]="readOnly" [model]="child"
@@ -136,12 +136,12 @@
             @if (child.kind === 'Clef') {
               <app-clef #linechild [readOnly]="readOnly" [model]="child" [readOnlyPadTop]="10" [readOnlyPadBottom]="16"
                 (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"
-              [showGClef]="first"></app-clef>
+              [showGClef]="showClefAt(idx)"></app-clef>
             }
             @if (child.kind === 'Box') {
               <app-box #linechild [readOnly]="readOnly" [model]="child"
                 (request)="onLinePartRequest($event, child)" [attr.data-uuid]="child.uuid"
-                [showGClef]="first">
+                [showGClef]="showClefAt(idx)">
               </app-box>
             }
           }

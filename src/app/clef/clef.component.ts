@@ -1,3 +1,4 @@
+import { G_CLEF_PATH } from '../clef-glyph';
 import { AfterViewChecked, ChangeDetectorRef, Component, OnInit, OnDestroy, ChangeDetectionStrategy, ViewRef, ElementRef, ViewChild, Output, Input, EventEmitter } from '@angular/core';
 import * as VM from '../types/model';
 import { ToolsService, Tool } from '../tools.service';
@@ -61,6 +62,10 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   getY(): number {
     return 90 - ((this.model.octave - 4) * 35) - VM.baseNotes.indexOf(this.model.base) * 5;
   }
+
+  /** Colour of all notation graphics (project setting `notationColor`). */
+  get color(): string { return this.focusService.notationColor; }
+  readonly gClefPath = G_CLEF_PATH;
 
   constructor(
     private focusService: FocusService,

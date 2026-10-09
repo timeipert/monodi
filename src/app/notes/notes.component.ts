@@ -1,3 +1,4 @@
+import { G_CLEF_PATH } from '../clef-glyph';
 import {
   ChangeDetectorRef, Component, OnInit, OnChanges, QueryList, ViewChildren,
   OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, TemplateRef, Output, Input, EventEmitter, AfterViewInit, HostListener,
@@ -47,9 +48,13 @@ const GLYPH_PATHS: { [key: string]: string } = {
     standalone: false
 })
 export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, AfterViewInit {
+  /** Colour of all notation graphics (project setting `notationColor`). */
+  get color(): string { return this.focusService.notationColor; }
+  readonly gClefPath = G_CLEF_PATH;
+
   getGlyphDataUri(noteType: string, focused: boolean): string {
     const d = GLYPH_PATHS[noteType] || GLYPH_PATHS['Normal'];
-    const fill = focused ? '#5bf186' : '#000000';
+    const fill = focused ? '#5bf186' : this.color;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="60" viewBox="24 0 12 60"><path fill="${fill}" d="${d}"/></svg>`;
     return `data:image/svg+xml;base64,${btoa(svg)}`;
   }

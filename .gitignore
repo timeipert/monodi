@@ -49,3 +49,6 @@ Thumbs.db
 
 # Build output (GitHub Pages) — regenerated, not tracked
 /docs/
+
+# generated PDF comparison output
+scratch/compare/

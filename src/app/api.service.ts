@@ -1,3 +1,5 @@
+import { ClefDisplayMode, sanitizeClefDisplayMode } from './clef-policy';
+import { sanitizeNotationColor } from './notation-color';
 import { Injectable } from '@angular/core';
 import { Observable, from, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
@@ -399,7 +401,8 @@ export class APIService {
       customSourceFields: [],
       customDocumentFields: [],
       customLists: {},
-      pdfScale: 0.40,
+      pdfScale: 0.36,
+      pdfContinuationIndent: 20,
       pdfFormat: 'a4',
       pdfOrientation: 'portrait',
       pdfSyllableSpacing: 10,
@@ -420,10 +423,10 @@ export class APIService {
       pdfMarginTop: 40,
       pdfMarginBottom: 40,
       pdfMarginRight: 40,
-      pdfStaffSpacing: 20,
+      pdfStaffSpacing: 2,
       pdfBracketGap: 5,
       pdfBracketTick: 4,
-      pdfSyllableTextOffset: 10,
+      pdfSyllableTextOffset: 6,
       pdfTextBlockGap: 10,
       pdfCommentTreePadding: 4,
       pdfCommentTreeGap: 4,
@@ -435,6 +438,8 @@ export class APIService {
       pdfParatextFontSize: 10,
       pdfParatextSpacing: 12,
       pdfFontFamily: 'times',
+      clefDisplayMode: 'document-start',
+      notationColor: '#333333',
       meiMappings: {
         formteilContainer: { tag: 'section' },
         zeileContainer: { tag: 'sb' },
@@ -548,6 +553,12 @@ export interface ProjectSettings {
   pdfParatextFontSize?: number;
   pdfParatextSpacing?: number;
   pdfFontFamily?: 'times' | 'helvetica';
+  /** When the automatic G-clef is drawn: chant start only (print edition), every manuscript line, or every line break. */
+  clefDisplayMode?: ClefDisplayMode;
+  /** Colour of staff lines, notes, slurs and clef in editor, PDF and HTML export (#rrggbb). */
+  notationColor?: string;
+  /** Indent (pt) of automatically wrapped continuation systems in the PDF. */
+  pdfContinuationIndent?: number;
   meiMappings?: MeiMappingSettings;
   meiProfiles?: MeiMappingProfileV2[];
   activeMeiProfileId?: string;
@@ -815,13 +826,16 @@ export function sanitizeSettings(settings: any): ProjectSettings {
     'pdfCommentFontSize',
     'pdfCommentTitleFontSize',
     'pdfHeadlineFontSize',
-    'pdfPageNumberFontSize'
+    'pdfPageNumberFontSize',
+    'pdfContinuationIndent'
   ];
   for (const key of numericKeys) {
     if (settings[key] !== undefined && settings[key] !== null) {
       settings[key] = Number(settings[key]);
     }
   }
+  settings.clefDisplayMode = sanitizeClefDisplayMode(settings.clefDisplayMode);
+  settings.notationColor = sanitizeNotationColor(settings.notationColor);
 
   if (settings.commentTemplates !== undefined) {
     settings.commentTemplates = Array.isArray(settings.commentTemplates)

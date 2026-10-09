@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Focus } from './types/Focus';
+import { ClefDisplayMode, DEFAULT_CLEF_DISPLAY_MODE } from './clef-policy';
+import { DEFAULT_NOTATION_COLOR } from './notation-color';
 import * as VM from './types/model';
 
 @Injectable({
@@ -31,6 +33,12 @@ export class FocusService {
   /** UUID of the first syllable of the currently displayed document. The
    *  notes.component for that syllable draws a G-clef at the chant start. */
   firstSyllableUuid: string | null = null;
+
+  /** Where the automatic G-clef is drawn (project setting `clefDisplayMode`). */
+  clefDisplayMode: ClefDisplayMode = DEFAULT_CLEF_DISPLAY_MODE;
+
+  /** Colour of staff lines, notes, slurs and clef (project setting `notationColor`). */
+  notationColor: string = DEFAULT_NOTATION_COLOR;
 
   /** UUID of the note currently considered "selected" in the document.
    *  Used as a global cross-syllable signal: notes.component instances

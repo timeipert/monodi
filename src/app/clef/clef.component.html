@@ -3,15 +3,15 @@
     <svg [attr.width]="((readOnly ? (35 * staffScale) : 35) + (showGClef ? 32 : 0)) + 'px'" [style.height.px]="readOnly ? ((65 + readOnlyPadTop + readOnlyPadBottom) * staffScale) : 120">
       <g (click)="clicked()" [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (readOnlyPadTop - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
 
-        <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
-        <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
-        <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
-        <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
-        <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
+        <line x1=0 x2=9999 y1=40 y2=40 [attr.stroke]="color"/>
+        <line x1=0 x2=9999 y1=50 y2=50 [attr.stroke]="color"/>
+        <line x1=0 x2=9999 y1=60 y2=60 [attr.stroke]="color"/>
+        <line x1=0 x2=9999 y1=70 y2=70 [attr.stroke]="color"/>
+        <line x1=0 x2=9999 y1=80 y2=80 [attr.stroke]="color"/>
         @if (showGClef) {
-          <text x="3" y="79.5" font-family="Georgia, Garamond, 'Times New Roman', 'DejaVu Serif', serif" font-size="28" font-weight="normal" fill="#888888" style="user-select: none; pointer-events: none;">G</text>
+          <path class="auto-clef" [attr.d]="gClefPath" [attr.fill]="color" style="pointer-events: none;" />
         }
-        <text [attr.x]="showGClef ? 27 : 5" [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.fill]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.y]="getY() + 6">{{this.model.shape}}</text>
+        <text [attr.x]="showGClef ? 27 : 5" [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : color" [attr.fill]="hasCurrentFocus()? '#5bf186' : color" [attr.y]="getY() + 6">{{this.model.shape}}</text>
       </g>
     </svg>
   </div>

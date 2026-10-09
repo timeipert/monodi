@@ -10,6 +10,8 @@
     "e2e": "ng e2e",
     "e2e:synopsis": "node e2e-synopsis.js",
     "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
+    "test:pdf": "node scripts/pdf-e2e.mjs",
+    "fixtures": "node scripts/extract-fixtures.mjs && node scripts/make-extreme-fixtures.mjs && node scripts/gen-testdata-index.mjs",
     "build:electron": "ng build --configuration production,electron",
     "electron:start": "npm run build:electron && electron .",
     "pack": "node scripts/check-node-for-electron.js && npm run build:electron && electron-builder --dir",

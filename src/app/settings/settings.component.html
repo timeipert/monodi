@@ -415,7 +415,7 @@
                         <span>Global PDF Scale</span>
                         <span class="badge bg-secondary">{{settings.pdfScale}}</span>
                       </label>
-                      <input type="range" class="form-range" min="0.2" max="1.0" step="0.05" [(ngModel)]="settings.pdfScale" (ngModelChange)="onSettingsChange()">
+                      <input type="range" class="form-range" min="0.2" max="1.0" step="0.01" [(ngModel)]="settings.pdfScale" (ngModelChange)="onSettingsChange()">
                     </div>
                     <div class="col-md-6">
                       <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
@@ -592,6 +592,32 @@
                     </div>
                   </div>
                   <hr>
+                    <div class="row g-3 mb-3">
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium text-muted mb-1">Clef display (G-clef)</label>
+                        <select class="form-select form-select-sm" [(ngModel)]="settings.clefDisplayMode" (ngModelChange)="onSettingsChange()">
+                          <option value="document-start">Only at the start of the document (print edition)</option>
+                          <option value="every-line">At the start of every manuscript line</option>
+                          <option value="every-break">At every line break (incl. wrapped lines)</option>
+                        </select>
+                        <div class="form-text small">Applies to the editor view and the PDF export. The G sits on the second line from the bottom.</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium text-muted mb-1">Notation colour</label>
+                        <div class="d-flex align-items-center gap-2">
+                          <input type="color" class="form-control form-control-color" [(ngModel)]="settings.notationColor" (ngModelChange)="onSettingsChange()" title="Colour of staff lines, notes, slurs and clef">
+                          <code class="small">{{settings.notationColor}}</code>
+                          <button type="button" class="btn btn-outline-secondary btn-sm" (click)="settings.notationColor = '#333333'; onSettingsChange()">Dark grey</button>
+                          <button type="button" class="btn btn-outline-secondary btn-sm" (click)="settings.notationColor = '#000000'; onSettingsChange()">Black</button>
+                        </div>
+                        <div class="form-text small">Applies to staff lines, notes, slurs and the clef in the editor, PDF and HTML export.</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium text-muted mb-1">Continuation indent (pt)</label>
+                        <input type="number" class="form-control form-control-sm" min="0" max="80" step="1" [(ngModel)]="settings.pdfContinuationIndent" (ngModelChange)="onSettingsChange()">
+                        <div class="form-text small">Indent of automatically wrapped systems in the PDF (print edition: about 20).</div>
+                      </div>
+                    </div>
                     <div class="row g-3 mb-3">
                       <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Font Family</label>

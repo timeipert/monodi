@@ -29,9 +29,42 @@ import { VolpianoService } from '../volpiano.service';
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
 import autoTable from 'jspdf-autotable';
+import { sanitizeClefDisplayMode } from '../clef-policy';
+import { sanitizeNotationColor } from '../notation-color';
+import { layoutPdfLine } from '../pdf-layout';
+import { G_CLEF_PATH } from '../clef-glyph';
 import { FileSystemService } from '../file-system.service';
 
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
+
+/** Internal-unit width of an injected clef (same as NotesComponent.CLEF_WIDTH). */
+const PDF_CLEF_WIDTH = 32;
+/** Distance between the two strokes of a folio-change marker (pt). */
+const PDF_MARKER_TICK_GAP = 2;
+/** Text edge relative to the staff start (print edition: 89.1 - 83.7 pt). */
+const PDF_TEXT_INSET = 5.4;
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+interface PdfMeasuredPart {
+  part: HTMLElement;
+  isMarker: boolean;
+  svgs: ArrayLike<SVGElement> | NodeListOf<SVGSVGElement>;
+  txt: string;
+  secHeight: number;
+  finalSecWidth: number;
+  width: number;
+  hasClef: boolean;
+  /** Folio change only: its label and the label's width in pt (not part of `width`). */
+  folioLabel?: string;
+  labelWidth?: number;
+  /** Extra space (pt) the syllable text must move down to clear ledger lines below the staff. */
+  belowExtra?: number;
+}
+
 
 @Component({
     selector: 'app-document',
@@ -986,7 +1019,150 @@ export class DocumentComponent implements OnInit {
     return profile ? profile.names : null;
   }
 
+  /** Measure one `app-notes` / `app-line-change` / `app-folio-change` element for
+   *  the PDF layout. Returns null for parts without a drawable section. */
+  private measurePdfPart(part: HTMLElement, doc: jsPDF, fontFamily: string, pdfFontSize: number,
+                         SCALE: number, extraSyllableSpacing: number, textOffset: number): PdfMeasuredPart | null {
+    const tagName = part.tagName.toLowerCase();
+    if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
+      const isFolio = tagName === 'app-folio-change';
+      // Mirrors the marker drawing: gap, [second tick], gap + 2. The folio label is
+      // set right-aligned at the margin when there is room (see the layout loop), so
+      // it is not part of the width unless it has to stay inline.
+      let width = 3 + 3 + 2;
+      let folioLabel: string | undefined;
+      let labelWidth = 0;
+      if (isFolio) {
+        width += PDF_MARKER_TICK_GAP;
+        // Only the SVG text: the element's textContent repeats the label (note/syllable divs).
+        folioLabel = (part.querySelector('svg text')?.textContent || '').trim() || undefined;
+        if (folioLabel) {
+          doc.setFont(fontFamily, 'normal');
+          doc.setFontSize(pdfFontSize * 0.85);
+          labelWidth = doc.getTextWidth(folioLabel);
+          doc.setFontSize(pdfFontSize);
+        }
+      }
+      return { part, isMarker: true, svgs: [], txt: '', secHeight: 0, finalSecWidth: width, width, hasClef: false, folioLabel, labelWidth };
+    }
+
+    const sec = part.querySelector('.section') as HTMLElement | null;
+    if (!sec) return null;
+    const svgs = sec.querySelectorAll('svg');
+    const textEl = sec.querySelector('.syllableText:not(.dnone)') as HTMLElement | null;
+
+    let maxRawWidth = 50;
+    let totalRawHeight = 0;
+    for (let v = 0; v < svgs.length; v++) {
+      const s = svgs[v];
+      let w = parseFloat(s.getAttribute('width') || '50');
+
+      // Dynamic width check: inspect note image and slur path coordinates
+      // to ensure we never truncate content if DOM attributes are too small or lag.
+      let maxContentRight = 0;
+      s.querySelectorAll('image').forEach(img => {
+        const x = parseFloat(img.getAttribute('x') || '0');
+        const width = parseFloat(img.getAttribute('width') || '12');
+        if (x + width > maxContentRight) maxContentRight = x + width;
+      });
+      s.querySelectorAll('path').forEach(p => {
+        const right = parseFloat(p.getAttribute('data-right') || '');
+        if (Number.isFinite(right) && right > maxContentRight) maxContentRight = right;
+      });
+      if (maxContentRight > 0) {
+        // Find the inner layout translation amount (default 12)
+        let translateAmt = 12;
+        const gTranslate = s.querySelector('g[transform*="translate"]');
+        if (gTranslate) {
+          const match = (gTranslate.getAttribute('transform') || '').match(/translate\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)/);
+          if (match) translateAmt = parseFloat(match[1]);
+        }
+        const contentWidth = maxContentRight + translateAmt + 8;
+        if (contentWidth > w) w = contentWidth;
+      }
+      if (w > maxRawWidth) maxRawWidth = w;
+      totalRawHeight += (s.getBoundingClientRect().height || 80);
+    }
+    if (svgs.length === 0) totalRawHeight = 80;
+
+    const svgWidth = maxRawWidth * SCALE;
+    const secHeight = totalRawHeight * SCALE;
+
+    let txt = '';
+    let textWidth = 0;
+    if (textEl) {
+      txt = textEl.innerText.trim();
+      if (txt && txt !== 'X' && txt !== '...' && txt !== '<...>') {
+        // The printed edition marks a syllable break with an en dash, not a hyphen.
+        txt = txt.replace(/-$/, '\u2013');
+        doc.setFontSize(pdfFontSize);
+        doc.setFont(fontFamily, 'normal');
+        textWidth = doc.getTextWidth(txt);
+      } else {
+        txt = '';
+      }
+    }
+    const finalSecWidth = Math.max(svgWidth, textWidth + extraSyllableSpacing);
+
+    // Ledger lines below the staff (rects 15 wide, 1 high at y = 90/100/110) must not
+    // run into the syllable text: push the text down by what is missing.
+    let lowestLedger = 0;
+    sec.querySelectorAll('rect').forEach((r) => {
+      if (r.getAttribute('width') === '15px' && r.getAttribute('height') === '1px') {
+        lowestLedger = Math.max(lowestLedger, parseFloat(r.getAttribute('y') || '0') + 0.5);
+      }
+    });
+    let belowExtra = 0;
+    if (lowestLedger > 80) {
+      const clearTop = SCALE * (lowestLedger - 10 + 5);          // ledger line + note head, from svg top
+      const textTop = secHeight + textOffset - pdfFontSize * 0.7; // cap height of the lyric
+      belowExtra = Math.max(0, clearTop - textTop);
+    }
+    return {
+      part, isMarker: false, svgs, txt, secHeight, finalSecWidth, width: finalSecWidth,
+      hasClef: !!sec.querySelector('.auto-clef'), belowExtra,
+    };
+  }
+
+  /** Staff + G-clef segment for a wrapped system (clef setting "every line break").
+   *  Built as an SVG with the same geometry as the note SVGs and drawn through svg2pdf,
+   *  so it matches the clef of the first system exactly. */
+  private async drawPdfStaffClef(doc: jsPDF, x: number, top: number, width: number, SCALE: number, color: string): Promise<void> {
+    const units = width / SCALE;
+    const H = 91; // read-only note SVG height: 65 + padTop 10 + padBottom 16
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', String(units));
+    svg.setAttribute('height', String(H));
+    svg.setAttribute('viewBox', `0 0 ${units} ${H}`);
+    svg.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden';
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('transform', 'translate(0, -10)');
+    for (let ly = 40; ly <= 80; ly += 10) {
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', '0'); line.setAttribute('x2', String(units));
+      line.setAttribute('y1', String(ly)); line.setAttribute('y2', String(ly));
+      line.setAttribute('stroke', color);
+      g.appendChild(line);
+    }
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', G_CLEF_PATH);
+    path.setAttribute('fill', color);
+    g.appendChild(path);
+    svg.appendChild(g);
+    document.body.appendChild(svg);
+    try {
+      await doc.svg(svg, { x, y: top, width, height: H * SCALE });
+    } finally {
+      svg.remove();
+    }
+  }
+
+  /** Counters of the last PDF export (read by the e2e checks). */
+  lastPdfStats = { clefs: 0, systems: 0 };
+
   async confirmPdfExport() {
+    this.lastPdfStats = { clefs: 0, systems: 0 };
     this.showPdfExportDialog = false;
     this.isPrinting = true;
     
@@ -1007,10 +1183,10 @@ export class DocumentComponent implements OnInit {
         const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
         const pdfMarginTop = Number(s.pdfMarginTop ?? 40);
         const pdfMarginBottom = Number(s.pdfMarginBottom ?? 40);
-        const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? 20);
+        const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? 2);
         const pdfBracketGap = Number(s.pdfBracketGap ?? 5);
         const pdfBracketTick = Number(s.pdfBracketTick ?? 4);
-        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? 10);
+        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? 6);
         const pdfTextBlockGap = Number(s.pdfTextBlockGap ?? 10);
         
         // Coerced layout parameters
@@ -1022,10 +1198,15 @@ export class DocumentComponent implements OnInit {
         const pdfBracketThickness = Number(s.pdfBracketThickness ?? 1.2);
         const pdfCommentTitleFontSize = Number(s.pdfCommentTitleFontSize ?? 8);
         const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? 15);
-        const SCALE = Number(s.pdfScale ?? 0.40);
+        const SCALE = Number(s.pdfScale ?? 0.36);
         const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? 10);
+        const pdfContinuationIndent = Number(s.pdfContinuationIndent ?? 20);
         const pdfFontSize = Number(s.pdfFontSize ?? 10);
         const pdfSignaturSpace = Number(s.pdfSignaturSpace ?? 60);
+        // Titles, metadata and paratexts share one left edge, set just inside the staff
+        // start (print edition: staff at 83.7 pt, text at 89.1 pt).
+        const textX = pdfMarginLeft + pdfSignaturSpace + PDF_TEXT_INSET;
+        const notationColor = hexToRgb(sanitizeNotationColor(s.notationColor));
         const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? 10);
         const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? 12);
         const pdfCommentStaffScale = Number(s.pdfCommentStaffScale ?? s.pdfScale ?? 0.40);
@@ -1055,9 +1236,9 @@ export class DocumentComponent implements OnInit {
         doc.setFont(fontFamily, "bold");
         const headerText = this.getMetadataFieldValue(headerSource) || (this.document?.textinitium || "New Document");
         const titleLineH = titleFontSize * 1.15;
-        for (const line of doc.splitTextToSize(headerText, printWidth)) {
+        for (const line of doc.splitTextToSize(headerText, Math.max(60, pageWidth - pdfMarginRight - textX))) {
           checkPageOverflow(titleLineH);
-          doc.text(line, pdfMarginLeft, cursorY);
+          doc.text(line, textX, cursorY);
           cursorY += titleLineH;
         }
         cursorY += Math.max(0, pdfTitleVerticalSpace - titleLineH);
@@ -1068,7 +1249,7 @@ export class DocumentComponent implements OnInit {
           doc.setFontSize(metaFontSize);
           
           const items = this.getInlineMetadataItems();
-          let curX = pdfMarginLeft;
+          let curX = textX;
           let curY = cursorY;
           const rightEdge = pageWidth - pdfMarginRight;
           const lineH = metaFontSize * 1.4;
@@ -1085,12 +1266,12 @@ export class DocumentComponent implements OnInit {
               if (!w) continue;
               const isSpace = /^\s+$/.test(w);
               const ww = doc.getTextWidth(w);
-              if (!isSpace && curX + ww > rightEdge && curX > pdfMarginLeft) {
-                curX = pdfMarginLeft;
+              if (!isSpace && curX + ww > rightEdge && curX > textX) {
+                curX = textX;
                 curY += lineH;
                 if (curY > maxContentY) { doc.addPage(); curY = pdfMarginTop; }
               }
-              if (isSpace && curX === pdfMarginLeft) continue; // no leading space on a wrapped line
+              if (isSpace && curX === textX) continue; // no leading space on a wrapped line
               doc.text(w, curX, curY);
               curX += ww;
             }
@@ -1204,8 +1385,56 @@ export class DocumentComponent implements OnInit {
             let lineHasLyrics = false;
             let lineHasBrackets = Object.keys(activeBrackets).length > 0;
             
-            for (let j = 0; j < parts.length; j++) {
-              const part = parts[j] as HTMLElement;
+            // Pass 1: measure every part, then let the pure layout decide systems,
+            // indents and clefs (see pdf-layout.ts).
+            const entries = Array.from(parts).map((pt) => this.measurePdfPart(pt as HTMLElement, doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, pdfSyllableTextOffset));
+            const measured = entries.filter((e): e is PdfMeasuredPart => e !== null);
+            const layoutOpts = {
+              startX: musicStartX,
+              maxX: pageWidth - pdfMarginRight,
+              continuationIndent: pdfContinuationIndent,
+              clefWidth: PDF_CLEF_WIDTH * SCALE,
+              // adiastematic lines have no staff, hence no clef either
+              clefMode: Array.from(parts).some((pt) => pt.querySelector('line')) ? this.focusService.clefDisplayMode : 'document-start' as const,
+            };
+            // Folio labels go right-aligned to the margin. A label whose system leaves
+            // no room for it stays inline (and reserves its width); re-layout until stable.
+            const inlineLabels = new Set<number>();
+            let layout = layoutPdfLine([], layoutOpts);
+            for (let attempt = 0; attempt < 6; attempt++) {
+              layout = layoutPdfLine(
+                measured.map((m, k) => ({
+                  kind: m.isMarker ? 'marker' as const : 'syllable' as const,
+                  width: m.width + (inlineLabels.has(k) ? 3 + (m.labelWidth || 0) : 0),
+                  hasClef: m.hasClef,
+                  breakAfterPreferred: !m.isMarker && measured[k + 1]?.isMarker === true,
+                })),
+                layoutOpts);
+              let changed = false;
+              const flushRight = new Set<number>(); // systems that already have a right-aligned label
+              measured.forEach((m, k) => {
+                if (!m.folioLabel || inlineLabels.has(k)) return;
+                const sysNo = layout.placed[k].system;
+                const sys = layout.systems[sysNo];
+                if (flushRight.has(sysNo) || sys.endX + 8 > layoutOpts.maxX - (m.labelWidth || 0)) { inlineLabels.add(k); changed = true; }
+                else flushRight.add(sysNo);
+              });
+              if (!changed) break;
+            }
+            // Per system: tallest syllable plus the room needed for ledger lines below.
+            const sysHeights = layout.systems.map((sys) => {
+              let h = 0, extra = 0;
+              for (let k = sys.first; k <= sys.last; k++) { h = Math.max(h, measured[k].secHeight); extra = Math.max(extra, measured[k].belowExtra || 0); }
+              return h > 0 ? h + extra : 0;
+            });
+            let curSystem = 0;
+            this.lastPdfStats.systems += layout.systems.length;
+            this.lastPdfStats.clefs += measured.filter((m) => m.hasClef).length + layout.placed.filter((pl) => pl.injectClef).length;
+            
+            for (let j = 0; j < measured.length; j++) {
+              const m = measured[j];
+              const pl = layout.placed[j];
+              const part = m.part;
               const tagName = part.tagName.toLowerCase();
               
               if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
@@ -1215,15 +1444,26 @@ export class DocumentComponent implements OnInit {
                 // start a new staff line.
                 const isFolio = tagName === 'app-folio-change';
                 const gap = 3;
+                cursorX = pl.x;
+                // Keep the staff running through the marker (the printed edition's
+                // system is continuous); adiastematic lines have no staff.
+                if (part.querySelector('line')) {
+                  doc.setDrawColor(notationColor[0], notationColor[1], notationColor[2]);
+                  doc.setLineWidth(0.4);
+                  for (let ly = 40; ly <= 80; ly += 10) {
+                    const y = cursorY + (ly - 10) * SCALE;
+                    doc.line(cursorX, y, cursorX + m.width, y);
+                  }
+                }
                 const mx = cursorX + gap;
                 const h = lineMaxHeight > 0 ? lineMaxHeight : 24;
-                // Staff geometry of the read-only note SVG (65 + padTop 10 + padBottom 16
-                // = 91 tall; the bottom staff line sits at 70/91).
-                const tickTop = cursorY + (70 / 91) * h;      // bottom staff line
-                const tickBottom = tickTop + (20 / 91) * h;   // hangs below
-                const tickGap = Math.max(2, h * 0.08);
-                doc.setLineWidth(Math.max(0.7, h * 0.035));
-                doc.setDrawColor(0, 0, 0);
+                // Like the printed edition: a thin stroke set in the lyric row
+                // between two syllables (not hanging off the staff).
+                const tickTop = cursorY + h + pdfSyllableTextOffset - pdfFontSize * 0.78;
+                const tickBottom = tickTop + pdfFontSize * 0.98;
+                const tickGap = PDF_MARKER_TICK_GAP;
+                doc.setLineWidth(0.5);
+                doc.setDrawColor(notationColor[0], notationColor[1], notationColor[2]);
                 doc.line(mx, tickTop, mx, tickBottom);
                 let rightEdge = mx;
                 if (isFolio) {
@@ -1231,145 +1471,25 @@ export class DocumentComponent implements OnInit {
                   rightEdge = mx + tickGap;
                 }
                 doc.setLineWidth(0.2);
-                if (isFolio) {
-                  const folioLabel = (part.textContent || '').trim();
-                  if (folioLabel) {
-                    doc.setFont(fontFamily, 'normal');
-                    doc.setFontSize(pdfFontSize * 0.85);
-                    doc.text(folioLabel, rightEdge + 3, tickBottom);
-                    rightEdge += 3 + doc.getTextWidth(folioLabel);
-                    doc.setFontSize(pdfFontSize);
+                if (isFolio && m.folioLabel) {
+                  const baselineY = tickBottom - pdfFontSize * 0.2;
+                  doc.setFont(fontFamily, 'normal');
+                  doc.setFontSize(pdfFontSize * 0.85);
+                  if (inlineLabels.has(j)) {
+                    doc.text(m.folioLabel, rightEdge + 3, baselineY);
+                    rightEdge += 3 + (m.labelWidth || 0);
+                  } else {
+                    doc.text(m.folioLabel, layoutOpts.maxX - (m.labelWidth || 0), baselineY);
                   }
+                  doc.setFontSize(pdfFontSize);
                 }
                 cursorX = rightEdge + gap + 2;
                 continue;
               }
               
-              const sec = part.querySelector('.section') as HTMLElement;
-              if (!sec) continue;
-              
-              const svgs = sec.querySelectorAll('svg');
-              const textEl = sec.querySelector('.syllableText:not(.dnone)') as HTMLElement;
-              
-              let maxRawWidth = 50;
-              let totalRawHeight = 0;
-              for (let v = 0; v < svgs.length; v++) {
-                 const s = svgs[v];
-                 let w = parseFloat(s.getAttribute('width') || '50');
+              const { svgs, txt, secHeight, finalSecWidth } = m;
+              if (txt) lineHasLyrics = true;
 
-                 // Dynamic width check: inspect note image and slur path coordinates
-                 // to ensure we never truncate content if DOM attributes are too small or lag.
-                 const images = s.querySelectorAll('image');
-                 const paths = s.querySelectorAll('path');
-                 let maxContentRight = 0;
-
-                 images.forEach(img => {
-                   const x = parseFloat(img.getAttribute('x') || '0');
-                   const width = parseFloat(img.getAttribute('width') || '12');
-                   if (x + width > maxContentRight) {
-                     maxContentRight = x + width;
-                   }
-                 });
-
-                 paths.forEach(p => {
-                   const d = p.getAttribute('d') || '';
-                   const numbers = d.match(/-?[0-9.]+/g);
-                   if (numbers && numbers.length >= 7) {
-                     const startX = parseFloat(numbers[0]);
-                     const offsetVal = parseFloat(numbers[6]);
-                     const endX = startX + offsetVal;
-                     if (endX > maxContentRight) {
-                       maxContentRight = endX;
-                     }
-                   }
-                 });
-
-                 if (maxContentRight > 0) {
-                   // Find the inner layout translation amount (default 12)
-                   const gTranslate = s.querySelector('g[transform*="translate"]');
-                   let translateAmt = 12;
-                   if (gTranslate) {
-                     const transform = gTranslate.getAttribute('transform') || '';
-                     const match = transform.match(/translate\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)/);
-                     if (match) {
-                       translateAmt = parseFloat(match[1]);
-                     }
-                   }
-                   const contentWidth = maxContentRight + translateAmt + 8;
-                   if (contentWidth > w) {
-                     w = contentWidth;
-                   }
-                 }
-
-                 if (w > maxRawWidth) maxRawWidth = w;
-                 totalRawHeight += (s.getBoundingClientRect().height || 80);
-              }
-              if (svgs.length === 0) {
-                 totalRawHeight = 80;
-              }
-              
-              const svgWidth = maxRawWidth * SCALE;
-              const secHeight = totalRawHeight * SCALE;
-
-              let txt = "";
-              let textWidth = 0;
-              if (textEl) {
-                txt = textEl.innerText.trim();
-                if (txt && txt !== "X" && txt !== "..." && txt !== "<...>") {
-                  doc.setFontSize(pdfFontSize);
-                  doc.setFont(fontFamily, "normal");
-                  textWidth = doc.getTextWidth(txt);
-                  lineHasLyrics = true;
-                } else {
-                  txt = "";
-                }
-              }
-
-              // Calculate final section width
-              let finalSecWidth = Math.max(svgWidth, textWidth + extraSyllableSpacing);
-              
-              // Detect if this syllable is the last one on the current visual line,
-              // so we can extend staff lines to fill up to the right margin.
-              let isLastOnLine = (j === parts.length - 1);
-              if (!isLastOnLine && j + 1 < parts.length) {
-                const nextPart = parts[j + 1] as HTMLElement;
-                const nextTag = nextPart.tagName.toLowerCase();
-                // A following line/folio change is an inline marker, not a line end,
-                // so it must NOT stretch this syllable's staff to the margin.
-                if (nextTag === 'app-notes') {
-                  // Peek at the next syllable's width to see if it would trigger a wrap
-                  const nextSec = nextPart.querySelector('.section') as HTMLElement;
-                  if (nextSec) {
-                    const nextSvgEls = nextSec.querySelectorAll('svg');
-                    let nextRawW = 50;
-                    for (let v = 0; v < nextSvgEls.length; v++) {
-                        const w = parseFloat(nextSvgEls[v].getAttribute('width') || '50');
-                        if (w > nextRawW) nextRawW = w;
-                    }
-                    const nextSvgW = nextRawW * SCALE;
-                    const nextTextEl = nextSec.querySelector('.syllableText:not(.dnone)') as HTMLElement;
-                    let nextTxtW = 0;
-                    if (nextTextEl) {
-                      const nt = nextTextEl.innerText.trim();
-                      if (nt && nt !== 'X' && nt !== '...' && nt !== '<...>') {
-                        doc.setFontSize(pdfFontSize);
-                        doc.setFont(fontFamily, 'normal');
-                        nextTxtW = doc.getTextWidth(nt);
-                      }
-                    }
-                    const nextW = Math.max(nextSvgW, nextTxtW + extraSyllableSpacing);
-                    // After the current syllable, if next would overflow, current is last on line
-                    if (cursorX + finalSecWidth + nextW > pageWidth - pdfMarginRight) {
-                      isLastOnLine = true;
-                    }
-                  }
-                }
-              }
-              
-              // Staff lines end at the last note of the line (they are NOT stretched
-              // to the right page margin). `isLastOnLine` is kept for potential future
-              // use but intentionally no longer extends the width.
-              void isLastOnLine;
 
               const partUuid = part.getAttribute('data-uuid');
               const partUuids = partUuid ? (uuidMap[partUuid] || [partUuid]) : [];
@@ -1394,13 +1514,13 @@ export class DocumentComponent implements OnInit {
                   doc.setFont(fontFamily, "normal");
                   const sigText = currentSignatures.join(" ");
                   const sigWidth = doc.getTextWidth(sigText);
-                  const sigX = musicStartX - sigWidth - 10;
+                  const sigX = pdfMarginLeft + sigWidth + 6 <= musicStartX ? pdfMarginLeft : musicStartX - sigWidth - 6;
                   doc.text(sigText, sigX, cursorY + (secHeight / 2) + (pdfFontSize * 0.35));
                   currentSignatures = [];
               }
               
               // Wrap to next line if it exceeds page width
-              if (cursorX + finalSecWidth > pageWidth - pdfMarginRight) {
+              if (pl.system !== curSystem) {
                  const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
                  for (const key in activeBrackets) {
                      const b = activeBrackets[key];
@@ -1418,19 +1538,24 @@ export class DocumentComponent implements OnInit {
                  checkPageOverflow(40);
                  
                  lineStartY = cursorY;
-                 cursorX = musicStartX + 30; // auto-wrap with indentation
+                 cursorX = pl.clefX;
+                 curSystem = pl.system;
                  lineMaxHeight = 0;
                  lineHasLyrics = false;
                  lineHasBrackets = Object.keys(activeBrackets).length > 0;
                  
                  for (const key in activeBrackets) {
                      const b = activeBrackets[key];
-                     b.startX = musicStartX + 30;
+                     b.startX = pl.clefX;
                      b.startLineY = lineStartY;
                  }
               }
               
-              lineMaxHeight = Math.max(lineMaxHeight, secHeight);
+              lineMaxHeight = Math.max(lineMaxHeight, sysHeights[pl.system] || secHeight);
+              if (pl.injectClef) {
+                await this.drawPdfStaffClef(doc, pl.clefX, cursorY, PDF_CLEF_WIDTH * SCALE, SCALE, sanitizeNotationColor(s.notationColor));
+              }
+              cursorX = pl.x;
               
               // Draw SVGs
               if (svgs.length > 0) {
@@ -1456,7 +1581,7 @@ export class DocumentComponent implements OnInit {
               
               // Draw Syllable Text below the SVG
               if (txt) {
-                doc.text(txt, cursorX, cursorY + secHeight + pdfSyllableTextOffset);
+                doc.text(txt, cursorX, cursorY + lineMaxHeight + pdfSyllableTextOffset);
               }
               
               // 2. Check if any comments end here
@@ -1515,8 +1640,8 @@ export class DocumentComponent implements OnInit {
               doc.setFontSize(pdfParatextFontSize);
               doc.setFont(fontFamily, "normal");
               
-              const splitText = doc.splitTextToSize(txt, printWidth - paddingLeft);
-              doc.text(splitText, xOffset, cursorY);
+              const splitText = doc.splitTextToSize(txt, Math.max(60, pageWidth - pdfMarginRight - textX));
+              doc.text(splitText, textX, cursorY);
               cursorY += (splitText.length * (pdfParatextFontSize * 1.4)) + pdfParatextSpacing;
               checkPageOverflow(0);
               wasLastElementParatext = true;
@@ -1806,6 +1931,8 @@ export class DocumentComponent implements OnInit {
         this.api.getSettings(this.user.token).subscribe(res => {
           if (res.kind === 'SettingsRetrieved') {
             this.settings = res.settings;
+            this.focusService.clefDisplayMode = sanitizeClefDisplayMode(res.settings?.clefDisplayMode);
+            this.focusService.notationColor = sanitizeNotationColor(res.settings?.notationColor);
           }
         });
       }

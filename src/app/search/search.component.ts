@@ -1,4 +1,7 @@
-import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
+import { FocusService } from '../focus.service';
+import { sanitizeNotationColor } from '../notation-color';
+import { sanitizeClefDisplayMode } from '../clef-policy';
+import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -407,6 +410,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   // ── Synoptic Comparison ───────────────────────────────────────────────────
   selectedDocs: Document[] = [];
   showSynopsis = false;
+  private readonly focusSvc = inject(FocusService);
   synopsisLoading = false;
   synopsisPdfExporting = false;
 
@@ -852,7 +856,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.user = user;
       if (this.user) {
         this.api.getSettings(this.user.token).subscribe(res => {
-          if (res.kind === 'SettingsRetrieved') this.settings = res.settings;
+          if (res.kind === 'SettingsRetrieved') {
+            this.settings = res.settings;
+            this.focusSvc.notationColor = sanitizeNotationColor(res.settings?.notationColor);
+            this.focusSvc.clefDisplayMode = sanitizeClefDisplayMode(res.settings?.clefDisplayMode);
+          }
         });
         await this.loadFromIndexedDB();
         this.restoreStateFromUrl();

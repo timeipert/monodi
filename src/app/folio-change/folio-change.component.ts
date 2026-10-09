@@ -42,6 +42,9 @@ export class FolioChangeComponent implements OnDestroy, OnInit {
   svgWidth = 0;
   hasFocus = false;
 
+  /** Colour of all notation graphics (project setting `notationColor`). */
+  get color(): string { return this.focusService.notationColor; }
+
   constructor(
     private focusService: FocusService,
     private toolsService: ToolsService,

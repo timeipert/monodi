@@ -1,3 +1,4 @@
+import { G_CLEF_PATH } from '../clef-glyph';
 import { AfterViewChecked, ChangeDetectorRef, Component, OnInit, OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, Output, Input, EventEmitter } from '@angular/core';
 import * as VM from '../types/model';
 import { ToolsService } from '../tools.service';
@@ -32,6 +33,10 @@ export class BoxComponent implements OnInit, OnDestroy, AfterViewChecked, Focusa
   getY(): number {
     return 50;
   }
+
+  /** Colour of all notation graphics (project setting `notationColor`). */
+  get color(): string { return this.focusService.notationColor; }
+  readonly gClefPath = G_CLEF_PATH;
 
   constructor(
     private focusService: FocusService,

@@ -1,3 +1,4 @@
+import { G_CLEF_PATH } from '../clef-glyph';
 import { ChangeDetectorRef, ElementRef, ViewChild, Output, OnDestroy, EventEmitter, Input, Component, OnInit } from '@angular/core';
 import * as Model from '../types/model';
 import * as R from '../notes/Request';
@@ -20,6 +21,10 @@ import { UndoService } from '../undoService';
 export class LineChangeComponent implements OnDestroy, OnInit {
   @ViewChild('mainDiv', { static: true }) mainDiv!: ElementRef;
   @ViewChild('commentModal', { static: true }) commentModal!: ElementRef;
+
+  /** Colour of all notation graphics (project setting `notationColor`). */
+  get color(): string { return this.focusService.notationColor; }
+  readonly gClefPath = G_CLEF_PATH;
 
   constructor(
     private focusService: FocusService,

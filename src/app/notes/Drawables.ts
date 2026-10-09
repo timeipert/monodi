@@ -14,9 +14,20 @@ export class DTie {
   constructor(public x: number, public y: number, public ref: Grouped, public width: number) { }
 
   addOffset(x: number): DTie { return new DTie(this.x + x, this.y, this.ref, this.width); }
+  /** Right edge of the bracket (same coordinate space as `x`). */
+  get right(): number { return this.x + Math.max(this.width - 5, 2 * DTie.R + 2); }
+
+  /**
+   * Neume bracket as in the printed edition: a flat horizontal stroke with short
+   * legs at both ends and rounded corners (not an arc).
+   */
   getPath(): string {
-    return "M" + this.x + " " + this.y + " c -2 -8, " + (this.width - 3) + " -8, " + (this.width - 5) + " 0 ";
+    const r = DTie.R, leg = DTie.LEG;
+    const span = Math.max(this.width - 5, 2 * r + 2);
+    return `M${this.x} ${this.y} v ${-(leg - r)} q 0 ${-r} ${r} ${-r} h ${span - 2 * r} q ${r} 0 ${r} ${r} v ${leg - r}`;
   }
+  static readonly R = 3;
+  static readonly LEG = 6;
 }
 
 export class DCommentStart {
