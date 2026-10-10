@@ -11,6 +11,7 @@ import {
   NoteType
 } from '../types/model';
 import { Document as MonodiDocument } from '../api.service';
+import { flagDefsOf } from '../notes/note-flags';
 import { extractPattern } from '../transcription-analyzer-core';
 import { 
   MeiMappingProfileV2, 
@@ -50,6 +51,9 @@ export function resolveNoteFields(note: Note, isConnectionGap: boolean, connecti
   };
   if (isConnectionGap) {
     res['connectionGap'] = connectionGapValue;
+  }
+  if (note.flags && note.flags.length > 0) {
+    res['flags'] = note.flags.join(' ');
   }
   return res;
 }
@@ -720,7 +724,10 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
           noteTargetParent = getOrCreateWrapper(noteTargetParent, w, doc);
         }
 
-        const nc = doc.createElementNS('http://www.music-encoding.org/ns/mei', noteRule.tag);
+        // User-defined note flags: may rename the element and add fixed attributes.
+        const flagDefs = flagDefsOf(note.flags);
+        const flagTag = flagDefs.find(f => f.meiTag)?.meiTag;
+        const nc = doc.createElementNS('http://www.music-encoding.org/ns/mei', flagTag || noteRule.tag);
         nc.setAttribute('xml:id', 'm-' + note.uuid);
 
         const isLastNoteOfUnit = (gIndex === lastGroupIdx && nIndex === groupedData.grouped.length - 1);
@@ -747,6 +754,8 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
           }
           return null; // Keep resolved default
         });
+
+        for (const fd of flagDefs) applyRuleAttributes(nc, fd.mei);
 
         // Pattern rule: the rule's nc entry for this note position (never pname/oct).
         applyRuleAttributes(nc, patternRule?.nc[flatIndex]);

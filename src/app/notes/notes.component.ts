@@ -22,6 +22,7 @@ import { CommentComponent } from '../comment/comment.component';
 import { commentColor } from '../comment/comment-colors';
 import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
+import { NoteFlagDef, flagDefsOf, getNoteFlagDefs } from './note-flags';
 import { ContextMenuService } from '../context-menu/context-menu.service';
 import { Router } from '@angular/router';
 import { SearchExecService } from '../search/search-exec.service';
@@ -981,6 +982,26 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     });
   }
 
+  toggleFlag(key: string): void {
+    this.withFocus(f => {
+      this.undoService.beforeChange('Edit Note');
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      if (f.isLatent) {
+        delete f.isLatent;
+      }
+      const flags = (f.flags ?? []).filter(k => k !== key);
+      if (flags.length === (f.flags ?? []).length) flags.push(key);
+      if (flags.length > 0) f.flags = flags; else delete f.flags;
+    });
+  }
+
+  /** Flag markers drawn above a note head (abbreviation or SVG outline). */
+  flagMarkers(n: VM.Note): NoteFlagDef[] {
+    return flagDefsOf(n.flags);
+  }
+
+  flagViewBox(d: NoteFlagDef): string { return d.viewBox || '0 0 10 10'; }
+
   toggleNoteType(t: VM.NoteType): void {
     this.withFocus(f => {
       this.undoService.beforeChange('Edit Note');
@@ -1290,6 +1311,10 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         label: `Toggle Liquescent (${sc.toggleLiquescent})`,
         action: () => { this.toggleLiquescent(); }
       },
+      ...getNoteFlagDefs().map(fd => ({
+        label: `Toggle flag: ${fd.label} (${fd.key})`,
+        action: () => { this.toggleFlag(fd.key); }
+      })),
       {
         label: 'Split Line After Syllable',
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
@@ -1642,7 +1667,8 @@ export function spacedToString(spaced: VM.Spaced): string {
     let modifierString =
       (explicitOctave !== -1 ? explicitOctave : '') +
       (note.noteType !== VM.NoteType.Normal ? VM.noteTypeToString(note.noteType) : '') +
-      (note.liquescent ? 'l' : '');
+      (note.liquescent ? 'l' : '') +
+      (note.flags ? note.flags.join('') : '');
 
     return baseStr + (modifierString !== '' ? (`[` + modifierString + `]`) : '');
   }

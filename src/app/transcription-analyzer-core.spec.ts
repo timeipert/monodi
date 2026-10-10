@@ -21,8 +21,8 @@ const syllable = (text: string, ...neumes: VM.NonSpaced[]): any => ({
 const root = (...children: any[]): any => ({ kind: VM.ContainerKind.RootContainer, uuid: 'r', children });
 
 describe('transcription analyzer', () => {
-  it('is version 2: one pattern per neume', () => {
-    expect(ANALYZER_VERSION).toBe(2);
+  it('is version 3: one pattern per neume, note flags as suffix', () => {
+    expect(ANALYZER_VERSION).toBe(3);
   });
 
   describe('extractPattern', () => {

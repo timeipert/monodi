@@ -104,6 +104,14 @@
                   <span class="badge bg-secondary ms-2">{{ patternRules.length }}</span>
                 </div>
               </li>
+              <!-- NOTE FLAGS -->
+              <li>
+                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'flags'" (click)="selectNode('flags')">
+                  <i class="bi bi-tags me-2 text-muted"></i>
+                  <span class="me-auto">Note Flags</span>
+                  <span class="badge bg-secondary ms-2">{{ noteFlags.length }}</span>
+                </div>
+              </li>
               <!-- FORMTEIL -->
               <li>
                 <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'formteil'" [class.text-muted]="!activeProfile.entities.formteil.enabled" (click)="selectNode('formteil')">
@@ -253,7 +261,7 @@
         <div class="col-12 col-md-8 col-xl-5 border-end bg-white">
           <div class="p-3 bg-light border-bottom d-flex align-items-center">
             <h6 class="mb-0 fw-semibold text-secondary">
-              {{ selectedNodeId === 'skeleton' ? 'Document Skeleton Settings' : selectedNodeId === 'patterns' ? 'Pattern Rules' : 'Mapping Rule Editor' }}
+              {{ selectedNodeId === 'skeleton' ? 'Document Skeleton Settings' : selectedNodeId === 'patterns' ? 'Pattern Rules' : selectedNodeId === 'flags' ? 'Note Flags' : 'Mapping Rule Editor' }}
             </h6>
           </div>
           <div class="p-4" style="max-height: 600px; overflow-y: auto;">
@@ -299,6 +307,52 @@
                   <button class="btn btn-outline-secondary" (click)="addWrapper(newSkelInput.value); newSkelInput.value = ''">Add</button>
                 </div>
               </div>
+            }
+            <!-- NOTE FLAGS EDITOR -->
+            @if (selectedNodeId === 'flags') {
+              <p class="text-muted small">A flag is an extra property of a note, such as a virga. Set it from the note's context menu or type its key in the note brackets (<code>g[V]</code>). It appears in pattern codes as a suffix (<code>*uV</code>) and can add MEI attributes or rename the note element. Without an SVG outline the abbreviation is drawn above the note.</p>
+              <div class="input-group input-group-sm mb-3">
+                <input type="text" class="form-control" style="max-width:5rem" maxlength="1" placeholder="Key (V)" [(ngModel)]="newFlagKey" (keyup.enter)="addNoteFlag()">
+                <input type="text" class="form-control" placeholder="Label, e.g. Virga" [(ngModel)]="newFlagLabel" (keyup.enter)="addNoteFlag()">
+                <button class="btn btn-outline-secondary" (click)="addNoteFlag()">Add</button>
+              </div>
+              @for (fd of noteFlags; track $index; let fi = $index) {
+                <div class="border rounded p-2 mb-3">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <code class="fs-6">{{ fd.key }}</code>
+                    <input type="text" class="form-control form-control-sm w-auto" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Label">
+                    <input type="text" class="form-control form-control-sm" style="width:4rem" maxlength="3" [(ngModel)]="fd.abbrev" (ngModelChange)="emitChange()" title="Abbreviation drawn above the note">
+                    <button class="btn btn-link text-danger btn-sm p-0 ms-auto" (click)="removeNoteFlag(fi)"><i class="bi bi-x-circle"></i></button>
+                  </div>
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <label class="btn btn-sm btn-outline-secondary mb-0">{{ fd.svgPath ? 'Replace SVG' : 'Load SVG' }}
+                      <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
+                    </label>
+                    @if (fd.svgPath) {
+                      <svg width="20" height="20" [attr.viewBox]="fd.viewBox"><path [attr.d]="fd.svgPath" fill="currentColor"/></svg>
+                      <button class="btn btn-link btn-sm" (click)="clearFlagSvg(fd)">Remove SVG</button>
+                    }
+                  </div>
+                  <div class="d-flex flex-wrap align-items-center gap-1">
+                    <span class="small text-muted me-1">MEI</span>
+                    <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="element (e.g. nc)" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" title="Replaces the note's element name">
+                    @for (name of ruleAttrNames(fd.mei || {}); track name) {
+                      <span class="input-group input-group-sm w-auto">
+                        <span class="input-group-text">{{ name }}</span>
+                        <input type="text" class="form-control" style="width:5rem" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
+                        <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
+                      </span>
+                    }
+                    <input type="text" class="form-control form-control-sm w-auto" style="width:8rem" placeholder="+ attribute" list="ncAttrNames" #fa (keyup.enter)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''">
+                  </div>
+                </div>
+              }
+              @if (noteFlags.length === 0) {
+                <div class="text-muted small">No flags yet.</div>
+              }
+              <datalist id="ncAttrNames">
+                @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
+              </datalist>
             }
             <!-- PATTERN RULES EDITOR -->
             @if (selectedNodeId === 'patterns') {

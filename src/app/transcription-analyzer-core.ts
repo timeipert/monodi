@@ -13,8 +13,9 @@ import * as VM from './types/model';
  *  1  one pattern per ligature group (`grouped`)
  *  2  one pattern per neume (`NonSpaced`: everything written without a gap),
  *     as in the Neumen-Editor and the Python pipeline: `[*u]dd` is one pattern
+ *  3  user-defined note flags are appended to a note's suffix (`*uV`)
  */
-export const ANALYZER_VERSION = 2;
+export const ANALYZER_VERSION = 3;
 
 export interface AnalyzedPattern {
   patternId: string;
@@ -41,7 +42,7 @@ function getDirection(p1: number, p2: number): string {
   return 'e';
 }
 
-function getSuffix(noteType: VM.NoteType, isLiquescent: boolean): string {
+function getSuffix(noteType: VM.NoteType, isLiquescent: boolean, flags?: string[]): string {
   let s = '';
   if (noteType === VM.NoteType.Oriscus)      s += 'O';
   else if (noteType === VM.NoteType.Quilisma)    s += 'Q';
@@ -50,6 +51,7 @@ function getSuffix(noteType: VM.NoteType, isLiquescent: boolean): string {
   else if (noteType === VM.NoteType.Descending)  s += 'LD';
   else if (noteType === VM.NoteType.Liquescent)  s += 'L';
   if (isLiquescent && !s.includes('L')) s += 'L';
+  if (flags && flags.length > 0) s += flags.join('');
   return s;
 }
 
@@ -71,13 +73,13 @@ export function extractPattern(nonSpaced: VM.NonSpaced): string {
     if (first) {
       first = false;
       if (isGroup) parts.push('[');
-      parts.push('*' + getSuffix(group[0].noteType, group[0].liquescent));
+      parts.push('*' + getSuffix(group[0].noteType, group[0].liquescent, group[0].flags));
     } else {
       if (isGroup) parts.push('[');
       if (prevLastNote !== null) {
         const currentPitch = pitchToMidi(group[0].base, group[0].octave);
         const linkDir = getDirection(prevLastPitch, currentPitch);
-        parts.push(linkDir + getSuffix(group[0].noteType, group[0].liquescent));
+        parts.push(linkDir + getSuffix(group[0].noteType, group[0].liquescent, group[0].flags));
       }
     }
 
@@ -86,7 +88,7 @@ export function extractPattern(nonSpaced: VM.NonSpaced): string {
         const p1 = pitchToMidi(group[k].base, group[k].octave);
         const p2 = pitchToMidi(group[k + 1].base, group[k + 1].octave);
         const d = getDirection(p1, p2);
-        parts.push(d + getSuffix(group[k + 1].noteType, group[k + 1].liquescent));
+        parts.push(d + getSuffix(group[k + 1].noteType, group[k + 1].liquescent, group[k + 1].flags));
       }
     }
 

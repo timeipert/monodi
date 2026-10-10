@@ -206,6 +206,8 @@ export interface Note {
   octave: number;
   focus: boolean;
   isLatent?: boolean;
+  /** Keys of user-defined note flags (see notes/note-flags.ts), e.g. ['V']. */
+  flags?: string[];
 }
 
 export interface Spaced {

@@ -5,6 +5,7 @@ import { APIService, ProjectSettings, Document as MonodiDocument } from '../api.
 import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
+import { NoteFlagDef, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
 import { MeiMappingProfileV2, MeiPatternRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
 import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
@@ -276,13 +277,13 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
   /** Convenience for the rule editor: does the currently selected entity differ? */
   get selectedEntityDiffers(): boolean {
-    if (this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns') return false;
+    if (this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return false;
     return this.entityDiffers(this.selectedNodeId as MeiEntityKey);
   }
 
   /** Two-click revert of only the selected entity's rule to the default. */
   resetEntityToDefault() {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns') return;
+    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return;
     const key = this.selectedNodeId as MeiEntityKey;
 
     if (this.armedResetEntity !== key) {
@@ -299,6 +300,50 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     this.activeProfile.entities[key] = JSON.parse(JSON.stringify(this.defaultProfile.entities[key]));
     this.emitChange(true);
     this.toastr.success(`"${key}" reset to default.`);
+  }
+
+  // --- Note flags (user-defined, e.g. virga) ---
+  newFlagKey = '';
+  newFlagLabel = '';
+
+  get noteFlags(): NoteFlagDef[] {
+    return this.settings.noteFlags ??= [];
+  }
+
+  addNoteFlag() {
+    const key = this.newFlagKey.trim().toUpperCase();
+    const err = validateFlagKey(key, this.noteFlags);
+    if (err) { this.toastr.warning(err); return; }
+    this.noteFlags.push({ key, label: this.newFlagLabel.trim() || key, abbrev: key, mei: {} });
+    this.newFlagKey = '';
+    this.newFlagLabel = '';
+    this.emitChange(true);
+  }
+
+  removeNoteFlag(i: number) {
+    this.noteFlags.splice(i, 1);
+    this.emitChange(true);
+  }
+
+  /** Loads an SVG file (paths only) as the flag's outline. */
+  async onFlagSvg(event: Event, fd: NoteFlagDef) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const glyph = parseSvgToGlyph(await file.text());
+    if (!glyph) {
+      this.toastr.error('No <path> with a viewBox found in this SVG.');
+    } else {
+      fd.svgPath = glyph.d;
+      fd.viewBox = glyph.viewBox;
+      this.emitChange(true);
+    }
+    (event.target as HTMLInputElement).value = '';
+  }
+
+  clearFlagSvg(fd: NoteFlagDef) {
+    fd.svgPath = undefined;
+    fd.viewBox = undefined;
+    this.emitChange(true);
   }
 
   // --- Pattern rules (pattern [+ manuscript] → MEI attributes per nc) ---
@@ -404,7 +449,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   }
 
   get activeRule(): MeiEntityRule | undefined {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns') return undefined;
+    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return undefined;
     return this.activeProfile.entities[this.selectedNodeId as MeiEntityKey];
   }
 

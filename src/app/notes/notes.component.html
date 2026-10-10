@@ -62,6 +62,20 @@
                       [attr.width]="drawable.ref.liquescent ? 8 : 12"
                       [attr.href]="getGlyphDataUri(drawable.ref.noteType, hasCurrentFocus(drawable, i))" />
                   }
+                  @if (isNote(drawable)) {
+                    @for (fd of flagMarkers(drawable.ref); track fd.key; let fi = $index) {
+                      @if (fd.svgPath) {
+                        <svg [attr.x]="drawable.x + (drawable.ref.liquescent ? 4 : 6) - 5" [attr.y]="drawable.y + 12 - fi * 11"
+                          width="10" height="10" [attr.viewBox]="flagViewBox(fd)" style="pointer-events: none;">
+                          <path [attr.d]="fd.svgPath" [attr.fill]="color" />
+                        </svg>
+                      } @else {
+                        <text [attr.x]="drawable.x + (drawable.ref.liquescent ? 4 : 6)" [attr.y]="drawable.y + 20 - fi * 11"
+                          text-anchor="middle" font-size="9" font-weight="700" [attr.fill]="color"
+                          style="font-family: system-ui, sans-serif; pointer-events: none;">{{ fd.abbrev }}</text>
+                      }
+                    }
+                  }
                   @if (isTie(drawable)) {
                     <path [attr.d]="drawable.getPath()" [attr.data-right]="drawable.right" [attr.stroke]="color" stroke-width="2" stroke-linejoin="round"
                       fill="transparent" />

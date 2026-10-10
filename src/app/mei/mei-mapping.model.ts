@@ -102,6 +102,7 @@ export const ENTITY_FIELDS: Record<MeiEntityKey, { key: string; label: string; e
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'note-123' }
   ],
   clef: [
@@ -116,24 +117,28 @@ export const ENTITY_FIELDS: Record<MeiEntityKey, { key: string; label: string; e
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'oriscus-123' }
   ],
   quilisma: [
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'quilisma-123' }
   ],
   strophicus: [
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'strophicus-123' }
   ],
   liquescent: [
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'liquescent-123' }
   ]
 };

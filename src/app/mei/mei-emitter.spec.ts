@@ -14,6 +14,7 @@ import {
   ContainerKind,
   LinePartKind
 } from '../types/model';
+import { setNoteFlagDefs } from '../notes/note-flags';
 import { Document as MonodiDocument } from '../api.service';
 
 describe('MeiEmitter', () => {
@@ -21,7 +22,7 @@ describe('MeiEmitter', () => {
     return { uuid, base, octave: 4, noteType: NoteType.Normal, liquescent: false, focus: false };
   }
 
-  function ncsOf(spaced: any[], placement?: 'next' | 'previous'): Element[] {
+  function ncsOf(spaced: any[], placement?: 'next' | 'previous', selector = 'nc'): Element[] {
     const root = emptyRootContainer();
     const formteil = emptyFormteilContainer(DocumentType.Level1, []);
     const zeile = emptyZeileContainer(1);
@@ -34,7 +35,7 @@ describe('MeiEmitter', () => {
     const profile = defaultMeiProfile();
     if (placement) profile.gapPlacement = placement;
     const doc = new DOMParser().parseFromString(emitMei(root, profile), 'application/xml');
-    return Array.from(doc.querySelectorAll('nc'));
+    return Array.from(doc.querySelectorAll(selector));
   }
 
   it('puts con="g" on the nc after a break between non-ligated groups (*u), none for a ligature ([*u])', () => {
@@ -337,5 +338,20 @@ describe('MeiEmitter', () => {
     expect(x.map(n => n.getAttribute('tilt'))).toEqual(['e', null]);
     expect(x[1].getAttribute('q')).toBe('x');
     expect(x[1].getAttribute('pname')).toBe('a'); // pitch is never overridden
+  });
+
+  it('maps note flags to attributes and element names', () => {
+    setNoteFlagDefs([{ key: 'V', label: 'Virga', abbrev: 'V', mei: { type: 'virga' } },
+                     { key: 'W', label: 'Other', abbrev: 'W', meiTag: 'virga' }]);
+    try {
+      const a = nc('a'); a.flags = ['V'];
+      const b = nc('b', BaseNote.A); b.flags = ['W'];
+      const out = ncsOf([{ nonSpaced: [{ grouped: [a, b] }] }], undefined, 'neume > *');
+      expect(out[0].getAttribute('type')).toBe('virga');
+      expect(out[0].tagName).toBe('nc');
+      expect(out[1].tagName).toBe('virga');
+    } finally {
+      setNoteFlagDefs([]);
+    }
   });
 });

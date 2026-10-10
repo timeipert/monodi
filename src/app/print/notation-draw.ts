@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { DHelperLine, DNote, DTie } from '../notes/Drawables';
 import { GLYPH_PATHS } from '../notes/glyph-paths';
+import { flagDefsOf } from '../notes/note-flags';
 import { G_CLEF_PATH } from '../clef-glyph';
 import { PathOp, parseSvgPath, transformOps } from './svg-path';
 import { SyllableGeometry } from './notation-geometry';
@@ -50,6 +51,7 @@ export function drawSyllableNotation(doc: jsPDF, g: SyllableGeometry, f: Notatio
         const ops = transformOps(glyphOps(d.ref.noteType), (gx, gy) => [px(g.shiftUnits + d.x + (gx - 24) * k), py(d.y + gy * k)]);
         doc.path(ops);
         doc.fillEvenOdd();
+        drawNoteFlags(doc, d, g.shiftUnits, px, py, S);
       } else if (d instanceof DTie) {
         const ops = transformOps(parseSvgPath(d.getPath()), (x, y) => [px(g.shiftUnits + x), py(y)]);
         doc.setLineWidth(2 * S);
@@ -59,6 +61,35 @@ export function drawSyllableNotation(doc: jsPDF, g: SyllableGeometry, f: Notatio
       } else if (d instanceof DHelperLine) {
         doc.rect(px(g.shiftUnits + d.x - 3), py(d.y - 0.5), 15 * S, 1 * S, 'F');
       }
+    }
+  });
+}
+
+const flagOpsCache = new Map<string, PathOp[]>();
+
+/** User-defined note flags (see notes/note-flags.ts) above the note head: SVG outline or abbreviation. */
+function drawNoteFlags(doc: jsPDF, d: DNote, shift: number, px: (x: number) => number, py: (y: number) => number, S: number): void {
+  const defs = flagDefsOf(d.ref.flags);
+  if (defs.length === 0) return;
+  const cx = shift + d.x + (d.ref.liquescent ? 4 : 6);
+  defs.forEach((fd, i) => {
+    const top = d.y + 12 - i * 11;
+    if (fd.svgPath) {
+      const vb = (fd.viewBox || '0 0 10 10').split(' ').map(Number);
+      if (vb.length !== 4 || !(vb[2] > 0) || !(vb[3] > 0)) return;
+      const k = 9 / Math.max(vb[2], vb[3]);
+      let ops = flagOpsCache.get(fd.svgPath);
+      if (!ops) { ops = parseSvgPath(fd.svgPath); flagOpsCache.set(fd.svgPath, ops); }
+      doc.path(transformOps(ops, (gx, gy) => [px(cx + (gx - vb[0] - vb[2] / 2) * k), py(top + (gy - vb[1]) * k)]));
+      doc.fillEvenOdd();
+    } else {
+      const font = doc.getFont();
+      const size = doc.getFontSize();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9 * S);
+      doc.text(fd.abbrev, px(cx), py(top + 8), { align: 'center' });
+      doc.setFont(font.fontName, font.fontStyle);
+      doc.setFontSize(size);
     }
   });
 }
