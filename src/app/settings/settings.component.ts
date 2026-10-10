@@ -237,31 +237,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.toastr.info('Editor shortcuts reset to defaults.');
   }
 
-  get htmlExportSourceFields() {
-    return [
-      { key: 'quellensigle', label: 'Siglum' },
-      { key: 'herkunftsregion', label: 'Region of Origin' },
-      { key: 'herkunftsort', label: 'Place of Origin' },
-      { key: 'herkunftsinstitution', label: 'Institution of Origin' },
-      { key: 'ordenstradition', label: 'Order Tradition' },
-      { key: 'quellentyp', label: 'Source Type' },
-      { key: 'bibliotheksort', label: 'Library Location' },
-      { key: 'bibliothek', label: 'Library' },
-      { key: 'bibliothekssignatur', label: 'Library Signature' }
-    ];
-  }
+  /** Fixed lists: constants, so the template sees the same objects on every change-detection pass. */
+  readonly htmlExportSourceFields = [
+    { key: 'quellensigle', label: 'Siglum' },
+    { key: 'herkunftsregion', label: 'Region of Origin' },
+    { key: 'herkunftsort', label: 'Place of Origin' },
+    { key: 'herkunftsinstitution', label: 'Institution of Origin' },
+    { key: 'ordenstradition', label: 'Order Tradition' },
+    { key: 'quellentyp', label: 'Source Type' },
+    { key: 'bibliotheksort', label: 'Library Location' },
+    { key: 'bibliothek', label: 'Library' },
+    { key: 'bibliothekssignatur', label: 'Library Signature' }
+  ];
 
-  get htmlExportDocumentFields() {
-    return [
-      { key: 'textinitium', label: 'Text Initium' },
-      { key: 'dokumenten_id', label: 'Document ID' },
-      { key: 'gattung1', label: 'Genre 1' },
-      { key: 'gattung2', label: 'Genre 2' },
-      { key: 'festtag', label: 'Feast Day' },
-      { key: 'feier', label: 'Celebration' },
-      { key: 'liturgischer_status', label: 'Liturgical Status' }
-    ];
-  }
+  readonly htmlExportDocumentFields = [
+    { key: 'textinitium', label: 'Text Initium' },
+    { key: 'dokumenten_id', label: 'Document ID' },
+    { key: 'gattung1', label: 'Genre 1' },
+    { key: 'gattung2', label: 'Genre 2' },
+    { key: 'festtag', label: 'Feast Day' },
+    { key: 'feier', label: 'Celebration' },
+    { key: 'liturgischer_status', label: 'Liturgical Status' }
+  ];
 
   ngOnInit() {
     this.pageTitle.set('Settings');
