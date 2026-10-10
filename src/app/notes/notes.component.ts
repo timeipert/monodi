@@ -6,7 +6,7 @@ import {
   SimpleChanges
 } from '@angular/core';
 import * as VM from '../types/model';
-import { fromSpaced, fromSpaceds, adiastematicFromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { fromSpaceds, adiastematicFromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
 import { spacedToParsons, parsonsToSpaced } from './parsons';
 import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from './editor-shortcuts.service';
 import { ToolsService } from '../tools.service';
@@ -172,7 +172,6 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     private focusService: FocusService,
     private cdr: ChangeDetectorRef,
     private toastr: ToastrService,
-    private domRoot: ElementRef,
     private toolsService: ToolsService,
     private undoService: UndoService,
     private modalService: NgbModal,
@@ -934,7 +933,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     if (this.getActiveComments().length > 0) {
       this.toastr.info('Please delete the comment before deleting the symbol.');
     } else {
-      const nextNote = this.withPath((s, ns, gr, no) => {
+      this.withPath((s, ns, gr, no) => {
         this.undoService.beforeChange('Edit Note');
         this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
         let nextNote = !focusLast ? VM.getRightOf(s, no) : VM.getLeftOf(s, no);
@@ -1262,7 +1261,6 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     me.preventDefault();
     me.stopPropagation();
     this.focusService.preferredFocus = Focus.Notes;
-    const e = (this.domRoot.nativeElement as HTMLElement);
     if (d instanceof DNote || d instanceof DCommentStart || d instanceof DCommentEnd) {
       this.addNoteTools();
       this.focusService.registerFocus(() => { VM.removeFocusFromLinePart(this.model); this.cdr.markForCheck(); });

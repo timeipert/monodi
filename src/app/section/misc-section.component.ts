@@ -17,11 +17,10 @@ export class MiscSectionComponent extends S.Section<Model.MiscContainer> impleme
   @ViewChildren("sub")
   children!: QueryList<Focusable>;
 
-  constructor(private cdr: ChangeDetectorRef, private undoService: UndoService) {
+  constructor(private cdr: ChangeDetectorRef, undoService: UndoService) {
     super("Misc", {
       'NewNoteLineRequsted': (e: Event, oldIndex: number) => {
         let r = e as NewNoteLineRequsted;
-        console.log(r.container);
         this.newAt(r.container, oldIndex + 1);
       },
       'NewParatextRequested': (e: Event, oldIndex: number) => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), oldIndex + 1); },
@@ -51,8 +50,6 @@ export class MiscSectionComponent extends S.Section<Model.MiscContainer> impleme
       '+ Text': () => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), 0) }
     };
 
-    const docStruct = Model.getStructure(this.documentType);
-    const structure = docStruct[this.zipper.length - 1];
   }
 
   getName(): string {

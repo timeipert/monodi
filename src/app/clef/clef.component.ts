@@ -1,13 +1,11 @@
 import { G_CLEF_PATH } from '../clef-glyph';
-import { AfterViewChecked, ChangeDetectorRef, Component, OnInit, OnDestroy, ChangeDetectionStrategy, ViewRef, ElementRef, ViewChild, Output, Input, EventEmitter } from '@angular/core';
+import { AfterViewChecked, ChangeDetectorRef, Component, OnInit, OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, Output, Input, EventEmitter } from '@angular/core';
 import * as VM from '../types/model';
-import { ToolsService, Tool } from '../tools.service';
-import { assertNever, maxOf, textWidth, focusContentEditable } from '../../utils';
+import { ToolsService } from '../tools.service';
+import { assertNever } from '../../utils';
 import { ToastrService } from 'ngx-toastr';
 import * as R from '../notes/Request';
-import { v4 as UUID } from "uuid";
 import { FocusService } from '../focus.service';
-import { Subscription } from 'rxjs';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { Focusable, Focus, FocusChange } from '../types/Focus';
 import { UndoService } from '../undoService';
@@ -75,7 +73,6 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
     private focusService: FocusService,
     private cdr: ChangeDetectorRef,
     private toastr: ToastrService,
-    private domRoot: ElementRef,
     private toolsService: ToolsService,
     private undoService: UndoService,
     private modalService: NgbModal,

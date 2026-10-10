@@ -2,7 +2,7 @@ import { FocusService } from '../focus.service';
 import { maxNoteBottomOf, minNoteYOf, requiredPadBottom, requiredPadTop } from '../notes/Drawables';
 import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { Injectable, inject } from '@angular/core';
-import { Subject, forkJoin, Subscription } from 'rxjs';
+import { forkJoin, Subscription } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -419,8 +419,6 @@ export class SynopsisService {
   }
 
   alignSequential(rootContainers: VM.RootContainer[]): AlignedNode[] {
-    const K = rootContainers.length;
-    
     const leafs: VM.FormteilChildren[][] = rootContainers.map(root => {
       const result: VM.FormteilChildren[] = [];
       const traverse = (node: any) => {

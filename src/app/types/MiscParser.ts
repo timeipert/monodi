@@ -20,8 +20,8 @@ function partParser(): P.Parser<M.FormteilContainer> {
 }
 
 function lineParser(): P.Parser<M.MiscContainer> {
-  return P.regex(/[^\t]*\t*/).map(t => {console.log(">>>" + t + "<<<"); return t.trim()})
-    .then(PP.lineContainerParser().map(x => {console.log(x); return x;}))
+  return P.regex(/[^\t]*\t*/).map(t => t.trim())
+    .then(PP.lineContainerParser())
     .map(children => makeLine(children));
 }
 

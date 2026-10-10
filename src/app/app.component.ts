@@ -1,6 +1,6 @@
 import { Component, HostListener } from '@angular/core';
 import { Router } from '@angular/router';
-import { APIService } from './api.service'
+import { APIService } from './api.service';
 import { StackEntry, ToolsService, Tool} from './tools.service';
 import { UserService, User } from './user.service';
 import { GithubService, SyncProgress } from './github.service';
@@ -83,8 +83,10 @@ export class AppComponent {
   isNavCollapsed = true;
 
   constructor (
-    private api: APIService,
-    private userService: UserService,
+    // Injected only for its constructor: it configures localforage (database and store name) before
+    // anything else reads from storage. Do not remove.
+    api: APIService,
+    userService: UserService,
     private toolsService: ToolsService,
     public github: GithubService,
     public undoService: UndoService,

@@ -14,7 +14,6 @@ export class CommentTreeLeafComponent {
   @Output() treeEvent = new EventEmitter<M.CommentTreeEvent>();
 
   doDelete() {
-    console.log("requting delete of " + JSON.stringify(this.path));
     this.treeEvent.emit({ source: this.path, intent: { kind: 'Delete' } });
   }
 

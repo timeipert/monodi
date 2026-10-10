@@ -1,5 +1,4 @@
 import { FocusService } from '../focus.service';
-import { registerEmbeddedFont, embeddedFamily } from '../pdf-font';
 import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -13,14 +12,12 @@ import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { FlagPatternsDialogComponent } from '../notes/flag-patterns-dialog.component';
 import { parsers } from '../types/parser';
 import * as VM from '../types/model';
-import * as S from '../sselect/sselect.component';
 import { UndoService } from '../undoService';
 import { CommentComponent } from '../comment/comment.component';
 import { commentColor } from '../comment/comment-colors';
 import { getCategoryDetails } from '../comment/comment-categories';
 import { getInterventionLabel, INTERVENTIONS } from '../comment/intervention-vocabulary';
 import { DragStateService } from '../dragger/drag-state.service';
-import { NavigationService } from '../notationsdokumentation/navigation.service';
 import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ManuscriptViewService } from '../manuscript-view.service';
@@ -28,17 +25,12 @@ import { MeiExportService } from '../mei-export.service';
 import { SearchExecService } from '../search/search-exec.service';
 import { VolpianoService } from '../volpiano.service';
 
-import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
-import autoTable from 'jspdf-autotable';
 import { sanitizeClefDisplayMode } from '../clef-policy';
 import { sanitizeNotationColor } from '../notation-color';
-import { layoutPdfLine } from '../pdf-layout';
-import { G_CLEF_PATH } from '../clef-glyph';
-import { commentLemma, commentStartIndex, commentType } from '../comment-lemma';
+import { commentLemma, commentType } from '../comment-lemma';
 import { metadataFieldLabel, metadataFieldValue, headlineText, inlineMetadataItems } from '../document-metadata';
 import { maxNoteBottomOf, minNoteYOf, requiredPadBottom, requiredPadTop } from '../notes/Drawables';
-import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { PdfExportService, PdfDocJob } from '../pdf-export.service';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
@@ -416,7 +408,6 @@ export class DocumentComponent implements OnInit {
     private location: Location,
     private toolService: ToolsService,
     public dragState: DragStateService,
-    private navService: NavigationService,
     private meiExport: MeiExportService,
     private volpiano: VolpianoService,
     private pageTitle: PageTitleService, public focusService: FocusService,
@@ -1552,7 +1543,6 @@ export class DocumentComponent implements OnInit {
   }
 
   handleFile(): void {
-    const that = this;
     const file = (document.getElementById("document-upload") as HTMLInputElement)!.files![0];
     const reader = new FileReader();
     reader.onload = (p: ProgressEvent) => {

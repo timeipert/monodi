@@ -37,7 +37,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
     private changeRef: ChangeDetectorRef,
     private toastr: ToastrService,
     private focusService: FocusService,
-    private undoService: UndoService,
+    undoService: UndoService,
     private contextMenuService: ContextMenuService,
     private toolsService: ToolsService
   ) {
@@ -322,7 +322,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       }
       return newNotes;
     } catch (e) {
-      console.log(e);
+      console.error(e);
       window.alert('Error parsing new note text');
       return notes;
     }

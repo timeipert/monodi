@@ -13,33 +13,6 @@ export function sequenzParser(): P.Parser<M.RootContainer>{
 }
 
 
-function linePairContainerParser():P.Parser<M.FormteilContainer>{
-  return P.regexp(/[0-9]+/).map<M.FormteilContainer>(num => (
-    {
-      "kind": M.ContainerKind.FormteilContainer,
-      uuid: UUID(),
-      children: [],
-      data: [{
-        name: M.FormteilDataName.Signatur,
-        data: num.trim()
-      }]
-    }));
-}
-
-function linePairZeileContainer():P.Parser<M.FormteilContainer>{
-  return P.regexp(/[a-z]\t/).map<M.FormteilContainer>(letter => (
-    {
-      "kind": M.ContainerKind.FormteilContainer,
-      uuid: UUID(),
-      children: [],
-      data: [{
-        name: M.FormteilDataName.Signatur,
-        data: letter.trim()
-      }]
-    }));
-}
-
-
 function singleDoubleLineParser(requiredNumber?: string): P.Parser<[string, string, M.ZeileContainer[]]> {
   if (requiredNumber) {
     return P.seq(

@@ -26,7 +26,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
 
   private mapDropSub = new Subscription();
 
-  constructor(private toaster: ToastrService, private cdr: ChangeDetectorRef, private undoService: UndoService, private dragState: DragStateService, private navService: NavigationService) {
+  constructor(private toaster: ToastrService, private cdr: ChangeDetectorRef, undoService: UndoService, private dragState: DragStateService, private navService: NavigationService) {
     super("Edition unit", {
       StaleCommentRemovealRequested: (e: any, oldIndex: number) => { Model.removeStaleComments(this.data); },
       NewCommentRequested: (e: NewCommentRequested, oldIndex: number) => {

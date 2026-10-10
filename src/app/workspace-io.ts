@@ -86,7 +86,7 @@ export function parseWorkspaceImport(json: any): WorkspaceImportResult {
   const schemaVersion = json.schemaVersion !== undefined ? json.schemaVersion : 1;
   const notesDict = json.notes;
   if (notesDict && typeof notesDict === 'object') {
-    for (const [docId, root] of Object.entries(notesDict)) {
+    for (const root of Object.values(notesDict)) {
       if (root && typeof root === 'object' && (root as any).kind === 'RootContainer') {
         normalizeDocumentComments(root as RootContainer);
       }

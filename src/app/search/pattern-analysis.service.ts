@@ -10,7 +10,6 @@ import {
   LoadedDoc,
   PatternOccurrence,
   PatternGroup,
-  computePatternGroups,
   toPitchNames,
   toContour,
   toIntervals

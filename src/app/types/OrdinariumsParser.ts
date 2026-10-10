@@ -19,12 +19,10 @@ export function ordinariumRoot(): P.Parser<M.RootContainer> {
     rootContainer.documentType = M.DocumentType.Level2;
 
     for (let line of lines) {
-      console.log(line);
       const cont = getLineContinuation(line);
       const last = lastFormteilChildren(rootContainer);
 
       if (line.match(/^([A-Za-z\u00C0-\u017F\.…<>]+[0-9]*\s*)*$/)) {
-        console.log("as para");
         const paratext = makeParatext(line);
         if (last !== undefined) {
           last.push(paratext);
@@ -32,20 +30,16 @@ export function ordinariumRoot(): P.Parser<M.RootContainer> {
           rootContainer.children.push(makeLine("", "", [paratext]));
         }
       } else if (cont !== undefined) {
-        console.log("as cont");
         if (last === undefined) continue;
         const [lineContainer, folioChangePart ] = parseLineContainer(line);
         last.push(lineContainer);
         if (folioChangePart) {
-          console.log("filling folio change");
           fillLastFolioChange(last, folioChangePart);
         }
       } else {
-        console.log("as formteil");
         const [formteil, folioChangePart ] = makeFormteil(line);
         rootContainer.children.push(formteil);
         if (folioChangePart) {
-          console.log("filling folio change");
           fillLastFolioChange(formteil.children, folioChangePart);
         }
       }
@@ -80,7 +74,6 @@ function fillLastFolioChange(children: M.FormteilChildren[], text: string): bool
 
 function parseLineContainer(line: string): [M.ZeileContainer, string | undefined] {
   const [linePart, folioChangePart] = line.split("\t||");
-  console.log(`parsing >>>${line}<<< as >>${linePart}<< and >>${folioChangePart}<<`);
   const spaced = linePart.split(/\s+/);
   const cont: M.ZeileContainer = {
     "kind": M.ContainerKind.ZeileContainer,

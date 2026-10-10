@@ -8,6 +8,8 @@ import { layoutPdfLine } from './pdf-layout';
 import { sanitizeNotationColor } from './notation-color';
 import { ClefDisplayMode, sanitizeClefDisplayMode, shouldShowClef } from './clef-policy';
 import { commentLemma, commentStartIndex, commentType } from './comment-lemma';
+import { resolvePrintOptions } from './print/print-options';
+import { chapterize } from './print/chapters';
 import { formatFolioLabel, sanitizeFolioPrefixMode, usesFolioPrefix } from './folio-label';
 import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFieldValue } from './document-metadata';
 import { getCategoryDetails } from './comment/comment-categories';
@@ -266,9 +268,7 @@ export class PdfExportService {
     if (!jobsIn.length) throw new Error('Nothing to print');
     // Documents of one manuscript belong together: each manuscript is a chapter (stable by first appearance).
     const chapterKeyOf = (j: PdfDocJob) => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
-    const keyOrder: string[] = [];
-    for (const j of jobsIn) if (!keyOrder.includes(chapterKeyOf(j))) keyOrder.push(chapterKeyOf(j));
-    const jobs = [...jobsIn].sort((a, b) => keyOrder.indexOf(chapterKeyOf(a)) - keyOrder.indexOf(chapterKeyOf(b)));
+    const { items: jobs, chapterNo, chapterFirst, runningNo, count: chapterCount } = chapterize(jobsIn, chapterKeyOf);
     const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
     const t0 = performance.now();
     /** Adds the time `fn` takes to the phase `name`. */
@@ -287,49 +287,18 @@ export class PdfExportService {
         if (embeddedFamily(fontFamily)) {
           await registerEmbeddedFont(doc, fontFamily);
         }
-        const pdfMarginLeft = Number(s.pdfMarginLeft ?? PRINT_PDF_DEFAULTS.pdfMarginLeft);
-        const pdfMarginRight = Number(s.pdfMarginRight ?? PRINT_PDF_DEFAULTS.pdfMarginRight);
-        const pdfMarginTop = Number(s.pdfMarginTop ?? PRINT_PDF_DEFAULTS.pdfMarginTop);
-        const pdfMarginBottom = Number(s.pdfMarginBottom ?? PRINT_PDF_DEFAULTS.pdfMarginBottom);
-        const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? PRINT_PDF_DEFAULTS.pdfStaffSpacing);
-        const pdfBracketGap = Number(s.pdfBracketGap ?? 5);
-        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? PRINT_PDF_DEFAULTS.pdfSyllableTextOffset);
-        
-        // Coerced layout parameters
-        const titleFontSize = Number(s.pdfTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfTitleFontSize);
-        const pdfTitleVerticalSpace = Number(s.pdfTitleVerticalSpace ?? 20);
-        const headerSource = s.pdfHeaderSource || 'textinitium';
-        const metaFontSize = Number(s.pdfMetadataFontSize ?? PRINT_PDF_DEFAULTS.pdfMetadataFontSize);
-        const pdfMetadataVerticalSpace = Number(s.pdfMetadataVerticalSpace ?? 15);
-        const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? PRINT_PDF_DEFAULTS.pdfVerticalSpace);
-        const SCALE = Number(s.pdfScale ?? PRINT_PDF_DEFAULTS.pdfScale);
-        const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? PRINT_PDF_DEFAULTS.pdfSyllableSpacing);
-        const pdfContinuationIndent = Number(s.pdfContinuationIndent ?? PRINT_PDF_DEFAULTS.pdfContinuationIndent);
-        const pdfFontSize = Number(s.pdfFontSize ?? PRINT_PDF_DEFAULTS.pdfFontSize);
-        const pdfSignaturSpace = Number(s.pdfSignaturSpace ?? PRINT_PDF_DEFAULTS.pdfSignaturSpace);
+        const {
+          pdfMarginLeft, pdfMarginRight, pdfMarginTop, pdfMarginBottom, SCALE, pdfStaffSpacing, pdfBracketGap, pdfSyllableTextOffset,
+          extraSyllableSpacing, pdfContinuationIndent, pdfFontSize, pdfSignaturSpace, pdfVerticalSpace, widowSlack, hideBareStaff,
+          compactTextless, titleFontSize, pdfTitleVerticalSpace, headerSource, metaFontSize, pdfMetadataVerticalSpace,
+          pdfParatextFontSize, pdfParatextSpacing, pdfCommentStaffScale, pdfCommentFontSize, pdfCommentBlockGap, lemmaColumnMax,
+          chapterHeadings, chapterNewPage, contentsApparatus, pdfShowPageNumbers, pdfPageNumberFontSize, pdfHeadlineFontSize,
+          pdfHeadlineMetadataFields, bookmarks,
+        } = resolvePrintOptions(s);
         // Titles, metadata and paratexts share one left edge, set just inside the staff
         // start (print edition: staff at 83.7 pt, text at 89.1 pt).
         const textX = pdfMarginLeft + pdfSignaturSpace + PDF_TEXT_INSET;
         const notationColor = hexToRgb(sanitizeNotationColor(s.notationColor));
-        const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? PRINT_PDF_DEFAULTS.pdfParatextFontSize);
-        const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? PRINT_PDF_DEFAULTS.pdfParatextSpacing);
-        // The print look sets the apparatus as dense as the printed edition (small staves, tight gaps);
-        // only the classic style takes these sizes from the sliders in the settings.
-        const printLook = s.pdfPageStyle !== 'classic';
-        const pdfCommentStaffScale = printLook ? Number(s.pdfApparatusStaffScale ?? PRINT_PDF_DEFAULTS.pdfApparatusStaffScale) : Number(s.pdfCommentStaffScale ?? PRINT_PDF_DEFAULTS.pdfCommentStaffScale);
-        const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentFontSize);
-        const pdfCommentBlockGap = printLook ? Number(s.pdfApparatusEntryGap ?? PRINT_PDF_DEFAULTS.pdfApparatusEntryGap) : Number(s.pdfCommentBlockGap ?? PRINT_PDF_DEFAULTS.pdfCommentBlockGap);
-        const lemmaColumnMax = Number(s.pdfLemmaColumnMax ?? PRINT_PDF_DEFAULTS.pdfLemmaColumnMax);
-        const widowSlack = Math.max(0, Number(s.pdfWidowSlack ?? PRINT_PDF_DEFAULTS.pdfWidowSlack));
-        const hideBareStaff = s.pdfHideStaffWithoutNotes !== false;
-        const compactTextless = s.pdfCompactTextless !== false;
-        const chapterHeadings = s.pdfChapterHeadings !== false;
-        const chapterNewPage = s.pdfChapterNewPage !== false;
-        const contentsApparatus: 'chapters' | 'documents' | 'none' = s.pdfContentsApparatus === 'documents' || s.pdfContentsApparatus === 'none' ? s.pdfContentsApparatus : 'chapters';
-        const pdfShowPageNumbers = s.pdfShowPageNumbers === true || s.pdfShowPageNumbers === 'true';
-        const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? PRINT_PDF_DEFAULTS.pdfPageNumberFontSize);
-        const pdfHeadlineFontSize = Number(s.pdfHeadlineFontSize ?? PRINT_PDF_DEFAULTS.pdfHeadlineFontSize);
-        const pdfHeadlineMetadataFields = s.pdfHeadlineMetadataFields || [];
 
         let cursorY = pdfMarginTop;
         const pageHeight = doc.internal.pageSize.getHeight();
@@ -368,18 +337,7 @@ export class PdfExportService {
         };
         // Chapters: every manuscript has its own chapter (heading, running head, contents entry);
         // inside it the documents are numbered 1, 2, 3 … in the frame before each document.
-        const chapterNo: number[] = [];
-        const chapterFirst: boolean[] = [];
-        const boxTexts: string[] = [];
-        let chapterCount = 0;
-        jobs.forEach((j, ji) => {
-          const first = ji === 0 || chapterKeyOf(j) !== chapterKeyOf(jobs[ji - 1]);
-          if (first) chapterCount++;
-          chapterFirst.push(first);
-          chapterNo.push(chapterCount);
-          const n = first ? 1 : Number(boxTexts[ji - 1] || 0) + 1;
-          boxTexts.push(String(n));
-        });
+        const boxTexts = runningNo.map(String);
         // Folio labels: a manuscript whose labels say "f." somewhere is foliated — all of its labels get it
         const folioMode = sanitizeFolioPrefixMode(s.pdfFolioPrefix);
         const foliated = new Map<string, boolean>();
@@ -1517,7 +1475,7 @@ export class PdfExportService {
 
         // PDF bookmarks mirror the hierarchy of the contents (chapter > document)
         const outlineApi = (doc as any).outline;
-        if (s.pdfBookmarks !== false && outlineApi?.add && stats.outline.length) {
+        if (bookmarks && outlineApi?.add && stats.outline.length) {
           const parents: any[] = [null];
           for (const o of stats.outline) {
             const depth = Math.min(Math.max(o.depth, 0), parents.length - 1);

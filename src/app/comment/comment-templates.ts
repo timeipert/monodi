@@ -24,10 +24,6 @@ function bracketLeaf(): M.CommentTreeLeaf {
   return { kind: 'CommentTreeLeaf', id: UUID(), content: { kind: 'Bracket' } };
 }
 
-function undecided(): M.CommentTreeUndecided {
-  return { kind: 'CommentTreeUndecided', id: UUID() };
-}
-
 export const COMMENT_TEMPLATES: CommentTemplate[] = [
   {
     key: 'text',

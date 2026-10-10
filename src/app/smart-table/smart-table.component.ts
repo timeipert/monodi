@@ -152,16 +152,6 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     this.ensureStateLoaded();
 
-    let structureChanged = false;
-    
-    if (changes['headers']) {
-      const prev = changes['headers'].previousValue as Header<T>[] | undefined;
-      const curr = changes['headers'].currentValue as Header<T>[] | undefined;
-      if (!prev || !curr || prev.length !== curr.length || prev.some((h, i) => h.name !== curr[i].name)) {
-        structureChanged = true;
-      }
-    }
-
     this.allRows = this.objects.map(o => ({
       dataObject: o,
       cells: this.headers.map(h => h.makeCell(o))

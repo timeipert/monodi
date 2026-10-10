@@ -1,6 +1,6 @@
 import { FocusShiftRequested } from "./app/types/CommonEvent";
 import { Focusable, FocusChange, Focus } from "./app/types/Focus";
-import { EventEmitter, ChangeDetectorRef, QueryList } from "@angular/core";
+import { ChangeDetectorRef, QueryList } from "@angular/core";
 
 export function textWidth(text: string, font: string = "Times", size: string = "16px"): number {
     let canvas = document.getElementById('canvas') as HTMLCanvasElement;

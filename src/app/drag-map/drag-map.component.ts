@@ -126,16 +126,6 @@ export class DragMapComponent implements OnDestroy {
       this.dragState.isValidTarget(item.zipper) || isAncestorOfAnyValid(item.zipper)
     );
   }
-
-  private getNodeAt(zipper: number[]): any {
-    let node = this.dragState.rootData;
-    for (const idx of zipper) {
-      if (!node || !node.children) return null;
-      node = node.children[idx];
-    }
-    return node;
-  }
-
   private getLabel(node: any): string {
     switch (node.kind) {
       case 'FormteilContainer': {

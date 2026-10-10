@@ -1,10 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { UserService, User } from '../user.service';
 import { Subscription } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
-import { APIService, UserInfo, Source, LoginRequired, UploadFinished, InsufficientPermissions } from '../api.service'
+import { APIService, LoginRequired, UploadFinished, InsufficientPermissions } from '../api.service';
 import { assertNever } from "../../utils";
-import { Observable, of } from 'rxjs';
+import { Observable } from 'rxjs';
 
 type Name = "zip" | "documents" | "sources" | "delSources" | "delDocuments";
 
@@ -23,7 +22,7 @@ export class ZipUploadComponent implements OnInit {
   user: User | null = null;
   names: Name[] = ["zip", "documents", "sources", "delSources", "delDocuments"];
 
-  constructor(private userService: UserService, private api: APIService, private toastr: ToastrService) {
+  constructor(private userService: UserService, api: APIService) {
     this.states = {
       "zip": {
         data: null,

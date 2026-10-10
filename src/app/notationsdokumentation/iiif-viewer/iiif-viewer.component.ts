@@ -501,13 +501,6 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     this.applyTransformDirect();
   }
 
-
-  private startPan(e: MouseEvent) {
-    this.isPanning = true; this.panStartX = e.clientX - this.translateX; this.panStartY = e.clientY - this.translateY; e.preventDefault();
-  }
-  private doPan(e: MouseEvent) { this.translateX = e.clientX - this.panStartX; this.translateY = e.clientY - this.panStartY; }
-  private endPan() { this.isPanning = false; }
-
   private zoomToRegion(region: VM.AnnotationRegion) {
     const vp = this._viewportRef?.nativeElement, ct = this.contentRef?.nativeElement;
     if (!vp || !ct) return;

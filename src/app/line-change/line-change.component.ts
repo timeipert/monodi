@@ -1,5 +1,5 @@
 import { G_CLEF_PATH } from '../clef-glyph';
-import { ChangeDetectorRef, ElementRef, ViewChild, Output, OnDestroy, EventEmitter, Input, Component, OnInit } from '@angular/core';
+import { ElementRef, ViewChild, Output, OnDestroy, EventEmitter, Input, Component, OnInit } from '@angular/core';
 import * as Model from '../types/model';
 import * as R from '../notes/Request';
 import { FocusService } from '../focus.service';
@@ -30,8 +30,7 @@ export class LineChangeComponent implements OnDestroy, OnInit {
     private focusService: FocusService,
     private toolsService: ToolsService,
     private modalService: NgbModal,
-    private undoService: UndoService,
-    private cdr: ChangeDetectorRef) {
+    private undoService: UndoService) {
   }
 
   @Input()
@@ -112,19 +111,16 @@ export class LineChangeComponent implements OnDestroy, OnInit {
 
   keyDown(event: KeyboardEvent) {
     if (event.key === "Enter" && event.altKey) {
-      console.log("ALT ENTER lineChange");
       event.stopPropagation();
       event.preventDefault();
       this.request.emit({ kind: 'SplitLineRequested' });
     } else if (!event.altKey && (event.key === "Enter" || event.key === " ")) {
-      console.log("ENTER lineChange");
       event.stopPropagation();
       event.preventDefault();
       this.request.emit({ kind: "NewSegmentRequested", syllableType: Model.SyllableType.Normal, text: "" });
     } else if (event.key === 'Backspace' || event.key === 'Delete') {
       event.stopPropagation();
       event.preventDefault();
-      console.log("eventKey Result: " + event.key === 'Backspace');
       this.request.emit({ kind: "DeletionRequested", focusLast: event.key === 'Backspace' });
     } else if (event.key === 'j') {
       event.stopPropagation();

@@ -16,7 +16,7 @@ export class FocusService {
       try {
         this.lastFocus();
       } catch (e) {
-        console.log(e);
+        console.error(e);
       }
     }
 

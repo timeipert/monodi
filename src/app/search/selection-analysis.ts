@@ -515,6 +515,5 @@ function powerIteration(M: number[][], iters = 200): { vec: number[]; val: numbe
 }
 
 function deflate(M: number[][], vec: number[], val: number): number[][] {
-  const n = M.length;
   return M.map((row, i) => row.map((x, j) => x - val * vec[i] * vec[j]));
 }
