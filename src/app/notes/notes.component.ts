@@ -22,8 +22,8 @@ import { CommentComponent } from '../comment/comment.component';
 import { commentColor } from '../comment/comment-colors';
 import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
-import { NoteFlagDef, flagDefsOf, getNoteFlagDefs } from './note-flags';
-import { ContextMenuService } from '../context-menu/context-menu.service';
+import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFlagDefs } from './note-flags';
+import { ContextMenuItem, ContextMenuService } from '../context-menu/context-menu.service';
 import { Router } from '@angular/router';
 import { SearchExecService } from '../search/search-exec.service';
 import { extractPattern } from '../transcription-analyzer-core';
@@ -783,7 +783,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       const sc = this.shortcutsService.getShortcuts();
       const k = e.key.toLowerCase();
 
-      if (k === sc.setSharp.toLowerCase()) { this.toggleNoteType(VM.NoteType.Sharp); }
+      const flagDef = this.flagForKeyEvent(e);
+      if (flagDef) { this.toggleFlag(flagDef.key); }
+      else if (k === sc.setSharp.toLowerCase()) { this.toggleNoteType(VM.NoteType.Sharp); }
       else if (k === sc.setNatural.toLowerCase()) { this.toggleNoteType(VM.NoteType.Natural); }
       else if (k === sc.setFlat.toLowerCase()) { this.toggleNoteType(VM.NoteType.Flat); }
       else if (k === sc.setOriscus.toLowerCase()) { this.toggleNoteType(VM.NoteType.Oriscus); }
@@ -993,6 +995,42 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       if (flags.length === (f.flags ?? []).length) flags.push(key);
       if (flags.length > 0) f.flags = flags; else delete f.flags;
     });
+  }
+
+  /** Keyboard edits end with this; menu actions have to call it themselves. */
+  private refreshNoteText(): void {
+    this.notesToText();
+    this.recalculateWidths();
+  }
+
+  /** Digit key (1-9, 0) that toggles the flag; null beyond the tenth flag. */
+  flagShortcut(key: string): string | null {
+    return flagShortcutKey(getNoteFlagDefs(), key);
+  }
+
+  /** The flag a plain digit key press stands for, if any. */
+  private flagForKeyEvent(e: KeyboardEvent): NoteFlagDef | undefined {
+    if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return undefined;
+    return flagForShortcutKey(getNoteFlagDefs(), e.key);
+  }
+
+  /** Context-menu entries for the flags: a few are listed directly, many fold into one item. */
+  private flagMenuItems(note: VM.Note): ContextMenuItem[] {
+    const defs = getNoteFlagDefs();
+    if (defs.length === 0) return [];
+    const items: ContextMenuItem[] = defs.map(fd => {
+      const sc = this.flagShortcut(fd.key);
+      return {
+        label: sc ? `${fd.label}  (${sc})` : fd.label,
+        checked: (note.flags ?? []).includes(fd.key),
+        action: () => { this.toggleFlag(fd.key); this.refreshNoteText(); }
+      };
+    });
+    if (defs.length <= 4) {
+      return [{ label: 'Flags', header: true, action: () => {} }, ...items];
+    }
+    const set = items.filter(i => i.checked).map(i => i.label.split('  (')[0]);
+    return [{ label: set.length ? `Flags: ${set.join(', ')}` : `Flags (${defs.length})`, action: () => {}, children: items }];
   }
 
   /** Flag markers drawn above a note head (abbreviation or SVG outline). */
@@ -1294,27 +1332,24 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     this.drawableClicked(d, me, voiceIndex);
 
     const sc = this.shortcutsService.getShortcuts();
-    const items = [
+    const items: ContextMenuItem[] = [
       {
         label: `Set to Flat (${sc.setFlat})`,
-        action: () => { this.toggleNoteType(VM.NoteType.Flat); }
+        action: () => { this.toggleNoteType(VM.NoteType.Flat); this.refreshNoteText(); }
       },
       {
         label: `Set to Sharp (${sc.setSharp})`,
-        action: () => { this.toggleNoteType(VM.NoteType.Sharp); }
+        action: () => { this.toggleNoteType(VM.NoteType.Sharp); this.refreshNoteText(); }
       },
       {
         label: `Set to Natural (${sc.setNatural})`,
-        action: () => { this.toggleNoteType(VM.NoteType.Normal); }
+        action: () => { this.toggleNoteType(VM.NoteType.Normal); this.refreshNoteText(); }
       },
       {
         label: `Toggle Liquescent (${sc.toggleLiquescent})`,
-        action: () => { this.toggleLiquescent(); }
+        action: () => { this.toggleLiquescent(); this.refreshNoteText(); }
       },
-      ...getNoteFlagDefs().map(fd => ({
-        label: `Toggle flag: ${fd.label} (${fd.key})`,
-        action: () => { this.toggleFlag(fd.key); }
-      })),
+      ...this.flagMenuItems(d.ref),
       {
         label: 'Split Line After Syllable',
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }

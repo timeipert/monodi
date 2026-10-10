@@ -23,7 +23,22 @@
             @if (item.checked) {
               <i class="bi bi-check-lg ms-auto text-success"></i>
             }
+            @if (item.children) {
+              <i class="bi ms-auto" [ngClass]="expanded.has(item) ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+            }
           </div>
+          @if (item.children && expanded.has(item)) {
+            <div class="submenu">
+              @for (child of item.children; track child) {
+                <div class="menu-item" [class.checked]="child.checked" (click)="executeAction(child, $event)">
+                  <span>{{ child.label }}</span>
+                  @if (child.checked) {
+                    <i class="bi bi-check-lg ms-auto text-success"></i>
+                  }
+                </div>
+              }
+            </div>
+          }
         }
       }
     </div>

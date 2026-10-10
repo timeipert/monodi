@@ -86,5 +86,22 @@ export function parseSvgToGlyph(svg: string): { viewBox: string; d: string } | n
   return { viewBox: viewBox.trim().replace(/,/g, ' ').replace(/\s+/g, ' '), d: paths.join(' ') };
 }
 
+/**
+ * Key that toggles a flag with a note selected: the digits 1-9, then 0, by the flag's position
+ * in the list. Digits are free in the editor, and unlike Shift+letter they cannot collide with
+ * the Shift shortcut that inserts a connected note. Flags beyond the tenth have no key.
+ */
+export function flagShortcutKey(defs: NoteFlagDef[], key: string): string | null {
+  const i = defs.findIndex(d => d.key === key);
+  if (i < 0 || i > 9) return null;
+  return String((i + 1) % 10);
+}
+
+/** The flag a pressed digit stands for (see flagShortcutKey). */
+export function flagForShortcutKey(defs: NoteFlagDef[], digit: string): NoteFlagDef | undefined {
+  if (!/^[0-9]$/.test(digit)) return undefined;
+  return defs[(Number(digit) + 9) % 10];
+}
+
 /** Geometry for drawing a flag marker above a note head; `cx` is the head's horizontal centre. */
 export const FLAG_BOX = 9;

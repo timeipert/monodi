@@ -400,7 +400,7 @@
           <!-- Note flags -->
           @if (tab === 'flags') {
             <div class="p-4 mei-pane">
-              <p class="mei-lead">A flag is your own marker on a note, for example a virga. Set it in the editor from a note's right-click menu, or type its letter in the note's brackets: <code>g[V]</code>.</p>
+              <p class="mei-lead">A flag is your own marker on a note, for example a virga. Set it in the editor with the number shown on its card (note selected), from the right-click menu, or by typing its letter in the note's brackets: <code>g[V]</code>.</p>
 
               <div class="border rounded p-3 mb-4 bg-light">
                 <div class="row g-2 align-items-end">
@@ -426,6 +426,9 @@
                 <div class="border rounded mb-3">
                   <div class="d-flex align-items-center gap-2 p-2 border-bottom bg-light">
                     <span class="badge bg-dark font-monospace fs-6">{{ fd.key }}</span>
+                    @if (flagKeyFor(fd.key); as dk) {
+                      <span class="small text-muted" title="With a note selected in the editor, press this key to set or clear the flag">key <kbd>{{ dk }}</kbd></span>
+                    }
                     <input type="text" class="form-control form-control-sm w-auto fw-medium" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Name">
                     <button class="btn btn-link text-danger btn-sm ms-auto text-decoration-none" (click)="removeNoteFlag(fi)"><i class="bi bi-trash me-1"></i>Delete</button>
                   </div>

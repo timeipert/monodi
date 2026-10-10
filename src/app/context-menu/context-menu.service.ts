@@ -11,6 +11,8 @@ export interface ContextMenuItem {
   checked?: boolean;
   action: () => void;
   disabled?: boolean;
+  /** Nested choices, shown inline when the item is clicked (the menu stays open). */
+  children?: ContextMenuItem[];
 }
 
 export interface ContextMenuState {

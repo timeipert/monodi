@@ -5,7 +5,7 @@ import { APIService, ProjectSettings, Document as MonodiDocument } from '../api.
 import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
-import { NoteFlagDef, RESERVED_FLAG_KEYS, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
+import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
 import { MeiMappingProfileV2, MeiPatternRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
 import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
@@ -395,6 +395,11 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     return fromLabel ?? free[0] ?? '';
   }
 
+  /** Digit that toggles a flag in the editor (1-9, 0), or null beyond the tenth. */
+  flagKeyFor(key: string): string | null {
+    return flagShortcutKey(this.noteFlags, key);
+  }
+
   get newFlagKey(): string {
     return this.newFlagKeyInput || this.suggestedFlagKey;
   }
@@ -413,7 +418,8 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     const err = validateFlagKey(key, this.noteFlags);
     if (!err) return null;
     const alt = this.suggestedFlagKey;
-    const reason = RESERVED_FLAG_KEYS.includes(key) ? `${key} is already used for a note type.` : `${key} is already used by another flag.`;
+    const reason = RESERVED_FLAG_KEYS.includes(key) ? `${key} is already used for a note type.`
+      : `${key} is already used by another flag.`;
     return alt ? `${reason} Try ${alt}.` : reason;
   }
 

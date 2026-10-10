@@ -11,6 +11,8 @@ import { ContextMenuService, ContextMenuState, ContextMenuItem } from './context
 })
 export class ContextMenuComponent implements OnInit, OnDestroy {
   state: ContextMenuState = { isOpen: false, x: 0, y: 0, items: [] };
+  /** Items with `children` that are currently unfolded. */
+  expanded = new Set<ContextMenuItem>();
   private sub?: Subscription;
 
   constructor(
@@ -31,6 +33,7 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
     } catch { /* SSR / detached DOM: ignore */ }
     this.sub = this.contextMenuService.state$.subscribe(state => {
       this.state = state;
+      this.expanded.clear();
       if (state.isOpen) {
         setTimeout(() => {
           const menuEl = document.querySelector('.custom-context-menu') as HTMLElement;
@@ -95,6 +98,10 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
 
   executeAction(item: ContextMenuItem, event: MouseEvent) {
     event.stopPropagation();
+    if (item.children) {
+      if (this.expanded.has(item)) this.expanded.delete(item); else this.expanded.add(item);
+      return;
+    }
     if (!item.disabled) {
       item.action();
       this.contextMenuService.close();
