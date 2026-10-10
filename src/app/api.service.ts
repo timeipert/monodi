@@ -567,6 +567,16 @@ export interface ProjectSettings {
   pdfPageStyle?: 'print' | 'classic';
   /** Folio labels in print: leave as typed, add "f." once the manuscript uses it (default), or always. */
   pdfFolioPrefix?: FolioPrefixMode;
+  pdfApparatusStaffScale?: number;
+  pdfApparatusEntryGap?: number;
+  pdfLemmaColumnMax?: number;
+  pdfWidowSlack?: number;
+  pdfHideStaffWithoutNotes?: boolean;
+  pdfCompactTextless?: boolean;
+  pdfChapterHeadings?: boolean;
+  pdfChapterNewPage?: boolean;
+  pdfContentsApparatus?: 'chapters' | 'documents' | 'none';
+  pdfBookmarks?: boolean;
   /** Frame the edition number (document field "Print Edition") in the margin next to the title. */
   pdfShowEditionBox?: boolean;
   /** When the automatic G-clef is drawn: chant start only (print edition), every manuscript line, or every line break. */
@@ -835,6 +845,10 @@ export function sanitizeSettings(settings: any): ProjectSettings {
     'pdfCommentTreePadding',
     'pdfCommentTreeGap',
     'pdfCommentBlockGap',
+    'pdfApparatusStaffScale',
+    'pdfApparatusEntryGap',
+    'pdfLemmaColumnMax',
+    'pdfWidowSlack',
     'pdfParatextFontSize',
     'pdfTitleFontSize',
     'pdfTitleVerticalSpace',
@@ -854,6 +868,7 @@ export function sanitizeSettings(settings: any): ProjectSettings {
   }
   settings.clefDisplayMode = sanitizeClefDisplayMode(settings.clefDisplayMode);
   settings.pdfFolioPrefix = sanitizeFolioPrefixMode(settings.pdfFolioPrefix);
+  if (!['chapters', 'documents', 'none'].includes(settings.pdfContentsApparatus)) settings.pdfContentsApparatus = 'chapters';
   settings.notationColor = sanitizeNotationColor(settings.notationColor);
 
   if (settings.commentTemplates !== undefined) {

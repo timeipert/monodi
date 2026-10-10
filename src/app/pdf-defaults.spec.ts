@@ -21,4 +21,12 @@ describe('print-edition defaults', () => {
     expect(D.pdfParatextFontSize).toBe(10);
     expect(D.pdfCommentFontSize).toBeLessThan(D.pdfFontSize);
   });
+  it('give the adjustable print options values that keep the current look', () => {
+    expect(D.pdfApparatusStaffScale).toBeLessThan(D.pdfScale);   // apparatus staves are smaller than the edition's
+    expect(D.pdfApparatusEntryGap).toBeGreaterThanOrEqual(0);
+    expect(D.pdfWidowSlack).toBeGreaterThanOrEqual(0);
+    expect(D.pdfLemmaColumnMax).toBeGreaterThan(40);
+    for (const on of [D.pdfHideStaffWithoutNotes, D.pdfCompactTextless, D.pdfChapterHeadings, D.pdfChapterNewPage, D.pdfBookmarks]) expect(on).toBeTrue();
+    expect(['chapters', 'documents', 'none']).toContain(D.pdfContentsApparatus);
+  });
 });

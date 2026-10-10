@@ -30,6 +30,29 @@ export const PRINT_PDF_DEFAULTS = {
   pdfSignaturSpace: 27,
   pdfContinuationIndent: 20,
   pdfPageStyle: 'print' as 'print' | 'classic',
+  // ── Apparatus ──────────────────────────────────────────────────────────────────────────
+  /** Staff size in the apparatus (print style; the classic style uses `pdfCommentStaffScale`). */
+  pdfApparatusStaffScale: 0.28,
+  /** Space between apparatus entries in pt (print style; classic: `pdfCommentBlockGap`). */
+  pdfApparatusEntryGap: 4,
+  /** Widest lemma (pt) that stands in the left column; longer ones are set above the entry. */
+  pdfLemmaColumnMax: 110,
+  // ── Edition ────────────────────────────────────────────────────────────────────────────
+  /** A last system holding one syllable stays on the previous one if it overshoots the edge by at most this (pt); 0 = never. */
+  pdfWidowSlack: 32,
+  /** Syllables of type "without notes": no staff lines (the space stays). Off: the staff runs on. */
+  pdfHideStaffWithoutNotes: true,
+  /** Systems without any text end just below the staff (no empty lyric zone). */
+  pdfCompactTextless: true,
+  // ── Several documents ──────────────────────────────────────────────────────────────────
+  /** Every manuscript is a chapter with a heading ... */
+  pdfChapterHeadings: true,
+  /** ... and starts on a new page. */
+  pdfChapterNewPage: true,
+  /** What the contents list under "Critical Apparatus": the manuscripts, every document, or nothing. */
+  pdfContentsApparatus: 'chapters' as 'chapters' | 'documents' | 'none',
+  /** PDF bookmarks (outline) mirroring the contents. */
+  pdfBookmarks: true,
   notationColor: '#333333',
   clefDisplayMode: 'document-start' as const,
 };

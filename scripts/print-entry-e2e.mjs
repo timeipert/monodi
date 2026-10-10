@@ -25,7 +25,7 @@ const watchdog = setTimeout(() => { console.log('FAIL  print entry points: timed
 const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
 let failures = 0;
 
-async function scenario(name, fn) {
+async function scenario(name, fn, settings = {}) {
   const ctx = await browser.createBrowserContext();
   const page = await ctx.newPage();
   await page.setViewport({ width: 1400, height: 1000 });
@@ -36,7 +36,7 @@ async function scenario(name, fn) {
   await capturePdfDownloads(page, (buf) => { writeFileSync(file, buf); resolveDl(); });
   try {
     await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });
-    await seedWorkspace(page, docs, {});
+    await seedWorkspace(page, docs, settings);
     await fn(page, problems, async () => {
       await Promise.race([dl, new Promise((_, rej) => setTimeout(() => rej(new Error('no download')), 90000))]);
       return execFileSync(PDFTOTEXT, [file, '-']).toString();
@@ -93,6 +93,33 @@ await scenario('document view dialog', async (page, problems, pdfText) => {
     const iAbb = text.lastIndexOf('Abb 7-13r-1'), iAa = text.indexOf('Aa 13-1r-1');
     if (iAbb < 0 || iAa < 0) problems.push('documents missing');
   });
+  // the same selection with the chapter/contents/bookmark settings switched around
+  // short documents, so that "run on" is visible: both manuscripts fit on the first edition page
+  const shortDocs = [
+    { id: 'doc-1', label: 'Abb 7-12r-1', incipit: 'Gratuletur omnis caro', genre1: 'Antiphon', source: 'srcA', sigle: 'Abb 7', root: load('x16', 'extreme') },
+    { id: 'doc-2', label: 'Aa 13-1r-1', incipit: 'Resurrexit', genre1: 'Versus', source: 'srcB', sigle: 'Aa 13', root: load('x20', 'extreme') },
+    { id: 'doc-3', label: 'Abb 7-13r-1', incipit: 'Signaturen', genre1: 'Ordinarium', source: 'srcA', sigle: 'Abb 7', root: load('x20', 'extreme') },
+    { id: 'doc-4', label: 'Aa 13-1v-1', incipit: 'Folio', genre1: 'Ordinarium', source: 'srcB', sigle: 'Aa 13', root: load('x20', 'extreme') },
+  ];
+  docs.splice(0, docs.length, ...shortDocs);
+  await scenario('print settings: no chapter pages, documents in the contents, no bookmarks', async (page, problems, pdfText) => {
+    await page.goto(BASE + '/#/search', { waitUntil: 'networkidle0' });
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.waitForSelector('app-search', { timeout: 30000 });
+    await page.evaluate(() => { const c = window.ng.getComponent(document.querySelector('app-search')); c.pdfDialog.open({ ids: ['doc-1', 'doc-2', 'doc-3', 'doc-4'], title: 'Two manuscripts' }); window.ng.applyChanges(c); });
+    await page.waitForSelector('app-pdf-export-dialog', { timeout: 10000 });
+    await page.waitForFunction(() => /Aa 13-1v-1/.test(document.querySelector('app-pdf-export-dialog')?.textContent || ''), { timeout: 10000 });
+    const btn = await page.waitForSelector('app-pdf-export-dialog button ::-p-text(Create PDF)');
+    await btn.click();
+    const text = await pdfText();
+    const file = join(outDir, 'entry-' + 'print settings: no chapter pages, documents in the contents, no bookmarks'.replace(/\W+/g, '-') + '.pdf');
+    const raw = readFileSync(file).toString('latin1');
+    if (/\/Outlines/.test(raw)) problems.push('bookmarks were written although pdfBookmarks is off');
+    // first edition page (after the one title page): both manuscripts run on there
+    const firstEditionPage = execFileSync(PDFTOTEXT, ['-f', '2', '-l', '2', file, '-']).toString();
+    if (!(firstEditionPage.includes('Abb 7-12r-1') && firstEditionPage.includes('Aa 13-1r-1'))) problems.push('the second manuscript did not run on after the first (it still starts a new page)');
+    if ((text.match(/Abb 7-12r-1/g) || []).length < 4) problems.push('the contents do not list the documents under the apparatus');
+  }, { pdfChapterNewPage: false, pdfChapterHeadings: false, pdfBookmarks: false, pdfContentsApparatus: 'documents' });
   docs.splice(0, docs.length, ...keep);
 }
 

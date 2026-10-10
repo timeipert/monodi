@@ -316,9 +316,16 @@ export class PdfExportService {
         // The print look sets the apparatus as dense as the printed edition (small staves, tight gaps);
         // only the classic style takes these sizes from the sliders in the settings.
         const printLook = s.pdfPageStyle !== 'classic';
-        const pdfCommentStaffScale = printLook ? PRINT_PDF_DEFAULTS.pdfCommentStaffScale : Number(s.pdfCommentStaffScale ?? PRINT_PDF_DEFAULTS.pdfCommentStaffScale);
+        const pdfCommentStaffScale = printLook ? Number(s.pdfApparatusStaffScale ?? PRINT_PDF_DEFAULTS.pdfApparatusStaffScale) : Number(s.pdfCommentStaffScale ?? PRINT_PDF_DEFAULTS.pdfCommentStaffScale);
         const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentFontSize);
-        const pdfCommentBlockGap = printLook ? PRINT_PDF_DEFAULTS.pdfCommentBlockGap : Number(s.pdfCommentBlockGap ?? PRINT_PDF_DEFAULTS.pdfCommentBlockGap);
+        const pdfCommentBlockGap = printLook ? Number(s.pdfApparatusEntryGap ?? PRINT_PDF_DEFAULTS.pdfApparatusEntryGap) : Number(s.pdfCommentBlockGap ?? PRINT_PDF_DEFAULTS.pdfCommentBlockGap);
+        const lemmaColumnMax = Number(s.pdfLemmaColumnMax ?? PRINT_PDF_DEFAULTS.pdfLemmaColumnMax);
+        const widowSlack = Math.max(0, Number(s.pdfWidowSlack ?? PRINT_PDF_DEFAULTS.pdfWidowSlack));
+        const hideBareStaff = s.pdfHideStaffWithoutNotes !== false;
+        const compactTextless = s.pdfCompactTextless !== false;
+        const chapterHeadings = s.pdfChapterHeadings !== false;
+        const chapterNewPage = s.pdfChapterNewPage !== false;
+        const contentsApparatus: 'chapters' | 'documents' | 'none' = s.pdfContentsApparatus === 'documents' || s.pdfContentsApparatus === 'none' ? s.pdfContentsApparatus : 'chapters';
         const pdfShowPageNumbers = s.pdfShowPageNumbers === true || s.pdfShowPageNumbers === 'true';
         const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? PRINT_PDF_DEFAULTS.pdfPageNumberFontSize);
         const pdfHeadlineFontSize = Number(s.pdfHeadlineFontSize ?? PRINT_PDF_DEFAULTS.pdfHeadlineFontSize);
@@ -652,7 +659,7 @@ export class PdfExportService {
                   continuationIndent: pdfContinuationIndent,
                   clefWidth: PDF_CLEF_WIDTH * SCALE,
                   // a lone last syllable stays on its row rather than getting a system of its own
-                  widowSlack: 32,
+                  widowSlack,
                   // adiastematic lines have no staff, hence no clef either
                   clefMode: zeile.notation === 'adiastematic' ? 'document-start' as const : clefMode,
                 };
@@ -688,7 +695,7 @@ export class PdfExportService {
                     if (mk.isMarker) hasTick = true;
                   }
                   if (h <= 0) return 0;
-                  if (hasText) return h + extra - sysTrims[si];
+                  if (hasText || !compactTextless) return h + extra - sysTrims[si];
                   // No text: no lyric zone — the system ends just below the staff (or its lowest
                   // note), leaving room for the line-change strokes that hang under it.
                   const staffBottom = (80 - 10) * SCALE - sysTrims[si];
@@ -715,7 +722,7 @@ export class PdfExportService {
                 });
                 // A syllable of type "without notes" means: no staff lines in its cell (space unchanged,
                 // no clef, no box). A normal syllable that merely has no notes keeps its lines.
-                const isBare = (k: number) => !measured[k].isMarker && measured[k].geom?.isNormal === false;
+                const isBare = (k: number) => hideBareStaff && !measured[k].isMarker && measured[k].geom?.isNormal === false;
                 // Staff segments per system: runs of cells that are not bare (markers belong to the run before).
                 const staffRuns = layout.systems.map((sys) => {
                   const runs: { x1: number; x2: number }[] = [];
@@ -780,7 +787,7 @@ export class PdfExportService {
                     // without lyrics there is no lyric row: the stroke hangs right under the staff
                     const systemHasText = measured.some((mm, kk) => layout.placed[kk].system === pl.system && mm.txt);
                     const staffBottomY = cursorY - trim + (80 - sysRawTops[pl.system]) * SCALE;
-                    const tickTop = systemHasText ? cursorY + h + pdfSyllableTextOffset - pdfFontSize * 0.78 : staffBottomY + 3;
+                    const tickTop = systemHasText || !compactTextless ? cursorY + h + pdfSyllableTextOffset - pdfFontSize * 0.78 : staffBottomY + 3;
                     const tickBottom = tickTop + pdfFontSize * 0.98;
                     const tickGap = PDF_MARKER_TICK_GAP;
                     doc.setLineWidth(0.5);
@@ -1055,7 +1062,7 @@ export class PdfExportService {
             if (multi) {
                 // Hierarchy like the printed apparatus: the manuscript (chapter heading), below it
                 // each document — framed running number, ID, incipit, genre — and its entries.
-                if (chapterFirst[ji]) {
+                if (chapterFirst[ji] && chapterHeadings) {
                     checkPageOverflow(80);
                     cursorY += 10;
                     const fsC = 11.5;
@@ -1177,7 +1184,7 @@ export class PdfExportService {
 
             // An entry whose body is a comment tree or a set of lines: like the printed apparatus the
             // lemma stands in a narrow left column, level with the staff, and the body to its right.
-            const LEMMA_COL_MAX = 110;
+            const LEMMA_COL_MAX = lemmaColumnMax;
             const lemmaOf = (c: VM.Comment) => { const l = commentLemma(jobParts, c); return l ? l + ']' : ''; };
             const lemmaColW = (c: VM.Comment): number => {
               const t = lemmaOf(c);
@@ -1256,7 +1263,7 @@ export class PdfExportService {
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
-          if (multi && chapterFirst[ji]) {
+          if (multi && chapterFirst[ji] && chapterNewPage) {
             // a manuscript starts a new page with its chapter heading
             if (ji > 0) { doc.addPage(); cursorY = pdfMarginTop; }
           } else if (ji > 0) {
@@ -1270,7 +1277,7 @@ export class PdfExportService {
           }
           docEntries.push({ job: ji, page: editionPage() });
           docStart.push(doc.getNumberOfPages());
-          if (multi && chapterFirst[ji]) drawChapterHeading(ji);
+          if (multi && chapterFirst[ji] && chapterHeadings) drawChapterHeading(ji);
           await layoutDocument(jobs[ji], ji);
         }
         if (opts.apparatus) {
@@ -1360,10 +1367,10 @@ export class PdfExportService {
             if (apparatusStarted) {
               rows.push({ id: '', incipit: 'Critical Apparatus', genre: '', page: apparatusPage, plain: true, chapter: true, indent: 0, depth: 0 });
               for (const ao of apparatusOutline) {
-                if (ao.depth === 1 && chapterCount > 1) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1 });
+                if (ao.depth === 1 && chapterCount > 1) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1, bookmarkOnly: contentsApparatus === 'none' });
                 else {
                   const j = jobs[ao.job];
-                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job), bookmarkOnly: true });
+                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job), bookmarkOnly: contentsApparatus !== 'documents' });
                 }
               }
             }
@@ -1510,7 +1517,7 @@ export class PdfExportService {
 
         // PDF bookmarks mirror the hierarchy of the contents (chapter > document)
         const outlineApi = (doc as any).outline;
-        if (outlineApi?.add && stats.outline.length) {
+        if (s.pdfBookmarks !== false && outlineApi?.add && stats.outline.length) {
           const parents: any[] = [null];
           for (const o of stats.outline) {
             const depth = Math.min(Math.max(o.depth, 0), parents.length - 1);
