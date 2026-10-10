@@ -1166,59 +1166,40 @@ export class DocumentComponent implements OnInit {
           callback: () => { this.setViewMode('iiif'); },
           icon: 'image',
           title: 'Scan Only',
-          active: this.viewMode === 'iiif'
+          active: this.viewMode === 'iiif',
+          group: 'scan'
         },
         {
           callback: () => { this.setViewMode('split'); },
           icon: 'layout-split',
           title: 'Split View',
-          active: this.viewMode === 'split'
+          active: this.viewMode === 'split',
+          group: 'scan'
         },
         {
           callback: () => { this.setViewMode('transcription'); },
           icon: 'music-note-list',
           title: 'Transcription Only',
-          active: this.viewMode === 'transcription'
+          active: this.viewMode === 'transcription',
+          group: 'scan'
         }
       );
     }
 
-    // Standard buttons
+    // Standard buttons: editing first, then the view, then everything that leaves the editor.
     tools.push(
       {
-        callback: () => { this.upload(); },
-        icon: 'upload',
-        title: 'Upload Document'
-      },
-      {
-        callback: () => { this.openJsonExport(); },
-        icon: 'download',
-        title: 'Export Document'
-      },
-      {
-        callback: () => { this.openPdfExport(); },
-        icon: 'file-pdf',
-        title: 'Export as PDF'
-      },
-      {
-        callback: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); },
-        icon: 'mei',
-        title: 'Export MEI'
-      },
-      {
-        callback: () => { this.exportVolpiano(); },
-        icon: 'music-note-beamed',
-        title: 'Export Volpiano'
-      },
-      {
-        callback: () => { this.toggleReadOnly(); },
-        icon: 'eye',
-        title: 'Toggle Read-Only Mode'
+        callback: () => { this.toggleSearchReplace(); },
+        icon: 'search',
+        title: 'Search and Replace (Ctrl+H)',
+        active: this.isSearchReplaceOpen,
+        group: 'edit'
       },
       {
         callback: () => { this.modalService.open(this.textImportModal); },
         icon: 'file-earmark-text',
-        title: 'Import Text'
+        title: 'Import Text',
+        group: 'edit'
       },
       {
         callback: () => {
@@ -1231,18 +1212,50 @@ export class DocumentComponent implements OnInit {
           this.toastr.success("Syllable hyphens corrected.");
         },
         icon: 'type-strikethrough',
-        title: 'Fix Syllable Dashes'
-      },
-      {
-        callback: () => { this.toggleSearchReplace(); },
-        icon: 'search',
-        title: 'Search and Replace (Ctrl+H)',
-        active: this.isSearchReplaceOpen
+        title: 'Fix Syllable Dashes',
+        group: 'edit'
       },
       {
         callback: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); },
         icon: 'chat-left-text',
-        title: 'Edit Global Comment'
+        title: 'Edit Global Comment',
+        group: 'edit'
+      },
+      {
+        callback: () => { this.toggleReadOnly(); },
+        icon: 'eye',
+        title: 'Toggle Read-Only Mode',
+        group: 'view'
+      },
+      {
+        callback: () => { this.upload(); },
+        icon: 'upload',
+        title: 'Upload Document',
+        group: 'exchange'
+      },
+      {
+        callback: () => { this.openJsonExport(); },
+        icon: 'download',
+        title: 'Export Document',
+        group: 'exchange'
+      },
+      {
+        callback: () => { this.openPdfExport(); },
+        icon: 'file-pdf',
+        title: 'Export as PDF',
+        group: 'exchange'
+      },
+      {
+        callback: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); },
+        icon: 'mei',
+        title: 'Export MEI',
+        group: 'exchange'
+      },
+      {
+        callback: () => { this.exportVolpiano(); },
+        icon: 'music-note-beamed',
+        title: 'Export Volpiano',
+        group: 'exchange'
       }
     );
 

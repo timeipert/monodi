@@ -47,6 +47,8 @@ export interface Tool {
   icon?: string;
   title: string;
   active?: boolean;
+  /** Tools of one group sit together; a thin divider separates neighbouring groups. */
+  group?: string;
 }
 
 export interface StackEntry {

@@ -76,6 +76,7 @@
               <i class="bi bi-arrow-repeat spin me-1"></i>Saving…
             </span>
           }
+          @if (source.id) {
           <button class="btn btn-sm"
             [class.btn-primary]="showMetadataPanel"
             [class.btn-outline-secondary]="!showMetadataPanel"
@@ -83,6 +84,7 @@
             <i class="bi bi-pencil-square me-1"></i>
             {{ showMetadataPanel ? 'Close Metadata' : 'Edit Metadata' }}
           </button>
+          }
         </div>
       </div>
       <!-- ── Collapsible metadata edit panel ───────────────────────────────── -->
@@ -90,18 +92,22 @@
         <div class="source-meta-panel">
           <div class="meta-panel-grid">
             <div class="meta-field">
-              <label class="meta-label">Source Siglum</label>
+              <label class="meta-label">Source Siglum@if (!source.id) { <span class="text-danger" title="Required">*</span> }</label>
               <div class="input-group input-group-sm">
                 <input id="quellensigle-input" class="form-control form-control-sm"
                   [ngStyle]="!source.id ? {'border': '2px solid #0d6efd', 'box-shadow': '0 0 0 0.25rem rgba(13, 110, 253, 0.25)'} : {}"
                   list="list-quellensigle" [(ngModel)]="source.quellensigle" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
                 <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellensigle', source.quellensigle)" title="Add to list"><i class="bi bi-plus"></i></button>
               </div>
+              @if (!source.id) {
+                <div class="form-text">How the manuscript is cited, in search results and in print.</div>
+              }
             </div>
             <div class="meta-field">
               <label class="meta-label">Date</label>
               <input class="form-control form-control-sm" [(ngModel)]="source.datierung" (blur)="save()" placeholder="e.g. 12th cent."/>
             </div>
+            @if (source.id || showMoreMeta) {
             <div class="meta-field">
               <label class="meta-label">Region of Origin</label>
               <div class="input-group input-group-sm">
@@ -176,7 +182,13 @@
               <label class="meta-label text-primary fw-semibold"><i class="bi bi-image me-1"></i>IIIF Manifest URL</label>
               <input class="form-control form-control-sm border-primary" [(ngModel)]="source.iiifManifestUrl" (blur)="save()" placeholder="https://.../manifest.json" />
             </div>
+            }
           </div>
+          @if (!source.id && !showMoreMeta) {
+            <button type="button" class="btn btn-link btn-sm text-decoration-none px-0 mt-2" (click)="showMoreMeta = true">
+              <i class="bi bi-chevron-down me-1"></i>More details (optional)
+            </button>
+          }
         </div>
       }
       <!-- ── Tabs — always full width, never move ───────────────────────────── -->
@@ -201,6 +213,7 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="mb-0 fw-semibold">Documents</h5>
               <div class="d-flex gap-2 align-items-center position-relative">
+                @if (source.id && documents.length > 0) {
                 <div class="position-relative">
                   <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                     (click)="showDocColPicker = !showDocColPicker">
@@ -227,17 +240,18 @@
                     </div>
                   }
                 </div>
+                }
                 @if (source.id) {
-                  <button class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]">
-                    <i class="bi bi-plus-lg me-1"></i> New Document
-                  </button>
-                  <button class="btn btn-outline-secondary btn-sm ms-2" (click)="printManuscript()" [disabled]="!documents.length"
-                    title="Print all documents of this manuscript as one PDF (contents table, collected apparatus)">
-                    <i class="bi bi-file-pdf me-1"></i> Print manuscript (PDF)
-                  </button>
-                  <button class="btn btn-outline-primary btn-sm ms-2" (click)="openVolpianoImport()"
+                  <button class="btn btn-outline-secondary btn-sm" (click)="openVolpianoImport()"
                     title="Create a new document from a Volpiano string">
                     <i class="bi bi-music-note-beamed me-1"></i> Import Volpiano
+                  </button>
+                  <button class="btn btn-outline-secondary btn-sm" (click)="printManuscript()" [disabled]="!documents.length"
+                    title="Print all documents of this manuscript as one PDF (contents table, collected apparatus)">
+                    <i class="bi bi-file-pdf me-1"></i> Print manuscript
+                  </button>
+                  <button class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]">
+                    <i class="bi bi-plus-lg me-1"></i> New document
                   </button>
                 }
                 @if (!source.id) {
@@ -247,6 +261,22 @@
                 }
               </div>
             </div>
+            @if (!source.id) {
+              <div class="text-center text-muted py-5">
+                <i class="bi bi-1-circle" style="font-size: 2rem; opacity: .4;"></i>
+                <p class="mt-2 mb-0">Name the source above first. Its documents will appear here.</p>
+              </div>
+            } @else if (documentsLoaded && documents.length === 0) {
+              <div class="text-center text-muted py-5">
+                <i class="bi bi-file-earmark-music" style="font-size: 2.5rem; opacity: .35;"></i>
+                <p class="mt-3 mb-1 fw-semibold">No documents yet</p>
+                <p class="small mb-3">A document is one chant of this manuscript.</p>
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                  <button class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]"><i class="bi bi-plus-lg me-1"></i>New document</button>
+                  <button class="btn btn-outline-secondary btn-sm" (click)="openVolpianoImport()"><i class="bi bi-music-note-beamed me-1"></i>Import Volpiano</button>
+                </div>
+              </div>
+            } @else {
             <app-smart-table
               [objects]="documents"
               [headers]="docHeaders"
@@ -263,6 +293,7 @@
               (onBatchDelete)="onBatchDeleteDocuments($event)"
               (onBatchEdit)="onBatchEditDocuments($event)">
             </app-smart-table>
+            }
           </div>
         }
         <!-- ── Notation Documentation tab ── -->

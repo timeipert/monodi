@@ -404,15 +404,17 @@ export class PdfExportService {
         };
 
         // Headings share one style: small uppercase, letter-spaced, with a hairline rule.
+        /** Section heading: letter-spaced capitals over a fine grey rule, then a clear gap. */
         const drawHeading = (text: string, x: number, y: number, width: number, size = 9.5): number => {
           doc.setFont(fontFamily, 'normal');
           doc.setFontSize(size);
+          doc.setTextColor(30, 30, 30);
+          doc.text(text.toUpperCase(), x, y, { charSpace: 1.3 });
+          doc.setDrawColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY);
+          doc.setLineWidth(0.35);
+          doc.line(x, y + 5.5, x + width, y + 5.5);
           doc.setTextColor(0, 0, 0);
-          doc.text(text.toUpperCase(), x, y, { charSpace: 0.9 });
-          doc.setDrawColor(0, 0, 0);
-          doc.setLineWidth(0.4);
-          doc.line(x, y + 4, x + width, y + 4);
-          return y + 4 + size * 1.6;
+          return y + 5.5 + size * 1.25;
         };
         const textColumnW = pageWidth - pdfMarginRight - textX;
 
@@ -973,7 +975,7 @@ export class PdfExportService {
                 cursorY = pdfMarginTop;
                 apparatusPage = editionPage();
                 apparatusStarted = true;
-                cursorY = drawHeading('Critical Apparatus', textX, cursorY + 6, textColumnW, 10.5) + 4;
+                cursorY = drawHeading('Critical Apparatus', textX, cursorY + 3, textColumnW, 10) + 2;
             } else {
                 checkPageOverflow(60);
             }

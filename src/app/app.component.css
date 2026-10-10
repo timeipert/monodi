@@ -195,3 +195,11 @@ svg {
   border-radius: 8px;
   padding: 14px 16px;
 }
+
+/* thin divider between groups of tool buttons */
+.monodi-tool-bar .tool-sep {
+  width: 1px;
+  height: 24px;
+  margin: 0 .35rem;
+  background: #d5dae0;
+}

@@ -75,6 +75,9 @@ export class SourceComponent implements OnInit {
 
   showDocColPicker = false;
   showMetadataPanel = false;
+  /** New source: the optional metadata fields stay folded away until asked for. */
+  showMoreMeta = false;
+  documentsLoaded = false;
   iiifGalleryPattern = '';
   docCols: DocColDef[] = [];
 
@@ -240,6 +243,7 @@ export class SourceComponent implements OnInit {
           case 'LoginRequired': this.userService.logout(); break;
           case 'DocumentsRetrieved':
             this.documents = res.documents.filter(d => d.quelle_id === id);
+            this.documentsLoaded = true;
             this.cdr.markForCheck();
             break;
           default: assertNever(res);
