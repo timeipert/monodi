@@ -1,52 +1,44 @@
-<div class="card shadow-sm border-light mb-4">
-  <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <div class="d-flex align-items-center gap-2">
-      <i class="bi bi-music-note-beamed fs-5 text-secondary"></i>
-      <h6 class="mb-0 fw-semibold">MEI Export Mappings v2</h6>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <!-- Profile Selector -->
-      <select class="form-select form-select-sm w-auto"
-        [ngModel]="settings.activeMeiProfileId"
-        (change)="onProfileChange($event)">
-        @for (p of settings.meiProfiles; track p) {
-          <option [value]="p.id">{{ p.name }}</option>
-        }
-      </select>
-
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-primary" (click)="onNewProfile()" title="Create New Profile">
-          <i class="bi bi-plus-lg"></i> New
-        </button>
-        <button class="btn btn-outline-secondary" (click)="onDuplicateProfile()" [disabled]="!activeProfile" title="Duplicate Profile">
-          <i class="bi bi-files"></i> Duplicate
-        </button>
+<div class="card shadow-sm border-light mb-4 mei-editor">
+  <!-- ===== Header: what this is + profile ===== -->
+  <div class="card-header bg-light">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h6 class="mb-1 fw-semibold"><i class="bi bi-music-note-beamed me-2 text-secondary"></i>MEI export</h6>
+        <p class="text-muted small mb-0 mei-intro">
+          Decide how your transcription is written as MEI. A <strong>profile</strong> holds all these choices;
+          the preview on the right always shows the result for the active profile.
+        </p>
       </div>
-
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-secondary" (click)="onRenameProfile()" [disabled]="!activeProfile" title="Rename Profile">
-          <i class="bi bi-pencil"></i> Rename
-        </button>
-        <button class="btn btn-outline-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0" title="Delete Profile">
-          <i class="bi bi-trash"></i> Delete
-        </button>
+      <div class="d-flex align-items-center gap-2">
+        <label class="small text-muted mb-0" for="meiProfileSelect">Profile</label>
+        <select id="meiProfileSelect" class="form-select form-select-sm w-auto"
+          [ngModel]="settings.activeMeiProfileId"
+          (change)="onProfileChange($event)">
+          @for (p of settings.meiProfiles; track p) {
+            <option [value]="p.id">{{ p.name }}</option>
+          }
+        </select>
+        <div class="position-relative">
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="manageOpen = !manageOpen" [attr.aria-expanded]="manageOpen">
+            Manage <i class="bi bi-chevron-down ms-1" style="font-size: 0.7rem;"></i>
+          </button>
+          @if (manageOpen) {
+          <div class="mei-backdrop" (click)="manageOpen = false"></div>
+          <ul class="dropdown-menu dropdown-menu-end show" style="right: 0;" (click)="manageOpen = false">
+            <li><button class="dropdown-item" (click)="onNewProfile()"><i class="bi bi-plus-lg me-2"></i>New profile</button></li>
+            <li><button class="dropdown-item" (click)="onDuplicateProfile()" [disabled]="!activeProfile"><i class="bi bi-files me-2"></i>Duplicate</button></li>
+            <li><button class="dropdown-item" (click)="onRenameProfile()" [disabled]="!activeProfile"><i class="bi bi-pencil me-2"></i>Rename</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" (click)="onExportProfile()" [disabled]="!activeProfile"><i class="bi bi-download me-2"></i>Export as JSON</button></li>
+            <li><label class="dropdown-item mb-0 cursor-pointer"><i class="bi bi-upload me-2"></i>Import from JSON
+              <input type="file" accept=".json" class="d-none" (change)="onImportProfile($event)"></label></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" (click)="onResetProfile()" [disabled]="!activeProfile"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset to defaults</button></li>
+            <li><button class="dropdown-item text-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0"><i class="bi bi-trash me-2"></i>Delete profile</button></li>
+          </ul>
+          }
+        </div>
       </div>
-
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-secondary" (click)="onExportProfile()" [disabled]="!activeProfile" title="Export to JSON">
-          <i class="bi bi-download"></i> Export
-        </button>
-        <label class="btn btn-outline-secondary mb-0 cursor-pointer" title="Import from JSON">
-          <i class="bi bi-upload"></i> Import
-          <input type="file" accept=".json" class="d-none" (change)="onImportProfile($event)">
-        </label>
-      </div>
-
-      <button class="btn btn-sm btn-outline-warning" (click)="onResetProfile()" [disabled]="!activeProfile" title="Reset to Defaults">
-        <i class="bi bi-arrow-counterclockwise"></i> Reset
-      </button>
     </div>
   </div>
 
@@ -70,202 +62,36 @@
       </div>
     }
     @if (activeProfile && (!validationErrors || validationErrors.length === 0)) {
-      <div class="px-4 pt-3 pb-0">
-        <div class="alert alert-success alert-sm mb-2 d-flex align-items-center">
-          <i class="bi bi-check-circle-fill me-2"></i> Output is well-formed.
-        </div>
-      </div>
+      <div class="px-4 pt-2 small text-success"><i class="bi bi-check-circle-fill me-1"></i>Output is well-formed.</div>
     }
 
     @if (activeProfile) {
+      <!-- ===== Tabs ===== -->
+      <ul class="nav nav-tabs mei-tabs px-3 pt-2" role="tablist">
+        @for (t of tabs; track t.id) {
+          <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" role="tab" [class.active]="tab === t.id" (click)="setTab(t.id)">
+              <span class="d-flex align-items-center">
+                <i class="bi me-2" [ngClass]="t.icon"></i>
+                <span class="d-flex flex-column text-start">
+                  <span class="fw-medium">{{ t.label }}
+                    @if (tabCount(t.id) !== null) { <span class="badge bg-secondary ms-1">{{ tabCount(t.id) }}</span> }
+                  </span>
+                  <span class="tab-hint">{{ t.hint }}</span>
+                </span>
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+
       <div class="row g-0">
-        <!-- Column 1: Entities Tree -->
-        <div class="col-12 col-md-4 col-xl-3 border-end">
-          <div class="p-3 bg-light border-bottom">
-            <h6 class="mb-0 fw-semibold text-secondary">Mapping Structure</h6>
-          </div>
-          <div class="p-3" style="max-height: 600px; overflow-y: auto;">
-            <ul class="entity-tree">
-              <!-- SKELETON -->
-              <li>
-                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'skeleton'" (click)="selectNode('skeleton')">
-                  <i class="bi bi-file-code me-2 text-muted"></i>
-                  <span class="me-auto">Document Skeleton</span>
-                  @if (skeletonDiffers()) {
-                    <span class="modified-dot ms-2" title="Modified from default"></span>
-                  }
-                </div>
-              </li>
-              <!-- PATTERN RULES -->
-              <li>
-                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'patterns'" (click)="selectNode('patterns')">
-                  <i class="bi bi-music-note-list me-2 text-muted"></i>
-                  <span class="me-auto">Pattern Rules</span>
-                  <span class="badge bg-secondary ms-2">{{ patternRules.length }}</span>
-                </div>
-              </li>
-              <!-- NOTE FLAGS -->
-              <li>
-                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'flags'" (click)="selectNode('flags')">
-                  <i class="bi bi-tags me-2 text-muted"></i>
-                  <span class="me-auto">Note Flags</span>
-                  <span class="badge bg-secondary ms-2">{{ noteFlags.length }}</span>
-                </div>
-              </li>
-              <!-- FORMTEIL -->
-              <li>
-                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'formteil'" [class.text-muted]="!activeProfile.entities.formteil.enabled" (click)="selectNode('formteil')">
-                  <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.formteil.enabled" (ngModelChange)="emitChange()">
-                  <span class="me-auto">Formteil</span>
-                  <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.formteil.tag}}&gt;</span>
-                  @if (entityDiffers('formteil')) {
-                    <span class="modified-dot ms-2" title="Modified from default"></span>
-                  }
-                </div>
-                <!-- ZEILE -->
-                <ul>
-                  <li>
-                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'zeile'" [class.text-muted]="!activeProfile.entities.zeile.enabled" (click)="selectNode('zeile')">
-                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.zeile.enabled" (ngModelChange)="emitChange()">
-                      <span class="me-auto">Line</span>
-                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.zeile.tag}}&gt;</span>
-                      @if (entityDiffers('zeile')) {
-                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                      }
-                    </div>
-                    <ul>
-                      <!-- CLEF -->
-                      <li>
-                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'clef'" [class.text-muted]="!activeProfile.entities.clef.enabled" (click)="selectNode('clef')">
-                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.clef.enabled" (ngModelChange)="emitChange()">
-                          <span class="me-auto">Clef</span>
-                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.clef.tag}}&gt;</span>
-                          @if (entityDiffers('clef')) {
-                            <span class="modified-dot ms-2" title="Modified from default"></span>
-                          }
-                        </div>
-                      </li>
-                      <!-- SYLLABLE -->
-                      <li>
-                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllable'" [class.text-muted]="!activeProfile.entities.syllable.enabled" (click)="selectNode('syllable')">
-                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllable.enabled" (ngModelChange)="emitChange()">
-                          <span class="me-auto">Syllable</span>
-                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllable.tag}}&gt;</span>
-                          @if (entityDiffers('syllable')) {
-                            <span class="modified-dot ms-2" title="Modified from default"></span>
-                          }
-                        </div>
-                        <ul>
-                          <!-- SYLLABLE TEXT -->
-                          <li>
-                            <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllableText'" [class.text-muted]="!activeProfile.entities.syllableText.enabled" (click)="selectNode('syllableText')">
-                              <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllableText.enabled" (ngModelChange)="emitChange()">
-                              <span class="me-auto">Text</span>
-                              <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllableText.tag}}&gt;</span>
-                              @if (entityDiffers('syllableText')) {
-                                <span class="modified-dot ms-2" title="Modified from default"></span>
-                              }
-                            </div>
-                          </li>
-                          <!-- NEUME -->
-                          <li>
-                            <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'neume'" [class.text-muted]="!activeProfile.entities.neume.enabled" (click)="selectNode('neume')">
-                              <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.neume.enabled" (ngModelChange)="emitChange()">
-                              <span class="me-auto">Neume</span>
-                              <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.neume.tag}}&gt;</span>
-                              @if (entityDiffers('neume')) {
-                                <span class="modified-dot ms-2" title="Modified from default"></span>
-                              }
-                            </div>
-                            <ul>
-                              <!-- NOTE -->
-                              <li>
-                                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'note'" [class.text-muted]="!activeProfile.entities.note.enabled" (click)="selectNode('note')">
-                                  <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.note.enabled" (ngModelChange)="emitChange()">
-                                  <span class="me-auto">Note</span>
-                                  <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.note.tag}}&gt;</span>
-                                  @if (entityDiffers('note')) {
-                                    <span class="modified-dot ms-2" title="Modified from default"></span>
-                                  }
-                                </div>
-                                <ul>
-                                  <!-- ORISCUS -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'oriscus'" [class.text-muted]="!activeProfile.entities.oriscus.enabled" (click)="selectNode('oriscus')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.oriscus.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Oriscus</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.oriscus.tag}}&gt;</span>
-                                      @if (entityDiffers('oriscus')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                  <!-- QUILISMA -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'quilisma'" [class.text-muted]="!activeProfile.entities.quilisma.enabled" (click)="selectNode('quilisma')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.quilisma.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Quilisma</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.quilisma.tag}}&gt;</span>
-                                      @if (entityDiffers('quilisma')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                  <!-- STROPHICUS -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'strophicus'" [class.text-muted]="!activeProfile.entities.strophicus.enabled" (click)="selectNode('strophicus')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.strophicus.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Strophicus</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.strophicus.tag}}&gt;</span>
-                                      @if (entityDiffers('strophicus')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                  <!-- LIQUESCENT -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'liquescent'" [class.text-muted]="!activeProfile.entities.liquescent.enabled" (click)="selectNode('liquescent')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.liquescent.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Liquescent</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.liquescent.tag}}&gt;</span>
-                                      @if (entityDiffers('liquescent')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                </ul>
-                              </li>
-                            </ul>
-                          </li>
-                        </ul>
-                      </li>
-                      <!-- PARATEXT -->
-                      <li>
-                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'paratext'" [class.text-muted]="!activeProfile.entities.paratext.enabled" (click)="selectNode('paratext')">
-                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.paratext.enabled" (ngModelChange)="emitChange()">
-                          <span class="me-auto">Paratext</span>
-                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.paratext.tag}}&gt;</span>
-                          @if (entityDiffers('paratext')) {
-                            <span class="modified-dot ms-2" title="Modified from default"></span>
-                          }
-                        </div>
-                      </li>
-                    </ul>
-                  </li>
-                </ul>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <!-- Column 2: Rule Editor -->
-        <div class="col-12 col-md-8 col-xl-5 border-end bg-white">
-          <div class="p-3 bg-light border-bottom d-flex align-items-center">
-            <h6 class="mb-0 fw-semibold text-secondary">
-              {{ selectedNodeId === 'skeleton' ? 'Document Skeleton Settings' : selectedNodeId === 'patterns' ? 'Pattern Rules' : selectedNodeId === 'flags' ? 'Note Flags' : 'Mapping Rule Editor' }}
-            </h6>
-          </div>
-          <div class="p-4" style="max-height: 600px; overflow-y: auto;">
-            <!-- SKELETON EDITOR -->
+        <!-- ===== Left: the active tab ===== -->
+        <div class="col-12 col-xxl-7 border-end">
+          <!-- General -->
+          @if (tab === 'general') {
+            <div class="p-4 mei-pane">
+              <p class="mei-lead">The frame around your music: the header block and the elements that wrap everything.</p>
             @if (selectedNodeId === 'skeleton') {
               <div class="mb-4">
                 <div class="form-check form-switch">
@@ -281,9 +107,17 @@
                 </div>
                 <small class="text-muted d-block mt-1">If enabled, unclear and supplied editorial interventions will be encoded directly in the musical notation structure.</small>
               </div>
+              <div class="mb-4">
+                <label class="form-label fw-medium">Gaps inside a neume (<code>con="g"</code>)</label>
+                <select class="form-select form-select-sm" style="max-width: 22rem;" [(ngModel)]="activeProfile.gapPlacement" (ngModelChange)="emitChange()">
+                  <option [ngValue]="undefined">on the nc after the break (default)</option>
+                  <option value="previous">on the nc before the break</option>
+                </select>
+                <small class="text-muted d-block mt-1">Two separate groups (<code>*u</code>) are written with a gap, a ligature (<code>[*u]</code>) is not. Choose which note carries the mark.</small>
+              </div>
               <div>
-                <label class="form-label fw-medium">Root Wrappers / Skeleton</label>
-                <p class="text-muted small mb-2">Defines the nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
+                <label class="form-label fw-medium">Structure around the music</label>
+                <p class="text-muted small mb-2">The nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
                 <div class="wrapper-chips mb-3">
                   @for (wrap of activeProfile.skeleton; track wrap; let i = $index; let last = $last) {
                     <div class="wrapper-chip">
@@ -308,118 +142,44 @@
                 </div>
               </div>
             }
-            <!-- NOTE FLAGS EDITOR -->
-            @if (selectedNodeId === 'flags') {
-              <p class="text-muted small">A flag is an extra property of a note, such as a virga. Set it from the note's context menu or type its key in the note brackets (<code>g[V]</code>). It appears in pattern codes as a suffix (<code>*uV</code>) and can add MEI attributes or rename the note element. Without an SVG outline the abbreviation is drawn above the note.</p>
-              <div class="input-group input-group-sm mb-3">
-                <input type="text" class="form-control" style="max-width:5rem" maxlength="1" placeholder="Key (V)" [(ngModel)]="newFlagKey" (keyup.enter)="addNoteFlag()">
-                <input type="text" class="form-control" placeholder="Label, e.g. Virga" [(ngModel)]="newFlagLabel" (keyup.enter)="addNoteFlag()">
-                <button class="btn btn-outline-secondary" (click)="addNoteFlag()">Add</button>
-              </div>
-              @for (fd of noteFlags; track $index; let fi = $index) {
-                <div class="border rounded p-2 mb-3">
-                  <div class="d-flex align-items-center gap-2 mb-2">
-                    <code class="fs-6">{{ fd.key }}</code>
-                    <input type="text" class="form-control form-control-sm w-auto" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Label">
-                    <input type="text" class="form-control form-control-sm" style="width:4rem" maxlength="3" [(ngModel)]="fd.abbrev" (ngModelChange)="emitChange()" title="Abbreviation drawn above the note">
-                    <button class="btn btn-link text-danger btn-sm p-0 ms-auto" (click)="removeNoteFlag(fi)"><i class="bi bi-x-circle"></i></button>
-                  </div>
-                  <div class="d-flex align-items-center gap-2 mb-2">
-                    <label class="btn btn-sm btn-outline-secondary mb-0">{{ fd.svgPath ? 'Replace SVG' : 'Load SVG' }}
-                      <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
-                    </label>
-                    @if (fd.svgPath) {
-                      <svg width="20" height="20" [attr.viewBox]="fd.viewBox"><path [attr.d]="fd.svgPath" fill="currentColor"/></svg>
-                      <button class="btn btn-link btn-sm" (click)="clearFlagSvg(fd)">Remove SVG</button>
+            </div>
+          }
+
+          <!-- Elements -->
+          @if (tab === 'elements') {
+            <div class="p-4 pb-0">
+              <p class="mei-lead mb-0">Pick a part of your transcription and choose which MEI element it becomes, which attributes it gets, and what wraps it.</p>
+            </div>
+            <div class="row g-0 mei-pane">
+              <div class="col-12 col-md-4 p-3">
+                @for (g of entityGroups; track g.title) {
+                  <div class="mei-group-title">{{ g.title }}</div>
+                  <ul class="entity-tree mb-3">
+                    @for (e of g.items; track e.key) {
+                      <li>
+                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === e.key"
+                          [class.text-muted]="!activeProfile.entities[e.key].enabled" (click)="selectNode(e.key)"
+                          [style.margin-left.rem]="e.depth * 0.9">
+                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities[e.key].enabled"
+                            (ngModelChange)="emitChange()" (click)="$event.stopPropagation()" title="Include in the export">
+                          <span class="d-flex flex-column me-auto">
+                            <span>{{ e.label }}</span>
+                            <small class="text-muted">{{ e.hint }}</small>
+                          </span>
+                          <span class="badge bg-light text-dark border font-monospace">&lt;{{ activeProfile.entities[e.key].tag }}&gt;</span>
+                          @if (entityDiffers(e.key)) {
+                            <span class="modified-dot ms-2" title="Modified from default"></span>
+                          }
+                        </div>
+                      </li>
                     }
-                  </div>
-                  <div class="d-flex flex-wrap align-items-center gap-1">
-                    <span class="small text-muted me-1">MEI</span>
-                    <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="element (e.g. nc)" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" title="Replaces the note's element name">
-                    @for (name of ruleAttrNames(fd.mei || {}); track name) {
-                      <span class="input-group input-group-sm w-auto">
-                        <span class="input-group-text">{{ name }}</span>
-                        <input type="text" class="form-control" style="width:5rem" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
-                        <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
-                      </span>
-                    }
-                    <input type="text" class="form-control form-control-sm w-auto" style="width:8rem" placeholder="+ attribute" list="ncAttrNames" #fa (keyup.enter)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''">
-                  </div>
-                </div>
-              }
-              @if (noteFlags.length === 0) {
-                <div class="text-muted small">No flags yet.</div>
-              }
-              <datalist id="ncAttrNames">
-                @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
-              </datalist>
-            }
-            <!-- PATTERN RULES EDITOR -->
-            @if (selectedNodeId === 'patterns') {
-              <div class="mb-4">
-                <label class="form-label fw-medium">Con (gap) placement inside a neume</label>
-                <select class="form-select form-select-sm w-auto" [(ngModel)]="activeProfile.gapPlacement" (ngModelChange)="emitChange()">
-                  <option [ngValue]="undefined">on the nc after the break (default)</option>
-                  <option value="previous">on the nc before the break</option>
-                </select>
-                <small class="text-muted d-block mt-1"><code>*u</code> (two separate groups) is gapped, the ligature <code>[*u]</code> is not.</small>
+                  </ul>
+                }
               </div>
-              <p class="text-muted small">A pattern rule adds fixed MEI attributes to every neume with this pattern code, one set per <code>&lt;nc&gt;</code>. A rule for a manuscript siglum wins over a global one. Pitch (<code>pname</code>, <code>oct</code>) always comes from the notes.</p>
-              <div class="input-group input-group-sm mb-3">
-                <input type="text" class="form-control" placeholder="Pattern, e.g. [*ud]" [(ngModel)]="newPatternCode" (keyup.enter)="addPatternRule()">
-                <input type="text" class="form-control" placeholder="Manuscript siglum (empty = all)" [(ngModel)]="newPatternSigle" (keyup.enter)="addPatternRule()">
-                <button class="btn btn-outline-secondary" (click)="addPatternRule()">Add</button>
-              </div>
-              <div class="mb-3 d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" (click)="exportPatternRules()">Export JSON</button>
-                <label class="btn btn-sm btn-outline-secondary mb-0">Import JSON
-                  <input type="file" accept=".json" hidden (change)="importPatternRules($event)">
-                </label>
-              </div>
-              @for (rule of patternRules; track rule.id; let ri = $index) {
-                <div class="border rounded p-2 mb-3" [class.opacity-50]="!rule.enabled">
-                  <div class="d-flex align-items-center gap-2 mb-2">
-                    <input class="form-check-input mt-0" type="checkbox" [(ngModel)]="rule.enabled" (ngModelChange)="emitChange()" title="Enabled">
-                    <input type="text" class="form-control form-control-sm font-monospace w-auto" [(ngModel)]="rule.pattern" (change)="onPatternRuleCode(rule)">
-                    <input type="text" class="form-control form-control-sm w-auto" placeholder="all manuscripts" [(ngModel)]="rule.sigle" (ngModelChange)="emitChange()">
-                    <button class="btn btn-link btn-sm ms-auto" (click)="copyFirstToAll(rule)" title="Copy first nc to all">&darr; all</button>
-                    <button class="btn btn-link text-danger btn-sm p-0" (click)="removePatternRule(ri)"><i class="bi bi-x-circle"></i></button>
-                  </div>
-                  @for (attrs of rule.nc; track $index; let ni = $index) {
-                    <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
-                      <span class="small text-muted me-1" style="width:3.5rem">nc {{ ni + 1 }}</span>
-                      @for (name of ruleAttrNames(attrs); track name) {
-                        <span class="input-group input-group-sm w-auto">
-                          <span class="input-group-text">{{ name }}</span>
-                          <input type="text" class="form-control" style="width:4rem" [ngModel]="attrs[name]" (ngModelChange)="attrs[name] = $event; emitChange()">
-                          <button class="btn btn-outline-danger" (click)="removeRuleAttr(attrs, name)">&times;</button>
-                        </span>
-                      }
-                      <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="+ attribute" list="ncAttrNames" #na (keyup.enter)="addRuleAttr(attrs, na.value); na.value = ''" (change)="addRuleAttr(attrs, na.value); na.value = ''">
-                    </div>
-                  }
-                  <div class="mt-2 d-flex flex-wrap align-items-center gap-1">
-                    <span class="small text-muted me-1" style="width:3.5rem">neume</span>
-                    @for (name of ruleAttrNames(rule.neume || {}); track name) {
-                      <span class="input-group input-group-sm w-auto">
-                        <span class="input-group-text">{{ name }}</span>
-                        <input type="text" class="form-control" style="width:4rem" [ngModel]="rule.neume![name]" (ngModelChange)="rule.neume![name] = $event; emitChange()">
-                        <button class="btn btn-outline-danger" (click)="removeRuleAttr(rule.neume!, name)">&times;</button>
-                      </span>
-                    }
-                    <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="+ attribute" #nn (keyup.enter)="rule.neume = rule.neume || {}; addRuleAttr(rule.neume, nn.value); nn.value = ''">
-                  </div>
-                </div>
-              }
-              @if (patternRules.length === 0) {
-                <div class="text-muted small">No pattern rules yet.</div>
-              }
-              <datalist id="ncAttrNames">
-                @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
-              </datalist>
-            }
-            <!-- ENTITY EDITOR -->
+              <div class="col-12 col-md-8 p-4 border-start">
             @if (activeRule) {
+              <h6 class="fw-semibold mb-1">{{ selectedEntityMeta?.label }}</h6>
+              <p class="text-muted small mb-3">{{ selectedEntityMeta?.hint }}</p>
               @if (selectedEntityDiffers) {
                 <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
                   <span class="small text-warning-emphasis d-flex align-items-center">
@@ -537,12 +297,134 @@
                 </div>
               </div>
             }
-          </div>
+              </div>
+            </div>
+          }
+
+          <!-- Patterns -->
+          @if (tab === 'patterns') {
+            <div class="p-4 mei-pane">
+              <p class="mei-lead">Give a neume shape fixed MEI. Typical use: every <code>[*ud]</code> (a torculus) should carry the same attributes in the export.</p>
+            @if (selectedNodeId === 'patterns') {
+              <p class="text-muted small">A pattern rule adds fixed MEI attributes to every neume with this pattern code, one set per <code>&lt;nc&gt;</code>. A rule for a manuscript siglum wins over a global one. Pitch (<code>pname</code>, <code>oct</code>) always comes from the notes.</p>
+              <div class="input-group input-group-sm mb-3">
+                <input type="text" class="form-control" placeholder="Pattern, e.g. [*ud]" [(ngModel)]="newPatternCode" (keyup.enter)="addPatternRule()">
+                <input type="text" class="form-control" placeholder="Manuscript siglum (empty = all)" [(ngModel)]="newPatternSigle" (keyup.enter)="addPatternRule()">
+                <button class="btn btn-outline-secondary" (click)="addPatternRule()">Add</button>
+              </div>
+              <div class="mb-3 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" (click)="exportPatternRules()">Export JSON</button>
+                <label class="btn btn-sm btn-outline-secondary mb-0">Import JSON
+                  <input type="file" accept=".json" hidden (change)="importPatternRules($event)">
+                </label>
+              </div>
+              @for (rule of patternRules; track rule.id; let ri = $index) {
+                <div class="border rounded p-2 mb-3" [class.opacity-50]="!rule.enabled">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <input class="form-check-input mt-0" type="checkbox" [(ngModel)]="rule.enabled" (ngModelChange)="emitChange()" title="Enabled">
+                    <input type="text" class="form-control form-control-sm font-monospace w-auto" [(ngModel)]="rule.pattern" (change)="onPatternRuleCode(rule)">
+                    <input type="text" class="form-control form-control-sm w-auto" placeholder="all manuscripts" [(ngModel)]="rule.sigle" (ngModelChange)="emitChange()">
+                    <button class="btn btn-link btn-sm ms-auto" (click)="copyFirstToAll(rule)" title="Copy first nc to all">&darr; all</button>
+                    <button class="btn btn-link text-danger btn-sm p-0" (click)="removePatternRule(ri)"><i class="bi bi-x-circle"></i></button>
+                  </div>
+                  @for (attrs of rule.nc; track $index; let ni = $index) {
+                    <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                      <span class="small text-muted me-1" style="width:3.5rem">nc {{ ni + 1 }}</span>
+                      @for (name of ruleAttrNames(attrs); track name) {
+                        <span class="input-group input-group-sm w-auto">
+                          <span class="input-group-text">{{ name }}</span>
+                          <input type="text" class="form-control" style="width:4rem" [ngModel]="attrs[name]" (ngModelChange)="attrs[name] = $event; emitChange()">
+                          <button class="btn btn-outline-danger" (click)="removeRuleAttr(attrs, name)">&times;</button>
+                        </span>
+                      }
+                      @for (n of quickAttributes; track n) {
+                        @if (!(n in attrs)) {
+                          <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="addRuleAttr(attrs, n)" [title]="'Add attribute ' + n">+ {{ n }}</button>
+                        }
+                      }
+                      <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="other…" list="ncAttrNames" #na (keyup.enter)="addRuleAttr(attrs, na.value); na.value = ''" (change)="addRuleAttr(attrs, na.value); na.value = ''">
+                    </div>
+                  }
+                  <div class="mt-2 d-flex flex-wrap align-items-center gap-1">
+                    <span class="small text-muted me-1" style="width:3.5rem">neume</span>
+                    @for (name of ruleAttrNames(rule.neume || {}); track name) {
+                      <span class="input-group input-group-sm w-auto">
+                        <span class="input-group-text">{{ name }}</span>
+                        <input type="text" class="form-control" style="width:4rem" [ngModel]="rule.neume![name]" (ngModelChange)="rule.neume![name] = $event; emitChange()">
+                        <button class="btn btn-outline-danger" (click)="removeRuleAttr(rule.neume!, name)">&times;</button>
+                      </span>
+                    }
+                    <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="+ neume attribute" #nn (keyup.enter)="rule.neume = rule.neume || {}; addRuleAttr(rule.neume, nn.value); nn.value = ''">
+                  </div>
+                </div>
+              }
+              @if (patternRules.length === 0) {
+                <div class="text-muted small">No pattern rules yet.</div>
+              }
+              <datalist id="ncAttrNames">
+                @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
+              </datalist>
+            }
+            </div>
+          }
+
+          <!-- Note flags -->
+          @if (tab === 'flags') {
+            <div class="p-4 mei-pane">
+              <p class="mei-lead">Your own note markers (e.g. a virga). Define them here, then set them on notes in the editor.</p>
+            @if (selectedNodeId === 'flags') {
+              <p class="text-muted small">A flag is an extra property of a note, such as a virga. Set it from the note's context menu or type its key in the note brackets (<code>g[V]</code>). It appears in pattern codes as a suffix (<code>*uV</code>) and can add MEI attributes or rename the note element. Without an SVG outline the abbreviation is drawn above the note.</p>
+              <div class="input-group input-group-sm mb-3">
+                <input type="text" class="form-control" style="max-width:5rem" maxlength="1" placeholder="Key (V)" [(ngModel)]="newFlagKey" (keyup.enter)="addNoteFlag()">
+                <input type="text" class="form-control" placeholder="Label, e.g. Virga" [(ngModel)]="newFlagLabel" (keyup.enter)="addNoteFlag()">
+                <button class="btn btn-outline-secondary" (click)="addNoteFlag()">Add</button>
+              </div>
+              @for (fd of noteFlags; track $index; let fi = $index) {
+                <div class="border rounded p-2 mb-3">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <code class="fs-6">{{ fd.key }}</code>
+                    <input type="text" class="form-control form-control-sm w-auto" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Label">
+                    <input type="text" class="form-control form-control-sm" style="width:4rem" maxlength="3" [(ngModel)]="fd.abbrev" (ngModelChange)="emitChange()" title="Abbreviation drawn above the note">
+                    <button class="btn btn-link text-danger btn-sm p-0 ms-auto" (click)="removeNoteFlag(fi)"><i class="bi bi-x-circle"></i></button>
+                  </div>
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <label class="btn btn-sm btn-outline-secondary mb-0">{{ fd.svgPath ? 'Replace SVG' : 'Load SVG' }}
+                      <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
+                    </label>
+                    @if (fd.svgPath) {
+                      <svg width="20" height="20" [attr.viewBox]="fd.viewBox"><path [attr.d]="fd.svgPath" fill="currentColor"/></svg>
+                      <button class="btn btn-link btn-sm" (click)="clearFlagSvg(fd)">Remove SVG</button>
+                    }
+                  </div>
+                  <div class="d-flex flex-wrap align-items-center gap-1">
+                    <span class="small text-muted me-1">MEI</span>
+                    <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="element (e.g. nc)" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" title="Replaces the note's element name">
+                    @for (name of ruleAttrNames(fd.mei || {}); track name) {
+                      <span class="input-group input-group-sm w-auto">
+                        <span class="input-group-text">{{ name }}</span>
+                        <input type="text" class="form-control" style="width:5rem" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
+                        <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
+                      </span>
+                    }
+                    <input type="text" class="form-control form-control-sm w-auto" style="width:8rem" placeholder="+ attribute" list="ncAttrNames" #fa (keyup.enter)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''">
+                  </div>
+                </div>
+              }
+              @if (noteFlags.length === 0) {
+                <div class="text-muted small">No flags yet.</div>
+              }
+              <datalist id="ncAttrNames">
+                @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
+              </datalist>
+            }
+            </div>
+          }
         </div>
-        <!-- Column 3: Preview -->
-        <div class="col-12 col-md-12 col-xl-4 bg-light p-4 d-none d-xl-flex flex-column" style="min-height: 600px;">
+
+        <!-- ===== Right: live preview (always visible) ===== -->
+        <div class="col-12 col-xxl-5 bg-light p-4 d-flex flex-column mei-preview">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Live Preview</h6>
+            <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Result</h6>
             <button class="btn btn-sm btn-outline-secondary" (click)="copyXml()" [disabled]="!previewXml || previewXml.startsWith('<!--')">
               <i class="bi bi-clipboard"></i> Copy
             </button>
@@ -574,7 +456,7 @@
             }
           </div>
           <pre class="bg-dark text-light p-3 rounded flex-grow-1" style="font-size: 11px; overflow: auto; margin-bottom: 0;"><code>{{ previewXml }}</code></pre>
-        </div>
+                </div>
       </div>
     } @else {
       <div class="alert alert-warning text-center m-4">

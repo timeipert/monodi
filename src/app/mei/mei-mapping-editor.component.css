@@ -95,3 +95,22 @@
 .wrapper-separator {
   color: #adb5bd;
 }
+
+/* Tabs */
+.mei-tabs .nav-link { color: #495057; padding: 0.5rem 1rem; border-bottom-width: 2px; }
+.mei-tabs .nav-link.active { color: #212529; font-weight: 500; }
+.mei-tabs .tab-hint { font-size: 0.72rem; color: #6c757d; font-weight: 400; }
+.mei-lead { color: #495057; margin-bottom: 1.25rem; }
+.mei-intro { max-width: 46rem; }
+.mei-pane { max-height: 640px; overflow-y: auto; }
+.mei-group-title {
+  font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #6c757d; font-weight: 600; margin: 0.25rem 0.5rem 0.4rem;
+}
+.mei-preview pre { min-height: 320px; max-height: 600px; }
+@media (min-width: 1400px) {
+  .mei-preview { position: sticky; top: 0; align-self: flex-start; }
+}
+
+.mei-backdrop { position: fixed; inset: 0; z-index: 999; }
+.mei-editor .dropdown-menu { z-index: 1000; }

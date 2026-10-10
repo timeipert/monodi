@@ -237,8 +237,71 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Profile "Manage" menu open. */
+  manageOpen = false;
+
+  // --- Tabs ---
+  readonly tabs: { id: 'general' | 'elements' | 'patterns' | 'flags'; label: string; hint: string; icon: string }[] = [
+    { id: 'general',  label: 'General',    hint: 'Header and frame',          icon: 'bi-file-earmark-code' },
+    { id: 'elements', label: 'Elements',   hint: 'Tag and attributes per part', icon: 'bi-diagram-3' },
+    { id: 'patterns', label: 'Patterns',   hint: 'Fixed MEI per neume shape',  icon: 'bi-music-note-list' },
+    { id: 'flags',    label: 'Note flags', hint: 'Your own markers, e.g. virga', icon: 'bi-tags' }
+  ];
+
+  /** Last entity shown in the Elements tab, so switching tabs and back keeps the selection. */
+  private lastEntity: MeiEntityKey = 'note';
+
+  readonly entityGroups: { title: string; items: { key: MeiEntityKey; label: string; hint: string; depth: number }[] }[] = [
+    { title: 'Text and layout', items: [
+      { key: 'formteil', label: 'Section (Formteil)', hint: 'A part of the chant', depth: 0 },
+      { key: 'zeile', label: 'Line', hint: 'One manuscript line', depth: 1 },
+      { key: 'clef', label: 'Clef', hint: 'Clef at the start of a line', depth: 2 },
+      { key: 'paratext', label: 'Paratext', hint: 'Rubrics and other text outside the melody', depth: 2 }
+    ] },
+    { title: 'Syllables', items: [
+      { key: 'syllable', label: 'Syllable', hint: 'Text syllable with its notes', depth: 0 },
+      { key: 'syllableText', label: 'Syllable text', hint: 'The words under the notes', depth: 1 }
+    ] },
+    { title: 'Neumes and notes', items: [
+      { key: 'neume', label: 'Neume', hint: 'Notes written without a gap', depth: 0 },
+      { key: 'note', label: 'Note', hint: 'A single note (default)', depth: 1 },
+      { key: 'oriscus', label: 'Oriscus', hint: 'Replaces Note for oriscus notes', depth: 1 },
+      { key: 'quilisma', label: 'Quilisma', hint: 'Replaces Note for quilisma notes', depth: 1 },
+      { key: 'strophicus', label: 'Strophicus', hint: 'Replaces Note for strophicus notes', depth: 1 },
+      { key: 'liquescent', label: 'Liquescent', hint: 'Replaces Note for liquescent notes', depth: 1 }
+    ] }
+  ];
+
+  get tab(): 'general' | 'elements' | 'patterns' | 'flags' {
+    switch (this.selectedNodeId) {
+      case 'skeleton': return 'general';
+      case 'patterns': return 'patterns';
+      case 'flags': return 'flags';
+      default: return 'elements';
+    }
+  }
+
+  setTab(t: 'general' | 'elements' | 'patterns' | 'flags') {
+    this.selectNode(t === 'general' ? 'skeleton' : t === 'elements' ? this.lastEntity : t);
+  }
+
+  tabCount(t: string): number | null {
+    if (t === 'patterns') return this.patternRules.length;
+    if (t === 'flags') return this.noteFlags.length;
+    return null;
+  }
+
+  get selectedEntityMeta(): { label: string; hint: string } | undefined {
+    for (const g of this.entityGroups) {
+      const e = g.items.find(i => i.key === this.selectedNodeId);
+      if (e) return e;
+    }
+    return undefined;
+  }
+
   selectNode(id: string) {
     this.selectedNodeId = id;
+    if (this.entityGroups.some(g => g.items.some(i => i.key === id))) this.lastEntity = id as MeiEntityKey;
     this.armedResetEntity = null; // never carry an armed reset across nodes
   }
 
@@ -349,6 +412,8 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   // --- Pattern rules (pattern [+ manuscript] → MEI attributes per nc) ---
   /** Structured nc attributes offered as quick fields; any other name can be added freely. */
   readonly ncAttributeNames = ['tilt', 'curve', 'con', 'q', 'ho', 'type', 'facs'];
+  /** One-click attributes offered per note in a pattern rule. */
+  readonly quickAttributes = ['tilt', 'curve', 'con', 'q', 'ho'];
   newPatternCode = '';
   newPatternSigle = '';
 
