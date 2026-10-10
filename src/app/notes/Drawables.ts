@@ -47,7 +47,7 @@ export class DHelperLine {
 
 export function fromSpaced(sd: Spaced, comments: Comment[]): Drawable[] {
   const mapped = sd.spaced.map(x => fromNonSpaced(x, comments));
-  return flatten(spacedWith(35, mapped));
+  return flatten(spacedWith(NEUME_SPACE, mapped));
 }
 
 export function fromSpaceds(sds: Spaced[], comments: Comment[]): Drawable[][] {
@@ -71,7 +71,8 @@ export function fromSpaceds(sds: Spaced[], comments: Comment[]): Drawable[][] {
       }
     }
     
-    offset += 35 + maxWidth;
+    const present = sds.map((_, m) => mapped[m][i]).filter(Boolean);
+    offset += (present.length > 0 && present.every(isAccidentalOnly) ? ACCIDENTAL_SPACE : NEUME_SPACE) + maxWidth;
   }
   
   return aligned.map(a => flatten(a));
@@ -219,6 +220,17 @@ function fromNote(n: Note, comments: Comment[]): Drawable[] {
   return ret;
 }
 
+/** Gap after a neume that is only an accidental (flat, natural, sharp): in the printed
+ *  edition it stands close before the note it applies to. */
+const NEUME_SPACE = 35;
+const ACCIDENTAL_SPACE = 15;
+const ACCIDENTALS: NoteType[] = [NoteType.Flat, NoteType.Natural, NoteType.Sharp];
+
+function isAccidentalOnly(ds: Drawable[]): boolean {
+  const notes = ds.filter((d): d is DNote => d instanceof DNote);
+  return notes.length > 0 && notes.every(n => ACCIDENTALS.includes(n.ref.noteType));
+}
+
 function spacedWith(space: number, dss: Drawable[][]): Drawable[][] {
   const ret: Drawable[][] = [];
 
@@ -226,7 +238,7 @@ function spacedWith(space: number, dss: Drawable[][]): Drawable[][] {
   for (const ds of dss) {
     const width = getWidth(ds);
     ret.push(ds.map(d => d.addOffset(offset)));
-    offset += space + width;
+    offset += (space === NEUME_SPACE && isAccidentalOnly(ds) ? ACCIDENTAL_SPACE : space) + width;
   }
 
   return ret;

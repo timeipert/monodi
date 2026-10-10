@@ -3,7 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import * as VM from './types/model';
 import { APIService, Document, ProjectSettings, Source } from './api.service';
 import { UserService } from './user.service';
-import { PdfDocJob, PdfExportService } from './pdf-export.service';
+import { PdfBoxLabel, PdfDocJob, PdfExportService } from './pdf-export.service';
 import { genreOf } from './document-metadata';
 
 interface Entry { id: string; doc: Document | null; job: PdfDocJob | null; }
@@ -15,6 +15,7 @@ interface DialogOptions {
   apparatus: boolean;
   newPage: boolean;
   pageFormat: 'settings' | 'cm' | 'a4';
+  boxLabel: PdfBoxLabel;
 }
 
 const OPTIONS_KEY = (multi: boolean) => `monodi_pdf_dialog_${multi ? 'multi' : 'single'}`;
@@ -93,6 +94,14 @@ const OPTIONS_KEY = (multi: boolean) => `monodi_pdf_dialog_${multi ? 'multi' : '
                 <option value="a4">A4</option>
               </select>
 
+              <label class="form-label small text-muted mb-1" for="pdfBox">Framed number in the margin</label>
+              <select id="pdfBox" class="form-select form-select-sm mb-3" [(ngModel)]="o.boxLabel" [disabled]="busy" (ngModelChange)="save()">
+                <option value="enumeration">Manuscript – running number (Aa 1, Aa 2 …)</option>
+                <option value="incipit">Manuscript – incipit (Aa Gloriosae)</option>
+                <option value="genre">Genre – manuscript (Sequenz Aa)</option>
+                <option value="none">None</option>
+              </select>
+
               <div class="form-check form-switch mb-1">
                 <input class="form-check-input" type="checkbox" id="oTitle" [(ngModel)]="o.titlePage" [disabled]="busy" (ngModelChange)="save()">
                 <label class="form-check-label fw-medium" for="oTitle">Title page</label>
@@ -161,7 +170,7 @@ export class PdfExportDialogComponent implements OnInit {
   @Output() closed = new EventEmitter<void>();
 
   entries: Entry[] = [];
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings' };
+  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'enumeration' };
   fileBase = '';
   busy = false;
   loadingMeta = false;
@@ -218,8 +227,8 @@ export class PdfExportDialogComponent implements OnInit {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings' }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings' };
+      ? { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'enumeration' }
+      : { titlePage: false, contents: false, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'enumeration' };
     try {
       const stored = JSON.parse(localStorage.getItem(OPTIONS_KEY(multi)) || 'null');
       if (stored) this.o = { ...this.o, ...stored };
@@ -268,6 +277,7 @@ export class PdfExportDialogComponent implements OnInit {
         includeMetadata: this.o.metadata,
         apparatus: this.o.apparatus,
         newPagePerDocument: this.o.newPage,
+        boxLabel: this.o.boxLabel,
         pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
         title: this.title.trim() || `${jobs.length} documents`,
         fileName: (this.fileBase.trim() || 'Documents').replace(/[\\/:*?"<>|]+/g, '_') + '.pdf',

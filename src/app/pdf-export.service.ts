@@ -83,6 +83,10 @@ export interface PdfDocJob {
   sigle: string;
 }
 
+/** Content of the framed number before each document: siglum + running number per manuscript,
+ *  siglum + first word of the incipit, genre + siglum, or nothing. */
+export type PdfBoxLabel = 'enumeration' | 'incipit' | 'genre' | 'none';
+
 export interface PdfExportOptions {
   settings: ProjectSettings | null;
   /** A title page (always present for several documents). */
@@ -95,6 +99,8 @@ export interface PdfExportOptions {
   contents?: boolean;
   /** Several documents: every document starts on a new page. Default: no — they run on in one flow. */
   newPagePerDocument?: boolean;
+  /** What the framed number in the left margin shows (default: manuscript siglum + running number). */
+  boxLabel?: PdfBoxLabel;
   /** Override of the configured page format ('a4', 'cm' = 21 x 27 cm, ...). */
   pageFormat?: string;
   /** Title of a multi-document print (title page). */
@@ -346,6 +352,39 @@ export class PdfExportService {
           return [src.bibliotheksort || src.herkunftsort, src.bibliothek, src.bibliothekssignatur]
             .map((v: any) => (v || '').toString().trim()).filter(Boolean).join(', ');
         };
+        // Framed number in the left margin. The print volume's own number (Band metadata) is
+        // not used; the label is built from the manuscript and the document.
+        const boxMode: PdfBoxLabel = s.pdfShowEditionBox === false ? 'none' : (opts.boxLabel || 'enumeration');
+        const sigleOf = (j: PdfDocJob): string => (j.sigle || (j.source as any)?.quellensigle || '').toString().trim();
+        const perManuscript = new Map<string, number>();
+        const boxTexts: string[] = jobs.map((j) => {
+          const sg = sigleOf(j);
+          const n = (perManuscript.get(sg) || 0) + 1;
+          perManuscript.set(sg, n);
+          if (boxMode === 'enumeration') return [sg, n].filter((v) => v !== '').join(' ');
+          if (boxMode === 'incipit') return [sg, (j.document.textinitium || '').trim().split(/\s+/)[0]].filter(Boolean).join(' ');
+          if (boxMode === 'genre') return [j.document.gattung1 || genreOf(j.document), sg].filter(Boolean).join(' ');
+          return '';
+        });
+        /** Draws the frame and its text inside the left margin: the text shrinks, then is cut off,
+         *  before it could reach the heading. */
+        const drawBox = (label: string, baseline: number, fs: number) => {
+          if (!label) return;
+          const maxW = textX - pdfMarginLeft - 5;
+          let size = fs;
+          doc.setFont(fontFamily, 'normal');
+          doc.setFontSize(size);
+          while (doc.getTextWidth(label) + 7 > maxW && size > 5.5) { size -= 0.5; doc.setFontSize(size); }
+          let text = label;
+          while (text.length > 1 && doc.getTextWidth(text) + 7 > maxW) text = text.slice(0, -1);
+          if (text !== label) text = text.slice(0, -1) + '\u2026';
+          const w = doc.getTextWidth(text) + 7;
+          doc.setLineWidth(0.5);
+          doc.setDrawColor(0, 0, 0);
+          doc.setTextColor(0, 0, 0);
+          doc.rect(pdfMarginLeft, baseline - fs * 0.82 - 2, w, fs + 4);
+          doc.text(text, pdfMarginLeft + 3.5, baseline);
+        };
         const headOf = (ji: number): string => {
           const j = jobs[ji];
           const src: any = j.source || {};
@@ -392,7 +431,6 @@ export class PdfExportService {
               // heading line — framed edition number, ID in bold, incipit, genre in grey — instead
               // of a page of its own.
               const fsH = pdfFontSize + 1;
-              const editionNoM = (job.document.druckausgabe || '').toString().trim();
               const idText = job.document.dokumenten_id || '';
               const incipitText = job.document.textinitium || '';
               const genreText = genreOf(job.document);
@@ -407,13 +445,8 @@ export class PdfExportService {
                 doc.setLineWidth(0.4);
                 doc.line(textX, cursorY - fsH - 3, pageWidth - pdfMarginRight, cursorY - fsH - 3);
               }
-              if (editionNoM && s.pdfShowEditionBox !== false) {
-                const wBox = doc.getTextWidth(editionNoM) + 7;
-                doc.setLineWidth(0.5);
-                doc.setDrawColor(0, 0, 0);
-                doc.rect(pdfMarginLeft, cursorY - fsH * 0.82 - 2, wBox, fsH + 4);
-                doc.text(editionNoM, pdfMarginLeft + 3.5, cursorY);
-              }
+              drawBox(boxTexts[ji], cursorY, fsH);
+              doc.setFontSize(fsH);
               doc.setTextColor(0, 0, 0);
               if (idText) { doc.setFont(fontFamily, 'bold'); doc.text(idText, textX, cursorY); }
               doc.setFont(fontFamily, 'normal');
@@ -429,18 +462,10 @@ export class PdfExportService {
               }
               cursorY += incLines.length * lineHM + (opts.includeMetadata ? 3 : 7);
             } else {
-            // The edition number ("Print Edition" field) stands framed in the left margin, level
+            // The framed number (see boxMode) stands in the left margin, level
             // with the first title line, as the chant numbers do in the printed edition.
-            const editionNo = (job.document.druckausgabe || '').toString().trim();
-            if (editionNo && s.pdfShowEditionBox !== false) {
-              doc.setFontSize(pdfFontSize);
-              const w = doc.getTextWidth(editionNo) + 7;
-              doc.setLineWidth(0.5);
-              doc.setDrawColor(0, 0, 0);
-              doc.rect(pdfMarginLeft, cursorY - pdfFontSize * 0.82 - 2, w, pdfFontSize + 4);
-              doc.text(editionNo, pdfMarginLeft + 3.5, cursorY);
-              doc.setFontSize(titleFontSize);
-            }
+            drawBox(boxTexts[ji], cursorY, pdfFontSize);
+            doc.setFontSize(titleFontSize);
             for (const line of doc.splitTextToSize(headerText, Math.max(60, pageWidth - pdfMarginRight - textX))) {
               checkPageOverflow(titleLineH);
               doc.text(line, textX, cursorY);

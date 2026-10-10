@@ -76,9 +76,12 @@ function verify(name, mode, file, root, stats = {}) {
     const isTitlePage = OPTIONS[mode].titlePage && !words.some((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x1 > pageW - 56.7 - 3);
     if (!isTitlePage && onPage.some((w) => /^RUBRIKBLOCK/.test(w.t) && Math.abs(w.y1 - lastY) < 3) && pg < pageCountAll - 1) problems.push(`page ${pg + 1} ends with a rubric`);
   }
-  // the edition number stands framed in the left margin
-  // (with a title page the edition number is a row of the metadata table instead)
-  if (!OPTIONS[mode].titlePage && !words.some((w) => w.page === 0 && w.t === '9' && w.x0 >= 56.7 && w.x0 < 70)) problems.push('edition number "9" not set in the left margin');
+  // the framed number (manuscript siglum + running number; not the Band metadata) stands in the
+  // left margin and must not reach into the heading
+  if (!OPTIONS[mode].titlePage) {
+    if (!words.some((w) => w.page === 0 && w.t === 'Test' && w.x0 >= 56.7 && w.x0 < 70)) problems.push('framed number "Test 1 1" not set in the left margin');
+    if (words.some((w) => w.page === 0 && w.t === '9' && w.x0 < 70)) problems.push('the Band edition field must not be printed as the framed number');
+  }
   const pages = +(/Pages:\s+(\d+)/.exec(execFileSync(PDFINFO, [file]).toString())?.[1] ?? 0);
   if (pages < 1) problems.push('no pages');
   const exp = expectedSyllables(root);

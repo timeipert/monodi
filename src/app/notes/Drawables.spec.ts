@@ -104,6 +104,24 @@ describe('Drawables.fromSpaced', () => {
   });
 });
 
+describe('accidentals', () => {
+  const flat = (b: BaseNote, o: number): Note => ({ ...note(b, o), noteType: NoteType.Flat });
+  it('stand close before the next neume, not a full neume gap away', () => {
+    const [f, n] = notesOf(fromSpaced(sp([[flat(BaseNote.B, 4)]], [[note(BaseNote.C, 5)]]), []));
+    expect(n.x - f.x).toBeLessThan(20);
+    expect(n.x - f.x).toBeGreaterThan(10);
+  });
+  it('keep the neume gap after ordinary notes', () => {
+    const [a, b] = notesOf(fromSpaced(sp([[note(BaseNote.B, 4)]], [[note(BaseNote.C, 5)]]), []));
+    expect(b.x - a.x).toBeGreaterThanOrEqual(34);
+  });
+  it('close up in the two-voice layout only if every voice has an accidental there', () => {
+    const [a, b] = fromSpaceds([sp([[flat(BaseNote.B, 4)]], [[note(BaseNote.C, 5)]]), sp([[note(BaseNote.D, 4)]], [[note(BaseNote.E, 4)]])], []);
+    expect(notesOf(a)[1].x).toBe(notesOf(b)[1].x);
+    expect(notesOf(a)[1].x).toBeGreaterThanOrEqual(34);
+  });
+});
+
 describe('DTie bracket', () => {
   it('is a flat bracket: short legs, horizontal stroke, rounded corners (no curve apex)', () => {
     const t = new DTie(10, 40, { grouped: [] }, 45);
