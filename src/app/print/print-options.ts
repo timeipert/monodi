@@ -1,5 +1,6 @@
 import { ProjectSettings } from '../api.service';
 import { PRINT_PDF_DEFAULTS as D } from '../pdf-defaults';
+import { resolveStatusTextStyles } from './text-style';
 
 /** A number from the settings: the default when the value is missing or not a finite number. */
 export function num(value: unknown, fallback: number): number {
@@ -36,6 +37,7 @@ export function resolvePrintOptions(s: Partial<ProjectSettings> & { [key: string
     widowSlack: Math.max(0, num(s.pdfWidowSlack, D.pdfWidowSlack)),
     hideBareStaff: s.pdfHideStaffWithoutNotes !== false,
     compactTextless: s.pdfCompactTextless !== false,
+    statusTextStyles: resolveStatusTextStyles(s.pdfStatusTextStyle),
     // titles, metadata, rubrics
     titleFontSize: num(s.pdfTitleFontSize, D.pdfTitleFontSize),
     pdfTitleVerticalSpace: num(s.pdfTitleVerticalSpace, 20),

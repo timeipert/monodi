@@ -1,4 +1,6 @@
 import { PRINT_PRESET } from '../pdf-defaults';
+import { FORMTEIL_STATUSES } from '../types/formteil-status';
+import { TextStyle, isTextStyle } from '../print/text-style';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.service';
 import { UserService, User } from '../user.service';
@@ -121,6 +123,22 @@ export class SettingsComponent implements OnInit, OnDestroy {
   applyPrintPreset(): void {
     if (!this.settings) return;
     Object.assign(this.settings, PRINT_PRESET);
+    this.onSettingsChange();
+  }
+
+  /** Sections whose lyric the PDF can set in its own case style. */
+  readonly formteilStatuses = FORMTEIL_STATUSES;
+
+  statusTextStyle(status: string): TextStyle {
+    const style = this.settings?.pdfStatusTextStyle?.[status];
+    return isTextStyle(style) ? style : 'none';
+  }
+
+  setStatusTextStyle(status: string, style: TextStyle): void {
+    if (!this.settings) return;
+    const styles = { ...(this.settings.pdfStatusTextStyle || {}) };
+    if (style === 'none') delete styles[status]; else styles[status] = style;
+    this.settings.pdfStatusTextStyle = styles;
     this.onSettingsChange();
   }
 

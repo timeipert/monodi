@@ -197,9 +197,9 @@
 <ng-template #Status let-index>
   Status
   <select class="form-control" [ngModel]="getFormControlData(index)" (ngModelChange)="setFormControl($event, index)">
-    <option>Trope Element</option>
-    <option>Entry Mark</option>
-    <option>Refrain</option>
+    @for (status of statusOptions(getFormControlData(index)); track status) {
+      <option [value]="status">{{status}}</option>
+    }
   </select>
 </ng-template>
 <ng-template #Verweis let-index>Reference <input class="form-control" [ngModel]="getFormControlData(index)"

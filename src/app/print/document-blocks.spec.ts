@@ -18,6 +18,17 @@ describe('documentBlocks', () => {
     expect((b[1] as any).text).toBe('IN DIE');
   });
 
+  it('gives every line the status of its nearest section, German names in English', () => {
+    const withStatus = (status: string, children: any[]): any => ({ ...form('', children), data: [{ name: FormteilDataName.Status, data: status }] });
+    const root: any = { kind: ContainerKind.RootContainer, uuid: 'r', comments: [], children: [
+      withStatus('Einsatzmarke', [form('', [zeile([])])]),
+      form('B', [zeile([])]),
+      withStatus('Refrain', [withStatus('Tropenelement', [zeile([])]), zeile([])]),
+    ] };
+    const lines = documentBlocks(root).filter((x) => x.kind === 'zeile').map((x) => (x as any).status);
+    expect(lines).toEqual(['Entry Mark', '', 'Trope Element', 'Refrain']);
+  });
+
   it('prints syllables and line/folio changes, but not the clef and box markers', () => {
     const z = zeile([{ kind: 'Syllable' }, { kind: 'Clef' }, { kind: 'LineChange' }, { kind: 'Box' }, { kind: 'FolioChange' }]);
     expect(printedParts(z).map((p: any) => p.kind)).toEqual(['Syllable', 'LineChange', 'FolioChange']);

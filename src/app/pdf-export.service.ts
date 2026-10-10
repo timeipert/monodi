@@ -14,6 +14,7 @@ import { formatFolioLabel, sanitizeFolioPrefixMode, usesFolioPrefix } from './fo
 import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFieldValue } from './document-metadata';
 import { getCategoryDetails } from './comment/comment-categories';
 import { documentBlocks, printedParts } from './print/document-blocks';
+import { CapsMode, TextStyle, capsModeFor, smallCapsRuns, styledLyric } from './print/text-style';
 import { SyllableGeometry, syllableGeometry } from './print/notation-geometry';
 import { drawGClef, drawStaff, drawSyllableNotation, RGB } from './print/notation-draw';
 import { Box, TreeKit, layoutCommentTree } from './print/comment-tree-layout';
@@ -80,8 +81,8 @@ interface PdfMeasuredPart {
   lyricShift: number;
   /** Width of the lyric in pt (0 without lyric). */
   lyricWidth: number;
-  /** Lyric set in small capitals (all-caps syllables, as in the printed edition). */
-  smallCaps?: 'all' | 'first';
+  /** Lyric set in small capitals (all-caps syllables as in the printed edition, or by the status style). */
+  smallCaps?: CapsMode;
 }
 
 /** One document to print: its metadata, transcription and (for the running head) its source. */
@@ -151,6 +152,8 @@ export class PdfExportService {
   private measureLineParts(zeile: VM.ZeileContainer, c: {
     doc: jsPDF; fontFamily: string; pdfFontSize: number; SCALE: number; extraSyllableSpacing: number;
     textOffset: number; clefMode: ClefDisplayMode; firstSyllableUuid: string | null;
+    /** Case style of the section's status (upper/lower case are applied here; small capitals in the layout loop). */
+    textStyle?: TextStyle;
     /** Turns the typed folio label into the printed one. */
     formatFolio: (label: string) => string;
   }): PdfMeasuredPart[] {
@@ -191,7 +194,7 @@ export class PdfExportService {
       let txt = (lp.text || '').trim();
       let textWidth = 0;
       if (txt && txt !== 'X' && txt !== '...' && txt !== '<...>') {
-        txt = txt.replace(/-$/, '\u2013');   // the printed edition marks a syllable break with an en dash
+        txt = styledLyric(txt.replace(/-$/, '\u2013'), c.textStyle);   // the printed edition marks a syllable break with an en dash
         doc.setFontSize(pdfFontSize);
         doc.setFont(fontFamily, 'normal');
         textWidth = doc.getTextWidth(txt);
@@ -223,34 +226,21 @@ export class PdfExportService {
     return out;
   }
 
-  /** Splits a small-caps lyric into runs of equal size (first letter full size, the rest small). */
-  private lyricRuns(txt: string, caps: 'all' | 'first'): { text: string; big: boolean }[] {
-    const runs: { text: string; big: boolean }[] = [];
-    let first = caps === 'first';
-    for (const ch of Array.from(txt)) {
-      const big = first && /\p{L}/u.test(ch);
-      if (/\p{L}/u.test(ch)) first = false;
-      const last = runs[runs.length - 1];
-      if (last && last.big === big) last.text += ch; else runs.push({ text: ch, big });
-    }
-    return runs;
-  }
-
   /** Width of a lyric in pt; all-caps syllables are measured as small capitals. */
-  private lyricWidth(doc: jsPDF, fontFamily: string, txt: string, fs: number, caps?: 'all' | 'first'): number {
+  private lyricWidth(doc: jsPDF, fontFamily: string, txt: string, fs: number, caps?: CapsMode): number {
     doc.setFont(fontFamily, 'normal');
     if (!caps) { doc.setFontSize(fs); return doc.getTextWidth(txt); }
     let w = 0;
-    for (const r of this.lyricRuns(txt, caps)) { doc.setFontSize(r.big ? fs : fs * SMALL_CAPS); w += doc.getTextWidth(r.text); }
+    for (const r of smallCapsRuns(txt, caps)) { doc.setFontSize(r.big ? fs : fs * SMALL_CAPS); w += doc.getTextWidth(r.text); }
     doc.setFontSize(fs);
     return w;
   }
 
-  private drawLyric(doc: jsPDF, fontFamily: string, txt: string, x: number, y: number, fs: number, caps?: 'all' | 'first'): void {
+  private drawLyric(doc: jsPDF, fontFamily: string, txt: string, x: number, y: number, fs: number, caps?: CapsMode): void {
     doc.setFont(fontFamily, 'normal');
     if (!caps) { doc.setFontSize(fs); doc.text(txt, x, y); return; }
     let cx = x;
-    for (const r of this.lyricRuns(txt, caps)) {
+    for (const r of smallCapsRuns(txt, caps)) {
       doc.setFontSize(r.big ? fs : fs * SMALL_CAPS);
       doc.text(r.text, cx, y);
       cx += doc.getTextWidth(r.text);
@@ -298,7 +288,7 @@ export class PdfExportService {
         const {
           pdfMarginLeft, pdfMarginRight, pdfMarginTop, pdfMarginBottom, SCALE, pdfStaffSpacing, pdfBracketGap, pdfSyllableTextOffset,
           extraSyllableSpacing, pdfContinuationIndent, pdfFontSize, pdfSignaturSpace, pdfVerticalSpace, widowSlack, hideBareStaff,
-          compactTextless, titleFontSize, pdfTitleVerticalSpace, headerSource, metaFontSize, pdfMetadataVerticalSpace,
+          compactTextless, statusTextStyles, titleFontSize, pdfTitleVerticalSpace, headerSource, metaFontSize, pdfMetadataVerticalSpace,
           pdfParatextFontSize, pdfParatextSpacing, pdfCommentStaffScale, pdfCommentFontSize, pdfCommentBlockGap, lemmaColumnMax,
           chapterHeadings, chapterNewPage, contentsApparatus, pdfShowPageNumbers, pdfPageNumberFontSize, pdfHeadlineFontSize,
           pdfHeadlineMetadataFields, bookmarks,
@@ -604,16 +594,19 @@ export class PdfExportService {
                 // Pass 1: measure every part, then let the pure layout decide systems,
                 // indents and clefs (see pdf-layout.ts).
                 const measured = timedSync('measure', () => this.measureLineParts(zeile, {
-                  doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, textOffset: pdfSyllableTextOffset, clefMode, firstSyllableUuid,
+                  doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, textOffset: pdfSyllableTextOffset, clefMode, firstSyllableUuid, textStyle: statusTextStyles[block.kind === 'zeile' ? block.status : ''],
                   formatFolio: (l) => formatFolioLabel(l, folioMode, foliated.get(chapterKeyOf(job)) ?? false),
                 }));
                 // All-caps syllables ("SA– LUS") are set in small capitals; the first letter of a
-                // word stays full size, the continuation of a hyphenated word is all small.
+                // word stays full size, the continuation of a hyphenated word is all small. A status
+                // style of "small capitals" does the same for lower-case text.
                 let prevLyric = '';
+                const lyricStyle = statusTextStyles[block.kind === 'zeile' ? block.status : ''];
                 for (const m of measured) {
                   if (m.isMarker) continue;
-                  if (m.txt && /\p{Lu}/u.test(m.txt) && !/\p{Ll}/u.test(m.txt) && (m.txt.match(/\p{L}/gu) || []).length >= 2) {
-                    m.smallCaps = /[\u2013-]$/.test(prevLyric) ? 'all' : 'first';
+                  const caps = m.txt ? capsModeFor(m.txt, lyricStyle, prevLyric) : undefined;
+                  if (caps) {
+                    m.smallCaps = caps;
                     m.lyricWidth = this.lyricWidth(doc, fontFamily, m.txt, pdfFontSize, m.smallCaps);
                     m.finalSecWidth = m.width = Math.max(m.svgWidth, m.lyricShift + m.lyricWidth + extraSyllableSpacing - 12 * SCALE);
                   }

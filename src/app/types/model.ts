@@ -2,6 +2,7 @@ import { flatMap, assertNever } from '../../utils';
 import { v4 as UUID } from "uuid";
 import * as LDP from 'lodash/fp';
 import * as _ from 'lodash';
+import { canonicalStatus } from './formteil-status';
 
 export enum ContainerKind {
   FormteilContainer = "FormteilContainer",
@@ -1450,6 +1451,7 @@ export const ensureCommentTree = (comment: Comment): CommentTree => {
  * 1. Ensures root.comments is defined as an array.
  * 2. Migrates legacy comments lacking a `tree` structure.
  * 3. Resolves startUUID/endUUID to note UUIDs if they were assigned to Syllable/Zeile UUIDs in older Monodi versions.
+ * 4. Renames German section statuses ("Einsatzmarke", "Tropenelement", ...) to the English ones.
  */
 export function normalizeDocumentComments(root: RootContainer): RootContainer {
   if (!root || root.kind !== ContainerKind.RootContainer) return root;
@@ -1503,6 +1505,12 @@ export function normalizeDocumentComments(root: RootContainer): RootContainer {
         uuidToNoteMap.set(zeile.uuid, { firstNoteUUID: zeileFirstNote, lastNoteUUID: zeileLastNote });
       }
     } else if (node.children && Array.isArray(node.children)) {
+      // Corpus Monodicum data carries German statuses ("Einsatzmarke", "Tropenelement"); the editor and the print settings use the English names.
+      if (node.kind === ContainerKind.FormteilContainer && Array.isArray(node.data)) {
+        for (const d of node.data) {
+          if (d && d.name === FormteilDataName.Status && typeof d.data === 'string') d.data = canonicalStatus(d.data);
+        }
+      }
       for (const child of node.children) {
         collectUUIDs(child);
       }

@@ -659,6 +659,19 @@
                           <div class="form-text small">No empty lyric zone; off keeps the space for lyrics.</div>
                         </div>
                       </div>
+                      <div class="col-12"><hr class="my-1"><div class="small fw-semibold text-uppercase text-muted" style="letter-spacing: .06em;">Lyric style by section status</div></div>
+                      @for (status of formteilStatuses; track status) {
+                        <div class="col-md-6">
+                          <label class="form-label small fw-medium text-muted mb-1">{{status}}</label>
+                          <select class="form-select form-select-sm" [ngModel]="statusTextStyle(status)" (ngModelChange)="setStatusTextStyle(status, $event)">
+                            <option value="none">As typed (all-caps text in small capitals)</option>
+                            <option value="smallcaps">Small capitals</option>
+                            <option value="uppercase">UPPERCASE</option>
+                            <option value="lowercase">lowercase</option>
+                          </select>
+                        </div>
+                      }
+                      <div class="col-12 form-text small mt-0">Applies to the syllable text of the sections with this status, including sections nested inside them. Small capitals: capitals stay full size, lower-case letters become smaller capitals.</div>
                       <div class="col-12"><hr class="my-1"><div class="small fw-semibold text-uppercase text-muted" style="letter-spacing: .06em;">Critical apparatus (print style)</div></div>
                       <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Staff size</label>

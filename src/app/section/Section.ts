@@ -2,6 +2,7 @@ import { EventEmitter, Input, Output, OnInit, Directive, inject } from '@angular
 import { FocusService } from '../focus.service';
 import { shouldShowClef } from '../clef-policy';
 import * as Model from '../types/model';
+import { canonicalStatus, FORMTEIL_STATUSES } from '../types/formteil-status';
 import * as MS from '../types/modelStorage';
 import { Event } from './Event';
 import { DragRequest } from '../dragger/dragger.component';
@@ -113,6 +114,12 @@ export abstract class Section<T extends Model.Container> implements OnInit {
     }
 
     return actions;
+  }
+
+  /** The statuses of the dropdown; a value the editor does not offer (from imported data) is kept as an extra entry. */
+  statusOptions(current: string | undefined): string[] {
+    const value = canonicalStatus(current);
+    return value && !FORMTEIL_STATUSES.includes(value) ? [...FORMTEIL_STATUSES, value] : [...FORMTEIL_STATUSES];
   }
 
   getEnglishDataName(name: string): string {

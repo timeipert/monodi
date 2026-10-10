@@ -573,6 +573,8 @@ export interface ProjectSettings {
   pdfWidowSlack?: number;
   pdfHideStaffWithoutNotes?: boolean;
   pdfCompactTextless?: boolean;
+  /** Lyric style per section status (key: English status name): 'smallcaps' | 'uppercase' | 'lowercase'; missing = as typed. */
+  pdfStatusTextStyle?: { [status: string]: 'none' | 'smallcaps' | 'uppercase' | 'lowercase' };
   pdfChapterHeadings?: boolean;
   pdfChapterNewPage?: boolean;
   pdfContentsApparatus?: 'chapters' | 'documents' | 'none';

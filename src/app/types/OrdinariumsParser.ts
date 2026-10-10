@@ -1,6 +1,7 @@
 import * as P from 'parsimmon'
 import * as PP from './parsers'
 import * as M from './model';
+import { STATUS_TROPE_ELEMENT } from './formteil-status';
 import { v4 as UUID } from "uuid";
 
 export function ordinariumsParser(): P.Parser<M.RootContainer>{
@@ -99,7 +100,7 @@ function makeFormteil(line: string): [M.FormteilContainer, string | undefined] {
   const [lineContainer, folioChangePart] = parseLineContainer(afterTab);
 
   if (beforeTab.match(/^[1-9]*[IVX]*[a-zA-Z](\^[0–9]+)?$/)) {
-    return [makeLine(beforeTab, "Tropenelement", [lineContainer]), folioChangePart];
+    return [makeLine(beforeTab, STATUS_TROPE_ELEMENT, [lineContainer]), folioChangePart];
   } else {
     return [makeLine(beforeTab, "", [lineContainer]), folioChangePart];
   }
@@ -160,7 +161,7 @@ function lineParser(): P.Parser<M.FormteilContainer>{
 function singleLineParser(): P.Parser<M.FormteilContainer>{
   return P.seqMap(
     P.alt(
-      P.regexp(/[1-9]*[IVX]*[a-zA-Z](\^[0–9]+)?\t/).map(t => ({name: t.trim(), sType: "Tropenelement" })),
+      P.regexp(/[1-9]*[IVX]*[a-zA-Z](\^[0–9]+)?\t/).map(t => ({name: t.trim(), sType: STATUS_TROPE_ELEMENT })),
       P.regexp(/![^\t]*\t/).map(t => ({name: t.trim(), sType: "" })),
     ),
     PP.lineContainerParser(),
