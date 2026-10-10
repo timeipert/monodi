@@ -81,6 +81,24 @@ function verify(name, mode, file, root, stats = {}) {
   if (!OPTIONS[mode].titlePage) {
     if (words.some((w) => w.page === 0 && w.x0 >= 56.7 && w.x0 < 70 && w.t === 'Test' && w.y0 > 40)) problems.push('a single document must not get a framed manuscript label in the margin');
   }
+  // a lyric alone on the last system of a line keeps its row: the next line (staff + lyrics) must
+  // fit between it and the following lyric row
+  if (name.startsWith('x18') && !OPTIONS[mode].titlePage) {
+    for (const d of words.filter((w) => w.t === 'dum' && w.page === 0)) {
+      const next = words.filter((w) => w.page === 0 && w.y0 > d.y1 + 1).sort((a, b) => a.y0 - b.y0)[0];
+      if (next && next.y0 - d.y1 < 30) problems.push(`lyric "dum" at y=${Math.round(d.y1)} is followed by a row only ${Math.round(next.y0 - d.y1)} pt below (the next staff overlaps it)`);
+    }
+  }
+  // folio labels: one spelling ("f. 31v") and flush right with the text block
+  if (name.startsWith('x19') && !OPTIONS[mode].titlePage) {
+    for (const lbl of ['31v', '32', '33r', '34']) {
+      const w = words.find((q) => q.page === 0 && q.t === lbl);
+      if (!w) { problems.push(`folio label ${lbl} missing`); continue; }
+      const prev = words.filter((q) => q.page === 0 && q.x1 <= w.x0 + 1 && Math.abs(q.y1 - w.y1) < 2).sort((p1, p2) => p2.x1 - p1.x1)[0];
+      if (!prev || prev.t !== 'f.') problems.push(`folio label ${lbl} is not written "f. ${lbl}" (found "${prev?.t}")`);
+      if (w.x1 < pageW - 56.7 - 1.5) problems.push(`folio label ${lbl} is not flush right (ends at ${w.x1.toFixed(1)})`);
+    }
+  }
   // signatures of sections stand in the margin, each at its own line (also when the line begins with a marker)
   if (name.startsWith('x17') && !OPTIONS[mode].titlePage) {
     const sigs = ['31', 'B', 'C'].map((t) => words.find((w) => w.page === 0 && w.t === t && w.x0 < 90 && w.y0 > 40));
@@ -116,13 +134,14 @@ function verify(name, mode, file, root, stats = {}) {
   }
   // right margin (skip stress cases that are wider than the page by design)
   if (!/long-syllable|one-syllable|300-notes/.test(name)) {
-    const over = words.filter((w) => w.x1 > pageW - 56.7 + 1);
+    // a lone last syllable may overshoot the margin by the widow slack (32 pt) instead of getting a system of its own
+    const over = words.filter((w) => w.x1 > pageW - 56.7 + 33);
     if (over.length) problems.push(`${over.length} words beyond right margin (e.g. "${over[0].t}")`);
   }
   // folio labels must all be present; those with room are set flush right at the margin
   const folios = []; (function walk(c) { if (c?.kind === 'FolioChange' && c.text) folios.push(String(c.text).trim()); (c?.children || []).forEach(walk); })(root);
   for (const f of folios) {
-    const last = f.split(/\s+/).pop();
+    const last = f.replace(/^(?:f{1,2}|fol|folio)\.?\s*(?=\d)/i, '').split(/\s+/).pop();   // printed as "f. 34"
     if (!words.some((w) => w.t === last || f.includes(w.t) && w.t.length > 2)) problems.push(`folio label "${f}" missing`);
   }
   // running head on every edition page (page number flush right at the top, numbered from 1);

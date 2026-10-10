@@ -1,4 +1,5 @@
 import { ClefDisplayMode, sanitizeClefDisplayMode } from './clef-policy';
+import { FolioPrefixMode, sanitizeFolioPrefixMode } from './folio-label';
 import { sanitizeNotationColor } from './notation-color';
 import { PRINT_PDF_DEFAULTS } from './pdf-defaults';
 import { Injectable } from '@angular/core';
@@ -446,6 +447,7 @@ export class APIService {
       pdfParatextSpacing: 6.5,
       pdfFontFamily: 'times',
       clefDisplayMode: 'document-start',
+      pdfFolioPrefix: 'auto',
       notationColor: '#333333',
       meiMappings: {
         formteilContainer: { tag: 'section' },
@@ -563,6 +565,8 @@ export interface ProjectSettings {
   pdfFontFamily?: string;
   /** 'print': running head + rule on every page, page number in the head; 'classic': footer "Page n of m". */
   pdfPageStyle?: 'print' | 'classic';
+  /** Folio labels in print: leave as typed, add "f." once the manuscript uses it (default), or always. */
+  pdfFolioPrefix?: FolioPrefixMode;
   /** Frame the edition number (document field "Print Edition") in the margin next to the title. */
   pdfShowEditionBox?: boolean;
   /** When the automatic G-clef is drawn: chant start only (print edition), every manuscript line, or every line break. */
@@ -849,6 +853,7 @@ export function sanitizeSettings(settings: any): ProjectSettings {
     }
   }
   settings.clefDisplayMode = sanitizeClefDisplayMode(settings.clefDisplayMode);
+  settings.pdfFolioPrefix = sanitizeFolioPrefixMode(settings.pdfFolioPrefix);
   settings.notationColor = sanitizeNotationColor(settings.notationColor);
 
   if (settings.commentTemplates !== undefined) {

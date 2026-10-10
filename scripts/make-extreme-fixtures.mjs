@@ -191,4 +191,24 @@ save('x14-page-breaks', root(Array.from({ length: 14 }, (_, c) => formteil([
   save('x17-signatures', root([sec('31', 3), sec('B', 0), sec('C', 1)]));
 }
 
+// 18. Lines of every length that end in a syllable with a very low note: some of them wrap so
+//     that only this syllable (with its ledger lines and lyric) lands on the last system. The
+//     next line must keep a clear distance from that system.
+save('x18-lonely-last-syllable', root([formteil([
+  para('LONELY LAST SYLLABLE'),
+  ...Array.from({ length: 14 }, (_, c) => zeile([
+    ...Array.from({ length: 16 + c }, (_, k) => syl(sylText(k + c), [randNeume(3, 3, 4)])),
+    syl('dum', [neume(group(note('A', 2)))]),
+  ])),
+])]));
+
+// 19. Folio labels written in different ways in one manuscript: bare ("31v", "33r") and with
+//     "f." — in print every one gets "f." and stands at the right edge.
+save('x19-folio-labels', root([formteil([
+  para('FOLIO LABELS'),
+  ...['31v', 'f. 32', '33r', 'fol.34'].map((lbl, c) => zeile([
+    ...Array.from({ length: 6 + c }, (_, k) => syl(sylText(k + c), [randNeume(3, 3, 4)])), folio(lbl),
+  ])),
+])]));
+
 console.log('wrote extreme fixtures to', out);

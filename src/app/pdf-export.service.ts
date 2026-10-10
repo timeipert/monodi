@@ -8,6 +8,7 @@ import { layoutPdfLine } from './pdf-layout';
 import { sanitizeNotationColor } from './notation-color';
 import { ClefDisplayMode, sanitizeClefDisplayMode, shouldShowClef } from './clef-policy';
 import { commentLemma, commentStartIndex, commentType } from './comment-lemma';
+import { formatFolioLabel, sanitizeFolioPrefixMode, usesFolioPrefix } from './folio-label';
 import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFieldValue } from './document-metadata';
 import { getCategoryDetails } from './comment/comment-categories';
 import { documentBlocks, printedParts } from './print/document-blocks';
@@ -53,6 +54,8 @@ interface PdfMeasuredPart {
   isMarker: boolean;
   txt: string;
   secHeight: number;
+  /** Height without the lyric zone under the staff (systems that carry no text). */
+  secHeightBare?: number;
   finalSecWidth: number;
   width: number;
   hasClef: boolean;
@@ -138,6 +141,8 @@ export class PdfExportService {
   private measureLineParts(zeile: VM.ZeileContainer, c: {
     doc: jsPDF; fontFamily: string; pdfFontSize: number; SCALE: number; extraSyllableSpacing: number;
     textOffset: number; clefMode: ClefDisplayMode; firstSyllableUuid: string | null;
+    /** Turns the typed folio label into the printed one. */
+    formatFolio: (label: string) => string;
   }): PdfMeasuredPart[] {
     const { doc, fontFamily, pdfFontSize, SCALE } = c;
     const adiastematic = zeile.notation === 'adiastematic';
@@ -151,7 +156,7 @@ export class PdfExportService {
         let labelWidth = 0;
         if (lp.kind === 'FolioChange') {
           width += PDF_MARKER_TICK_GAP;
-          folioLabel = (lp.text || '').trim() || undefined;
+          folioLabel = c.formatFolio((lp.text || '').trim()) || undefined;
           if (folioLabel) {
             doc.setFont(fontFamily, 'normal');
             doc.setFontSize(pdfFontSize * 0.85);
@@ -169,6 +174,8 @@ export class PdfExportService {
       const geom = syllableGeometry(lp, { showClef, adiastematic });
       const voiceHeights = geom.voices.map((_, v) => 65 + 10 + Math.max(16, Math.ceil((geom.lowest[v] || 0) + 2 - 85)));
       const secHeight = voiceHeights.reduce((a, b) => a + b, 0) * SCALE;
+      // the same without the lyric zone under the staff: for systems that carry no text at all
+      const secHeightBare = geom.voices.reduce((acc, _, v) => acc + 65 + 10 + Math.max(4, Math.ceil((geom.lowest[v] || 0) + 2 - 85)), 0) * SCALE;
       const svgWidth = geom.widthUnits * SCALE;
 
       let txt = (lp.text || '').trim();
@@ -199,7 +206,7 @@ export class PdfExportService {
         belowExtra = Math.max(0, clearTop - textTop);
       }
       out.push({
-        lp, geom, voiceStep: voiceHeights[0] || 91, isMarker: false, txt, secHeight, finalSecWidth, width: finalSecWidth, svgWidth,
+        lp, geom, voiceStep: voiceHeights[0] || 91, isMarker: false, txt, secHeight, secHeightBare, finalSecWidth, width: finalSecWidth, svgWidth,
         hasClef: geom.showClef, belowExtra, trimUnits, rawTop: 10, lyricShift, lyricWidth: textWidth,
       });
     });
@@ -375,6 +382,14 @@ export class PdfExportService {
           const n = first ? 1 : Number(boxTexts[ji - 1] || 0) + 1;
           boxTexts.push(String(n));
         });
+        // Folio labels: a manuscript whose labels say "f." somewhere is foliated — all of its labels get it
+        const folioMode = sanitizeFolioPrefixMode(s.pdfFolioPrefix);
+        const foliated = new Map<string, boolean>();
+        for (const j of jobs) {
+          const labels = VM.getAllLineParts(j.cont).filter((p) => p.kind === 'FolioChange').map((p) => String((p as any).text || ''));
+          const key = chapterKeyOf(j);
+          foliated.set(key, (foliated.get(key) ?? false) || usesFolioPrefix(labels));
+        }
         // a single document has no running number; the frame is for printed series only
         const showBox = jobs.length > 1 && s.pdfShowEditionBox !== false && (opts.boxLabel || 'number') !== 'none';
         const boxTextOf = (ji: number) => (showBox ? boxTexts[ji] : '');
@@ -626,6 +641,7 @@ export class PdfExportService {
                 // indents and clefs (see pdf-layout.ts).
                 const measured = timedSync('measure', () => this.measureLineParts(zeile, {
                   doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, textOffset: pdfSyllableTextOffset, clefMode, firstSyllableUuid,
+                  formatFolio: (l) => formatFolioLabel(l, folioMode, foliated.get(chapterKeyOf(job)) ?? false),
                 }));
                 // All-caps syllables ("SA– LUS") are set in small capitals; the first letter of a
                 // word stays full size, the continuation of a hyphenated word is all small.
@@ -644,33 +660,22 @@ export class PdfExportService {
                   maxX: pageWidth - pdfMarginRight,
                   continuationIndent: pdfContinuationIndent,
                   clefWidth: PDF_CLEF_WIDTH * SCALE,
+                  // a lone last syllable stays on its row rather than getting a system of its own
+                  widowSlack: 32,
                   // adiastematic lines have no staff, hence no clef either
                   clefMode: zeile.notation === 'adiastematic' ? 'document-start' as const : clefMode,
                 };
-                // Folio labels go right-aligned to the margin. A label whose system leaves
-                // no room for it stays inline (and reserves its width); re-layout until stable.
-                const inlineLabels = new Set<number>();
-                let layout = layoutPdfLine([], layoutOpts);
-                for (let attempt = 0; attempt < 6; attempt++) {
-                  layout = layoutPdfLine(
-                    measured.map((m, k) => ({
-                      kind: m.isMarker ? 'marker' as const : 'syllable' as const,
-                      width: m.width + (inlineLabels.has(k) ? 3 + (m.labelWidth || 0) : 0),
-                      hasClef: m.hasClef,
-                      breakAfterPreferred: !m.isMarker && measured[k + 1]?.isMarker === true,
-                    })),
-                    layoutOpts);
-                  let changed = false;
-                  const flushRight = new Set<number>(); // systems that already have a right-aligned label
-                  measured.forEach((m, k) => {
-                    if (!m.folioLabel || inlineLabels.has(k)) return;
-                    const sysNo = layout.placed[k].system;
-                    const sys = layout.systems[sysNo];
-                    if (flushRight.has(sysNo) || sys.endX + 8 > layoutOpts.maxX - (m.labelWidth || 0)) { inlineLabels.add(k); changed = true; }
-                    else flushRight.add(sysNo);
-                  });
-                  if (!changed) break;
-                }
+                // Folio labels always stand at the right edge of the text block; they take no room in
+                // the layout (see where they are drawn).
+                const layout = layoutPdfLine(
+                  measured.map((m, k) => ({
+                    kind: m.isMarker ? 'marker' as const : 'syllable' as const,
+                    width: m.width,
+                    hasClef: m.hasClef,
+                    breakAfterPreferred: !m.isMarker && measured[k + 1]?.isMarker === true,
+                  })),
+                  layoutOpts);
+                const labelLeft = new Map<number, number>();   // per system: left end of the labels already set
                 // Per system: tallest syllable plus the room needed for ledger lines below.
                 const sysTrims = layout.systems.map((sys) => {
                   let t = Infinity;
@@ -682,9 +687,21 @@ export class PdfExportService {
                   return 10;
                 });
                 const sysHeights = layout.systems.map((sys, si) => {
-                  let h = 0, extra = 0;
-                  for (let k = sys.first; k <= sys.last; k++) { h = Math.max(h, measured[k].secHeight); extra = Math.max(extra, measured[k].belowExtra || 0); }
-                  return h > 0 ? h + extra - sysTrims[si] : 0;
+                  let h = 0, extra = 0, hBare = 0, hasText = false, hasTick = false;
+                  for (let k = sys.first; k <= sys.last; k++) {
+                    const mk = measured[k];
+                    h = Math.max(h, mk.secHeight);
+                    hBare = Math.max(hBare, mk.secHeightBare ?? mk.secHeight);
+                    extra = Math.max(extra, mk.belowExtra || 0);
+                    if (mk.txt) hasText = true;
+                    if (mk.isMarker) hasTick = true;
+                  }
+                  if (h <= 0) return 0;
+                  if (hasText) return h + extra - sysTrims[si];
+                  // No text: no lyric zone — the system ends just below the staff (or its lowest
+                  // note), leaving room for the line-change strokes that hang under it.
+                  const staffBottom = (80 - 10) * SCALE - sysTrims[si];
+                  return Math.max(hBare - sysTrims[si], staffBottom + (hasTick ? pdfFontSize + 4 : 4));
                 });
                 // Like the printed edition: the first system follows its rubric closely.
                 if (afterParatext && lastParatextPage === doc.getNumberOfPages()) {
@@ -751,7 +768,10 @@ export class PdfExportService {
                     const h = sysHeights[pl.system] || lineMaxHeight || 24;
                     // Like the printed edition: a thin stroke set in the lyric row
                     // between two syllables (not hanging off the staff).
-                    const tickTop = cursorY + h + pdfSyllableTextOffset - pdfFontSize * 0.78;
+                    // without lyrics there is no lyric row: the stroke hangs right under the staff
+                    const systemHasText = measured.some((mm, kk) => layout.placed[kk].system === pl.system && mm.txt);
+                    const staffBottomY = cursorY - trim + (80 - sysRawTops[pl.system]) * SCALE;
+                    const tickTop = systemHasText ? cursorY + h + pdfSyllableTextOffset - pdfFontSize * 0.78 : staffBottomY + 3;
                     const tickBottom = tickTop + pdfFontSize * 0.98;
                     const tickGap = PDF_MARKER_TICK_GAP;
                     doc.setLineWidth(0.5);
@@ -767,12 +787,15 @@ export class PdfExportService {
                       const baselineY = tickBottom - pdfFontSize * 0.2;
                       doc.setFont(fontFamily, 'normal');
                       doc.setFontSize(pdfFontSize * 0.85);
-                      if (inlineLabels.has(j)) {
-                        doc.text(m.folioLabel, rightEdge + 3, baselineY);
-                        rightEdge += 3 + (m.labelWidth || 0);
-                      } else {
-                        doc.text(m.folioLabel, layoutOpts.maxX - (m.labelWidth || 0), baselineY);
-                      }
+                      // flush right with the text block; where the system runs to the edge the label
+                      // hangs in the margin instead; several labels in one system stack leftwards
+                      const lw = m.labelWidth || 0;
+                      const fits = layout.systems[pl.system].endX + 8 <= layoutOpts.maxX - lw;
+                      let lx = fits ? layoutOpts.maxX - lw : Math.min(layoutOpts.maxX + 6, pageWidth - 6 - lw);
+                      const taken = labelLeft.get(pl.system);
+                      if (taken !== undefined) lx = Math.min(lx, taken - 6 - lw);
+                      labelLeft.set(pl.system, lx);
+                      doc.text(m.folioLabel, lx, baselineY);
                       doc.setFontSize(pdfFontSize);
                     }
                     cursorX = rightEdge + gap + 2;
@@ -822,7 +845,8 @@ export class PdfExportService {
                      cursorX = pl.clefX;
                      curSystem = pl.system;
                      lineMaxHeight = 0;
-                     lineHasLyrics = false;
+                     // the syllable that opens the system may be the only one with a lyric
+                     lineHasLyrics = !!txt;
                      lineHasBrackets = Object.keys(activeBrackets).length > 0;
                  
                      for (const key in activeBrackets) {
@@ -1318,14 +1342,17 @@ export class PdfExportService {
           if (multi && opts.contents !== false) {
             // Contents: one row per document — ID, incipit, genre (light grey) — with dot leaders
             // and the page the document starts on; the apparatus is listed after them.
-            // Hierarchy: edition (manuscript > documents), then the apparatus (manuscript > documents).
-            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean; indent: number; depth: number };
+            // Hierarchy as in the printed volume's contents: part (Edition / Critical Apparatus) >
+            // manuscript (chapter) > documents, each with the framed running number.
+            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean; indent: number; depth: number; num?: string };
             const rows: Row[] = [];
-            const docIndent = chapterCount > 1 ? 12 : 0;
+            const docIndent = chapterCount > 1 ? 24 : 12;
+            const docDepth = chapterCount > 1 ? 2 : 1;
+            rows.push({ id: '', incipit: 'Edition', genre: '', page: docEntries[0]?.page ?? 1, plain: true, chapter: true, indent: 0, depth: 0 });
             docEntries.forEach((e) => {
               const j = jobs[e.job];
-              if (chapterCount > 1 && chapterFirst[e.job]) rows.push({ id: '', incipit: chapterNo[e.job] + '. ' + headOf(e.job), genre: '', page: e.page, plain: true, chapter: true, indent: 0, depth: 0 });
-              rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page, indent: docIndent, depth: chapterCount > 1 ? 1 : 0 });
+              if (chapterCount > 1 && chapterFirst[e.job]) rows.push({ id: '', incipit: chapterNo[e.job] + '. ' + headOf(e.job), genre: '', page: e.page, plain: true, indent: 12, depth: 1 });
+              rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page, indent: docIndent, depth: docDepth, num: boxTextOf(e.job) });
             });
             if (apparatusStarted) {
               rows.push({ id: '', incipit: 'Critical Apparatus', genre: '', page: apparatusPage, plain: true, chapter: true, indent: 0, depth: 0 });
@@ -1333,7 +1360,7 @@ export class PdfExportService {
                 if (ao.depth === 1 && chapterCount > 1) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1 });
                 else {
                   const j = jobs[ao.job];
-                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: chapterCount > 1 ? 24 : 12, depth: ao.depth });
+                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job) });
                 }
               }
             }
@@ -1352,8 +1379,20 @@ export class PdfExportService {
               doc.setTextColor(0, 0, 0);
               const pageStr = String(r.page);
               const pageX = pageWidth - pdfMarginRight - doc.getTextWidth(pageStr);
-              const x1 = r.plain ? ix : ix + idW;
-              if (!r.plain) doc.text(r.id, ix, y);
+              // the framed running number in front of a document row
+              const numW = rows.some((q) => q.num) ? 20 : 0;
+              if (r.num) {
+                const fsN = pdfFontSize - 1;
+                doc.setFontSize(fsN);
+                const nw = doc.getTextWidth(r.num);
+                doc.setLineWidth(0.4);
+                doc.setDrawColor(0, 0, 0);
+                doc.rect(ix, y - fsN * 0.8 - 1.5, Math.max(nw + 5, 12), fsN + 3);
+                doc.text(r.num, ix + Math.max(nw + 5, 12) / 2 - nw / 2, y);
+                doc.setFontSize(pdfFontSize);
+              }
+              const x1 = r.plain ? ix : ix + numW + idW;
+              if (!r.plain) doc.text(r.id, ix + numW, y);
               // incipit, then the genre in light grey; both cut to what fits before the leader
               let incipit = r.incipit;
               const room = pageX - x1 - 24;

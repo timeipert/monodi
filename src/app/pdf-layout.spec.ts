@@ -89,6 +89,23 @@ describe('layoutPdfLine', () => {
     expect(r.systems.length).toBe(3);
   });
 
+  it('keeps a lone last syllable on the previous system when it fits within the slack', () => {
+    // 100 -> 250 -> 400, a third item of 150 would end at 550 (> 500) and wrap alone
+    const items = [syl(150), syl(150), syl(150)];
+    expect(layoutPdfLine(items, opts()).systems.length).toBe(2);
+    expect(layoutPdfLine(items, opts({ widowSlack: 30 })).systems.length).toBe(2);   // overshoot 50 > 30
+    const near = [syl(150), syl(150), syl(110)];                                     // ends at 510: overshoot 10
+    expect(layoutPdfLine(near, opts()).systems.length).toBe(2);
+    const r = layoutPdfLine(near, opts({ widowSlack: 30 }));
+    expect(r.systems.length).toBe(1);
+    expect(r.placed.map(p => p.x)).toEqual([100, 250, 400]);
+  });
+
+  it('only a single trailing syllable is pulled back, never a longer tail', () => {
+    const items = [syl(150), syl(150), syl(100), syl(60), syl(60)];                  // 400 + 100 fits; the last two wrap together
+    expect(layoutPdfLine(items, opts({ widowSlack: 200 })).systems.length).toBe(2);
+  });
+
   it('handles 5000 syllables quickly', () => {
     const items = Array.from({ length: 5000 }, (_, k) => syl(20 + (k % 7) * 9, { breakAfterPreferred: k % 11 === 0 }));
     const t = performance.now();

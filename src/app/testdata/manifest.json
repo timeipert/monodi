@@ -118,5 +118,11 @@
     "source": "bohemia-moravia.zip",
     "path": "Prague VI G 5/100f7fbb-f16b-4d40-b493-205688692069/data.json",
     "bytes": 44684
+  },
+  {
+    "file": "Ei_366__ea23335e-2b2d-4253-bbd9-9e4e8780d6a4.json",
+    "source": "german-origin.zip",
+    "path": "Ei 366/ea23335e-2b2d-4253-bbd9-9e4e8780d6a4/data.json",
+    "bytes": 296307
   }
 ]

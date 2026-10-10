@@ -5,35 +5,40 @@ import f1 from './Abb_7__2aac1dae-5a5a-4ee0-a0e7-93b5dbacfe6a.json';
 import f2 from './AcT_1__1fafe566-62e5-4b21-9308-ed8594452c73.json';
 import f3 from './Ben_34__878433eb-0284-40e7-8b2f-f81199f189d9.json';
 import f4 from './Civ_41__2e33150f-84b1-4b7c-8aa7-725b590146fc.json';
-import f5 from './Eichst_tt_84__5a10f580-10d9-4cc6-998e-25f4b61c69b9.json';
-import f6 from './Mod_7__950f174f-05de-4aa5-bfea-2a5692f0bf14.json';
-import f7 from './Mul_2__5d824440-f147-448b-8742-639fa40b3662.json';
-import f8 from './Mul_2__f5fb51e2-190d-4cad-b1d9-dcd5de7c86cc.json';
-import f9 from './NY_905__0379ed62-67d3-40b3-ae44-24f0aa2bc08e.json';
-import f10 from './NY_905__5644149e-78b3-4071-b0b9-5b45cc4f409d.json';
-import f11 from './NY_905__afa42bc8-6ea4-4a0b-88b1-3376ae0b70a6.json';
-import f12 from './Or_201__d83dc5a9-f119-4321-932f-f3d1966c456f.json';
-import f13 from './PaA_135__5f8954aa-4d9c-4270-a6d1-69a99690eab1.json';
-import f14 from './PaA_135__af115672-ee0e-4201-acfa-3d3840181fe4.json';
-import f15 from './Prague_VI_G_10a__69154d1a-8a3e-4e19-b722-4ff691d2cc5c.json';
-import f16 from './Prague_VI_G_10b__b840ff16-5ae5-4bf9-8a06-e764b63e9e62.json';
-import f17 from './Prague_VI_G_5__100f7fbb-f16b-4d40-b493-205688692069.json';
-import f18 from './Sol_596__347e158c-df09-4ad5-b904-46ff2d942f3e.json';
-import f19 from './Sol_596__ae80ab4f-f818-4fe5-845a-8c30584185b0.json';
-import f20 from './extreme/x01-plausible.json';
-import f21 from './extreme/x02-long-syllable.json';
-import f22 from './extreme/x03-empty-things.json';
-import f23 from './extreme/x04-300-notes-one-syllable.json';
-import f24 from './extreme/x05-ledger-lines.json';
-import f25 from './extreme/x06-many-wraps.json';
-import f26 from './extreme/x07-markers.json';
-import f27 from './extreme/x08-adiastematic.json';
-import f28 from './extreme/x09-many-zeilen.json';
-import f29 from './extreme/x10-folio-positions.json';
-import f30 from './extreme/x11-small-caps.json';
-import f31 from './extreme/x12-low-notes-comments.json';
-import f32 from './extreme/x13-very-high-notes.json';
-import f33 from './extreme/x14-page-breaks.json';
+import f5 from './Ei_366__ea23335e-2b2d-4253-bbd9-9e4e8780d6a4.json';
+import f6 from './Eichst_tt_84__5a10f580-10d9-4cc6-998e-25f4b61c69b9.json';
+import f7 from './Mod_7__950f174f-05de-4aa5-bfea-2a5692f0bf14.json';
+import f8 from './Mul_2__5d824440-f147-448b-8742-639fa40b3662.json';
+import f9 from './Mul_2__f5fb51e2-190d-4cad-b1d9-dcd5de7c86cc.json';
+import f10 from './NY_905__0379ed62-67d3-40b3-ae44-24f0aa2bc08e.json';
+import f11 from './NY_905__5644149e-78b3-4071-b0b9-5b45cc4f409d.json';
+import f12 from './NY_905__afa42bc8-6ea4-4a0b-88b1-3376ae0b70a6.json';
+import f13 from './Or_201__d83dc5a9-f119-4321-932f-f3d1966c456f.json';
+import f14 from './PaA_135__5f8954aa-4d9c-4270-a6d1-69a99690eab1.json';
+import f15 from './PaA_135__af115672-ee0e-4201-acfa-3d3840181fe4.json';
+import f16 from './Prague_VI_G_10a__69154d1a-8a3e-4e19-b722-4ff691d2cc5c.json';
+import f17 from './Prague_VI_G_10b__b840ff16-5ae5-4bf9-8a06-e764b63e9e62.json';
+import f18 from './Prague_VI_G_5__100f7fbb-f16b-4d40-b493-205688692069.json';
+import f19 from './Sol_596__347e158c-df09-4ad5-b904-46ff2d942f3e.json';
+import f20 from './Sol_596__ae80ab4f-f818-4fe5-845a-8c30584185b0.json';
+import f21 from './extreme/x01-plausible.json';
+import f22 from './extreme/x02-long-syllable.json';
+import f23 from './extreme/x03-empty-things.json';
+import f24 from './extreme/x04-300-notes-one-syllable.json';
+import f25 from './extreme/x05-ledger-lines.json';
+import f26 from './extreme/x06-many-wraps.json';
+import f27 from './extreme/x07-markers.json';
+import f28 from './extreme/x08-adiastematic.json';
+import f29 from './extreme/x09-many-zeilen.json';
+import f30 from './extreme/x10-folio-positions.json';
+import f31 from './extreme/x11-small-caps.json';
+import f32 from './extreme/x12-low-notes-comments.json';
+import f33 from './extreme/x13-very-high-notes.json';
+import f34 from './extreme/x14-page-breaks.json';
+import f35 from './extreme/x15-apparatus-forms.json';
+import f36 from './extreme/x16-apparatus-dense.json';
+import f37 from './extreme/x17-signatures.json';
+import f38 from './extreme/x18-lonely-last-syllable.json';
 
 export const FIXTURES: { name: string; kind: 'real' | 'extreme'; doc: any }[] = [
   { name: "Aa_13__254326a3-ead7-4a1d-a49b-57e3b12e6f6a", kind: 'real' as const, doc: f0 as any },
@@ -41,33 +46,38 @@ export const FIXTURES: { name: string; kind: 'real' | 'extreme'; doc: any }[] = 
   { name: "AcT_1__1fafe566-62e5-4b21-9308-ed8594452c73", kind: 'real' as const, doc: f2 as any },
   { name: "Ben_34__878433eb-0284-40e7-8b2f-f81199f189d9", kind: 'real' as const, doc: f3 as any },
   { name: "Civ_41__2e33150f-84b1-4b7c-8aa7-725b590146fc", kind: 'real' as const, doc: f4 as any },
-  { name: "Eichst_tt_84__5a10f580-10d9-4cc6-998e-25f4b61c69b9", kind: 'real' as const, doc: f5 as any },
-  { name: "Mod_7__950f174f-05de-4aa5-bfea-2a5692f0bf14", kind: 'real' as const, doc: f6 as any },
-  { name: "Mul_2__5d824440-f147-448b-8742-639fa40b3662", kind: 'real' as const, doc: f7 as any },
-  { name: "Mul_2__f5fb51e2-190d-4cad-b1d9-dcd5de7c86cc", kind: 'real' as const, doc: f8 as any },
-  { name: "NY_905__0379ed62-67d3-40b3-ae44-24f0aa2bc08e", kind: 'real' as const, doc: f9 as any },
-  { name: "NY_905__5644149e-78b3-4071-b0b9-5b45cc4f409d", kind: 'real' as const, doc: f10 as any },
-  { name: "NY_905__afa42bc8-6ea4-4a0b-88b1-3376ae0b70a6", kind: 'real' as const, doc: f11 as any },
-  { name: "Or_201__d83dc5a9-f119-4321-932f-f3d1966c456f", kind: 'real' as const, doc: f12 as any },
-  { name: "PaA_135__5f8954aa-4d9c-4270-a6d1-69a99690eab1", kind: 'real' as const, doc: f13 as any },
-  { name: "PaA_135__af115672-ee0e-4201-acfa-3d3840181fe4", kind: 'real' as const, doc: f14 as any },
-  { name: "Prague_VI_G_10a__69154d1a-8a3e-4e19-b722-4ff691d2cc5c", kind: 'real' as const, doc: f15 as any },
-  { name: "Prague_VI_G_10b__b840ff16-5ae5-4bf9-8a06-e764b63e9e62", kind: 'real' as const, doc: f16 as any },
-  { name: "Prague_VI_G_5__100f7fbb-f16b-4d40-b493-205688692069", kind: 'real' as const, doc: f17 as any },
-  { name: "Sol_596__347e158c-df09-4ad5-b904-46ff2d942f3e", kind: 'real' as const, doc: f18 as any },
-  { name: "Sol_596__ae80ab4f-f818-4fe5-845a-8c30584185b0", kind: 'real' as const, doc: f19 as any },
-  { name: "x01-plausible", kind: 'extreme' as const, doc: f20 as any },
-  { name: "x02-long-syllable", kind: 'extreme' as const, doc: f21 as any },
-  { name: "x03-empty-things", kind: 'extreme' as const, doc: f22 as any },
-  { name: "x04-300-notes-one-syllable", kind: 'extreme' as const, doc: f23 as any },
-  { name: "x05-ledger-lines", kind: 'extreme' as const, doc: f24 as any },
-  { name: "x06-many-wraps", kind: 'extreme' as const, doc: f25 as any },
-  { name: "x07-markers", kind: 'extreme' as const, doc: f26 as any },
-  { name: "x08-adiastematic", kind: 'extreme' as const, doc: f27 as any },
-  { name: "x09-many-zeilen", kind: 'extreme' as const, doc: f28 as any },
-  { name: "x10-folio-positions", kind: 'extreme' as const, doc: f29 as any },
-  { name: "x11-small-caps", kind: 'extreme' as const, doc: f30 as any },
-  { name: "x12-low-notes-comments", kind: 'extreme' as const, doc: f31 as any },
-  { name: "x13-very-high-notes", kind: 'extreme' as const, doc: f32 as any },
-  { name: "x14-page-breaks", kind: 'extreme' as const, doc: f33 as any },
+  { name: "Ei_366__ea23335e-2b2d-4253-bbd9-9e4e8780d6a4", kind: 'real' as const, doc: f5 as any },
+  { name: "Eichst_tt_84__5a10f580-10d9-4cc6-998e-25f4b61c69b9", kind: 'real' as const, doc: f6 as any },
+  { name: "Mod_7__950f174f-05de-4aa5-bfea-2a5692f0bf14", kind: 'real' as const, doc: f7 as any },
+  { name: "Mul_2__5d824440-f147-448b-8742-639fa40b3662", kind: 'real' as const, doc: f8 as any },
+  { name: "Mul_2__f5fb51e2-190d-4cad-b1d9-dcd5de7c86cc", kind: 'real' as const, doc: f9 as any },
+  { name: "NY_905__0379ed62-67d3-40b3-ae44-24f0aa2bc08e", kind: 'real' as const, doc: f10 as any },
+  { name: "NY_905__5644149e-78b3-4071-b0b9-5b45cc4f409d", kind: 'real' as const, doc: f11 as any },
+  { name: "NY_905__afa42bc8-6ea4-4a0b-88b1-3376ae0b70a6", kind: 'real' as const, doc: f12 as any },
+  { name: "Or_201__d83dc5a9-f119-4321-932f-f3d1966c456f", kind: 'real' as const, doc: f13 as any },
+  { name: "PaA_135__5f8954aa-4d9c-4270-a6d1-69a99690eab1", kind: 'real' as const, doc: f14 as any },
+  { name: "PaA_135__af115672-ee0e-4201-acfa-3d3840181fe4", kind: 'real' as const, doc: f15 as any },
+  { name: "Prague_VI_G_10a__69154d1a-8a3e-4e19-b722-4ff691d2cc5c", kind: 'real' as const, doc: f16 as any },
+  { name: "Prague_VI_G_10b__b840ff16-5ae5-4bf9-8a06-e764b63e9e62", kind: 'real' as const, doc: f17 as any },
+  { name: "Prague_VI_G_5__100f7fbb-f16b-4d40-b493-205688692069", kind: 'real' as const, doc: f18 as any },
+  { name: "Sol_596__347e158c-df09-4ad5-b904-46ff2d942f3e", kind: 'real' as const, doc: f19 as any },
+  { name: "Sol_596__ae80ab4f-f818-4fe5-845a-8c30584185b0", kind: 'real' as const, doc: f20 as any },
+  { name: "x01-plausible", kind: 'extreme' as const, doc: f21 as any },
+  { name: "x02-long-syllable", kind: 'extreme' as const, doc: f22 as any },
+  { name: "x03-empty-things", kind: 'extreme' as const, doc: f23 as any },
+  { name: "x04-300-notes-one-syllable", kind: 'extreme' as const, doc: f24 as any },
+  { name: "x05-ledger-lines", kind: 'extreme' as const, doc: f25 as any },
+  { name: "x06-many-wraps", kind: 'extreme' as const, doc: f26 as any },
+  { name: "x07-markers", kind: 'extreme' as const, doc: f27 as any },
+  { name: "x08-adiastematic", kind: 'extreme' as const, doc: f28 as any },
+  { name: "x09-many-zeilen", kind: 'extreme' as const, doc: f29 as any },
+  { name: "x10-folio-positions", kind: 'extreme' as const, doc: f30 as any },
+  { name: "x11-small-caps", kind: 'extreme' as const, doc: f31 as any },
+  { name: "x12-low-notes-comments", kind: 'extreme' as const, doc: f32 as any },
+  { name: "x13-very-high-notes", kind: 'extreme' as const, doc: f33 as any },
+  { name: "x14-page-breaks", kind: 'extreme' as const, doc: f34 as any },
+  { name: "x15-apparatus-forms", kind: 'extreme' as const, doc: f35 as any },
+  { name: "x16-apparatus-dense", kind: 'extreme' as const, doc: f36 as any },
+  { name: "x17-signatures", kind: 'extreme' as const, doc: f37 as any },
+  { name: "x18-lonely-last-syllable", kind: 'extreme' as const, doc: f38 as any },
 ];

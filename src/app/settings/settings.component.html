@@ -631,6 +631,15 @@
                         </select>
                       </div>
                       <div class="col-md-6">
+                        <label class="form-label small fw-medium text-muted mb-1">Folio labels</label>
+                        <select class="form-select form-select-sm" [ngModel]="settings.pdfFolioPrefix || 'auto'" (ngModelChange)="settings.pdfFolioPrefix = $event; onSettingsChange()">
+                          <option value="auto">Add “f.” as soon as the manuscript uses it somewhere</option>
+                          <option value="always">Always “f.” before a folio number</option>
+                          <option value="off">As typed</option>
+                        </select>
+                        <div class="form-text small">Folio labels always stand at the right edge of the text block.</div>
+                      </div>
+                      <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Continuation indent (pt)</label>
                         <input type="number" class="form-control form-control-sm" min="0" max="80" step="1" [(ngModel)]="settings.pdfContinuationIndent" (ngModelChange)="onSettingsChange()">
                         <div class="form-text small">Indent of automatically wrapped systems in the PDF (print edition: about 20).</div>

@@ -29,6 +29,11 @@ export interface PdfLayoutOptions {
   clefMode: ClefDisplayMode;
   /** Share of the system width (from the right) in which a caesura break is preferred. */
   caesuraSlack?: number;
+  /**
+   * A last system that would hold a single syllable is not worth a staff of its own: that
+   * syllable stays on the previous system if it overshoots the right edge by at most this many pt.
+   */
+  widowSlack?: number;
 }
 
 export interface PlacedItem {
@@ -92,6 +97,19 @@ export function layoutPdfLine(items: PdfLayoutItem[], o: PdfLayoutOptions): PdfL
     x += it.width;
     xAfter[i] = x;
     i++;
+  }
+
+  // 1b. No widow: a lone last syllable stays on the previous system when it (almost) fits.
+  const slackW = o.widowSlack ?? 0;
+  if (slackW > 0 && starts.length >= 2) {
+    const lastStart = starts[starts.length - 1];
+    const syllablesInLast = items.slice(lastStart).filter((it) => it.kind === 'syllable').length;
+    if (syllablesInLast === 1) {
+      const prev = starts.length - 2;
+      let end = systemStartX(prev) + lead(prev, starts[prev]);
+      for (let k = starts[prev]; k < n; k++) end += items[k].width;
+      if (end <= o.maxX + slackW) starts.pop();
+    }
   }
 
   // 2. Assign positions.
