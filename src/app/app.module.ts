@@ -19,6 +19,7 @@ import { WelcomeComponent } from './welcome/welcome.component';
 import { SettingsComponent } from './settings/settings.component';
 import { SourcesOverviewComponent } from './sources-overview/sources-overview.component';
 import { SourceComponent } from './source/source.component';
+import { MarkdownEditorComponent } from './markdown-editor/markdown-editor.component';
 import { DocumentComponent } from './document/document.component';
 import { PdfExportDialogComponent } from './pdf-export-dialog.component';
 import { SmartTableComponent } from './smart-table/smart-table.component';
@@ -50,6 +51,7 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
         SourcesOverviewComponent,
         SubcorporaSelectorComponent,
         SourceComponent,
+        MarkdownEditorComponent,
         DocumentComponent,
         PdfExportDialogComponent,
         SmartTableComponent,

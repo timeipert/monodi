@@ -123,6 +123,26 @@ await scenario('document view dialog', async (page, problems, pdfText) => {
   docs.splice(0, docs.length, ...keep);
 }
 
+// 1c. the source description (Markdown) of a manuscript is printed after the apparatus when chosen
+{
+  const keep2 = docs.splice(0, docs.length, { id: 'doc-1', label: 'Abb 7-12r-1', incipit: 'Gratuletur omnis caro', genre1: 'Antiphon', source: 'srcA', sigle: 'Abb 7', root: load('Abb_7'),
+    sourceDescription: '## Herkunft\n\nDie Handschrift entstand **im Kloster** Abbaye.\n\n| Folio | Inhalt |\n| --- | --- |\n| 1-10 | Graduale |\n| 11-20 | Sequentiar |\n' });
+  await scenario('source description is printed after the apparatus', async (page, problems, pdfText) => {
+    await page.goto(BASE + '/#/search', { waitUntil: 'networkidle0' });
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.waitForSelector('app-search', { timeout: 30000 });
+    await page.evaluate(() => { const c = window.ng.getComponent(document.querySelector('app-search')); c.pdfDialog.open({ ids: ['doc-1'] }); window.ng.applyChanges(c); });
+    await page.waitForSelector('app-pdf-export-dialog', { timeout: 10000 });
+    await page.evaluate(() => { const d = window.ng.getComponent(document.querySelector('app-pdf-export-dialog')); d.o.sourceDescription = true; window.ng.applyChanges(d); });
+    const btn = await page.waitForSelector('app-pdf-export-dialog button ::-p-text(Create PDF)');
+    await btn.click();
+    const text = await pdfText();
+    for (const need of ['Herkunft', 'im Kloster', 'Sequentiar']) if (!text.includes(need)) problems.push(`description text "${need}" missing`);
+    if (text.indexOf('Herkunft') < text.indexOf('Gratuletur')) problems.push('the description comes before the edition');
+  });
+  docs.splice(0, docs.length, ...keep2);
+}
+
 // 2. a search result by id: the dialog loads the metadata itself
 await scenario('search result by id', async (page, problems, pdfText) => {
   await page.goto(BASE + '/#/search', { waitUntil: 'networkidle0' });

@@ -13,6 +13,7 @@ interface DialogOptions {
   contents: boolean;
   metadata: boolean;
   apparatus: boolean;
+  sourceDescription: boolean;
   newPage: boolean;
   pageFormat: 'settings' | 'cm' | 'a4';
   boxLabel: PdfBoxLabel;
@@ -121,6 +122,11 @@ const OPTIONS_KEY = (multi: boolean) => `monodi_pdf_dialog_${multi ? 'multi' : '
                 <label class="form-check-label fw-medium" for="oApp">Critical apparatus</label>
                 <div class="form-text mt-0">{{ multi ? 'Collected after the editions, divided by document.' : 'The comments, after the edition.' }}</div>
               </div>
+              <div class="form-check form-switch mb-1 mt-2">
+                <input class="form-check-input" type="checkbox" id="oDesc" [(ngModel)]="o.sourceDescription" [disabled]="busy" (ngModelChange)="save()">
+                <label class="form-check-label fw-medium" for="oDesc">Source description</label>
+                <div class="form-text mt-0">{{ multi ? 'The Markdown description of each manuscript, after the apparatus.' : 'The Markdown description of the manuscript, after the apparatus.' }} Written on the manuscript's Description tab.</div>
+              </div>
               @if (multi) {
                 <div class="form-check form-switch mb-1 mt-2">
                   <input class="form-check-input" type="checkbox" id="oNew" [(ngModel)]="o.newPage" [disabled]="busy" (ngModelChange)="save()">
@@ -169,7 +175,7 @@ export class PdfExportDialogComponent implements OnInit {
   @Output() closed = new EventEmitter<void>();
 
   entries: Entry[] = [];
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'number' };
+  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, newPage: false, pageFormat: 'settings', boxLabel: 'number' };
   fileBase = '';
   busy = false;
   loadingMeta = false;
@@ -226,8 +232,8 @@ export class PdfExportDialogComponent implements OnInit {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'number' }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'number' };
+      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, newPage: false, pageFormat: 'settings', boxLabel: 'number' }
+      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, newPage: false, pageFormat: 'settings', boxLabel: 'number' };
     try {
       const stored = JSON.parse(localStorage.getItem(OPTIONS_KEY(multi)) || 'null');
       if (stored) this.o = { ...this.o, ...stored };
@@ -276,6 +282,7 @@ export class PdfExportDialogComponent implements OnInit {
         contents: this.o.contents && this.o.titlePage,
         includeMetadata: this.o.metadata,
         apparatus: this.o.apparatus,
+        sourceDescriptions: this.o.sourceDescription,
         newPagePerDocument: this.o.newPage,
         boxLabel: this.o.boxLabel,
         pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,

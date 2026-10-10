@@ -17,7 +17,11 @@ import { documentBlocks, printedParts } from './print/document-blocks';
 import { SyllableGeometry, syllableGeometry } from './print/notation-geometry';
 import { drawGClef, drawStaff, drawSyllableNotation, RGB } from './print/notation-draw';
 import { Box, TreeKit, layoutCommentTree } from './print/comment-tree-layout';
-import { TextKit, breakLines, drawLines, linesWidth } from './print/rich-text';
+import { FontStyle, TextKit, breakLines, drawLines, linesWidth } from './print/rich-text';
+import { MdBlock, MdInline, parseMarkdown, safeHref } from './print/markdown';
+import { MdLine, layoutInlines, lineWidth } from './print/markdown-layout';
+import { LoadedImage, loadImage } from './print/image-loader';
+import { sourceDescription } from './source-description';
 
 /** Internal-unit width of an injected clef (same as NotesComponent.CLEF_WIDTH). */
 const PDF_CLEF_WIDTH = 32;
@@ -100,6 +104,8 @@ export interface PdfExportOptions {
   includeMetadata: boolean;
   /** The collected critical apparatus. */
   apparatus: boolean;
+  /** The sources' Markdown descriptions, appended after the editions and the apparatus. */
+  sourceDescriptions?: boolean;
   /** Several documents: the contents table on the title page (needs a title page). Default: yes. */
   contents?: boolean;
   /** Several documents: every document starts on a new page. Default: no — they run on in one flow. */
@@ -122,6 +128,8 @@ export interface PdfExportStats {
   documents: { id: string; page: number }[];
   /** Page of the critical apparatus, 0 if there is none. */
   apparatusPage: number;
+  /** Page of the source descriptions, 0 if there are none. */
+  descriptionPage: number;
   /** Lines of the contents table: "ID | incipit | genre", page. */
   outline: { label: string; page: number; depth: number }[];
   /** Where the time went (ms): render, measure, svg (drawing the notes), apparatus, save, total. */
@@ -130,7 +138,7 @@ export interface PdfExportStats {
 
 @Injectable({ providedIn: 'root' })
 export class PdfExportService {
-  lastStats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
+  lastStats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {} };
 
   constructor(private zone: NgZone) {}
 
@@ -269,7 +277,7 @@ export class PdfExportService {
     // Documents of one manuscript belong together: each manuscript is a chapter (stable by first appearance).
     const chapterKeyOf = (j: PdfDocJob) => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
     const { items: jobs, chapterNo, chapterFirst, runningNo, count: chapterCount } = chapterize(jobsIn, chapterKeyOf);
-    const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
+    const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {} };
     const t0 = performance.now();
     /** Adds the time `fn` takes to the phase `name`. */
     const timedSync = <T>(name: string, fn: () => T): T => {
@@ -1218,6 +1226,257 @@ export class PdfExportService {
             }
         };
 
+        // ── Source descriptions (Markdown), appended after the editions and the apparatus ────
+        let descriptionStarted = false;
+        let descriptionPage = 0;
+        let descriptionTitle = 'Source Description';
+        const descriptionOutline: { label: string; job: number; page: number }[] = [];
+        const mdMeasure = (t: string, st: FontStyle, size: number): number => {
+          doc.setFont(fontFamily, st);
+          doc.setFontSize(size);
+          return doc.getTextWidth(t);
+        };
+        let mdQuoteBars: number[] = [];   // x of the rules of the block quotes around the text being drawn
+        const mdImages = new Map<string, LoadedImage | null>();
+        /** Draws already broken lines from `top` on, aligned within `width`; moves nothing and breaks no page. */
+        const drawMdLines = (lines: MdLine[], x: number, top: number, width: number, size: number, lh: number, align: 'left' | 'center' | 'right' = 'left'): void => {
+          lines.forEach((line, li) => {
+            const by = top + li * lh + size;
+            const free = width - lineWidth(line);
+            const dx = align === 'center' ? free / 2 : align === 'right' ? free : 0;
+            for (const p of line) {
+              doc.setFont(fontFamily, p.style);
+              doc.setFontSize(size);
+              if (p.grey) doc.setTextColor(PDF_KEY_GREY - 40, PDF_KEY_GREY - 40, PDF_KEY_GREY - 40); else doc.setTextColor(0, 0, 0);
+              doc.text(p.text, x + dx + p.x, by);
+              const url = p.href ? safeHref(p.href) : null;
+              if (url) {
+                doc.setDrawColor(0, 0, 0);
+                doc.setLineWidth(0.3);
+                doc.line(x + dx + p.x, by + 1.3, x + dx + p.x + p.width, by + 1.3);
+                doc.link(x + dx + p.x, by - size, p.width, size + 2, { url });
+              }
+            }
+          });
+          doc.setTextColor(0, 0, 0);
+        };
+        /** One run of inline text, breaking lines and pages as needed. `marker` hangs in front of the first line. */
+        const drawMdFlow = (ins: MdInline[], x: number, width: number, size: number, o: { bold?: boolean; marker?: string; align?: 'left' | 'center' | 'right' } = {}): void => {
+          const lh = size * 1.38;
+          const lines = layoutInlines(ins, size, width, mdMeasure, { bold: o.bold });
+          lines.forEach((line, li) => {
+            checkPageOverflow(lh);
+            doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
+            doc.setLineWidth(0.8);
+            for (const bx of mdQuoteBars) doc.line(bx, cursorY + 1, bx, cursorY + lh);
+            if (li === 0 && o.marker) {
+              doc.setFont(fontFamily, 'normal');
+              doc.setFontSize(size);
+              doc.setTextColor(0, 0, 0);
+              doc.text(o.marker, x - 4 - doc.getTextWidth(o.marker), cursorY + size);
+            }
+            drawMdLines([line], x, cursorY, width, size, lh, o.align);
+            cursorY += lh;
+          });
+        };
+        /** A table: column widths from the text (natural if it fits, else shared out), header repeated on every page. */
+        const drawMdTable = (b: Extract<MdBlock, { kind: 'table' }>, x: number, width: number, fs: number): void => {
+          const size = fs - 0.5;
+          const lh = size * 1.32;
+          const padX = 3.5;
+          const padY = 2.2;
+          const n = b.head.length;
+          const all = [b.head, ...b.rows];
+          const natural = (c: MdInline[], bold: boolean) => { const l = layoutInlines(c, size, 1e5, mdMeasure, { bold }); return l[0] ? lineWidth(l[0]) : 0; };
+          const longest = (c: MdInline[], bold: boolean) => Math.max(0, ...c.flatMap((i) => i.t.split(/\s+/).map((w) => mdMeasure(w, bold || i.bold ? 'bold' : i.italic ? 'italic' : 'normal', size))));
+          const maxW = Array.from({ length: n }, (_, k) => Math.max(...all.map((r, ri) => natural(r[k], ri === 0))));
+          const minW = Array.from({ length: n }, (_, k) => Math.max(8, ...all.map((r, ri) => longest(r[k], ri === 0))));
+          const inner = Math.max(n * 10, width - n * 2 * padX);
+          const sum = (a: number[]) => a.reduce((t, v) => t + v, 0);
+          let colW: number[];
+          if (sum(maxW) <= inner) colW = maxW;
+          else if (sum(minW) >= inner) colW = minW.map((m) => (inner * m) / sum(minW));
+          else {
+            const room = inner - sum(minW);
+            const want = maxW.map((m, k) => m - minW[k]);
+            colW = minW.map((m, k) => m + (room * want[k]) / Math.max(1, sum(want)));
+          }
+          const colX: number[] = [];
+          let cx = x;
+          for (const w of colW) { colX.push(cx + padX); cx += w + 2 * padX; }
+          const tableW = cx - x;
+          const layoutRow = (r: MdInline[][], head: boolean) => {
+            const cells = r.map((c, k) => layoutInlines(c, size, colW[k], mdMeasure, { bold: head }));
+            return { cells, h: Math.max(1, ...cells.map((l) => l.length)) * lh + 2 * padY };
+          };
+          const rule = (y: number, w: number, grey: number) => {
+            doc.setDrawColor(grey, grey, grey);
+            doc.setLineWidth(w);
+            doc.line(x, y, x + tableW, y);
+          };
+          const drawRow = (row: { cells: MdLine[][]; h: number }) => {
+            row.cells.forEach((lines, k) => drawMdLines(lines, colX[k], cursorY + padY, colW[k], size, lh, b.align[k] ?? 'left'));
+            cursorY += row.h;
+          };
+          const head = layoutRow(b.head, true);
+          const body = b.rows.map((r) => layoutRow(r, false));
+          const startPage = (): void => {
+            rule(cursorY, 0.7, 0);
+            drawRow(head);
+            rule(cursorY, 0.5, 0);
+          };
+          checkPageOverflow(head.h + (body[0]?.h ?? 0) + 4);
+          startPage();
+          body.forEach((row, ri) => {
+            if (cursorY + row.h > maxContentY) {
+              doc.addPage();
+              cursorY = pdfMarginTop;
+              startPage();
+            }
+            drawRow(row);
+            if (ri < body.length - 1) rule(cursorY, 0.25, 190);
+          });
+          rule(cursorY, 0.7, 0);
+          cursorY += fs * 0.7;
+        };
+        const drawMdBlocks = (blocks: MdBlock[], x: number, width: number, fs: number): void => {
+          blocks.forEach((b, bi) => {
+            const gap = fs * 0.6;
+            switch (b.kind) {
+              case 'heading': {
+                const size = fs + (b.level === 1 ? 3 : b.level === 2 ? 1.5 : 0.5);
+                if (bi > 0) cursorY += size * 0.7;
+                checkPageOverflow(size * 1.25 + fs * 1.38 * 2);    // a heading never ends a page alone
+                drawMdFlow(b.inlines, x, width, size, { bold: true });
+                cursorY += size * 0.2;
+                break;
+              }
+              case 'paragraph':
+                drawMdFlow(b.inlines, x, width, fs);
+                cursorY += gap;
+                break;
+              case 'quote':
+                mdQuoteBars = [...mdQuoteBars, x + 2];
+                drawMdBlocks(b.blocks, x + 12, width - 12, fs);
+                mdQuoteBars = mdQuoteBars.slice(0, -1);
+                break;
+              case 'code': {
+                doc.setFont(fontFamily, 'normal');
+                doc.setFontSize(fs - 0.5);
+                for (const raw of b.text.split('\n')) {
+                  const parts: string[] = doc.splitTextToSize(raw || ' ', width - 8);
+                  for (const part of parts) {
+                    checkPageOverflow(fs * 1.3);
+                    doc.setFont(fontFamily, 'normal');
+                    doc.setFontSize(fs - 0.5);
+                    doc.setTextColor(PDF_KEY_GREY - 40, PDF_KEY_GREY - 40, PDF_KEY_GREY - 40);
+                    doc.text(part, x + 8, cursorY + fs);
+                    cursorY += fs * 1.3;
+                  }
+                }
+                doc.setTextColor(0, 0, 0);
+                cursorY += gap;
+                break;
+              }
+              case 'table':
+                drawMdTable(b, x, width, fs);
+                break;
+              case 'image': {
+                const img = mdImages.get(b.src);
+                const cap = b.title || b.alt;
+                if (!img) {
+                  drawMdFlow([{ t: '[image: ' + (b.alt || 'not available') + ']', italic: true }], x, width, fs);
+                  cursorY += gap;
+                  break;
+                }
+                // at its own size (96 dpi), shrunk to the column and to most of a page
+                let w = Math.min(width, img.w * 0.75);
+                let h = (w * img.h) / img.w;
+                const maxH = (maxContentY - pdfMarginTop) * 0.8;
+                if (h > maxH) { h = maxH; w = (h * img.w) / img.h; }
+                const capSize = fs - 1;
+                const capLines = cap ? layoutInlines([{ t: cap, italic: true }], capSize, width, mdMeasure) : [];
+                checkPageOverflow(h + 3 + capLines.length * capSize * 1.38);
+                doc.addImage(img.data, img.format, x + (width - w) / 2, cursorY, w, h, undefined, 'FAST');
+                cursorY += h + 3;
+                if (cap) drawMdFlow([{ t: cap, italic: true }], x, width, capSize, { align: 'center' });
+                cursorY += gap;
+                break;
+              }
+              case 'rule':
+                checkPageOverflow(10);
+                doc.setDrawColor(PDF_KEY_GREY + 40, PDF_KEY_GREY + 40, PDF_KEY_GREY + 40);
+                doc.setLineWidth(0.4);
+                doc.line(x, cursorY + 4, x + width, cursorY + 4);
+                cursorY += 10;
+                break;
+              case 'list': {
+                const indent = fs * 1.7;
+                b.items.forEach((it, k) => {
+                  drawMdFlow(it.inlines, x + indent, width - indent, fs, { marker: b.ordered ? (b.start + k) + '.' : '•' });
+                  cursorY += fs * 0.2;
+                  drawMdBlocks(it.blocks, x + indent, width - indent, fs);
+                });
+                cursorY += gap * 0.6;
+                break;
+              }
+            }
+          });
+        };
+        const imageSources = (blocks: MdBlock[], into: Set<string>): void => {
+          for (const b of blocks) {
+            if (b.kind === 'image') into.add(b.src);
+            else if (b.kind === 'quote') imageSources(b.blocks, into);
+            else if (b.kind === 'list') for (const it of b.items) imageSources(it.blocks, into);
+          }
+        };
+        const drawDescriptions = async (): Promise<void> => {
+          const withText: { job: number; blocks: MdBlock[] }[] = [];
+          const seen = new Set<string>();
+          jobs.forEach((job, ji) => {
+            const key = chapterKeyOf(job);
+            if (seen.has(key)) return;
+            seen.add(key);
+            const blocks = parseMarkdown(sourceDescription(job.source));
+            if (blocks.length) withText.push({ job: ji, blocks });
+          });
+          if (!withText.length) return;
+          // pictures are fetched first, so that drawing can stay in one go
+          const srcs = new Set<string>();
+          for (const w of withText) imageSources(w.blocks, srcs);
+          await Promise.all([...srcs].map(async (src) => { mdImages.set(src, await loadImage(src)); }));
+          descriptionTitle = withText.length > 1 ? 'Source Descriptions' : 'Source Description';
+          doc.addPage();
+          cursorY = pdfMarginTop;
+          descriptionPage = editionPage();
+          descriptionStarted = true;
+          cursorY = drawHeading(descriptionTitle, textX, cursorY + 3, textColumnW, 10) + 2;
+          withText.forEach(({ job: ji, blocks }, k) => {
+            if (multi) {
+              // the manuscript as a chapter heading, like in the apparatus
+              checkPageOverflow(80);
+              if (k > 0) cursorY += 14;
+              cursorY += 10;
+              const fsC = 11.5;
+              const chapterText = (chapterCount > 1 ? chapterNo[ji] + '. ' : '') + headOf(ji);
+              doc.setFont(fontFamily, 'normal');
+              doc.setFontSize(fsC);
+              doc.setTextColor(0, 0, 0);
+              const cl: string[] = doc.splitTextToSize(chapterText, textColumnW);
+              cl.forEach((l, li) => doc.text(l, textX, cursorY + fsC + li * fsC * 1.2));
+              const yr = cursorY + fsC + (cl.length - 1) * fsC * 1.2 + 4.5;
+              doc.setDrawColor(0, 0, 0);
+              doc.setLineWidth(0.5);
+              doc.line(textX, yr, textX + textColumnW, yr);
+              cursorY = yr + 12;
+              descriptionOutline.push({ label: chapterText, job: ji, page: editionPage() });
+            } else checkPageOverflow(60);
+            apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });   // the running head names this manuscript
+            mdQuoteBars = [];
+            drawMdBlocks(blocks, textX, textColumnW, pdfFontSize - 1);
+          });
+        };
+
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
@@ -1244,8 +1503,13 @@ export class PdfExportService {
             await drawApparatusFor(jobs[ji], ji);
           }
         }
+        if (opts.sourceDescriptions) {
+          opts.onProgress?.('Source description', jobs.length, jobs.length);
+          await drawDescriptions();
+        }
         stats.documents = docEntries.map((e) => ({ id: jobs[e.job].document.dokumenten_id || '', page: e.page }));
         stats.apparatusPage = apparatusStarted ? apparatusPage : 0;
+        stats.descriptionPage = descriptionStarted ? descriptionPage : 0;
 
         // ── Title page: title, source and — for one document — its metadata table, for several
         //    documents the contents table (ID, incipit, genre, page) ─────────────────────────────
@@ -1331,6 +1595,10 @@ export class PdfExportService {
                   rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job), bookmarkOnly: contentsApparatus !== 'documents' });
                 }
               }
+            }
+            if (descriptionStarted) {
+              rows.push({ id: '', incipit: descriptionTitle, genre: '', page: descriptionPage, plain: true, chapter: true, indent: 0, depth: 0 });
+              if (chapterCount > 1) for (const d of descriptionOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
             }
             if (y + 40 > maxContentY) y = startNewTitlePage();
             y = drawHeading('Contents', textX, y, textColumnW, 10) + 6;

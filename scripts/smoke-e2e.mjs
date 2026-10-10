@@ -22,7 +22,7 @@ const IGNORE = /Permissions policy violation|favicon|Failed to load resource.*(4
 
 const SETTINGS_TABS = ['metadata', 'containers', 'editor', 'shortcuts', 'pdf', 'mei', 'htmlExport', 'github', 'workspace'];
 const ROUTES = [
-  '/#/sources', '/#/source', '/#/source/src1', '/#/source/src1?tab=notation',
+  '/#/sources', '/#/source', '/#/source/src1', '/#/source/src1?tab=notation', '/#/source/src1?tab=description',
   '/#/document/src1/doc-1', '/#/document/src1/doc-2', '/#/document/src1',
   '/#/search', '/#/stats', '/#/import-export', '/#/manual',
   ...SETTINGS_TABS.map((t) => `/#/settings?tab=${t}`),
@@ -49,5 +49,36 @@ for (const route of ROUTES) {
   } catch (e) { note('navigation: ' + String(e).split('\n')[0]); }
   console.log(problems.has(route) ? 'FAIL ' : 'ok   ', route, problems.get(route)?.[0] ?? '');
 }
+// Interactions that tend to trigger change-detection errors: every switch and menu of the PDF settings
+// tab, and the print dialog of a document.
+current = 'interaction: PDF settings controls';
+try {
+  await page.goto(BASE + '/#/settings?tab=pdf', { waitUntil: 'networkidle0' });
+  await page.reload({ waitUntil: 'networkidle0' });
+  const clicked = await page.evaluate(async () => {
+    let n = 0;
+    for (const el of document.querySelectorAll('input[type=checkbox]')) { (el).click(); n++; await new Promise((r) => setTimeout(r, 30)); }
+    for (const el of document.querySelectorAll('select')) {
+      const sel = el;
+      for (const o of Array.from(sel.options)) { sel.value = o.value; sel.dispatchEvent(new Event('change', { bubbles: true })); n++; await new Promise((r) => setTimeout(r, 30)); }
+    }
+    return n;
+  });
+  await new Promise((r) => setTimeout(r, 1200));
+  if (clicked < 10) note(`only ${clicked} controls found in the PDF tab`);
+} catch (e) { note('interaction: ' + String(e).split('\n')[0]); }
+console.log(problems.has(current) ? 'FAIL ' : 'ok   ', current, problems.get(current)?.[0] ?? '');
+
+current = 'interaction: print dialog';
+try {
+  await page.goto(BASE + '/#/document/src1/doc-1', { waitUntil: 'networkidle0' });
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector('app-root-section', { timeout: 30000 });
+  await page.evaluate(() => { const c = window.ng.getComponent(document.querySelector('app-document')); c.openPdfExport(); window.ng.applyChanges(c); });
+  await page.waitForSelector('app-pdf-export-dialog', { timeout: 10000 });
+  await new Promise((r) => setTimeout(r, 1200));
+} catch (e) { note('interaction: ' + String(e).split('\n')[0]); }
+console.log(problems.has(current) ? 'FAIL ' : 'ok   ', current, problems.get(current)?.[0] ?? '');
+
 await browser.close();
 process.exit(problems.size ? 1 : 0);

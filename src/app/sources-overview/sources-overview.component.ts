@@ -5,7 +5,7 @@ import { sanitizeClefDisplayMode } from '../clef-policy';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService, User } from '../user.service';
-import { APIService, UserInfo, Source, Document } from '../api.service'
+import { APIService, Source, Document } from '../api.service'
 import { assertNever } from '../../utils';
 import { buildWorkspaceCsv, parseWorkspaceCsv } from '../workspace-csv';
 import { BackupReminderService } from '../backup-reminder.service';
@@ -13,9 +13,6 @@ import { Subscription, firstValueFrom } from 'rxjs';
 import { Header, BatchField } from '../smart-table/smart-table.component';
 import { ToastrService } from 'ngx-toastr';
 import { ContextMenuService } from '../context-menu/context-menu.service';
-import { ToolsService } from '../tools.service';
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
-import { HttpClient } from '@angular/common/http';
 import * as localforage from 'localforage';
 import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
@@ -31,6 +28,7 @@ import {
 import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
 import { FileSystemService } from '../file-system.service';
+import { SOURCE_DESCRIPTION_KEY, sourceDescription } from '../source-description';
 import { applyPlan, describePlan, ImportPreview, parseExchange, planChangesAnything, planImport } from '../annotation-exchange';
 
 export interface SourceColDef {
@@ -698,8 +696,8 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
    * `export_monodi` directory, a single source, or one document.
    *
    * For each *source* every unknown field is preserved verbatim in
-   * `source.custom` so nothing is silently dropped (the long `beschreibung`
-   * markdown lives there, for example). The `manifest` field, if any, is
+   * `source.custom` so nothing is silently dropped (the long `description`
+   * markdown lives there, for example; the older key `beschreibung` is renamed). The `manifest` field, if any, is
    * mapped to `iiifManifestUrl`. Likewise document `additionalData` becomes
    * `document.custom`, with any unrecognized top-level keys merged in.
    */
@@ -727,7 +725,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
    *
    * Unknown top-level keys are preserved verbatim in `source.custom` /
    * `document.custom` so nothing in the meta.json is silently dropped (the
-   * long `beschreibung` markdown lives there, for example). `manifest` maps
+   * long `description` markdown lives there, for example; the older key `beschreibung` is renamed). `manifest` maps
    * to `Source.iiifManifestUrl`; `additionalData` maps to `Document.custom`.
    */
   async importZip(event: any) {
@@ -864,6 +862,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           if (knownSourceKeys.has(k)) continue;
           if (v === null || v === undefined) continue;
           custom[k] = typeof v === 'string' ? v : JSON.stringify(v);
+        }
+        // earlier exports call the Markdown description `beschreibung`; it is kept as `description`
+        if (custom['beschreibung'] !== undefined) {
+          if (!custom[SOURCE_DESCRIPTION_KEY]) custom[SOURCE_DESCRIPTION_KEY] = custom['beschreibung'];
+          delete custom['beschreibung'];
         }
 
         const next: Source = {
@@ -1214,7 +1217,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           manifest: s.iiifManifestUrl || s.custom?.manifest || '',
           foliooffset: s.custom?.foliooffset || '',
           publish: s.custom?.publish || 'all',
-          beschreibung: s.custom?.beschreibung || ''
+          description: sourceDescription(s)
         };
         
         zip.file(`${s.id}/meta.json`, JSON.stringify(mappedSource, null, 2));
