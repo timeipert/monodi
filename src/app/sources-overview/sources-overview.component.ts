@@ -31,6 +31,7 @@ import {
 import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
 import { FileSystemService } from '../file-system.service';
+import { applyPlan, describePlan, ImportPreview, parseExchange, planChangesAnything, planImport } from '../annotation-exchange';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -84,6 +85,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   // CSV export options
   showCsvExportDialog = false;
+
+  /** An annotation file from the Neumen-Editor waiting for the person's OK. */
+  annotationImport: { fileName: string; preview: ImportPreview } | null = null;
+  isApplyingAnnotations = false;
   csvIncludeSourceMeta = true;
   csvIncludeDocumentMeta = true;
   csvIncludeContent = true;
@@ -219,6 +224,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         break;
       case 'import-csv':
         document.getElementById('importCsvFile')?.click();
+        break;
+      case 'import-annotations':
+        document.getElementById('importAnnotationsFile')?.click();
         break;
       default:
         console.warn('Unknown workspace action:', action);
@@ -463,6 +471,60 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       }
     } else {
       document.getElementById('importFile')?.click();
+    }
+  }
+
+  /** A file from the Neumen-Editor was chosen: read it and show what it would add, before anything changes. */
+  async onAnnotationFilePicked(event: any): Promise<void> {
+    const file: File | undefined = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const parsed = parseExchange(await file.text());
+      const preview = planImport(parsed, this.sources);
+      this.annotationImport = { fileName: file.name, preview };
+      if (!preview.plans.length) {
+        this.toastr.warning(preview.unmatched.length
+          ? `None of the manuscripts in this file are here: ${preview.unmatched.slice(0, 3).join(', ')}.`
+          : 'The file holds no manuscripts.', 'Nothing to import');
+      }
+    } catch (err: any) {
+      this.annotationImport = null;
+      this.toastr.error(err?.message || String(err), 'Could not read the annotation file');
+    }
+    this.cdRef.markForCheck();
+  }
+
+  readonly describePlan = describePlan;
+
+  get annotationPlansWithChanges() {
+    return (this.annotationImport?.preview.plans ?? []).filter(planChangesAnything);
+  }
+
+  closeAnnotationImport(): void {
+    if (this.isApplyingAnnotations) return;
+    this.annotationImport = null;
+  }
+
+  /** Write the plans into the sources. Each source is marked changed, so the next push sends it. */
+  async confirmAnnotationImport(): Promise<void> {
+    if (!this.annotationImport || !this.user || this.isApplyingAnnotations) return;
+    this.isApplyingAnnotations = true;
+    let applied = 0;
+    try {
+      for (const plan of this.annotationPlansWithChanges) {
+        const local = this.sources.find(s => s.id === plan.sourceId);
+        if (!local) continue;
+        const res = await firstValueFrom(this.api.updateSource(this.user.token, applyPlan(local, plan)));
+        if (res.kind === 'Ok') applied++;
+        else this.toastr.error(`${plan.label} could not be saved.`);
+      }
+      if (applied) this.toastr.success(`Annotations added to ${applied} manuscript${applied === 1 ? '' : 's'}.`);
+    } finally {
+      this.isApplyingAnnotations = false;
+      this.annotationImport = null;
+      this.updateList();
+      this.cdRef.markForCheck();
     }
   }
 

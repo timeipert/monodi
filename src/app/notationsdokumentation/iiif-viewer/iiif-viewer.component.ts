@@ -9,6 +9,7 @@ import { v4 as UUID } from 'uuid';
 import { NavigationService } from '../navigation.service';
 import { AnalyzedPattern } from '../../transcription-analyzer.service';
 import { LayoutAnalysisService } from '../layout-analysis.service';
+import { backfillRegionPages, folioMatches, regionCanvasIndex, regionOnCanvas, stampRegionPage } from '../region-page';
 
 const MAX_MANIFEST_CACHE_SIZE = 20;
 const manifestCache = new Map<string, any>();
@@ -195,6 +196,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
         if (!this.source.annotationRegions) this.source.annotationRegions = [];
 
         const newRegions = this.layoutAnalysisService.blocksToAnnotationRegions(blocks, this.currentCanvasIndex);
+        newRegions.forEach(r => stampRegionPage(r, this.canvases, this.currentCanvasIndex));
         this.source.annotationRegions.push(...newRegions);
         this.save();
       }
@@ -381,7 +383,14 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     else if (this.manifest?.items) this.canvases = this.manifest.items;
     else this.canvases = [];
     this.imageError = false;
-    
+
+    // Older regions only know their canvas index; give them the canvas id so
+    // the Neume Viewer can place them too.
+    if (this.source?.annotationRegions?.length
+        && backfillRegionPages(this.source.annotationRegions, this.canvases) > 0) {
+      this.save();
+    }
+
     if (this.initialCanvasIndex !== undefined && this.initialCanvasIndex >= 0 && this.initialCanvasIndex < this.canvases.length) {
       this.currentCanvasIndex = this.initialCanvasIndex;
       this.imageLoading = true;
@@ -821,6 +830,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
         points: this.boxToPoints(box),
         folio: String(this.currentCanvasIndex)
       };
+      stampRegionPage(r, this.canvases, this.currentCanvasIndex);
       this.source.annotationRegions.push(r);
       this.save();
     } else if (this.viewMode === 'regions') {
@@ -879,7 +889,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
 
   private suggestNextLineName(): string {
     const nums = (this.source?.annotationRegions ?? [])
-      .filter(r => r.folio === String(this.currentCanvasIndex))
+      .filter(r => regionOnCanvas(r, this.canvases, this.currentCanvasIndex))
       .map(r => { const m = r.name.match(/\d+/); return m ? +m[0] : 0; }).filter(n => n > 0);
     return `Line ${nums.length ? Math.max(...nums) + 1 : 1}`;
   }
@@ -891,6 +901,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     
     this.triggerBeforeChange();
     const r: VM.AnnotationRegion = { id: 'r_' + UUID(), name, points: this.pendingRegionPoints, folio: String(this.currentCanvasIndex) };
+    stampRegionPage(r, this.canvases, this.currentCanvasIndex);
     this.source.annotationRegions.push(r);
     this.pendingRegionPoints = null; this.pendingRegionName = '';
     this.save();
@@ -904,7 +915,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
       // Highlight the region locally as well
       this.highlightedRegionId = region.id;
       // Emit lineUUID so the document component can focus the linked line in the transcription
-      this.regionClicked.emit({ name: region.name, folio: region.folio, lineUUID: region.lineUUID });
+      this.regionClicked.emit({ name: region.name, folio: region.folioLabel ?? region.folio, lineUUID: region.lineUUID });
       return;
     }
     this.activeRegion = region; this.viewMode = 'items';
@@ -922,8 +933,8 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   jumpToRegionByLineUUID(uuid: string) {
     const region = (this.source?.annotationRegions ?? []).find(r => r.lineUUID === uuid);
     if (!region) { this.highlightedRegionId = ''; return; }
-    const canvasIdx = parseInt(region.folio, 10);
-    if (!isNaN(canvasIdx) && canvasIdx !== this.currentCanvasIndex) {
+    const canvasIdx = regionCanvasIndex(region, this.canvases);
+    if (canvasIdx !== null && canvasIdx !== this.currentCanvasIndex) {
       this.currentCanvasIndex = canvasIdx;
       this.imageError = false;
       this.imageLoading = true;
@@ -993,12 +1004,12 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   regionItemCount(id: string) { return (this.source?.annotationItems ?? []).filter(i => i.regionId === id).length; }
 
   get currentRegions(): VM.AnnotationRegion[] {
-    return (this.source?.annotationRegions ?? []).filter(r => r.folio === String(this.currentCanvasIndex));
+    return (this.source?.annotationRegions ?? []).filter(r => regionOnCanvas(r, this.canvases, this.currentCanvasIndex));
   }
 
   get currentCanvasItems(): VM.AnnotationItem[] {
-    const cStr = String(this.currentCanvasIndex);
-    const rs = new Set((this.source?.annotationRegions ?? []).filter(r => r.folio === cStr).map(r => r.id));
+    const rs = new Set((this.source?.annotationRegions ?? [])
+      .filter(r => regionOnCanvas(r, this.canvases, this.currentCanvasIndex)).map(r => r.id));
     return (this.source?.annotationItems ?? []).filter(i => rs.has(i.regionId));
   }
 
@@ -1007,34 +1018,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     return (this.source?.transcriptionAnnotations ?? []).filter(ta => ta.folio === cStr);
   }
 
-  /**
-   * Normalize a folio string to a canonical form for comparison.
-   * Handles:
-   *   "fol. 1r", "f. 1r", "Bl. 1r", "folio 1r" → "1r"
-   *   "1 recto", "1 Recto"                       → "1r"
-   *   "1 verso",  "1v"                            → "1v"
-   *   "1" (no suffix)                             → "1" (matches both "1" and "1r")
-   */
-  private normalizeFolio(raw: string): string {
-    return String(raw)
-      .toLowerCase()
-      .replace(/\b(fol|folio|bl|blatt|page|pg|leaf)\b\.?\s*/g, '')  // strip common prefixes
-      .replace(/\brecto\b/g, 'r')
-      .replace(/\bverso\b/g, 'v')
-      .replace(/[^a-z0-9]/g, '');  // remove remaining spaces / punctuation
-  }
-
-  /** True when two folio strings refer to the same leaf side.
-   *  A bare number (no r/v) is treated as recto ("1" ~ "1r"). */
-  private folioMatches(a: string, b: string): boolean {
-    const na = this.normalizeFolio(a);
-    const nb = this.normalizeFolio(b);
-    if (na === nb) return true;
-    // bare number ↔ explicit recto: "1" ~ "1r"
-    if (/^\d+$/.test(na) && na + 'r' === nb) return true;
-    if (/^\d+$/.test(nb) && nb + 'r' === na) return true;
-    return false;
-  }
+  private folioMatches(a: string, b: string): boolean { return folioMatches(a, b); }
 
   // Memoized so panning/zooming (which fire change detection on every mouse
   // move) don't re-run the O(canvases × folios) regex matching each time. The
@@ -1206,7 +1190,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
         item.pattern.toLowerCase().includes(this.galleryFilterPattern.toLowerCase()))
       .map(item => {
         const region = regions.find(r => r.id === item.regionId);
-        const canvasIdx = parseInt(region?.folio ?? '0', 10);
+        const canvasIdx = region ? (regionCanvasIndex(region, this.canvases) ?? -1) : -1;
         const imageUrl = this.canvasImageAt(canvasIdx);
         const raw = this.rectFromPoints(item.points) ?? { x: 0, y: 0, w: 10, h: 10 };
         const rect = this.paddedRect(raw);

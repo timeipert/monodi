@@ -1,0 +1,107 @@
+@if (state) {
+  <div class="mv-backdrop" (mousedown)="close()">
+    <div class="mv-dialog shadow-lg" role="dialog" aria-modal="true" aria-label="Show in manuscript" (mousedown)="$event.stopPropagation()">
+      <div class="mv-head">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <h5 class="mb-0 fw-bold"><i class="bi bi-journal-image text-primary me-2"></i>Show in manuscript</h5>
+          @if (state.lookup) {
+            <span class="mv-pattern d-flex align-items-center gap-2">
+              <app-svg-pattern [pattern]="state.lookup.pattern" style="height: 22px; display: block;"></app-svg-pattern>
+              <code>{{ state.lookup.pattern }}</code>
+              @if (state.lookup.refId) {
+                <span class="badge text-bg-primary" title="Reference ID in this source's table">{{ state.lookup.refId }}</span>
+              }
+            </span>
+          }
+        </div>
+        <button type="button" class="btn-close" aria-label="Close" (click)="close()"></button>
+      </div>
+
+      <div class="mv-body">
+        @if (!state.lookup) {
+          <p class="text-muted mb-0">This note is not part of a neume that can be looked up.</p>
+        } @else if (state.loading) {
+          <p class="text-muted mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Loading the manuscript…</p>
+        } @else {
+          @if (state.lookup.notes) {
+            <p class="small text-muted">{{ state.lookup.notes }}</p>
+          }
+          @if (state.manifestError) {
+            <p class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>{{ state.manifestError }}</p>
+          }
+
+          @if (primary.length) {
+            <h6 class="mv-section">{{ heading }}</h6>
+            @for (h of primary; track trackHit($index, h)) {
+              <figure class="mv-hit">
+                <figcaption>
+                  <strong>{{ h.caption }}</strong>
+                  @if (h.page) { <span class="text-muted"> · {{ h.page }}</span> }
+                  @if (h.label) { <span class="text-muted"> · {{ h.label }}</span> }
+                </figcaption>
+                @if (h.problem) {
+                  <p class="small text-muted mb-0">{{ h.problem }}</p>
+                }
+                @if (h.line; as c) {
+                  <ng-container *ngTemplateOutlet="crop; context: { $implicit: c, big: true }"></ng-container>
+                }
+                @if (h.closeUp; as c) {
+                  <div class="mv-closeup"><ng-container *ngTemplateOutlet="crop; context: { $implicit: c, big: false }"></ng-container></div>
+                }
+              </figure>
+            }
+          } @else {
+            <p class="small text-muted mv-nolink">
+              <i class="bi bi-info-circle me-1"></i>This sign is not linked to a snippet yet, and its line is not linked to a line region.
+              @if (examples.length) { Here are other places where the same pattern was marked. }
+            </p>
+          }
+
+          @if (examples.length) {
+            <h6 class="mv-section">
+              Other places with this pattern
+              @if (totalExamplesNote) { <span class="text-muted fw-normal small ms-1">{{ totalExamplesNote }}</span> }
+            </h6>
+            <div class="mv-grid">
+              @for (h of examples; track trackHit($index, h)) {
+                <figure class="mv-example">
+                  @if (h.closeUp; as c) {
+                    <ng-container *ngTemplateOutlet="crop; context: { $implicit: c, big: false }"></ng-container>
+                  } @else if (h.problem) {
+                    <p class="small text-muted">{{ h.problem }}</p>
+                  }
+                  <figcaption class="small">
+                    <strong>{{ h.label }}</strong>
+                    <span class="text-muted d-block">{{ h.caption }}@if (h.page) { · {{ h.page }} }</span>
+                  </figcaption>
+                </figure>
+              }
+            </div>
+          } @else if (!primary.length) {
+            <p class="mb-0">
+              No snippet of this pattern has been marked in the manuscript yet. Mark signs in the
+              Neumen-Editor, then use <em>Import annotations</em> in Settings → Workspace.
+            </p>
+          }
+        }
+      </div>
+    </div>
+  </div>
+}
+
+<ng-template #crop let-c let-big="big">
+  <div class="mv-crop" [class.mv-crop-big]="big">
+    @if (c.url) {
+      <img [src]="c.url" alt="" loading="lazy" referrerpolicy="no-referrer" class="mv-img">
+    } @else if (c.fallback) {
+      <div class="mv-bg" [style.aspect-ratio]="c.fallback.aspect"
+        [style.background-image]="'url(' + c.fallback.imageUrl + ')'"
+        [style.background-size]="c.fallback.size" [style.background-position]="c.fallback.position"></div>
+    }
+    <svg class="mv-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      @for (o of c.overlays; track $index) {
+        <polygon [attr.points]="o.points" [class.mv-strong]="o.strong" class="mv-poly" vector-effect="non-scaling-stroke"></polygon>
+      }
+    </svg>
+  </div>
+</ng-template>

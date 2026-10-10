@@ -54,7 +54,19 @@ export interface AnnotationRegion {
   id: string;
   name: string;
   points: string;
+  /**
+   * Legacy page reference. Monodi writes the IIIF canvas index here ("7"); the
+   * Neume Viewer used to write a folio label ("113r"). Do not read it directly:
+   * use `regionCanvasIndex` (notationsdokumentation/region-page.ts), which also
+   * understands the two fields below.
+   */
   folio: string;
+  /** IIIF canvas id: the exact, reorder-proof page reference. Readers try this first. */
+  canvasId?: string;
+  /** IIIF Image API base of the page image. Works where there is no manifest (the Neumen-Editor takes some pages from the corpus's own image addresses). */
+  imageId?: string;
+  /** Page label as the writer knew it, e.g. "113r". Readers try it after `canvasId`. */
+  folioLabel?: string;
   /** UUID of the LineChange in the transcription that this region corresponds to */
   lineUUID?: string;
 }
@@ -73,7 +85,7 @@ export interface TranscriptionAnnotation {
 export interface AnnotationItem {
   id: string;
   regionId: string;
-  pattern: string;  // base pattern, e.g. "Virga"
+  pattern: string;  // pattern code (a note sequence such as "*ud", not a neume name)
   variant?: string; // variant letter, e.g. "a", "b" — combined display is "Virga a"
   points: string;   // percentage-based polygon points
   uuid?: string;    // Reference to the NonSpaced UUID

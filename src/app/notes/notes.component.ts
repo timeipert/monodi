@@ -26,6 +26,7 @@ import { ContextMenuService } from '../context-menu/context-menu.service';
 import { Router } from '@angular/router';
 import { SearchExecService } from '../search/search-exec.service';
 import { extractPattern } from '../transcription-analyzer-core';
+import { ManuscriptViewService } from '../manuscript-view.service';
 
 declare const $: any;
 
@@ -177,6 +178,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     private contextMenuService: ContextMenuService,
     private router: Router,
     private searchExecSvc: SearchExecService,
+    private manuscriptView: ManuscriptViewService,
     public shortcutsService: EditorShortcutsService) {
   }
 
@@ -1221,13 +1223,14 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const notes = this.model.notes;
     if (!notes || !notes.spaced) return null;
 
+    // The pattern of a note is that of its whole neume (all ligature groups written without a gap).
     for (const spacedItem of notes.spaced) {
       if (spacedItem.nonSpaced) {
         for (const ns of spacedItem.nonSpaced) {
           if (ns.grouped) {
             for (const g of ns.grouped) {
               if (g.uuid === noteUuid) {
-                const patternId = extractPattern({ nonSpaced: [ns] } as VM.NonSpaced);
+                const patternId = extractPattern(spacedItem);
                 if (patternId) {
                   const basePattern = patternId.replace(/[QOSLAD]/g, '');
                   return { patternId, basePattern };
@@ -1300,6 +1303,14 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         action: () => { this.openShortcutsModal(); }
       }
     ];
+
+    if (this.manuscriptView.canShow()) {
+      const noteUuid = d.ref.uuid;
+      items.push({
+        label: 'Show in manuscript',
+        action: () => { void this.manuscriptView.show(noteUuid); }
+      });
+    }
 
     const patInfo = this.findPatternForNote(d.ref.uuid);
     if (patInfo) {

@@ -11,6 +11,7 @@
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
       <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
       <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
+      <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" style="display: none" accept=".json,application/json" />
       <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
         class="btn btn-sm btn-outline-secondary"
         title="Import, export, storage usage & cleanup in Settings → Workspace">
@@ -192,6 +193,60 @@
 }
 
 <!-- CSV export options dialog -->
+<!-- Annotations from the Neumen-Editor: what the file would add, per manuscript -->
+@if (annotationImport) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
+      <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-images text-primary"></i><span>Import annotations</span>
+          </h5>
+          <button type="button" class="btn-close" aria-label="Close" (click)="closeAnnotationImport()" [disabled]="isApplyingAnnotations"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="text-muted small mb-3">
+            <strong>{{ annotationImport.fileName }}</strong> — line regions, snippets and neume table rows made in the
+            Neumen-Editor. Records are matched by id: what is new is added, and what the file also has is updated with
+            the editor's values. Your links to the transcription are kept, and nothing is deleted.
+            Export a workspace backup first if you want to be able to go back.
+          </p>
+          @if (annotationImport.preview.plans.length) {
+            <ul class="list-unstyled mb-0">
+              @for (plan of annotationImport.preview.plans; track plan.sourceId) {
+                <li class="mb-2">
+                  <span class="fw-semibold">{{ plan.label }}</span>
+                  <span class="text-muted small d-block">{{ describePlan(plan) || 'Nothing new.' }}</span>
+                  @if (plan.counts.itemsDropped) {
+                    <span class="text-warning small d-block">
+                      <i class="bi bi-exclamation-triangle me-1"></i>{{ plan.counts.itemsDropped }} snippet{{ plan.counts.itemsDropped === 1 ? '' : 's' }} left out: their line region is not in the file.
+                    </span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+          @if (annotationImport.preview.unmatched.length) {
+            <p class="text-warning small mt-3 mb-0">
+              <i class="bi bi-exclamation-triangle me-1"></i>Not in this workspace, so skipped:
+              {{ annotationImport.preview.unmatched.slice(0, 5).join(', ') }}{{ annotationImport.preview.unmatched.length > 5 ? ', …' : '' }}.
+            </p>
+          }
+        </div>
+        <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeAnnotationImport()" [disabled]="isApplyingAnnotations">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+          </button>
+          <button type="button" class="btn btn-sm btn-primary" (click)="confirmAnnotationImport()"
+            [disabled]="isApplyingAnnotations || !annotationPlansWithChanges.length">
+            <i class="bi bi-check-lg me-1"></i>Import
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
 @if (showCsvExportDialog) {
   <div class="modal fade show d-block" tabindex="-1"
     style="background: rgba(0,0,0,0.5);">

@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, Source, Document } from '../api.service';
 import { UserService, User } from '../user.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
-import { analyzeDocument, AnalyzedPattern } from '../transcription-analyzer-core';
+import { analyzeDocument, AnalyzedPattern, ANALYZER_VERSION } from '../transcription-analyzer-core';
 import { ActivatedRoute } from '@angular/router';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
@@ -193,6 +193,9 @@ export class StatsComponent implements OnInit, OnDestroy {
     }
 
     if (this.isDestroyed) return;
+    // Results made by an older analyzer count something else (patterns per ligature group
+    // rather than per neume): recompute rather than mix the two.
+    if (parsed && parsed.analyzerVersion !== ANALYZER_VERSION) parsed = null;
     if (parsed) {
       try {
         this.sources = parsed.sources || [];
@@ -441,6 +444,7 @@ export class StatsComponent implements OnInit, OnDestroy {
     // Persist to IndexedDB
     try {
       await localforage.setItem(StatsComponent.STATS_CACHE_KEY, {
+        analyzerVersion: ANALYZER_VERSION,
         timestamp,
         sources: this.sources,
         documents: this.documents,

@@ -22,6 +22,7 @@ import { DragStateService } from '../dragger/drag-state.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
 import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
+import { ManuscriptViewService } from '../manuscript-view.service';
 import { MeiExportService } from '../mei-export.service';
 import { SearchExecService } from '../search/search-exec.service';
 import { VolpianoService } from '../volpiano.service';
@@ -331,6 +332,10 @@ export class DocumentComponent implements OnInit {
   textImportErrors: Array<string> = [];
   settings: ProjectSettings | null = null;
   sourceData: Source | null = null;
+
+  /** Lends "Show in manuscript" (right-click a neume) the source and transcription shown here. */
+  private manuscriptView = inject(ManuscriptViewService);
+  private manuscriptViewContext = { getSource: () => this.sourceData, getRoot: () => this.cont };
   viewMode: 'transcription' | 'split' | 'iiif' = 'transcription';
   get splitScreen(): boolean { return this.viewMode === 'split'; }
   splitLeftWidth = 45;
@@ -1064,6 +1069,7 @@ export class DocumentComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.manuscriptView.register(this.manuscriptViewContext);
     this.undoService.registerUnDo(this.getJsonString, this.undoChanges);
     this.undoService.registerAutosave(() => {
       this.save();
@@ -1774,6 +1780,8 @@ export class DocumentComponent implements OnInit {
   }
 
   ngOnDestroy(): void {
+    this.manuscriptView.unregister(this.manuscriptViewContext);
+    this.manuscriptView.close();
     for (const s of this.subs) {
       s.unsubscribe();
     }
