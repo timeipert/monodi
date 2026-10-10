@@ -47,8 +47,23 @@ export function layoutCommentTree(tree: VM.CommentTree, kit: TreeKit, maxW: numb
       const rows = tree.items || [];
       const cols = Math.max(0, ...rows.map((r) => r.length));
       if (!rows.length || !cols) return { w: 0, h: 0, draw: () => {} };
-      const cellMax = Math.max(40, (maxW - kit.gapX * (cols - 1)) / cols);
-      const boxes = rows.map((r) => r.map((t) => layoutCommentTree(t, kit, cellMax)));
+      // Columns take the width their content needs; only when the row does not fit do the wide
+      // columns share what is left (narrow ones keep theirs).
+      const avail = Math.max(40 * cols, maxW - kit.gapX * (cols - 1));
+      let boxes = rows.map((r) => r.map((t) => layoutCommentTree(t, kit, avail)));
+      const natural = Array.from({ length: cols }, (_, ci) => Math.max(0, ...boxes.map((r) => r[ci]?.w ?? 0)));
+      if (natural.reduce((a, b) => a + b, 0) > avail) {
+        const alloc = new Array<number>(cols).fill(0);
+        let left = avail, open = [...Array(cols).keys()];
+        for (let guard = 0; guard < cols + 1 && open.length; guard++) {
+          const share = left / open.length;
+          const small = open.filter((ci) => natural[ci] <= share);
+          if (!small.length) { for (const ci of open) alloc[ci] = Math.max(40, share); break; }
+          for (const ci of small) { alloc[ci] = natural[ci]; left -= natural[ci]; }
+          open = open.filter((ci) => !small.includes(ci));
+        }
+        boxes = rows.map((r) => r.map((t, ci) => layoutCommentTree(t, kit, alloc[ci])));
+      }
       const colW = Array.from({ length: cols }, (_, ci) => Math.max(0, ...boxes.map((r) => r[ci]?.w ?? 0)));
       // Rows with a staff are centred on its middle line (text level with the notes, as printed).
       const anchors = boxes.map((r) => {

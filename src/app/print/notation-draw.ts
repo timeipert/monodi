@@ -4,7 +4,7 @@ import { GLYPH_PATHS } from '../notes/glyph-paths';
 import { flagDefsOf } from '../notes/note-flags';
 import { G_CLEF_PATH } from '../clef-glyph';
 import { PathOp, parseSvgPath, transformOps } from './svg-path';
-import { PLACEHOLDER_W, SyllableGeometry, placeholderLeft } from './notation-geometry';
+import { SyllableGeometry } from './notation-geometry';
 
 export type RGB = [number, number, number];
 
@@ -36,13 +36,8 @@ export function drawSyllableNotation(doc: jsPDF, g: SyllableGeometry, f: Notatio
   const px = (x: number) => f.cellX + x * S;
   doc.setFillColor(color[0], color[1], color[2]);
   doc.setDrawColor(color[0], color[1], color[2]);
-  if (!g.isNormal) {
-    // a syllable without notes: the placeholder box of the edition view
-    const py = f.rawTopY + (60 - f.rawTop) * S;
-    doc.setLineWidth(2 * S);
-    doc.rect(px(placeholderLeft(g)), py, PLACEHOLDER_W * S, 10 * S, 'S');
-    return;
-  }
+  // a syllable without notes (the box marker of the edition view) draws nothing: its space stays
+  if (!g.isNormal) return;
   g.voices.forEach((ds, v) => {
     const py = (y: number) => f.rawTopY + (y - f.rawTop + v * f.voiceStep) * S;
     for (const d of ds) {

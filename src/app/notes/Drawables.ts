@@ -1,4 +1,4 @@
-import { Comment, Spaced, NonSpaced, Grouped, Note, NoteType, BaseNote, baseNotes, comparePositions } from '../types/model';
+import { Comment, Spaced, NonSpaced, Grouped, Note, NoteType, baseNotes } from '../types/model';
 import { flatten, maxOf } from '../../utils';
 
 export type Drawable = DNote | DTie | DCommentEnd | DCommentStart | DHelperLine

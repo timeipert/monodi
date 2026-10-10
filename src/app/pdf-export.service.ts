@@ -271,11 +271,7 @@ export class PdfExportService {
     const jobs = [...jobsIn].sort((a, b) => keyOrder.indexOf(chapterKeyOf(a)) - keyOrder.indexOf(chapterKeyOf(b)));
     const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
     const t0 = performance.now();
-    /** Adds the time `fn` takes to the phase `name` (also for async work). */
-    const timed = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
-      const a = performance.now();
-      try { return await fn(); } finally { stats.timings[name] = (stats.timings[name] || 0) + (performance.now() - a); }
-    };
+    /** Adds the time `fn` takes to the phase `name`. */
     const timedSync = <T>(name: string, fn: () => T): T => {
       const a = performance.now();
       try { return fn(); } finally { stats.timings[name] = (stats.timings[name] || 0) + (performance.now() - a); }
@@ -297,9 +293,7 @@ export class PdfExportService {
         const pdfMarginBottom = Number(s.pdfMarginBottom ?? PRINT_PDF_DEFAULTS.pdfMarginBottom);
         const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? PRINT_PDF_DEFAULTS.pdfStaffSpacing);
         const pdfBracketGap = Number(s.pdfBracketGap ?? 5);
-        const pdfBracketTick = Number(s.pdfBracketTick ?? 4);
         const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? PRINT_PDF_DEFAULTS.pdfSyllableTextOffset);
-        const pdfTextBlockGap = Number(s.pdfTextBlockGap ?? 10);
         
         // Coerced layout parameters
         const titleFontSize = Number(s.pdfTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfTitleFontSize);
@@ -307,8 +301,6 @@ export class PdfExportService {
         const headerSource = s.pdfHeaderSource || 'textinitium';
         const metaFontSize = Number(s.pdfMetadataFontSize ?? PRINT_PDF_DEFAULTS.pdfMetadataFontSize);
         const pdfMetadataVerticalSpace = Number(s.pdfMetadataVerticalSpace ?? 15);
-        const pdfBracketThickness = Number(s.pdfBracketThickness ?? 1.2);
-        const pdfCommentTitleFontSize = Number(s.pdfCommentTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentTitleFontSize);
         const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? PRINT_PDF_DEFAULTS.pdfVerticalSpace);
         const SCALE = Number(s.pdfScale ?? PRINT_PDF_DEFAULTS.pdfScale);
         const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? PRINT_PDF_DEFAULTS.pdfSyllableSpacing);
@@ -326,7 +318,6 @@ export class PdfExportService {
         const printLook = s.pdfPageStyle !== 'classic';
         const pdfCommentStaffScale = printLook ? PRINT_PDF_DEFAULTS.pdfCommentStaffScale : Number(s.pdfCommentStaffScale ?? PRINT_PDF_DEFAULTS.pdfCommentStaffScale);
         const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentFontSize);
-        const pdfCommentTitleFontSizeActual = Number(s.pdfCommentTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentTitleFontSize);
         const pdfCommentBlockGap = printLook ? PRINT_PDF_DEFAULTS.pdfCommentBlockGap : Number(s.pdfCommentBlockGap ?? PRINT_PDF_DEFAULTS.pdfCommentBlockGap);
         const pdfShowPageNumbers = s.pdfShowPageNumbers === true || s.pdfShowPageNumbers === 'true';
         const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? PRINT_PDF_DEFAULTS.pdfPageNumberFontSize);
@@ -722,14 +713,32 @@ export class PdfExportService {
                   for (let k = sys.first; k <= sys.last; k++) { const g = measured[k].geom; if (g && g.voices.length > v) { v = g.voices.length; step = measured[k].voiceStep; } }
                   return { v, step };
                 });
+                // A syllable of type "without notes" means: no staff lines in its cell (space unchanged,
+                // no clef, no box). A normal syllable that merely has no notes keeps its lines.
+                const isBare = (k: number) => !measured[k].isMarker && measured[k].geom?.isNormal === false;
+                // Staff segments per system: runs of cells that are not bare (markers belong to the run before).
+                const staffRuns = layout.systems.map((sys) => {
+                  const runs: { x1: number; x2: number }[] = [];
+                  let cur: { x1: number; x2: number } | null = null;
+                  for (let k = sys.first; k <= sys.last; k++) {
+                    const pl = layout.placed[k];
+                    const x1 = pl.injectClef ? pl.clefX : pl.x;
+                    const x2 = pl.x + measured[k].width;
+                    if (isBare(k)) { cur = null; continue; }
+                    if (measured[k].isMarker) { if (cur) cur.x2 = x2; continue; }   // a marker never starts a run
+                    if (!cur) { cur = { x1, x2 }; runs.push(cur); } else cur.x2 = x2;
+                  }
+                  return runs;
+                });
                 let staffDrawn = -1;
                 const ensureStaff = (si: number) => {
                   if (staffDrawn === si) return;
                   staffDrawn = si;
                   if (adiastematicLine) return;
-                  const sys = layout.systems[si];
                   const top = cursorY - (sysTrims[si] || 0) + (40 - sysRawTops[si]) * SCALE;
-                  for (let v = 0; v < sysVoices[si].v; v++) drawStaff(doc, sys.startX, sys.endX, top + v * sysVoices[si].step * SCALE, SCALE, notationColor);
+                  for (const run of staffRuns[si]) {
+                    for (let v = 0; v < sysVoices[si].v; v++) drawStaff(doc, run.x1, run.x2, top + v * sysVoices[si].step * SCALE, SCALE, notationColor);
+                  }
                 };
                 let curSystem = 0;
                 stats.systems += layout.systems.length;
@@ -858,7 +867,7 @@ export class PdfExportService {
               
                   lineMaxHeight = Math.max(lineMaxHeight, sysHeights[pl.system] || secHeight);
                   ensureStaff(pl.system);
-                  if (pl.injectClef) {
+                  if (pl.injectClef && !isBare(j)) {
                     drawGClef(doc, pl.clefX, cursorY - trim + (40 - sysRawTops[pl.system]) * SCALE, SCALE, notationColor);
                   }
                   cursorX = pl.x;
@@ -868,7 +877,7 @@ export class PdfExportService {
                     const g = m.geom;
                     timedSync('draw', () => {
                       drawSyllableNotation(doc, g, { cellX: cursorX, rawTopY: cursorY - trim, rawTop: sysRawTops[pl.system], S: SCALE, voiceStep: m.voiceStep }, notationColor);
-                      if (g.showClef) drawGClef(doc, cursorX, cursorY - trim + (40 - sysRawTops[pl.system]) * SCALE, SCALE, notationColor);
+                      if (g.showClef && g.isNormal) drawGClef(doc, cursorX, cursorY - trim + (40 - sysRawTops[pl.system]) * SCALE, SCALE, notationColor);
                     });
                   }
               
@@ -993,7 +1002,17 @@ export class PdfExportService {
             anchor: (head + 20) * Sc,
             draw: (ox, oy) => rows.forEach((r, ri) => {
               const staffTop = oy + ri * (rowH + 2) + head * Sc;
-              if (!adia && r.length) drawStaff(doc, ox, ox + rowW(r), staffTop, Sc, color);
+              if (!adia) {
+                // staff lines only through cells that are not of the type "without notes"
+                let sx = ox, runStart: number | null = null;
+                for (const it of r) {
+                  const bare = it.kind === 's' && !it.g.isNormal;
+                  if (bare) { if (runStart !== null) drawStaff(doc, runStart, sx, staffTop, Sc, color); runStart = null; }
+                  else if (runStart === null) runStart = sx;
+                  sx += it.w;
+                }
+                if (runStart !== null) drawStaff(doc, runStart, sx, staffTop, Sc, color);
+              }
               let cx = ox;
               for (const it of r) {
                 if (it.kind === 's') {
@@ -1135,26 +1154,8 @@ export class PdfExportService {
                 // lemma bracket, category label and the emendation mark are always set off by a space
                 segs.forEach((sg, i) => { if (i > 0 && (/[\]:]$/.test(segs[i - 1].w) || sg.grey)) sg.sep = true; });
 
-                // break into lines (words keep the style of their segment)
-                type Word = Seg & { width: number; gapBefore: number };
-                const lines: Word[][] = [[]];
-                let x = 0;
-                doc.setFont(fontFamily, 'normal'); doc.setFontSize(fs);
-                const spaceW = doc.getTextWidth(' ');
-                segs.forEach((seg, si) => {
-                    const startsWithSpace = /^\s/.test(seg.w);
-                    const words = seg.w.split(/\s+/).filter(Boolean);
-                    words.forEach((w, wi) => {
-                        doc.setFont(fontFamily, seg.style); doc.setFontSize(seg.size);
-                        const width = doc.getTextWidth(w);
-                        const first = lines[lines.length - 1].length === 0;
-                        // a segment glues to the previous one when no whitespace separates them
-                        const glue = !first && wi === 0 && si > 0 && !startsWithSpace && !seg.sep && !/\s$/.test(segs[si - 1].w) && seg.style !== 'normal';
-                        const gap = first ? 0 : glue ? 0 : spaceW;
-                        if (!first && x + gap + width > textColumnW) { lines.push([]); x = 0; lines[lines.length - 1].push({ ...seg, w, width, gapBefore: 0 }); x = width; }
-                        else { lines[lines.length - 1].push({ ...seg, w, width, gapBefore: gap }); x += gap + width; }
-                    });
-                });
+                // break into lines (words keep the style of their segment; glued words wrap together)
+                const lines = breakLines(segs, textColumnW, textKit);
                 const height = lines.length * lh;
                 if (cursorY + height > maxContentY && cursorY > pdfMarginTop + 1) { doc.addPage(); cursorY = pdfMarginTop; }
                 lines.forEach((line, li) => {
@@ -1189,11 +1190,13 @@ export class PdfExportService {
               const lemma = lemmaOf(c);
               const body = makeBody(textColumnW - colW - 4);
               const above = !!lemma && colW === 0;
-              const aboveH = above ? pdfCommentFontSize * 1.38 : 0;
+              // a long lemma stands above the body and wraps like text
+              const lemmaLines = above ? breakLines([{ w: lemma, style: 'normal', size: pdfCommentFontSize }], textColumnW, textKit) : [];
+              const aboveH = above ? lemmaLines.length * pdfCommentFontSize * 1.38 : 0;
               if (cursorY + body.h + aboveH > maxContentY && cursorY > pdfMarginTop + 1) { doc.addPage(); cursorY = pdfMarginTop; }
               if (lemma) {
                 const mid = body.anchor ?? pdfCommentFontSize * 0.7;
-                if (above) { textKit.draw(lemma, textX, cursorY + pdfCommentFontSize, 'normal', pdfCommentFontSize); }
+                if (above) drawLines(lemmaLines, textX, cursorY + pdfCommentFontSize, pdfCommentFontSize * 1.38, textKit);
                 else textKit.draw(lemma, textX, cursorY + mid + pdfCommentFontSize * 0.33, 'normal', pdfCommentFontSize);
               }
               body.draw(textX + colW + (above ? 8 : 0), cursorY + aboveH, body.h);
@@ -1344,7 +1347,7 @@ export class PdfExportService {
             // and the page the document starts on; the apparatus is listed after them.
             // Hierarchy as in the printed volume's contents: part (Edition / Critical Apparatus) >
             // manuscript (chapter) > documents, each with the framed running number.
-            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean; indent: number; depth: number; num?: string };
+            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean; indent: number; depth: number; num?: string; bookmarkOnly?: boolean };
             const rows: Row[] = [];
             const docIndent = chapterCount > 1 ? 24 : 12;
             const docDepth = chapterCount > 1 ? 2 : 1;
@@ -1360,7 +1363,7 @@ export class PdfExportService {
                 if (ao.depth === 1 && chapterCount > 1) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1 });
                 else {
                   const j = jobs[ao.job];
-                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job) });
+                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job), bookmarkOnly: true });
                 }
               }
             }
@@ -1370,7 +1373,17 @@ export class PdfExportService {
             doc.setFontSize(pdfFontSize);
             const idW = Math.min(110, Math.max(0, ...rows.filter((r) => !r.plain).map((r) => doc.getTextWidth(r.id))) + 12);
             const lineH = pdfFontSize * 1.6;
+            // The framed numbers share one width (the widest number), so that the IDs line up.
+            doc.setFontSize(pdfFontSize - 1);
+            const numBoxW = Math.max(12, ...rows.filter((q) => q.num).map((q) => doc.getTextWidth(q.num!) + 5));
+            doc.setFontSize(pdfFontSize);
             for (const r of rows) {
+              // the apparatus part lists manuscripts only (like the printed volume); its documents are
+              // reachable through the bookmarks
+              if (r.bookmarkOnly) {
+                stats.outline.push({ label: [r.id, r.incipit, r.genre].filter(Boolean).join(' | '), page: r.page, depth: r.depth });
+                continue;
+              }
               if (r.chapter) y += lineH * 0.5;
               const ix = textX + r.indent;
               if (y + lineH > maxContentY) y = startNewTitlePage();
@@ -1380,15 +1393,15 @@ export class PdfExportService {
               const pageStr = String(r.page);
               const pageX = pageWidth - pdfMarginRight - doc.getTextWidth(pageStr);
               // the framed running number in front of a document row
-              const numW = rows.some((q) => q.num) ? 20 : 0;
+              const numW = rows.some((q) => q.num) ? numBoxW + 8 : 0;
               if (r.num) {
                 const fsN = pdfFontSize - 1;
                 doc.setFontSize(fsN);
                 const nw = doc.getTextWidth(r.num);
                 doc.setLineWidth(0.4);
                 doc.setDrawColor(0, 0, 0);
-                doc.rect(ix, y - fsN * 0.8 - 1.5, Math.max(nw + 5, 12), fsN + 3);
-                doc.text(r.num, ix + Math.max(nw + 5, 12) / 2 - nw / 2, y);
+                doc.rect(ix, y - fsN * 0.8 - 1.5, numBoxW, fsN + 3);
+                doc.text(r.num, ix + numBoxW / 2 - nw / 2, y);
                 doc.setFontSize(pdfFontSize);
               }
               const x1 = r.plain ? ix : ix + numW + idW;

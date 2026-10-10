@@ -38,7 +38,16 @@ export function breakLines(segs: Seg[], maxW: number, kit: TextKit): Word[][] {
       const first = lines[lines.length - 1].length === 0;
       const glue = !first && wi === 0 && si > 0 && !startsWithSpace && !seg.sep && !/\s$/.test(segs[si - 1].w) && seg.style !== 'normal';
       const gap = first ? 0 : glue ? 0 : spaceW;
-      if (!first && x + gap + width > maxW) { lines.push([{ ...seg, w, width, gapBefore: 0 }]); x = width; }
+      if (!first && x + gap + width > maxW) {
+        // a glued word ("AH" + ")." ) never lands alone on the next line: its predecessor comes along
+        const cur = lines[lines.length - 1];
+        const carry = glue && cur.length > 1 ? cur.pop()! : null;
+        const next: Word[] = [];
+        if (carry) next.push({ ...carry, gapBefore: 0 });
+        next.push({ ...seg, w, width, gapBefore: 0 });
+        lines.push(next);
+        x = (carry ? carry.width : 0) + width;
+      }
       else { lines[lines.length - 1].push({ ...seg, w, width, gapBefore: gap }); x += gap + width; }
     });
   });

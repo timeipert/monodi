@@ -211,4 +211,16 @@ save('x19-folio-labels', root([formteil([
   ])),
 ])]));
 
+// 20. Syllables without notes (the box marker): a line made only of them keeps its space but draws
+//     no staff, clef or box; mixed with real notes the staff stays and the box is not drawn.
+{
+  const bare = (t) => syl(t, [], { syllableType: 'WithoutNotes' });
+  save('x20-without-notes', root([formteil([
+    para('VERSUS'),
+    zeile(['Re-', 'sur-', 're-', 'xit', 'do-', 'mi-', 'nus', 'al-', 'le-', 'lu-', 'ia'].map(bare)),
+    zeile([...['Si-', 'cut'].map(bare), lineChange(), ...['di-', 'xit', 'uo-', 'bis'].map(bare), syl('al-', [randNeume(3, 3, 4)]), syl('le-', [randNeume(3, 3, 4)]), bare('lu-'), bare('ia')]),
+    zeile(Array.from({ length: 8 }, (_, k) => syl(sylText(k), [randNeume(3, 3, 4)]))),
+  ])]));
+}
+
 console.log('wrote extreme fixtures to', out);

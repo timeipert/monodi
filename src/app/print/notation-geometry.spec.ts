@@ -1,5 +1,4 @@
-import { syllableGeometry, CLEF_SHIFT, PLACEHOLDER_W, placeholderLeft } from './notation-geometry';
-import { G_CLEF_LEFT, G_CLEF_WIDTH } from '../clef-glyph';
+import { syllableGeometry, CLEF_SHIFT } from './notation-geometry';
 import { BaseNote, NoteType, Syllable, SyllableType } from '../types/model';
 
 let n = 0;
@@ -51,15 +50,5 @@ describe('syllableGeometry', () => {
     expect(g.isNormal).toBeFalse();
     expect(g.shiftUnits).toBe(-1);
     expect(g.voices[0].length).toBe(0);
-  });
-
-  it('the placeholder box stays clear of the clef and inside the cell', () => {
-    for (const showClef of [false, true]) {
-      const g = syllableGeometry(syl([[note(BaseNote.G, 4)]], { syllableType: SyllableType.WithoutNotes }), { showClef, adiastematic: false });
-      const left = placeholderLeft(g);
-      if (showClef) expect(left).toBeGreaterThanOrEqual(G_CLEF_LEFT + G_CLEF_WIDTH + 3);
-      expect(left).toBeGreaterThanOrEqual(0);
-      expect(left + PLACEHOLDER_W).toBeLessThanOrEqual(g.widthUnits + 1e-9);
-    }
   });
 });
