@@ -133,7 +133,7 @@ export function adiastematicFromSpaceds(sds: Spaced[], comments: Comment[]): Dra
           const minY = Math.min(...groupNotes.map(d => d.y));
           const firstX = groupNotes[0].x;
           const lastX = groupNotes[groupNotes.length - 1].x;
-          out.push(new DTie(firstX + 2, minY + 20, g, (lastX - firstX) + 12));
+          out.push(new DTie(firstX + 2, minY + 20, g, (lastX - firstX) + 12 + stemClearance(groupNotes[groupNotes.length - 1].ref)));
         }
         // No extra gap between groups: slurred and unslurred notes within a
         // neume are spaced identically — only the slur line differs.
@@ -157,10 +157,19 @@ function fromGrouped(g: Grouped, comments: Comment[]): Drawable[] {
       2,
       -(maxOf(notes.map(n => -n.y - 20)) || 0),
       g,
-      getWidth(notes) + 12
+      getWidth(notes) + 12 + stemClearance(g.grouped[g.grouped.length - 1])
     ));
   }
   return notes;
+}
+
+/**
+ * Extra bracket width when the group ends on a virga: its stem stands at x + 10…11, right where
+ * the bracket's closing leg would be (x + 9), and the two fuse into one stroke. Pushing the leg
+ * past the stem keeps the virga readable.
+ */
+export function stemClearance(last: Note | undefined): number {
+  return last && last.noteType === NoteType.Ascending && !last.liquescent ? 5 : 0;
 }
 
 /** Vertical position of a note's glyph box (staff lines are at y = 40..80, 5 units per step). */

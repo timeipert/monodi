@@ -50,6 +50,13 @@ describe('Drawables.fromSpaced', () => {
     expect(ties[0].width).toBeGreaterThan(0);
   });
 
+  it('keeps the bracket leg clear of a closing virga stem', () => {
+    const tieOf = (last: Note) => fromSpaced(sp([[note(BaseNote.E, 4), last]]), []).filter(d => d instanceof DTie)[0] as DTie;
+    const plain = tieOf(note(BaseNote.G, 4));
+    const virga = tieOf({ ...note(BaseNote.G, 4), noteType: NoteType.Ascending });
+    expect(virga.right - plain.right).toBeGreaterThanOrEqual(4);
+  });
+
   it('adds ledger lines below C4 / A3 / F3 and above A5 / C6', () => {
     const lines = (b: BaseNote, o: number) => helpers(fromSpaced(sp([[note(b, o)]]), [])).map(h => h.y).sort((a, b2) => a - b2);
     expect(lines(BaseNote.E, 4)).toEqual([]);
