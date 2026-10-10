@@ -81,6 +81,12 @@ function verify(name, mode, file, root, stats = {}) {
   if (!OPTIONS[mode].titlePage) {
     if (words.some((w) => w.page === 0 && w.x0 >= 56.7 && w.x0 < 70 && w.t === 'Test' && w.y0 > 40)) problems.push('a single document must not get a framed manuscript label in the margin');
   }
+  // signatures of sections stand in the margin, each at its own line (also when the line begins with a marker)
+  if (name.startsWith('x17') && !OPTIONS[mode].titlePage) {
+    const sigs = ['31', 'B', 'C'].map((t) => words.find((w) => w.page === 0 && w.t === t && w.x0 < 90 && w.y0 > 40));
+    if (sigs.some((w) => !w)) problems.push('signature missing in the margin: ' + ['31', 'B', 'C'].filter((t, i) => !sigs[i]).join(', '));
+    else if (new Set(sigs.map((w) => Math.round(w.y1))).size !== 3) problems.push('signatures 31, B, C do not stand on three different lines');
+  }
   const pages = +(/Pages:\s+(\d+)/.exec(execFileSync(PDFINFO, [file]).toString())?.[1] ?? 0);
   if (pages < 1) problems.push('no pages');
   const exp = expectedSyllables(root);

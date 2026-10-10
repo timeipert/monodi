@@ -182,4 +182,13 @@ save('x14-page-breaks', root(Array.from({ length: 14 }, (_, c) => formteil([
   save('x16-apparatus-dense', doc16);
 }
 
+// 17. Sections with signatures whose lines begin with a line change (the caesura mark before the
+//     first syllable): each signature (31, B) must stand at its own line.
+{
+  const sec = (sig, k) => ({ uuid: id(), kind: 'FormteilContainer', data: [{ name: 'Signatur', data: sig }], children: [
+    zeile([lineChange(), ...Array.from({ length: 5 + k }, (_, i) => syl(sylText(i + k), [randNeume(3, 3, 4)]))]),
+  ] });
+  save('x17-signatures', root([sec('31', 3), sec('B', 0), sec('C', 1)]));
+}
+
 console.log('wrote extreme fixtures to', out);

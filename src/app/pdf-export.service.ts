@@ -723,6 +723,20 @@ export class PdfExportService {
                   const pl = layout.placed[j];
                   const trim = sysTrims[pl.system] || 0;
                   const lpKind = m.lp.kind;
+
+                  // Print Signatur right-aligned before the first part of this line — also when that part is a
+                  // line/folio marker (which must not swallow the signature of its section)
+                  if (j === 0 && currentSignatures.length > 0) {
+                      doc.setFontSize(pdfFontSize);
+                      doc.setFont(fontFamily, "normal");
+                      const sigText = currentSignatures.join(" ");
+                      const sigWidth = doc.getTextWidth(sigText);
+                      const sigX = pdfMarginLeft + sigWidth + 6 <= musicStartX ? pdfMarginLeft : musicStartX - sigWidth - 6;
+                      // Print edition: the signature's baseline sits ~2.9 pt above the bottom staff line.
+                      doc.text(sigText, sigX, cursorY - trim + (80 - sysRawTops[pl.system]) * SCALE - 2.9);
+                      currentSignatures = [];
+                  }
+
               
                   if (lpKind === 'LineChange' || lpKind === 'FolioChange') {
                     // Manuscript line/folio breaks: a short vertical tick (or two, for a
@@ -784,18 +798,6 @@ export class PdfExportService {
                               activeBrackets[key] = { startX: pl.x + m.lyricShift - 1, startLineY: lineStartY, label: `[${idx}]` };
                           }
                       }
-                  }
-              
-                  // Print Signatur right-aligned before the first note of this line
-                  if (j === 0 && currentSignatures.length > 0) {
-                      doc.setFontSize(pdfFontSize);
-                      doc.setFont(fontFamily, "normal");
-                      const sigText = currentSignatures.join(" ");
-                      const sigWidth = doc.getTextWidth(sigText);
-                      const sigX = pdfMarginLeft + sigWidth + 6 <= musicStartX ? pdfMarginLeft : musicStartX - sigWidth - 6;
-                      // Print edition: the signature's baseline sits ~2.9 pt above the bottom staff line.
-                      doc.text(sigText, sigX, cursorY - trim + (80 - sysRawTops[pl.system]) * SCALE - 2.9);
-                      currentSignatures = [];
                   }
               
                   // Wrap to next line if it exceeds page width
