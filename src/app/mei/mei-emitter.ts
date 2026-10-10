@@ -647,31 +647,12 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
   if (!syllable.notes || !syllable.notes.spaced) return;
 
   const spacedArr = syllable.notes.spaced;
-  // con="g" ("gapped") marks two kinds of break: (1) between spaced units — on
-  // the LAST note of a unit followed by another non-empty unit ("a  bc" → 'a'),
-  // and (2) inside a unit between non-ligated groups (`*u`, see isGroupBreakGap).
-  // Notes inside one `grouped` array are a ligature (`[*u]`) and carry no con.
-  let lastNonEmptySpaced = -1;
-  for (let s = spacedArr.length - 1; s >= 0; s--) {
-    if (spacedArr[s].nonSpaced && spacedArr[s].nonSpaced.some(ns => ns.grouped && ns.grouped.length > 0)) {
-      lastNonEmptySpaced = s;
-      break;
-    }
-  }
-
+  // Every spaced unit becomes its own <neume>, so a gap between units needs no
+  // mark. con="g" only marks a gap INSIDE a neume, between non-ligated groups
+  // (`*u`, see isGroupBreakGap); notes in one `grouped` array are a ligature.
   for (let sIndex = 0; sIndex < spacedArr.length; sIndex++) {
     const neumeData = spacedArr[sIndex];
     if (!neumeData.nonSpaced || neumeData.nonSpaced.length === 0) continue;
-
-    // Last group in THIS unit that actually holds notes — the note after which
-    // (if the unit isn't the last one) the graphical gap occurs.
-    let lastGroupIdx = -1;
-    for (let g = neumeData.nonSpaced.length - 1; g >= 0; g--) {
-      if (neumeData.nonSpaced[g].grouped && neumeData.nonSpaced[g].grouped.length > 0) {
-        lastGroupIdx = g;
-        break;
-      }
-    }
 
     const patternRule = resolvePatternRule(profile.patternRules, extractPattern(neumeData), activeSiglum);
     let flatIndex = 0;
@@ -724,9 +705,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         const nc = doc.createElementNS('http://www.music-encoding.org/ns/mei', flagTag || noteRule.tag);
         nc.setAttribute('xml:id', 'm-' + note.uuid);
 
-        const isLastNoteOfUnit = (gIndex === lastGroupIdx && nIndex === groupedData.grouped.length - 1);
-        const isUnitBoundaryGap = isLastNoteOfUnit && sIndex < lastNonEmptySpaced;
-        const isConnectionGap = isUnitBoundaryGap || isGroupBreakGap(neumeData.nonSpaced, gIndex, nIndex);
+        const isConnectionGap = isGroupBreakGap(neumeData.nonSpaced, gIndex, nIndex);
 
         // Find custom attribute name mappings for curve/con rules to perform proper conditional checks
         // Addressed by name (curve / con), not by position, so users can reorder rules.

@@ -45,12 +45,12 @@ describe('MeiEmitter', () => {
     expect(ligature.map(n => n.getAttribute('con'))).toEqual([null, null]);
   });
 
-  it('keeps the gap between neumes on the last nc of the first neume', () => {
+  it('sets no con between neumes: a double space starts a new <neume>', () => {
     const neumes = ncsOf([
       { nonSpaced: [{ grouped: [nc('a'), nc('b', BaseNote.A)] }] },
       { nonSpaced: [{ grouped: [nc('c')] }] }
     ]);
-    expect(neumes.map(n => n.getAttribute('con'))).toEqual([null, 'g', null]);
+    expect(neumes.map(n => n.getAttribute('con'))).toEqual([null, null, null]);
   });
 
   it('should flatten ncs into syllable when neume entity is disabled', () => {
