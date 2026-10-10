@@ -5,12 +5,14 @@
       <div>
         <h6 class="mb-1 fw-semibold"><i class="bi bi-music-note-beamed me-2 text-secondary"></i>MEI export</h6>
         <p class="text-muted small mb-0 mei-intro">
-          Decide how your transcription is written as MEI. A <strong>profile</strong> holds all these choices;
-          the preview on the right always shows the result for the active profile.
+          Decide how your transcription is written as MEI. A <strong>profile</strong> holds all these choices.
         </p>
       </div>
       <div class="d-flex align-items-center gap-2">
-        <label class="small text-muted mb-0" for="meiProfileSelect">Profile</label>
+        <button class="btn btn-sm" [ngClass]="showPreview ? 'btn-secondary' : 'btn-outline-secondary'" (click)="togglePreview()">
+          <i class="bi bi-code-square me-1"></i>{{ showPreview ? 'Hide result' : 'Show result' }}
+        </button>
+        <label class="small text-muted mb-0 ms-2" for="meiProfileSelect">Profile</label>
         <select id="meiProfileSelect" class="form-select form-select-sm w-auto"
           [ngModel]="settings.activeMeiProfileId"
           (change)="onProfileChange($event)">
@@ -87,7 +89,7 @@
 
       <div class="row g-0">
         <!-- ===== Left: the active tab ===== -->
-        <div class="col-12 col-xxl-7 border-end">
+        <div class="col-12 border-end" [class.col-xxl-7]="showPreview">
           <!-- General -->
           @if (tab === 'general') {
             <div class="p-4 mei-pane">
@@ -98,22 +100,7 @@
                   <input class="form-check-input" type="checkbox" id="emitHeaderCheck" [(ngModel)]="activeProfile.emitHeader" (ngModelChange)="emitChange()">
                   <label class="form-check-label fw-medium" for="emitHeaderCheck">Emit standard &lt;meiHead&gt; block</label>
                 </div>
-                <small class="text-muted d-block mt-1">If enabled, a standard MEI header containing document metadata will be prepended.</small>
-              </div>
-              <div class="mb-4">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="inlineInterventionsCheck" [(ngModel)]="activeProfile.inlineInterventions" (ngModelChange)="emitChange()">
-                  <label class="form-check-label fw-medium" for="inlineInterventionsCheck">Encode interventions inline (experimental)</label>
-                </div>
-                <small class="text-muted d-block mt-1">If enabled, unclear and supplied editorial interventions will be encoded directly in the musical notation structure.</small>
-              </div>
-              <div class="mb-4">
-                <label class="form-label fw-medium">Gaps inside a neume (<code>con="g"</code>)</label>
-                <select class="form-select form-select-sm" style="max-width: 22rem;" [(ngModel)]="activeProfile.gapPlacement" (ngModelChange)="emitChange()">
-                  <option [ngValue]="undefined">on the nc after the break (default)</option>
-                  <option value="previous">on the nc before the break</option>
-                </select>
-                <small class="text-muted d-block mt-1">Two separate groups (<code>*u</code>) are written with a gap, a ligature (<code>[*u]</code>) is not. Choose which note carries the mark.</small>
+                <small class="text-muted d-block mt-1">Document title, sources and comments at the top of the file.</small>
               </div>
               <div>
                 <label class="form-label fw-medium">Structure around the music</label>
@@ -303,110 +290,185 @@
 
           <!-- Patterns -->
           @if (tab === 'patterns') {
-            <div class="p-4 mei-pane">
-              <p class="mei-lead">Give a neume shape fixed MEI. Typical use: every <code>[*ud]</code> (a torculus) should carry the same attributes in the export.</p>
-            @if (selectedNodeId === 'patterns') {
-              <p class="text-muted small">A pattern rule adds fixed MEI attributes to every neume with this pattern code, one set per <code>&lt;nc&gt;</code>. A rule for a manuscript siglum wins over a global one. Pitch (<code>pname</code>, <code>oct</code>) always comes from the notes.</p>
-              <div class="input-group input-group-sm mb-3">
-                <input type="text" class="form-control" placeholder="Pattern, e.g. [*ud]" [(ngModel)]="newPatternCode" (keyup.enter)="addPatternRule()">
-                <input type="text" class="form-control" placeholder="Manuscript siglum (empty = all)" [(ngModel)]="newPatternSigle" (keyup.enter)="addPatternRule()">
-                <button class="btn btn-outline-secondary" (click)="addPatternRule()">Add</button>
+            <div class="p-4 pb-0">
+              <p class="mei-lead mb-0">Give a neume shape fixed MEI attributes. Every neume with this pattern code gets them, for example every <code>[*ud]</code>. Pitch always comes from the notes.</p>
+            </div>
+            <div class="row g-0 mei-pane">
+              <!-- Pattern list -->
+              <div class="col-12 col-md-4 p-3">
+                <div class="input-group input-group-sm mb-2">
+                  <input type="text" class="form-control font-monospace" placeholder="New pattern, e.g. [*ud]" [(ngModel)]="newPatternCode" (keyup.enter)="addPatternRule()">
+                  <button class="btn btn-outline-primary" (click)="addPatternRule()" [disabled]="!newPatternCode.trim()">Add</button>
+                </div>
+                @if (patternRules.length > 6) {
+                  <input type="search" class="form-control form-control-sm mb-2" placeholder="Filter…" [(ngModel)]="patternFilter">
+                }
+                <ul class="entity-tree">
+                  @for (e of patternList; track e.code) {
+                    <li>
+                      <div class="tree-node cursor-pointer" [class.active]="selectedPattern === e.code" (click)="selectPattern(e.code)">
+                        <span class="font-monospace me-auto">{{ e.code }}</span>
+                        @if (e.overrides > 0) {
+                          <span class="badge bg-light text-dark border" title="Manuscript-specific variants">{{ e.overrides }} ms.</span>
+                        }
+                      </div>
+                    </li>
+                  }
+                </ul>
+                @if (patternRules.length === 0) {
+                  <div class="text-muted small px-2">No patterns yet. Add one above.</div>
+                }
+                <div class="mt-3 pt-2 border-top d-flex gap-2 flex-wrap">
+                  <button class="btn btn-link btn-sm p-0 text-decoration-none" (click)="exportPatternRules()" [disabled]="patternRules.length === 0">Export JSON</button>
+                  <label class="btn btn-link btn-sm p-0 text-decoration-none mb-0">Import JSON
+                    <input type="file" accept=".json" hidden (change)="importPatternRules($event)">
+                  </label>
+                </div>
               </div>
-              <div class="mb-3 d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" (click)="exportPatternRules()">Export JSON</button>
-                <label class="btn btn-sm btn-outline-secondary mb-0">Import JSON
-                  <input type="file" accept=".json" hidden (change)="importPatternRules($event)">
-                </label>
-              </div>
-              @for (rule of patternRules; track rule.id; let ri = $index) {
-                <div class="border rounded p-2 mb-3" [class.opacity-50]="!rule.enabled">
-                  <div class="d-flex align-items-center gap-2 mb-2">
-                    <input class="form-check-input mt-0" type="checkbox" [(ngModel)]="rule.enabled" (ngModelChange)="emitChange()" title="Enabled">
-                    <input type="text" class="form-control form-control-sm font-monospace w-auto" [(ngModel)]="rule.pattern" (change)="onPatternRuleCode(rule)">
-                    <input type="text" class="form-control form-control-sm w-auto" placeholder="all manuscripts" [(ngModel)]="rule.sigle" (ngModelChange)="emitChange()">
-                    <button class="btn btn-link btn-sm ms-auto" (click)="copyFirstToAll(rule)" title="Copy first nc to all">&darr; all</button>
-                    <button class="btn btn-link text-danger btn-sm p-0" (click)="removePatternRule(ri)"><i class="bi bi-x-circle"></i></button>
+
+              <!-- Detail of the selected pattern -->
+              <div class="col-12 col-md-8 p-4 border-start">
+                @if (selectedPattern) {
+                  <div class="d-flex align-items-center mb-3">
+                    <h5 class="font-monospace mb-0 me-auto">{{ selectedPattern }}</h5>
+                    <button class="btn btn-link btn-sm text-danger text-decoration-none" (click)="removePattern(selectedPattern)"><i class="bi bi-trash me-1"></i>Delete</button>
                   </div>
-                  @for (attrs of rule.nc; track $index; let ni = $index) {
-                    <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
-                      <span class="small text-muted me-1" style="width:3.5rem">nc {{ ni + 1 }}</span>
-                      @for (name of ruleAttrNames(attrs); track name) {
-                        <span class="input-group input-group-sm w-auto">
-                          <span class="input-group-text">{{ name }}</span>
-                          <input type="text" class="form-control" style="width:4rem" [ngModel]="attrs[name]" (ngModelChange)="attrs[name] = $event; emitChange()">
-                          <button class="btn btn-outline-danger" (click)="removeRuleAttr(attrs, name)">&times;</button>
+
+                  <div class="mb-3">
+                    <div class="small text-muted mb-1">Applies to</div>
+                    <div class="d-flex flex-wrap gap-1 align-items-center">
+                      <button type="button" class="btn btn-sm" [ngClass]="scopeSigle === '' ? 'btn-secondary' : 'btn-outline-secondary'" (click)="scopeSigle = ''">All manuscripts</button>
+                      @for (sg of overrideSigles; track sg) {
+                        <span class="btn-group btn-group-sm">
+                          <button type="button" class="btn" [ngClass]="scopeSigle === sg ? 'btn-secondary' : 'btn-outline-secondary'" (click)="scopeSigle = sg">{{ sg }}</button>
+                          <button type="button" class="btn btn-outline-danger" (click)="removeOverride(sg)" title="Remove the variant for {{ sg }}">&times;</button>
                         </span>
                       }
-                      @for (n of quickAttributes; track n) {
-                        @if (!(n in attrs)) {
-                          <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="addRuleAttr(attrs, n)" [title]="'Add attribute ' + n">+ {{ n }}</button>
-                        }
-                      }
-                      <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="other…" list="ncAttrNames" #na (keyup.enter)="addRuleAttr(attrs, na.value); na.value = ''" (change)="addRuleAttr(attrs, na.value); na.value = ''">
-                    </div>
-                  }
-                  <div class="mt-2 d-flex flex-wrap align-items-center gap-1">
-                    <span class="small text-muted me-1" style="width:3.5rem">neume</span>
-                    @for (name of ruleAttrNames(rule.neume || {}); track name) {
                       <span class="input-group input-group-sm w-auto">
-                        <span class="input-group-text">{{ name }}</span>
-                        <input type="text" class="form-control" style="width:4rem" [ngModel]="rule.neume![name]" (ngModelChange)="rule.neume![name] = $event; emitChange()">
-                        <button class="btn btn-outline-danger" (click)="removeRuleAttr(rule.neume!, name)">&times;</button>
+                        <input type="text" class="form-control" style="width: 9rem;" placeholder="+ manuscript" list="siglesList"
+                          [(ngModel)]="newOverrideSigle" (focus)="ensureSiglesLoaded()" (keyup.enter)="addOverride()">
+                        @if (newOverrideSigle.trim()) {
+                          <button class="btn btn-outline-secondary" (click)="addOverride()">Add</button>
+                        }
                       </span>
+                    </div>
+                    @if (scopeSigle) {
+                      <div class="small text-muted mt-2">These attributes replace the all-manuscripts ones for <strong>{{ scopeSigle }}</strong>.</div>
                     }
-                    <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="+ neume attribute" #nn (keyup.enter)="rule.neume = rule.neume || {}; addRuleAttr(rule.neume, nn.value); nn.value = ''">
                   </div>
-                </div>
-              }
-              @if (patternRules.length === 0) {
-                <div class="text-muted small">No pattern rules yet.</div>
-              }
-              <datalist id="ncAttrNames">
-                @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
-              </datalist>
-            }
+
+                  @if (scopeRule; as rule) {
+                    @for (attrs of rule.nc; track $index; let ni = $index) {
+                      <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                        <span class="small text-muted me-1" style="width: 3.5rem;">Note {{ ni + 1 }}</span>
+                        @for (name of ruleAttrNames(attrs); track name) {
+                          <span class="input-group input-group-sm w-auto">
+                            <span class="input-group-text font-monospace">{{ name }}</span>
+                            <input type="text" class="form-control" style="width: 4rem;" [ngModel]="attrs[name]" (ngModelChange)="attrs[name] = $event; emitChange()">
+                            <button class="btn btn-outline-danger" (click)="removeRuleAttr(attrs, name)">&times;</button>
+                          </span>
+                        }
+                        @for (n of quickAttributes; track n) {
+                          @if (!(n in attrs)) {
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="addRuleAttr(attrs, n)">+ {{ n }}</button>
+                          }
+                        }
+                        <input type="text" class="form-control form-control-sm w-auto" style="width: 6rem;" placeholder="other…" list="ncAttrNames" #na
+                          (keyup.enter)="addRuleAttr(attrs, na.value); na.value = ''" (change)="addRuleAttr(attrs, na.value); na.value = ''">
+                      </div>
+                    }
+                    @if (rule.nc.length > 1) {
+                      <button class="btn btn-link btn-sm p-0 text-decoration-none mb-3" (click)="copyFirstToAll(rule)">Copy note 1 to all notes</button>
+                    }
+                  }
+                } @else {
+                  <div class="text-muted text-center py-5">
+                    <i class="bi bi-arrow-left-circle fs-3 d-block mb-2"></i>
+                    Pick a pattern on the left, or add one.
+                  </div>
+                }
+              </div>
             </div>
+            <datalist id="siglesList">
+              @for (sg of knownSigles; track sg) { <option [value]="sg"></option> }
+            </datalist>
+            <datalist id="ncAttrNames">
+              @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
+            </datalist>
           }
 
           <!-- Note flags -->
           @if (tab === 'flags') {
             <div class="p-4 mei-pane">
-              <p class="mei-lead">Your own note markers (e.g. a virga). Define them here, then set them on notes in the editor.</p>
-            @if (selectedNodeId === 'flags') {
-              <p class="text-muted small">A flag is an extra property of a note, such as a virga. Set it from the note's context menu or type its key in the note brackets (<code>g[V]</code>). It appears in pattern codes as a suffix (<code>*uV</code>) and can add MEI attributes or rename the note element. Without an SVG outline the abbreviation is drawn above the note.</p>
-              <div class="input-group input-group-sm mb-3">
-                <input type="text" class="form-control" style="max-width:5rem" maxlength="1" placeholder="Key (V)" [(ngModel)]="newFlagKey" (keyup.enter)="addNoteFlag()">
-                <input type="text" class="form-control" placeholder="Label, e.g. Virga" [(ngModel)]="newFlagLabel" (keyup.enter)="addNoteFlag()">
-                <button class="btn btn-outline-secondary" (click)="addNoteFlag()">Add</button>
+              <p class="mei-lead">A flag is your own marker on a note, for example a virga. Set it in the editor from a note's right-click menu, or type its letter in the note's brackets: <code>g[V]</code>.</p>
+
+              <div class="border rounded p-3 mb-4 bg-light">
+                <div class="row g-2 align-items-end">
+                  <div class="col-sm-6">
+                    <label class="form-label small mb-1" for="flagLabel">Name</label>
+                    <input id="flagLabel" type="text" class="form-control form-control-sm" placeholder="e.g. Virga" [(ngModel)]="newFlagLabel" (keyup.enter)="addNoteFlag()">
+                  </div>
+                  <div class="col-4 col-sm-2">
+                    <label class="form-label small mb-1" for="flagKey">Letter</label>
+                    <input id="flagKey" type="text" class="form-control form-control-sm font-monospace text-uppercase text-center" maxlength="2" #fk
+                      [placeholder]="suggestedFlagKey" [value]="newFlagKeyInput" (input)="onFlagKeyInput(fk)" (focus)="fk.select()" (keyup.enter)="addNoteFlag()">
+                  </div>
+                  <div class="col-8 col-sm-4">
+                    <button class="btn btn-sm btn-primary w-100" (click)="addNoteFlag()" [disabled]="!!flagFormHint">Add flag {{ newFlagLabel.trim() ? newFlagKey : '' }}</button>
+                  </div>
+                </div>
+                <div class="small mt-2" [class.text-muted]="!newFlagLabel.trim() || !flagFormHint" [class.text-danger]="newFlagLabel.trim() && flagFormHint">
+                  {{ flagFormHint || 'The letter is suggested from the name; type another one if you like (case does not matter).' }}
+                </div>
               </div>
-              @for (fd of noteFlags; track $index; let fi = $index) {
-                <div class="border rounded p-2 mb-3">
-                  <div class="d-flex align-items-center gap-2 mb-2">
-                    <code class="fs-6">{{ fd.key }}</code>
-                    <input type="text" class="form-control form-control-sm w-auto" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Label">
-                    <input type="text" class="form-control form-control-sm" style="width:4rem" maxlength="3" [(ngModel)]="fd.abbrev" (ngModelChange)="emitChange()" title="Abbreviation drawn above the note">
-                    <button class="btn btn-link text-danger btn-sm p-0 ms-auto" (click)="removeNoteFlag(fi)"><i class="bi bi-x-circle"></i></button>
+
+              @for (fd of noteFlags; track fd.key; let fi = $index) {
+                <div class="border rounded mb-3">
+                  <div class="d-flex align-items-center gap-2 p-2 border-bottom bg-light">
+                    <span class="badge bg-dark font-monospace fs-6">{{ fd.key }}</span>
+                    <input type="text" class="form-control form-control-sm w-auto fw-medium" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Name">
+                    <button class="btn btn-link text-danger btn-sm ms-auto text-decoration-none" (click)="removeNoteFlag(fi)"><i class="bi bi-trash me-1"></i>Delete</button>
                   </div>
-                  <div class="d-flex align-items-center gap-2 mb-2">
-                    <label class="btn btn-sm btn-outline-secondary mb-0">{{ fd.svgPath ? 'Replace SVG' : 'Load SVG' }}
-                      <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
-                    </label>
-                    @if (fd.svgPath) {
-                      <svg width="20" height="20" [attr.viewBox]="fd.viewBox"><path [attr.d]="fd.svgPath" fill="currentColor"/></svg>
-                      <button class="btn btn-link btn-sm" (click)="clearFlagSvg(fd)">Remove SVG</button>
-                    }
-                  </div>
-                  <div class="d-flex flex-wrap align-items-center gap-1">
-                    <span class="small text-muted me-1">MEI</span>
-                    <input type="text" class="form-control form-control-sm w-auto" style="width:7rem" placeholder="element (e.g. nc)" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" title="Replaces the note's element name">
-                    @for (name of ruleAttrNames(fd.mei || {}); track name) {
-                      <span class="input-group input-group-sm w-auto">
-                        <span class="input-group-text">{{ name }}</span>
-                        <input type="text" class="form-control" style="width:5rem" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
-                        <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
-                      </span>
-                    }
-                    <input type="text" class="form-control form-control-sm w-auto" style="width:8rem" placeholder="+ attribute" list="ncAttrNames" #fa (keyup.enter)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''">
+                  <div class="p-3">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <div class="small fw-medium mb-1">Looks like</div>
+                        <div class="d-flex align-items-center gap-2">
+                          @if (fd.svgPath) {
+                            <svg width="24" height="24" [attr.viewBox]="fd.viewBox" class="border rounded p-1"><path [attr.d]="fd.svgPath" fill="currentColor"/></svg>
+                            <label class="btn btn-sm btn-outline-secondary mb-0">Replace
+                              <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
+                            </label>
+                            <button class="btn btn-link btn-sm text-decoration-none" (click)="clearFlagSvg(fd)">Use letters instead</button>
+                          } @else {
+                            <input type="text" class="form-control form-control-sm text-center" style="width: 4rem;" maxlength="3" [(ngModel)]="fd.abbrev" (ngModelChange)="emitChange()" title="Shown above the note">
+                            <span class="small text-muted">or</span>
+                            <label class="btn btn-sm btn-outline-secondary mb-0">Load SVG
+                              <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
+                            </label>
+                          }
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="small fw-medium mb-1">In the MEI file</div>
+                        <div class="d-flex flex-wrap align-items-center gap-1">
+                          @for (name of ruleAttrNames(fd.mei || {}); track name) {
+                            <span class="input-group input-group-sm w-auto">
+                              <span class="input-group-text font-monospace">{{ name }}</span>
+                              <input type="text" class="form-control" style="width: 5rem;" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
+                              <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
+                            </span>
+                          }
+                          <input type="text" class="form-control form-control-sm w-auto" style="width: 9rem;" placeholder="+ attribute, e.g. type" list="ncAttrNames" #fa
+                            (keyup.enter)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''" (change)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''">
+                        </div>
+                        <div class="small text-muted mt-2">
+                          Element:
+                          <input type="text" class="form-control form-control-sm d-inline-block font-monospace" style="width: 7rem;" placeholder="nc" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" list="meiSuggestionsList">
+                          <span class="ms-1">(leave empty to keep the note's usual one)</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               }
@@ -416,12 +478,12 @@
               <datalist id="ncAttrNames">
                 @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
               </datalist>
-            }
             </div>
           }
         </div>
 
-        <!-- ===== Right: live preview (always visible) ===== -->
+        <!-- ===== Right: result, on demand ===== -->
+        @if (showPreview) {
         <div class="col-12 col-xxl-5 bg-light p-4 d-flex flex-column mei-preview">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Result</h6>
@@ -456,7 +518,8 @@
             }
           </div>
           <pre class="bg-dark text-light p-3 rounded flex-grow-1" style="font-size: 11px; overflow: auto; margin-bottom: 0;"><code>{{ previewXml }}</code></pre>
-                </div>
+        </div>
+        }
       </div>
     } @else {
       <div class="alert alert-warning text-center m-4">

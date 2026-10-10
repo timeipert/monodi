@@ -66,9 +66,6 @@ export interface MeiMappingProfileV2 {
   skeleton: string[];                 // element chain inside <mei> around the content, e.g. ['music','body','mdiv','score']
   emitHeader: boolean;                // emit the meiHead block
   inlineInterventions?: boolean;       // encode interventions inline
-  /** Which nc carries con="g" for a break INSIDE a neume (between non-ligated groups):
-   *  'next' = the nc that starts after the break (default), 'previous' = the nc before it. */
-  gapPlacement?: 'next' | 'previous';
   /** Pattern → MEI attribute rules ("transcription equivalents"), optionally per manuscript. */
   patternRules?: MeiPatternRule[];
   entities: Record<MeiEntityKey, MeiEntityRule>;

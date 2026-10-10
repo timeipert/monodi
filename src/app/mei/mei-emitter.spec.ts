@@ -22,7 +22,7 @@ describe('MeiEmitter', () => {
     return { uuid, base, octave: 4, noteType: NoteType.Normal, liquescent: false, focus: false };
   }
 
-  function ncsOf(spaced: any[], placement?: 'next' | 'previous', selector = 'nc'): Element[] {
+  function ncsOf(spaced: any[], selector = 'nc'): Element[] {
     const root = emptyRootContainer();
     const formteil = emptyFormteilContainer(DocumentType.Level1, []);
     const zeile = emptyZeileContainer(1);
@@ -33,7 +33,6 @@ describe('MeiEmitter', () => {
     formteil.children = [zeile];
     root.children = [formteil];
     const profile = defaultMeiProfile();
-    if (placement) profile.gapPlacement = placement;
     const doc = new DOMParser().parseFromString(emitMei(root, profile), 'application/xml');
     return Array.from(doc.querySelectorAll(selector));
   }
@@ -46,10 +45,7 @@ describe('MeiEmitter', () => {
     expect(ligature.map(n => n.getAttribute('con'))).toEqual([null, null]);
   });
 
-  it('supports gapPlacement "previous" and keeps the gap between neumes on the last nc', () => {
-    const prev = ncsOf([{ nonSpaced: [{ grouped: [nc('a')] }, { grouped: [nc('b', BaseNote.A)] }] }], 'previous');
-    expect(prev.map(n => n.getAttribute('con'))).toEqual(['g', null]);
-
+  it('keeps the gap between neumes on the last nc of the first neume', () => {
     const neumes = ncsOf([
       { nonSpaced: [{ grouped: [nc('a'), nc('b', BaseNote.A)] }] },
       { nonSpaced: [{ grouped: [nc('c')] }] }
@@ -346,7 +342,7 @@ describe('MeiEmitter', () => {
     try {
       const a = nc('a'); a.flags = ['V'];
       const b = nc('b', BaseNote.A); b.flags = ['W'];
-      const out = ncsOf([{ nonSpaced: [{ grouped: [a, b] }] }], undefined, 'neume > *');
+      const out = ncsOf([{ nonSpaced: [{ grouped: [a, b] }] }], 'neume > *');
       expect(out[0].getAttribute('type')).toBe('virga');
       expect(out[0].tagName).toBe('nc');
       expect(out[1].tagName).toBe('virga');

@@ -5,7 +5,7 @@ import { APIService, ProjectSettings, Document as MonodiDocument } from '../api.
 import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
-import { NoteFlagDef, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
+import { NoteFlagDef, RESERVED_FLAG_KEYS, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
 import { MeiMappingProfileV2, MeiPatternRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
 import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
@@ -237,6 +237,14 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Result panel shown next to the settings (off by default). */
+  showPreview = false;
+
+  togglePreview() {
+    this.showPreview = !this.showPreview;
+    if (this.showPreview) this.updatePreview();
+  }
+
   /** Profile "Manage" menu open. */
   manageOpen = false;
 
@@ -366,20 +374,56 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   }
 
   // --- Note flags (user-defined, e.g. virga) ---
-  newFlagKey = '';
   newFlagLabel = '';
+  /** Key typed by the user; empty means "use the suggestion". */
+  newFlagKeyInput = '';
 
   get noteFlags(): NoteFlagDef[] {
     return this.settings.noteFlags ??= [];
   }
 
-  addNoteFlag() {
-    const key = this.newFlagKey.trim().toUpperCase();
+  /** Letters still free for a new flag. */
+  get freeFlagKeys(): string[] {
+    const used = new Set(this.noteFlags.map(f => f.key));
+    return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(k => !RESERVED_FLAG_KEYS.includes(k) && !used.has(k));
+  }
+
+  /** The label's first free letter (Virga → V), else the first free letter. */
+  get suggestedFlagKey(): string {
+    const free = this.freeFlagKeys;
+    const fromLabel = this.newFlagLabel.toUpperCase().split('').find(c => free.includes(c));
+    return fromLabel ?? free[0] ?? '';
+  }
+
+  get newFlagKey(): string {
+    return this.newFlagKeyInput || this.suggestedFlagKey;
+  }
+
+  onFlagKeyInput(el: HTMLInputElement) {
+    // Case does not matter to the user: v → V, and only the last typed letter counts.
+    this.newFlagKeyInput = el.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(-1);
+    el.value = this.newFlagKeyInput;
+  }
+
+  /** Why the form cannot be submitted yet (null = fine). Shown inline instead of failing on click. */
+  get flagFormHint(): string | null {
+    if (!this.newFlagLabel.trim()) return 'Give the flag a name, e.g. Virga.';
+    const key = this.newFlagKey;
+    if (!key) return 'All letters are taken.';
     const err = validateFlagKey(key, this.noteFlags);
-    if (err) { this.toastr.warning(err); return; }
-    this.noteFlags.push({ key, label: this.newFlagLabel.trim() || key, abbrev: key, mei: {} });
-    this.newFlagKey = '';
+    if (!err) return null;
+    const alt = this.suggestedFlagKey;
+    const reason = RESERVED_FLAG_KEYS.includes(key) ? `${key} is already used for a note type.` : `${key} is already used by another flag.`;
+    return alt ? `${reason} Try ${alt}.` : reason;
+  }
+
+  addNoteFlag() {
+    if (this.flagFormHint) return;
+    const key = this.newFlagKey;
+    const label = this.newFlagLabel.trim();
+    this.noteFlags.push({ key, label, abbrev: key, mei: {} });
     this.newFlagLabel = '';
+    this.newFlagKeyInput = '';
     this.emitChange(true);
   }
 
@@ -423,38 +467,98 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     return p.patternRules ??= [];
   }
 
+  /** Master/detail state of the Patterns tab. */
+  selectedPattern: string | null = null;
+  patternFilter = '';
+  /** Manuscript the shown rule applies to; '' = all manuscripts. */
+  scopeSigle = '';
+  newOverrideSigle = '';
+  knownSigles: string[] = [];
+  private siglesLoaded = false;
+
+  /** One entry per pattern code (its manuscript overrides are folded into it). */
+  get patternList(): { code: string; overrides: number }[] {
+    const byCode = new Map<string, number>();
+    for (const r of this.patternRules) {
+      byCode.set(r.pattern, (byCode.get(r.pattern) ?? 0) + (r.sigle ? 1 : 0));
+    }
+    const f = this.patternFilter.trim().toLowerCase();
+    return Array.from(byCode, ([code, overrides]) => ({ code, overrides }))
+      .filter(e => !f || e.code.toLowerCase().includes(f))
+      .sort((x, y) => x.code.localeCompare(y.code));
+  }
+
+  get scopeRule(): MeiPatternRule | undefined {
+    return this.patternRules.find(r => r.pattern === this.selectedPattern && (r.sigle || '') === this.scopeSigle);
+  }
+
+  get overrideSigles(): string[] {
+    return this.patternRules.filter(r => r.pattern === this.selectedPattern && r.sigle).map(r => r.sigle!);
+  }
+
+  selectPattern(code: string) {
+    this.selectedPattern = code;
+    this.scopeSigle = '';
+  }
+
   addPatternRule() {
     const code = patternBaseCode(this.newPatternCode);
     if (!code || patternNoteCount(code) === 0) {
       this.toastr.warning('Enter a pattern code such as [*ud] or *uu.');
       return;
     }
-    const sigle = this.newPatternSigle.trim() || undefined;
-    if (this.patternRules.some(r => r.pattern === code && (r.sigle || undefined) === sigle)) {
-      this.toastr.warning('A rule for this pattern and manuscript already exists.');
-      return;
+    if (!this.patternRules.some(r => r.pattern === code && !r.sigle)) {
+      this.patternRules.push(normalizePatternRule({ id: uuidv4(), pattern: code, enabled: true, nc: [] }));
+      this.emitChange(true);
     }
-    this.patternRules.push(normalizePatternRule({ id: uuidv4(), pattern: code, sigle, enabled: true, nc: [] }));
     this.newPatternCode = '';
+    this.patternFilter = '';
+    this.selectPattern(code);
+  }
+
+  removePattern(code: string) {
+    if (!confirm(`Delete the rules for ${code}, including all manuscript overrides?`)) return;
+    const p = this.activeProfile!;
+    p.patternRules = this.patternRules.filter(r => r.pattern !== code);
+    this.selectedPattern = null;
     this.emitChange(true);
   }
 
-  removePatternRule(i: number) {
-    this.patternRules.splice(i, 1);
+  ensureSiglesLoaded() {
+    if (this.siglesLoaded) return;
+    this.siglesLoaded = true;
+    this.api.listSources(this.token || '').subscribe({
+      next: res => {
+        if (res.kind === 'SourcesRetrieved') {
+          this.knownSigles = res.sources.map(s => s.quellensigle).filter(Boolean).sort();
+        }
+      },
+      error: () => { this.siglesLoaded = false; }
+    });
+  }
+
+  /** Starts a manuscript-specific rule as a copy of the all-manuscripts rule. */
+  addOverride() {
+    const sigle = this.newOverrideSigle.trim();
+    if (!sigle || !this.selectedPattern) return;
+    if (!this.patternRules.some(r => r.pattern === this.selectedPattern && r.sigle === sigle)) {
+      const base = this.patternRules.find(r => r.pattern === this.selectedPattern && !r.sigle);
+      this.patternRules.push(normalizePatternRule({
+        id: uuidv4(), pattern: this.selectedPattern, sigle, enabled: true,
+        nc: JSON.parse(JSON.stringify(base?.nc ?? [])),
+        neume: base?.neume ? { ...base.neume } : undefined
+      }));
+      this.emitChange(true);
+    }
+    this.scopeSigle = sigle;
+    this.newOverrideSigle = '';
+  }
+
+  removeOverride(sigle: string) {
+    const p = this.activeProfile!;
+    p.patternRules = this.patternRules.filter(r => !(r.pattern === this.selectedPattern && r.sigle === sigle));
+    if (this.scopeSigle === sigle) this.scopeSigle = '';
     this.emitChange(true);
-  }
-
-  onPatternRuleCode(rule: MeiPatternRule) {
-    const norm = normalizePatternRule(rule);
-    rule.pattern = norm.pattern;
-    rule.nc = norm.nc;
-    this.emitChange();
-  }
-
-  setRuleAttr(attrs: Record<string, string>, oldName: string, newName: string, value: string) {
-    if (oldName !== newName) delete attrs[oldName];
-    if (newName.trim()) attrs[newName.trim()] = value;
-    this.emitChange();
   }
 
   addRuleAttr(attrs: Record<string, string>, name: string) {

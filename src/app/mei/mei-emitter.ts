@@ -631,21 +631,15 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
 
 /**
  * Break INSIDE a neume: consecutive non-empty `grouped` arrays are not
- * graphically ligated (`*u` as opposed to the ligature `[*u]`), so the nc at
- * the break carries con="g". Placement decides whether that is the nc that
- * starts the new group ('next') or the last nc of the previous one.
+ * graphically ligated (`*u` as opposed to the ligature `[*u]`). As in MEI,
+ * con="g" sits on the nc that follows the break and describes its connection
+ * to the preceding nc.
  */
-function isGroupBreakGap(
-  groups: { grouped: Note[] }[], gIndex: number, nIndex: number, placement: 'next' | 'previous'
-): boolean {
-  const filled = (g?: { grouped: Note[] }) => !!g && !!g.grouped && g.grouped.length > 0;
-  if (placement === 'next') {
-    if (nIndex !== 0) return false;
-    for (let g = gIndex - 1; g >= 0; g--) if (filled(groups[g])) return true;
-    return false;
+function isGroupBreakGap(groups: { grouped: Note[] }[], gIndex: number, nIndex: number): boolean {
+  if (nIndex !== 0) return false;
+  for (let g = gIndex - 1; g >= 0; g--) {
+    if (groups[g]?.grouped?.length > 0) return true;
   }
-  if (nIndex !== groups[gIndex].grouped.length - 1) return false;
-  for (let g = gIndex + 1; g < groups.length; g++) if (filled(groups[g])) return true;
   return false;
 }
 
@@ -732,8 +726,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
 
         const isLastNoteOfUnit = (gIndex === lastGroupIdx && nIndex === groupedData.grouped.length - 1);
         const isUnitBoundaryGap = isLastNoteOfUnit && sIndex < lastNonEmptySpaced;
-        const isConnectionGap = isUnitBoundaryGap || isGroupBreakGap(
-          neumeData.nonSpaced, gIndex, nIndex, profile.gapPlacement || 'next');
+        const isConnectionGap = isUnitBoundaryGap || isGroupBreakGap(neumeData.nonSpaced, gIndex, nIndex);
 
         // Find custom attribute name mappings for curve/con rules to perform proper conditional checks
         // Addressed by name (curve / con), not by position, so users can reorder rules.
