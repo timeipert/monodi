@@ -1374,6 +1374,12 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
     const patInfo = this.findPatternForNote(d.ref.uuid);
     if (patInfo) {
+      if (getNoteFlagDefs().length > 0) {
+        items.push({
+          label: 'Flag neumes like this…',
+          action: () => { this.request.emit({ kind: 'FlagPatternsRequested', pattern: patInfo.patternId.replace(/[A-Z]/g, '') }); }
+        });
+      }
       items.push({
         label: 'Open in Pattern Overview',
         action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern } }); }

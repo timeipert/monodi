@@ -26,6 +26,7 @@ import { SselectComponent } from './sselect/sselect.component';
 import { ConfirmDeactivateGuard } from './ConfirmDeactivateGuard';
 import { ZipUploadComponent } from './zip-upload/zip-upload.component';
 import { CommentComponent } from './comment/comment.component';
+import { FlagPatternsDialogComponent } from './notes/flag-patterns-dialog.component';
 import { ComplexCommentComponent } from './complex-comment/complex-comment.component';
 import { ParatextCommentComponent } from './paratext-comment/paratext-comment.component';
 
@@ -55,6 +56,7 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
         SselectComponent,
         ZipUploadComponent,
         CommentComponent,
+        FlagPatternsDialogComponent,
         ParatextCommentComponent,
         ComplexCommentComponent,
         SearchComponent,

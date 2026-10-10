@@ -10,6 +10,7 @@ import { ToolsService } from '../tools.service';
 import { ToastrService } from 'ngx-toastr';
 import { Subscription, combineLatest } from 'rxjs';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
+import { FlagPatternsDialogComponent } from '../notes/flag-patterns-dialog.component';
 import { parsers } from '../types/parser';
 import * as VM from '../types/model';
 import * as S from '../sselect/sselect.component';
@@ -718,6 +719,10 @@ export class DocumentComponent implements OnInit {
       }
       return;
     }
+    if (e.kind === 'FlagPatternsRequested') {
+      this.openFlagPatterns(e.pattern);
+      return;
+    }
     if (e.kind === 'OpenCommentModalRequested') {
       this.openComment(e.comment);
       return;
@@ -1196,6 +1201,12 @@ export class DocumentComponent implements OnInit {
         group: 'edit'
       },
       {
+        callback: () => { this.openFlagPatterns(); },
+        icon: 'flag',
+        title: 'Flag neumes by pattern',
+        group: 'edit'
+      },
+      {
         callback: () => { this.modalService.open(this.textImportModal); },
         icon: 'file-earmark-text',
         title: 'Import Text',
@@ -1265,6 +1276,21 @@ export class DocumentComponent implements OnInit {
       source: this,
       tools: tools
     });
+  }
+
+  /** "Flag neumes by pattern" dialog; the dialog edits this.cont in place, we refresh and save afterwards. */
+  openFlagPatterns(pattern: string = ''): void {
+    if (!this.cont) return;
+    const ref = this.modalService.open(FlagPatternsDialogComponent, { size: 'lg', centered: true, scrollable: true });
+    ref.componentInstance.root = this.cont;
+    ref.componentInstance.initialPattern = pattern;
+    ref.result.then((res: { notes: number; matches: number; key: string; action: 'add' | 'remove' }) => {
+      if (!res || res.notes === 0) return;
+      this.cont = JSON.parse(JSON.stringify(this.cont));
+      this.save();
+      this.cdr.detectChanges();
+      this.toastr.success(`${res.action === 'add' ? 'Set' : 'Removed'} flag ${res.key} on ${res.notes} note(s) in ${res.matches} neume(s).`);
+    }).catch(() => { /* dismissed */ });
   }
 
   goToSource(s_id: string) {

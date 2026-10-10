@@ -101,6 +101,30 @@ export function extractPattern(nonSpaced: VM.NonSpaced): string {
   return parts.join('');
 }
 
+/** One note of a neume with the step that leads to it (`*` for the first note, else u/d/e). */
+export interface NeumeNote {
+  note: VM.Note;
+  /** Index of the ligature group the note belongs to. */
+  group: number;
+  step: '*' | 'u' | 'd' | 'e';
+  /** Note-shape and flag suffix as written in the pattern code (`O`, `LA`, `V`, ...). */
+  suffix: string;
+}
+
+/** The notes of a neume in order, each with its step; same steps as `extractPattern`, minus the brackets. */
+export function describeNeume(nonSpaced: VM.NonSpaced): NeumeNote[] {
+  const out: NeumeNote[] = [];
+  let prev: VM.Note | null = null;
+  (nonSpaced?.nonSpaced ?? []).forEach((g, gi) => {
+    for (const note of g.grouped ?? []) {
+      const step = prev ? getDirection(pitchToMidi(prev.base, prev.octave), pitchToMidi(note.base, note.octave)) : '*';
+      out.push({ note, group: gi, step: step as NeumeNote['step'], suffix: getSuffix(note.noteType, note.liquescent, note.flags) });
+      prev = note;
+    }
+  });
+  return out;
+}
+
 /** The uuid of a neume's first note ('' if none has one). */
 export function firstNoteUuid(nonSpaced: VM.NonSpaced): string {
   for (const g of nonSpaced?.nonSpaced ?? []) {

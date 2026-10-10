@@ -576,6 +576,10 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
         this.onEvent.emit(r);
         break;
       }
+      case 'FlagPatternsRequested': {
+        this.onEvent.emit(r);
+        break;
+      }
       default: assertNever(r);
     }
   }

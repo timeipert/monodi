@@ -1,0 +1,117 @@
+<div class="modal-header">
+  <h5 class="modal-title"><i class="bi bi-flag me-2"></i>Flag neumes by pattern</h5>
+  <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
+</div>
+
+<div class="modal-body">
+  @if (flags.length === 0) {
+    <div class="alert alert-info mb-0">
+      There are no note flags yet. Create one under <strong>Settings → MEI Mapping → Note flags</strong>, then come back.
+    </div>
+  } @else {
+    <!-- 1. Which neumes -->
+    <div class="mb-3">
+      <label class="form-label fw-medium" for="flagQuery">1. Which neumes?</label>
+      <div class="input-group">
+        <input id="flagQuery" type="text" class="form-control font-monospace" placeholder="Pattern, e.g. *u or [*ud]"
+          [(ngModel)]="query.text" (ngModelChange)="refresh()" autocomplete="off" spellcheck="false" autofocus>
+        @for (c of chips; track c) {
+          <button type="button" class="btn btn-outline-secondary font-monospace px-2" (click)="addChip(c)" [title]="'Insert ' + c">{{ c }}</button>
+        }
+      </div>
+      @if (problem) {
+        <div class="small text-danger mt-1">{{ problem }}</div>
+      } @else if (!query.text.trim()) {
+        <div class="small text-muted mt-1">
+          Try:
+          @for (e of examples; track e.code; let last = $last) {
+            <a href="javascript:void(0)" class="font-monospace text-decoration-none" (click)="setExample(e.code)" [title]="e.text">{{ e.code }}</a>{{ last ? '' : ' · ' }}
+          }
+        </div>
+      }
+      <div class="d-flex flex-wrap gap-3 mt-2 small">
+        <span class="btn-group btn-group-sm" role="group" aria-label="Match mode">
+          <button type="button" class="btn" [ngClass]="query.mode === 'whole' ? 'btn-secondary' : 'btn-outline-secondary'" (click)="query.mode = 'whole'; refresh()">Whole neume</button>
+          <button type="button" class="btn" [ngClass]="query.mode === 'contains' ? 'btn-secondary' : 'btn-outline-secondary'" (click)="query.mode = 'contains'; refresh()">Inside a neume</button>
+        </span>
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" id="ignoreShapes" [(ngModel)]="query.ignoreShapes" (ngModelChange)="refresh()">
+          <label class="form-check-label" for="ignoreShapes">Ignore note shapes and flags (O, Q, V …)</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. What to do -->
+    <div class="mb-3">
+      <label class="form-label fw-medium">2. What to do?</label>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <select class="form-select form-select-sm w-auto" [(ngModel)]="action">
+          <option value="add">Set flag</option>
+          <option value="remove">Remove flag</option>
+        </select>
+        <select class="form-select form-select-sm w-auto" [(ngModel)]="flagKey" aria-label="Flag">
+          @for (f of flags; track f.key) {
+            <option [value]="f.key">{{ f.label }} ({{ f.key }})</option>
+          }
+        </select>
+        <span class="small text-muted">on</span>
+        <select class="form-select form-select-sm w-auto" [(ngModel)]="query.target" (ngModelChange)="refresh()" aria-label="Which note">
+          <option value="first">the first note</option>
+          <option value="last">the last note</option>
+          <option value="all">every note</option>
+          <option value="nth">note number …</option>
+        </select>
+        @if (query.target === 'nth') {
+          <input type="number" min="1" class="form-control form-control-sm" style="width: 4.5rem;" [(ngModel)]="query.nth" (ngModelChange)="refresh()">
+        }
+        <span class="small text-muted">of the match</span>
+      </div>
+    </div>
+
+    <!-- 3. Preview -->
+    <div>
+      <div class="d-flex align-items-center mb-2">
+        <label class="form-label fw-medium mb-0 me-auto">3. Check the result</label>
+        @if (matches.length > 0) {
+          <button type="button" class="btn btn-link btn-sm p-0 me-3 text-decoration-none" (click)="selectAll(true)">All</button>
+          <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" (click)="selectAll(false)">None</button>
+        }
+      </div>
+      @if (query.text.trim() && !problem) {
+        <div class="small mb-2" [class.text-muted]="matches.length > 0" [class.text-warning-emphasis]="matches.length === 0">
+          {{ matches.length }} match{{ matches.length === 1 ? '' : 'es' }}
+          @if (unchanged > 0) { · {{ unchanged }} {{ action === 'add' ? 'already have' : 'do not have' }} the flag }
+        </div>
+      }
+      @if (matches.length > 0) {
+        <div class="border rounded" style="max-height: 280px; overflow-y: auto;">
+          @for (m of shown; track m.id) {
+            <label class="d-flex align-items-center gap-2 px-2 py-1 border-bottom mb-0" [class.text-muted]="!changes(m)" [class.opacity-50]="!changes(m)">
+              <input type="checkbox" class="form-check-input mt-0" [checked]="!excluded.has(m.id) && changes(m)" [disabled]="!changes(m)" (change)="toggle(m)">
+              <span class="text-truncate" style="width: 9rem;" [title]="m.syllableText">{{ m.syllableText || '—' }}</span>
+              <span class="font-monospace small text-secondary" style="width: 6.5rem;">{{ m.pattern }}</span>
+              <span class="font-monospace small">
+                @for (n of m.notes; track n.uuid) {
+                  <span class="me-1" [class.fw-bold]="isTarget(m, n)" [class.text-decoration-underline]="isTarget(m, n)">{{ noteLabel(n) }}</span>
+                }
+              </span>
+            </label>
+          }
+          @if (hidden > 0) {
+            <div class="px-2 py-1 small text-muted">… and {{ hidden }} more (included when you apply)</div>
+          }
+        </div>
+        <div class="small text-muted mt-1">The underlined note in each row gets the change.</div>
+      }
+    </div>
+  }
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+  @if (flags.length > 0) {
+    <button type="button" class="btn btn-primary" [disabled]="chosen.length === 0" (click)="apply()">
+      {{ action === 'add' ? 'Set' : 'Remove' }} {{ flag?.label }} on {{ noteCount }} note{{ noteCount === 1 ? '' : 's' }}
+    </button>
+  }
+</div>

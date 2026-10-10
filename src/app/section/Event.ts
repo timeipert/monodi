@@ -1,6 +1,6 @@
 import * as VM from '../types/model';
 import { CommonEvent } from '../types/CommonEvent';
-import { ViewIiifRequested, HighlightRegionRequested } from '../notes/Request';
+import { ViewIiifRequested, HighlightRegionRequested, FlagPatternsRequested } from '../notes/Request';
 
 export type Event =
   CommonEvent |
@@ -14,6 +14,7 @@ export type Event =
   PasteRequested |
   ViewIiifRequested |
   HighlightRegionRequested |
+  FlagPatternsRequested |
   OpenCommentModalRequested |
   MergeWithNextLineRequested |
   MergeAllLinesRequested |

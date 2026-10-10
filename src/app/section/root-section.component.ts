@@ -168,6 +168,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       HighlightRegionRequested: (e: any) => {
         this.onEvent.emit(e);
       },
+      FlagPatternsRequested: (e: any) => this.onEvent.emit(e),
       FixSyllableDashesRequested: (e: any) => this.onEvent.emit(e),
       DocumentUpdated: (e: any) => this.onEvent.emit(e)
     }, undoService);

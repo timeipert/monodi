@@ -18,7 +18,14 @@ export type Request =
   EndCommentRequested |
   ChangeToBoxRequested |
   ViewIiifRequested |
-  HighlightRegionRequested;
+  HighlightRegionRequested |
+  FlagPatternsRequested;
+
+/** Open the "flag neumes by pattern" dialog, pre-filled with this pattern code (steps only). */
+export interface FlagPatternsRequested {
+  kind: "FlagPatternsRequested";
+  pattern: string;
+}
 
 export interface ViewIiifRequested {
   kind: "ViewIiifRequested";
