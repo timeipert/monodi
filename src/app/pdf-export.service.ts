@@ -118,7 +118,7 @@ export interface PdfExportStats {
   /** Page of the critical apparatus, 0 if there is none. */
   apparatusPage: number;
   /** Lines of the contents table: "ID | incipit | genre", page. */
-  outline: { label: string; page: number }[];
+  outline: { label: string; page: number; depth: number }[];
   /** Where the time went (ms): render, measure, svg (drawing the notes), apparatus, save, total. */
   timings: { [phase: string]: number };
 }
@@ -352,6 +352,7 @@ export class PdfExportService {
         const docEntries: { job: number; page: number }[] = [];
         const docStart: number[] = [];   // physical page on which each document starts
         const apparatusSpans: { job: number; from: number }[] = [];
+        const apparatusOutline: { label: string; depth: number; job: number; page: number }[] = [];
         let apparatusStarted = false;
         let apparatusPage = 0;
         const titleOf = (j: PdfDocJob) => metadataFieldValue(j.document, headerSource) || j.document.textinitium || 'New Document';
@@ -1006,36 +1007,52 @@ export class PdfExportService {
             } else {
                 checkPageOverflow(60);
             }
-            apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });
-            if (multi && chapterCount > 1 && chapterFirst[ji]) {
-                // the manuscript's chapter in the apparatus too
-                checkPageOverflow(60);
-                cursorY += 8;
-                cursorY = drawHeading((chapterNo[ji] + '. ' + headOf(ji)).replace(/\|/g, '·'), textX, cursorY + 8, textColumnW, 9.5) + 2;
-            }
             if (multi) {
-                // each document gets its own sub-heading: ID, incipit and genre
+                // Hierarchy like the printed apparatus: the manuscript (chapter heading), below it
+                // each document — framed running number, ID, incipit, genre — and its entries.
+                if (chapterFirst[ji]) {
+                    checkPageOverflow(80);
+                    cursorY += 10;
+                    const fsC = 11.5;
+                    const chapterText = (chapterCount > 1 ? chapterNo[ji] + '. ' : '') + headOf(ji);
+                    doc.setFont(fontFamily, 'normal');
+                    doc.setFontSize(fsC);
+                    doc.setTextColor(0, 0, 0);
+                    const cl: string[] = doc.splitTextToSize(chapterText, textColumnW);
+                    cl.forEach((l, li) => doc.text(l, textX, cursorY + fsC + li * fsC * 1.2));
+                    const yr = cursorY + fsC + (cl.length - 1) * fsC * 1.2 + 4.5;
+                    doc.setDrawColor(0, 0, 0);
+                    doc.setLineWidth(0.5);
+                    doc.line(textX, yr, textX + textColumnW, yr);
+                    cursorY = yr + 10;
+                    if (chapterCount > 1) apparatusOutline.push({ label: chapterText, depth: 1, job: ji, page: editionPage() });
+                }
                 checkPageOverflow(46);
                 cursorY += 6;
-                doc.setFontSize(pdfCommentFontSize + 1);
+                const fsD = pdfCommentFontSize + 1;
+                drawBox(boxTextOf(ji), cursorY + fsD, fsD);
+                doc.setFontSize(fsD);
                 doc.setFont(fontFamily, 'bold');
                 doc.setTextColor(0, 0, 0);
                 const idText = job.document.dokumenten_id || '';
-                doc.text(idText, textX, cursorY + pdfCommentFontSize);
+                doc.text(idText, textX, cursorY + fsD);
                 let hx = textX + doc.getTextWidth(idText) + 8;
                 doc.setFont(fontFamily, 'italic');
                 const incipit = job.document.textinitium || '';
-                doc.text(incipit, hx, cursorY + pdfCommentFontSize);
+                doc.text(incipit, hx, cursorY + fsD);
                 hx += doc.getTextWidth(incipit) + 8;
                 const gen = genreOf(job.document);
                 if (gen) {
                     doc.setFont(fontFamily, 'normal');
+                    doc.setFontSize(pdfCommentFontSize);
                     doc.setTextColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY);
-                    doc.text(gen, hx, cursorY + pdfCommentFontSize);
+                    doc.text(gen, hx, cursorY + fsD);
                     doc.setTextColor(0, 0, 0);
                 }
-                cursorY += pdfCommentFontSize * 1.9 + 3;
+                cursorY += fsD * 1.9 + 3;
+                apparatusOutline.push({ label: [idText, incipit].filter(Boolean).join(' '), depth: chapterCount > 1 ? 2 : 1, job: ji, page: editionPage() });
             }
+            apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });
 
             // Text measuring/drawing and the comment-tree layout, all straight from the model.
             const textKit: TextKit = {
@@ -1299,37 +1316,48 @@ export class PdfExportService {
           if (multi && opts.contents !== false) {
             // Contents: one row per document — ID, incipit, genre (light grey) — with dot leaders
             // and the page the document starts on; the apparatus is listed after them.
-            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean };
+            // Hierarchy: edition (manuscript > documents), then the apparatus (manuscript > documents).
+            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean; indent: number; depth: number };
             const rows: Row[] = [];
+            const docIndent = chapterCount > 1 ? 12 : 0;
             docEntries.forEach((e) => {
               const j = jobs[e.job];
-              // a chapter row (the manuscript) before its documents, when there are several manuscripts
-              if (chapterCount > 1 && chapterFirst[e.job]) rows.push({ id: '', incipit: chapterNo[e.job] + '. ' + headOf(e.job), genre: '', page: e.page, plain: true, chapter: true });
-              rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page });
+              if (chapterCount > 1 && chapterFirst[e.job]) rows.push({ id: '', incipit: chapterNo[e.job] + '. ' + headOf(e.job), genre: '', page: e.page, plain: true, chapter: true, indent: 0, depth: 0 });
+              rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page, indent: docIndent, depth: chapterCount > 1 ? 1 : 0 });
             });
-            if (apparatusStarted) rows.push({ id: '', incipit: 'Critical Apparatus', genre: '', page: apparatusPage, plain: true });
+            if (apparatusStarted) {
+              rows.push({ id: '', incipit: 'Critical Apparatus', genre: '', page: apparatusPage, plain: true, chapter: true, indent: 0, depth: 0 });
+              for (const ao of apparatusOutline) {
+                if (ao.depth === 1 && chapterCount > 1) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1 });
+                else {
+                  const j = jobs[ao.job];
+                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: chapterCount > 1 ? 24 : 12, depth: ao.depth });
+                }
+              }
+            }
             if (y + 40 > maxContentY) y = startNewTitlePage();
             y = drawHeading('Contents', textX, y, textColumnW, 10) + 6;
             doc.setFont(fontFamily, 'normal');
             doc.setFontSize(pdfFontSize);
-            const idW = Math.min(130, Math.max(0, ...rows.filter((r) => !r.plain).map((r) => doc.getTextWidth(r.id))) + 16);
+            const idW = Math.min(110, Math.max(0, ...rows.filter((r) => !r.plain).map((r) => doc.getTextWidth(r.id))) + 12);
             const lineH = pdfFontSize * 1.6;
             for (const r of rows) {
               if (r.chapter) y += lineH * 0.5;
+              const ix = textX + r.indent;
               if (y + lineH > maxContentY) y = startNewTitlePage();
               doc.setFont(fontFamily, r.chapter ? 'bold' : 'normal');
               doc.setFontSize(pdfFontSize);
               doc.setTextColor(0, 0, 0);
               const pageStr = String(r.page);
               const pageX = pageWidth - pdfMarginRight - doc.getTextWidth(pageStr);
-              const x1 = r.plain ? textX : textX + idW;
-              if (!r.plain) doc.text(r.id, textX, y);
+              const x1 = r.plain ? ix : ix + idW;
+              if (!r.plain) doc.text(r.id, ix, y);
               // incipit, then the genre in light grey; both cut to what fits before the leader
               let incipit = r.incipit;
               const room = pageX - x1 - 24;
               while (incipit.length > 1 && doc.getTextWidth(incipit) > room) incipit = incipit.slice(0, -1);
               if (incipit !== r.incipit) incipit = incipit.trimEnd() + '…';
-              doc.text(incipit, r.chapter ? textX : x1, y);
+              doc.text(incipit, x1, y);
               if (r.chapter) doc.setFont(fontFamily, 'normal');
               let endX = x1 + doc.getTextWidth(incipit);
               if (r.genre && room - doc.getTextWidth(incipit) > 40) {
@@ -1351,7 +1379,7 @@ export class PdfExportService {
                 doc.text(' .'.repeat(n), pageX - 5 - n * dotStep, y);
                 doc.setTextColor(0, 0, 0);
               }
-              stats.outline.push({ label: [r.id, r.incipit, r.genre].filter(Boolean).join(' | '), page: r.page });
+              stats.outline.push({ label: [r.id, r.incipit, r.genre].filter(Boolean).join(' | '), page: r.page, depth: r.depth });
               y += lineH;
             }
           }
@@ -1426,6 +1454,17 @@ export class PdfExportService {
         }
 
 
+        // PDF bookmarks mirror the hierarchy of the contents (chapter > document)
+        const outlineApi = (doc as any).outline;
+        if (outlineApi?.add && stats.outline.length) {
+          const parents: any[] = [null];
+          for (const o of stats.outline) {
+            const depth = Math.min(Math.max(o.depth, 0), parents.length - 1);
+            const node = outlineApi.add(parents[depth], o.label || '–', { pageNumber: Math.max(1, o.page + titlePageCount) });
+            parents[depth + 1] = node;
+            parents.length = depth + 2;
+          }
+        }
         stats.pages = doc.getNumberOfPages();
         const tSave = performance.now();
         doc.save(opts.fileName || (multi ? 'Documents.pdf' : 'Document_' + (jobs[0].document.dokumenten_id || 'Export') + '.pdf'));
