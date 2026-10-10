@@ -13,8 +13,10 @@ export async function seedWorkspace(page, docs, settings = {}) {
       const tx = db.transaction('monodi_data', 'readwrite');
       tx.objectStore('monodi_data').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error);
     });
-    await put('monodi_sources', [{ id: 'src1', quellensigle: 'Test 1', herkunftsregion: '', herkunftsort: '', herkunftsinstitution: '', ordenstradition: '', quellentyp: '', bibliotheksort: '', bibliothek: '', bibliothekssignatur: '', kommentar: '', datierung: '' }]);
-    await put('monodi_documents', docs.map((d) => ({ id: d.id, quelle_id: 'src1', dokumenten_id: d.label, gattung1: d.genre1 || '', gattung2: d.genre2 || '', festtag: '', feier: '', textinitium: d.incipit || d.label, bibliographischerverweis: '', druckausgabe: d.edition || '', zeilenstart: '', foliostart: '', kommentar: '', editionsstatus: '' })));
+    // one source per distinct `d.source` (default src1 = "Test 1"); `d.sigle` names it
+    const sourceIds = [...new Set(docs.map((d) => d.source || 'src1'))];
+    await put('monodi_sources', sourceIds.map((sid) => ({ id: sid, quellensigle: docs.find((d) => (d.source || 'src1') === sid && d.sigle)?.sigle || (sid === 'src1' ? 'Test 1' : sid), herkunftsregion: '', herkunftsort: '', herkunftsinstitution: '', ordenstradition: '', quellentyp: '', bibliotheksort: '', bibliothek: '', bibliothekssignatur: '', kommentar: '', datierung: '' })));
+    await put('monodi_documents', docs.map((d) => ({ id: d.id, quelle_id: d.source || 'src1', dokumenten_id: d.label, gattung1: d.genre1 || '', gattung2: d.genre2 || '', festtag: '', feier: '', textinitium: d.incipit || d.label, bibliographischerverweis: '', druckausgabe: d.edition || '', zeilenstart: '', foliostart: '', kommentar: '', editionsstatus: '' })));
     for (const d of docs) await put('monodi_notes_doc_' + d.id, d.root);
     await put('monodi_notes_index', docs.map((d) => d.id));
     await put('monodi_notes_migrated_v1', true);

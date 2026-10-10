@@ -68,6 +68,34 @@ await scenario('document view dialog', async (page, problems, pdfText) => {
   if (!/Gratuletur/.test(text)) problems.push('document text missing');
 });
 
+// 1b. two manuscripts: every manuscript is a chapter (heading, numbered documents inside)
+{
+  const twoDocs = [
+    { id: 'doc-1', label: 'Abb 7-12r-1', incipit: 'Gratuletur omnis caro', genre1: 'Antiphon', source: 'srcA', sigle: 'Abb 7', root: load('Abb_7') },
+    { id: 'doc-2', label: 'Aa 13-1r-1', incipit: 'Terribilis est locus iste', genre1: 'Responsorium', source: 'srcB', sigle: 'Aa 13', root: load('x12', 'extreme') },
+    { id: 'doc-3', label: 'Abb 7-13r-1', incipit: 'Kyrie eleison', genre1: 'Ordinarium', source: 'srcA', sigle: 'Abb 7', root: load('x01', 'extreme') },
+    { id: 'doc-4', label: 'Aa 13-1v-1', incipit: 'Gloria in excelsis', genre1: 'Ordinarium', source: 'srcB', sigle: 'Aa 13', root: load('x13', 'extreme') },
+  ];
+  const keep = docs.splice(0, docs.length, ...twoDocs);
+  await scenario('two manuscripts are two chapters', async (page, problems, pdfText) => {
+    await page.goto(BASE + '/#/search', { waitUntil: 'networkidle0' });
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.waitForSelector('app-search', { timeout: 30000 });
+    await page.evaluate(() => { const c = window.ng.getComponent(document.querySelector('app-search')); c.pdfDialog.open({ ids: ['doc-1', 'doc-2', 'doc-3', 'doc-4'], title: 'Two manuscripts' }); window.ng.applyChanges(c); });
+    await page.waitForSelector('app-pdf-export-dialog', { timeout: 10000 });
+    await page.waitForFunction(() => /Aa 13-1v-1/.test(document.querySelector('app-pdf-export-dialog')?.textContent || ''), { timeout: 10000 });
+    const btn = await page.waitForSelector('app-pdf-export-dialog button ::-p-text(Create PDF)');
+    await btn.click();
+    const text = await pdfText();
+    // chapter headings (numbered) in the body and in the contents
+    for (const h of ['1. ', '2. ']) if (!text.includes(h + 'Abb 7') && !text.includes(h + 'Aa 13')) problems.push(`no chapter heading "${h}…"`);
+    // documents of one manuscript stay together: the second manuscript's ids come after the first one's
+    const iAbb = text.lastIndexOf('Abb 7-13r-1'), iAa = text.indexOf('Aa 13-1r-1');
+    if (iAbb < 0 || iAa < 0) problems.push('documents missing');
+  });
+  docs.splice(0, docs.length, ...keep);
+}
+
 // 2. a search result by id: the dialog loads the metadata itself
 await scenario('search result by id', async (page, problems, pdfText) => {
   await page.goto(BASE + '/#/search', { waitUntil: 'networkidle0' });

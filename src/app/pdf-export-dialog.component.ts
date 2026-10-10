@@ -94,14 +94,6 @@ const OPTIONS_KEY = (multi: boolean) => `monodi_pdf_dialog_${multi ? 'multi' : '
                 <option value="a4">A4</option>
               </select>
 
-              <label class="form-label small text-muted mb-1" for="pdfBox">Framed number in the margin</label>
-              <select id="pdfBox" class="form-select form-select-sm mb-3" [(ngModel)]="o.boxLabel" [disabled]="busy" (ngModelChange)="save()">
-                <option value="enumeration">Manuscript – running number (Aa 1, Aa 2 …)</option>
-                <option value="incipit">Manuscript – incipit (Aa Gloriosae)</option>
-                <option value="genre">Genre – manuscript (Sequenz Aa)</option>
-                <option value="none">None</option>
-              </select>
-
               <div class="form-check form-switch mb-1">
                 <input class="form-check-input" type="checkbox" id="oTitle" [(ngModel)]="o.titlePage" [disabled]="busy" (ngModelChange)="save()">
                 <label class="form-check-label fw-medium" for="oTitle">Title page</label>
@@ -117,6 +109,13 @@ const OPTIONS_KEY = (multi: boolean) => `monodi_pdf_dialog_${multi ? 'multi' : '
                 <label class="form-check-label fw-medium" for="oMeta">Metadata</label>
                 <div class="form-text mt-0">{{ multi ? 'A line under each document\\'s heading.' : (o.titlePage ? 'A table on the title page.' : 'A line under the title.') }}</div>
               </div>
+              @if (multi) {
+                <div class="form-check form-switch mb-1 mt-2">
+                  <input class="form-check-input" type="checkbox" id="oBox" [ngModel]="o.boxLabel !== 'none'" (ngModelChange)="o.boxLabel = $event ? 'number' : 'none'; save()" [disabled]="busy">
+                  <label class="form-check-label fw-medium" for="oBox">Framed number</label>
+                  <div class="form-text mt-0">Running number of each document within its manuscript (every manuscript is a chapter).</div>
+                </div>
+              }
               <div class="form-check form-switch mb-1 mt-2">
                 <input class="form-check-input" type="checkbox" id="oApp" [(ngModel)]="o.apparatus" [disabled]="busy" (ngModelChange)="save()">
                 <label class="form-check-label fw-medium" for="oApp">Critical apparatus</label>
@@ -170,7 +169,7 @@ export class PdfExportDialogComponent implements OnInit {
   @Output() closed = new EventEmitter<void>();
 
   entries: Entry[] = [];
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'enumeration' };
+  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'number' };
   fileBase = '';
   busy = false;
   loadingMeta = false;
@@ -227,11 +226,12 @@ export class PdfExportDialogComponent implements OnInit {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'enumeration' }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'enumeration' };
+      ? { titlePage: true, contents: true, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'number' }
+      : { titlePage: false, contents: false, metadata: true, apparatus: true, newPage: false, pageFormat: 'settings', boxLabel: 'number' };
     try {
       const stored = JSON.parse(localStorage.getItem(OPTIONS_KEY(multi)) || 'null');
       if (stored) this.o = { ...this.o, ...stored };
+      if (this.o.boxLabel !== 'none') this.o.boxLabel = 'number';   // older versions stored other labels
     } catch { /* no stored choice */ }
   }
   save(): void {

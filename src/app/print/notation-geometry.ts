@@ -28,6 +28,15 @@ export interface SyllableGeometry {
 export const CLEF_SHIFT = 32;
 const NOTE_GROUP_X = 12;
 
+/** Width of the placeholder box of a syllable without notes (raw units). */
+export const PLACEHOLDER_W = 40;
+
+/** Left edge (raw units) of the placeholder box: centred in the cell, but clear of the clef. */
+export function placeholderLeft(g: { showClef: boolean; widthUnits: number }): number {
+  const from = g.showClef ? CLEF_SHIFT : 0;
+  return from + Math.max(0, (g.widthUnits - from - PLACEHOLDER_W) / 2);
+}
+
 export function syllableGeometry(s: VM.Syllable, opts: { showClef: boolean; adiastematic: boolean }): SyllableGeometry {
   const isNormal = s.syllableType === VM.SyllableType.Normal;
   const showClef = opts.showClef && !opts.adiastematic;

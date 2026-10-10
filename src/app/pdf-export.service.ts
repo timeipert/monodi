@@ -83,9 +83,9 @@ export interface PdfDocJob {
   sigle: string;
 }
 
-/** Content of the framed number before each document: siglum + running number per manuscript,
- *  siglum + first word of the incipit, genre + siglum, or nothing. */
-export type PdfBoxLabel = 'enumeration' | 'incipit' | 'genre' | 'none';
+/** Framed number before each document of a multi-document print: the running number within
+ *  its manuscript (chapter), or nothing. */
+export type PdfBoxLabel = 'number' | 'none';
 
 export interface PdfExportOptions {
   settings: ProjectSettings | null;
@@ -99,7 +99,7 @@ export interface PdfExportOptions {
   contents?: boolean;
   /** Several documents: every document starts on a new page. Default: no — they run on in one flow. */
   newPagePerDocument?: boolean;
-  /** What the framed number in the left margin shows (default: manuscript siglum + running number). */
+  /** The framed running number in the left margin (default: shown). */
   boxLabel?: PdfBoxLabel;
   /** Override of the configured page format ('a4', 'cm' = 21 x 27 cm, ...). */
   pageFormat?: string;
@@ -255,8 +255,13 @@ export class PdfExportService {
     return this.zone.runOutsideAngular(() => this.exportInner(jobs, inZoneOpts));
   }
 
-  private async exportInner(jobs: PdfDocJob[], opts: PdfExportOptions): Promise<PdfExportStats> {
-    if (!jobs.length) throw new Error('Nothing to print');
+  private async exportInner(jobsIn: PdfDocJob[], opts: PdfExportOptions): Promise<PdfExportStats> {
+    if (!jobsIn.length) throw new Error('Nothing to print');
+    // Documents of one manuscript belong together: each manuscript is a chapter (stable by first appearance).
+    const chapterKeyOf = (j: PdfDocJob) => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
+    const keyOrder: string[] = [];
+    for (const j of jobsIn) if (!keyOrder.includes(chapterKeyOf(j))) keyOrder.push(chapterKeyOf(j));
+    const jobs = [...jobsIn].sort((a, b) => keyOrder.indexOf(chapterKeyOf(a)) - keyOrder.indexOf(chapterKeyOf(b)));
     const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
     const t0 = performance.now();
     /** Adds the time `fn` takes to the phase `name` (also for async work). */
@@ -355,20 +360,23 @@ export class PdfExportService {
           return [src.bibliotheksort || src.herkunftsort, src.bibliothek, src.bibliothekssignatur]
             .map((v: any) => (v || '').toString().trim()).filter(Boolean).join(', ');
         };
-        // Framed number in the left margin. The print volume's own number (Band metadata) is
-        // not used; the label is built from the manuscript and the document.
-        const boxMode: PdfBoxLabel = s.pdfShowEditionBox === false ? 'none' : (opts.boxLabel || 'enumeration');
-        const sigleOf = (j: PdfDocJob): string => (j.sigle || (j.source as any)?.quellensigle || '').toString().trim();
-        const perManuscript = new Map<string, number>();
-        const boxTexts: string[] = jobs.map((j) => {
-          const sg = sigleOf(j);
-          const n = (perManuscript.get(sg) || 0) + 1;
-          perManuscript.set(sg, n);
-          if (boxMode === 'enumeration') return [sg, n].filter((v) => v !== '').join(' ');
-          if (boxMode === 'incipit') return [sg, (j.document.textinitium || '').trim().split(/\s+/)[0]].filter(Boolean).join(' ');
-          if (boxMode === 'genre') return [j.document.gattung1 || genreOf(j.document), sg].filter(Boolean).join(' ');
-          return '';
+        // Chapters: every manuscript has its own chapter (heading, running head, contents entry);
+        // inside it the documents are numbered 1, 2, 3 … in the frame before each document.
+        const chapterNo: number[] = [];
+        const chapterFirst: boolean[] = [];
+        const boxTexts: string[] = [];
+        let chapterCount = 0;
+        jobs.forEach((j, ji) => {
+          const first = ji === 0 || chapterKeyOf(j) !== chapterKeyOf(jobs[ji - 1]);
+          if (first) chapterCount++;
+          chapterFirst.push(first);
+          chapterNo.push(chapterCount);
+          const n = first ? 1 : Number(boxTexts[ji - 1] || 0) + 1;
+          boxTexts.push(String(n));
         });
+        // a single document has no running number; the frame is for printed series only
+        const showBox = jobs.length > 1 && s.pdfShowEditionBox !== false && (opts.boxLabel || 'number') !== 'none';
+        const boxTextOf = (ji: number) => (showBox ? boxTexts[ji] : '');
         /** Draws the frame and its text inside the left margin: the text shrinks, then is cut off,
          *  before it could reach the heading. */
         const drawBox = (label: string, baseline: number, fs: number) => {
@@ -394,6 +402,21 @@ export class PdfExportService {
           const siglum = (j.sigle || src.quellensigle || '').toString().trim();
           return [sourceLineOf(j), siglum].filter(Boolean).join(' | ')
             || buildHeadline(j.document, pdfHeadlineMetadataFields, opts.settings) || (j.document.dokumenten_id || '');
+        };
+        /** Chapter heading: the manuscript, large, over a rule — numbered when there are several. */
+        const drawChapterHeading = (ji: number): void => {
+          const fsC = titleFontSize + 3;
+          const text = (chapterCount > 1 ? chapterNo[ji] + '. ' : '') + headOf(ji);
+          doc.setFont(fontFamily, 'normal');
+          doc.setFontSize(fsC);
+          doc.setTextColor(0, 0, 0);
+          const lines: string[] = doc.splitTextToSize(text, printWidth);
+          lines.forEach((l, li) => doc.text(l, pdfMarginLeft, cursorY + fsC + li * fsC * 1.2));
+          const yRule = cursorY + fsC + (lines.length - 1) * fsC * 1.2 + 6;
+          doc.setDrawColor(0, 0, 0);
+          doc.setLineWidth(0.6);
+          doc.line(pdfMarginLeft, yRule, pageWidth - pdfMarginRight, yRule);
+          cursorY = yRule + 22;
         };
         const ownerOf = (page: number): number => {
           if (apparatusSpans.length && page >= apparatusSpans[0].from) {
@@ -450,7 +473,7 @@ export class PdfExportService {
                 doc.setLineWidth(0.4);
                 doc.line(textX, cursorY - fsH - 3, pageWidth - pdfMarginRight, cursorY - fsH - 3);
               }
-              drawBox(boxTexts[ji], cursorY, fsH);
+              drawBox(boxTextOf(ji), cursorY, fsH);
               doc.setFontSize(fsH);
               doc.setTextColor(0, 0, 0);
               if (idText) { doc.setFont(fontFamily, 'bold'); doc.text(idText, textX, cursorY); }
@@ -469,7 +492,7 @@ export class PdfExportService {
             } else {
             // The framed number (see boxMode) stands in the left margin, level
             // with the first title line, as the chant numbers do in the printed edition.
-            drawBox(boxTexts[ji], cursorY, pdfFontSize);
+            drawBox(boxTextOf(ji), cursorY, pdfFontSize);
             doc.setFontSize(titleFontSize);
             for (const line of doc.splitTextToSize(headerText, Math.max(60, pageWidth - pdfMarginRight - textX))) {
               checkPageOverflow(titleLineH);
@@ -984,6 +1007,12 @@ export class PdfExportService {
                 checkPageOverflow(60);
             }
             apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });
+            if (multi && chapterCount > 1 && chapterFirst[ji]) {
+                // the manuscript's chapter in the apparatus too
+                checkPageOverflow(60);
+                cursorY += 8;
+                cursorY = drawHeading((chapterNo[ji] + '. ' + headOf(ji)).replace(/\|/g, '·'), textX, cursorY + 8, textColumnW, 9.5) + 2;
+            }
             if (multi) {
                 // each document gets its own sub-heading: ID, incipit and genre
                 checkPageOverflow(46);
@@ -1181,7 +1210,10 @@ export class PdfExportService {
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
-          if (ji > 0) {
+          if (multi && chapterFirst[ji]) {
+            // a manuscript starts a new page with its chapter heading
+            if (ji > 0) { doc.addPage(); cursorY = pdfMarginTop; }
+          } else if (ji > 0) {
             if (opts.newPagePerDocument) { doc.addPage(); cursorY = pdfMarginTop; }
             else {
               // the next document follows with a gap; heading, metadata and the first system
@@ -1192,6 +1224,7 @@ export class PdfExportService {
           }
           docEntries.push({ job: ji, page: editionPage() });
           docStart.push(doc.getNumberOfPages());
+          if (multi && chapterFirst[ji]) drawChapterHeading(ji);
           await layoutDocument(jobs[ji], ji);
         }
         if (opts.apparatus) {
@@ -1266,10 +1299,13 @@ export class PdfExportService {
           if (multi && opts.contents !== false) {
             // Contents: one row per document — ID, incipit, genre (light grey) — with dot leaders
             // and the page the document starts on; the apparatus is listed after them.
-            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean };
-            const rows: Row[] = docEntries.map((e) => {
+            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean };
+            const rows: Row[] = [];
+            docEntries.forEach((e) => {
               const j = jobs[e.job];
-              return { id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page };
+              // a chapter row (the manuscript) before its documents, when there are several manuscripts
+              if (chapterCount > 1 && chapterFirst[e.job]) rows.push({ id: '', incipit: chapterNo[e.job] + '. ' + headOf(e.job), genre: '', page: e.page, plain: true, chapter: true });
+              rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page });
             });
             if (apparatusStarted) rows.push({ id: '', incipit: 'Critical Apparatus', genre: '', page: apparatusPage, plain: true });
             if (y + 40 > maxContentY) y = startNewTitlePage();
@@ -1279,8 +1315,9 @@ export class PdfExportService {
             const idW = Math.min(130, Math.max(0, ...rows.filter((r) => !r.plain).map((r) => doc.getTextWidth(r.id))) + 16);
             const lineH = pdfFontSize * 1.6;
             for (const r of rows) {
+              if (r.chapter) y += lineH * 0.5;
               if (y + lineH > maxContentY) y = startNewTitlePage();
-              doc.setFont(fontFamily, 'normal');
+              doc.setFont(fontFamily, r.chapter ? 'bold' : 'normal');
               doc.setFontSize(pdfFontSize);
               doc.setTextColor(0, 0, 0);
               const pageStr = String(r.page);
@@ -1292,7 +1329,8 @@ export class PdfExportService {
               const room = pageX - x1 - 24;
               while (incipit.length > 1 && doc.getTextWidth(incipit) > room) incipit = incipit.slice(0, -1);
               if (incipit !== r.incipit) incipit = incipit.trimEnd() + '…';
-              doc.text(incipit, x1, y);
+              doc.text(incipit, r.chapter ? textX : x1, y);
+              if (r.chapter) doc.setFont(fontFamily, 'normal');
               let endX = x1 + doc.getTextWidth(incipit);
               if (r.genre && room - doc.getTextWidth(incipit) > 40) {
                 let g = r.genre;
