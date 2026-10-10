@@ -1,4 +1,4 @@
-import { Comment, Spaced, NonSpaced, Grouped, Note, BaseNote, baseNotes, comparePositions } from '../types/model';
+import { Comment, Spaced, NonSpaced, Grouped, Note, NoteType, BaseNote, baseNotes, comparePositions } from '../types/model';
 import { flatten, maxOf } from '../../utils';
 
 export type Drawable = DNote | DTie | DCommentEnd | DCommentStart | DHelperLine
@@ -173,6 +173,19 @@ export function requiredPadTop(minNoteY: number): number {
   return Math.max(0, Math.ceil(8 - minNoteY));
 }
 
+/** Bottom padding (units) a read-only SVG needs so that a note whose glyph ends at `maxNoteBottom`
+ *  (and its ledger lines) is not cut off; the SVG's own area ends at y = 85. */
+export function requiredPadBottom(maxNoteBottom: number): number {
+  return Math.max(0, Math.ceil(maxNoteBottom + 2 - 85));
+}
+
+/** Lowest glyph bottom (largest y) of a voice, or -Infinity without notes. */
+export function maxNoteBottomOf(sd: Spaced | undefined): number {
+  let m = -Infinity;
+  for (const ns of sd?.spaced || []) for (const g of ns.nonSpaced) for (const n of g.grouped) m = Math.max(m, noteY(n) + (n.noteType === NoteType.Descending ? 43 : 36));
+  return m;
+}
+
 /** Highest (smallest-y) note of a voice, or +Infinity without notes. */
 export function minNoteYOf(sd: Spaced | undefined): number {
   let m = Infinity;
@@ -184,24 +197,12 @@ function fromNote(n: Note, comments: Comment[]): Drawable[] {
   let ret: Drawable[] = [];
   let xOffset = 0;
 
-  if (comparePositions(n.octave, n.base, 4, BaseNote.C) <= 0) {
-    ret.push(new DHelperLine(0, 90, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 3, BaseNote.A) <= 0) {
-    ret.push(new DHelperLine(0, 100, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 3, BaseNote.F) <= 0) {
-    ret.push(new DHelperLine(0, 110, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 5, BaseNote.A) >= 0) {
-    ret.push(new DHelperLine(0, 30, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 6, BaseNote.C) >= 0) {
-    ret.push(new DHelperLine(0, 20, n));
+  // Ledger lines every third step outside the staff: C4, A3, F3, D3, ... below (y = 90, 100, ...)
+  // and A5, C6, E6, ... above (y = 30, 20, ...), however far the note lies from the staff.
+  const step = (n.octave - 4) * 7 + baseNotes.indexOf(n.base); // C4 = 0
+  if (Number.isFinite(step)) {
+    for (let k = 0; step <= -2 * k && k < 40; k++) ret.push(new DHelperLine(0, 90 + 10 * k, n));
+    for (let k = 0; step >= 12 + 2 * k && k < 40; k++) ret.push(new DHelperLine(0, 30 - 10 * k, n));
   }
 
   //ret.push(new DNote(xOffset + 5, 92 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5, n));

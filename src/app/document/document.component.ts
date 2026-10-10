@@ -35,10 +35,9 @@ import { layoutPdfLine } from '../pdf-layout';
 import { G_CLEF_PATH } from '../clef-glyph';
 import { commentLemma, commentStartIndex, commentType } from '../comment-lemma';
 import { metadataFieldLabel, metadataFieldValue, headlineText, inlineMetadataItems } from '../document-metadata';
-import { minNoteYOf, requiredPadTop } from '../notes/Drawables';
+import { maxNoteBottomOf, minNoteYOf, requiredPadBottom, requiredPadTop } from '../notes/Drawables';
 import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { PdfExportService, PdfDocJob } from '../pdf-export.service';
-import { PdfHostLauncher } from '../pdf-render-host.component';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
@@ -57,17 +56,19 @@ export class DocumentComponent implements OnInit {
   private setFirstSyllable(): void {
     const sylls = this.cont ? VM.getSyllables(this.cont) : [];
     this.focusService.firstSyllableUuid = sylls.length > 0 ? sylls[0].uuid : null;
-    let minY = Infinity;
+    let minY = Infinity, maxY = -Infinity;
     for (const sy of sylls) {
-      minY = Math.min(minY, minNoteYOf(sy.notes));
-      for (const extra of (sy as any).additionalMelodies || []) minY = Math.min(minY, minNoteYOf(extra));
+      for (const sd of [sy.notes, ...((sy as any).additionalMelodies || [])]) {
+        minY = Math.min(minY, minNoteYOf(sd));
+        maxY = Math.max(maxY, maxNoteBottomOf(sd));
+      }
     }
     this.focusService.docPadTop = Number.isFinite(minY) ? requiredPadTop(minY) : 0;
+    this.focusService.docPadBottom = Number.isFinite(maxY) ? requiredPadBottom(maxY) : 0;
   }
 
   getCategoryDetails = getCategoryDetails;
   private pdfExport = inject(PdfExportService);
-  private pdfHost = inject(PdfHostLauncher);
   private pdfDialog = inject(PdfDialogLauncher);
   getInterventionLabel = getInterventionLabel;
   getInterventionIcon(key: string): string {
@@ -996,7 +997,6 @@ export class DocumentComponent implements OnInit {
     if (!this.document || !this.cont) return;
     this.isPrinting = true;
     try {
-      this.pdfHost.ensure();
       const job: PdfDocJob = { document: this.document, cont: this.cont, source: this.sourceData, sigle: this.sourceSigle || '' };
       await this.pdfExport.exportDocuments([job], {
         settings: this.settings,

@@ -65,6 +65,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
 
   /** Top padding actually used: the configured one, or more if the document has very high notes. */
   get padTopEff(): number { return Math.max(this.readOnlyPadTop, this.focusService.docPadTop); }
+  get padBottomEff(): number { return Math.max(this.readOnlyPadBottom, this.focusService.docPadBottom); }
 
   /** Colour of all notation graphics (project setting `notationColor`). */
   get color(): string { return this.focusService.notationColor; }

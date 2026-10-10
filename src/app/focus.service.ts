@@ -43,6 +43,8 @@ export class FocusService {
   /** Extra top padding (units) of the read-only SVGs so the document's highest note fits;
    *  one value per document keeps the staves of neighbouring syllables aligned. */
   docPadTop = 0;
+  /** The same at the bottom, for the document's lowest note: keeps the lyrics on one line. */
+  docPadBottom = 0;
 
   /** UUID of the note currently considered "selected" in the document.
    *  Used as a global cross-syllable signal: notes.component instances

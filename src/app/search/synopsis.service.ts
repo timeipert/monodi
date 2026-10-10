@@ -1,5 +1,5 @@
 import { FocusService } from '../focus.service';
-import { minNoteYOf, requiredPadTop } from '../notes/Drawables';
+import { maxNoteBottomOf, minNoteYOf, requiredPadBottom, requiredPadTop } from '../notes/Drawables';
 import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { Injectable, inject } from '@angular/core';
 import { Subject, forkJoin, Subscription } from 'rxjs';
@@ -621,12 +621,15 @@ export class SynopsisService {
 
   runAlignment(rootContainers: VM.RootContainer[]) {
     // One top padding for all witnesses so that their highest note fits and staves stay aligned.
-    let minY = Infinity;
+    let minY = Infinity, maxY = -Infinity;
     for (const r of rootContainers) for (const sy of VM.getSyllables(r)) {
-      minY = Math.min(minY, minNoteYOf(sy.notes));
-      for (const extra of (sy as any).additionalMelodies || []) minY = Math.min(minY, minNoteYOf(extra));
+      for (const sd of [sy.notes, ...((sy as any).additionalMelodies || [])]) {
+        minY = Math.min(minY, minNoteYOf(sd));
+        maxY = Math.max(maxY, maxNoteBottomOf(sd));
+      }
     }
     this.focusSvc.docPadTop = Number.isFinite(minY) ? requiredPadTop(minY) : 0;
+    this.focusSvc.docPadBottom = Number.isFinite(maxY) ? requiredPadBottom(maxY) : 0;
     if (this.alignmentMode === 'signature') {
       this.alignedTree = this.alignBySignature(rootContainers);
     } else if (this.alignmentMode === 'structure') {

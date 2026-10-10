@@ -1,4 +1,4 @@
-import { adiastematicFromSpaceds, DHelperLine, DNote, DTie, fromSpaced, fromSpaceds } from './Drawables';
+import { adiastematicFromSpaceds, DHelperLine, DNote, DTie, fromSpaced, fromSpaceds, maxNoteBottomOf, requiredPadBottom } from './Drawables';
 import { BaseNote, Note, NoteType, Spaced } from '../types/model';
 
 let uid = 0;
@@ -58,6 +58,15 @@ describe('Drawables.fromSpaced', () => {
     expect(lines(BaseNote.F, 3)).toEqual([90, 100, 110]);
     expect(lines(BaseNote.A, 5)).toEqual([30]);
     expect(lines(BaseNote.C, 6)).toEqual([20, 30]);
+  });
+
+  it('keeps adding ledger lines however far a note lies outside the staff', () => {
+    const lines = (b: BaseNote, o: number) => helpers(fromSpaced(sp([[note(b, o)]]), [])).map(h => h.y).sort((a, b2) => a - b2);
+    expect(lines(BaseNote.D, 3)).toEqual([90, 100, 110, 120]);
+    expect(lines(BaseNote.E, 3)).toEqual([90, 100, 110]);
+    expect(lines(BaseNote.B, 2)).toEqual([90, 100, 110, 120, 130]);
+    expect(lines(BaseNote.E, 6)).toEqual([10, 20, 30]);
+    expect(lines(BaseNote.G, 7)).toEqual([-30, -20, -10, 0, 10, 20, 30]);
   });
 
   it('keeps liquescent notes on the same step (shifted +10 to match the shorter glyph)', () => {
@@ -140,5 +149,25 @@ describe('Drawables.adiastematicFromSpaceds', () => {
     const n = notesOf(ds);
     expect(n[2].y).toBe(30);
     expect(n[1].y).toBeLessThan(n[0].y);
+  });
+});
+
+describe('Drawables.requiredPadBottom', () => {
+  it('needs (almost) no padding inside the staff and grows with every step below it', () => {
+    expect(maxNoteBottomOf(undefined)).toBe(-Infinity);
+    expect(requiredPadBottom(maxNoteBottomOf(sp([[note(BaseNote.G, 4)]])))).toBe(0);
+    expect(requiredPadBottom(maxNoteBottomOf(sp([[note(BaseNote.E, 4)]])))).toBe(3);
+    const d3 = requiredPadBottom(maxNoteBottomOf(sp([[note(BaseNote.D, 3)]])));
+    const b2 = requiredPadBottom(maxNoteBottomOf(sp([[note(BaseNote.B, 2)]])));
+    expect(d3).toBeGreaterThan(0);
+    expect(b2 - d3).toBe(10);
+  });
+
+  it('covers the lowest ledger line of the note', () => {
+    for (const [b, o] of [[BaseNote.C, 4], [BaseNote.F, 3], [BaseNote.D, 3], [BaseNote.G, 1]] as [BaseNote, number][]) {
+      const s = sp([[note(b, o)]]);
+      const lowestLedger = Math.max(-Infinity, ...helpers(fromSpaced(s, [])).map(h => h.y));
+      expect(85 + requiredPadBottom(maxNoteBottomOf(s))).toBeGreaterThan(lowestLedger);
+    }
   });
 });

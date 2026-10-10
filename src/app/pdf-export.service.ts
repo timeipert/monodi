@@ -1,20 +1,20 @@
 import { Injectable, NgZone } from '@angular/core';
 import { jsPDF } from 'jspdf';
-import 'svg2pdf.js';
 import * as VM from './types/model';
 import { Document, ProjectSettings, Source } from './api.service';
 import { embeddedFamily, registerEmbeddedFont } from './pdf-font';
 import { PRINT_PDF_DEFAULTS, pdfPageFormat } from './pdf-defaults';
-import { G_CLEF_PATH } from './clef-glyph';
 import { layoutPdfLine } from './pdf-layout';
 import { sanitizeNotationColor } from './notation-color';
-import { sanitizeClefDisplayMode } from './clef-policy';
+import { ClefDisplayMode, sanitizeClefDisplayMode, shouldShowClef } from './clef-policy';
 import { commentLemma, commentStartIndex, commentType } from './comment-lemma';
 import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFieldValue } from './document-metadata';
 import { getCategoryDetails } from './comment/comment-categories';
-import { FocusService } from './focus.service';
-import { minNoteYOf, requiredPadTop } from './notes/Drawables';
-import { GLYPH_PATHS } from './notes/notes.component';
+import { documentBlocks, printedParts } from './print/document-blocks';
+import { SyllableGeometry, syllableGeometry } from './print/notation-geometry';
+import { drawGClef, drawStaff, drawSyllableNotation, RGB } from './print/notation-draw';
+import { Box, TreeKit, layoutCommentTree } from './print/comment-tree-layout';
+import { TextKit, breakLines, drawLines, linesWidth } from './print/rich-text';
 
 /** Internal-unit width of an injected clef (same as NotesComponent.CLEF_WIDTH). */
 const PDF_CLEF_WIDTH = 32;
@@ -44,9 +44,13 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 interface PdfMeasuredPart {
-  part: HTMLElement;
+  /** The model part this entry prints. */
+  lp: VM.LinePart;
+  /** Notation of a syllable (null for markers). */
+  geom: SyllableGeometry | null;
+  /** Raw height of one voice's staff block (further voices are stacked). */
+  voiceStep: number;
   isMarker: boolean;
-  svgs: ArrayLike<SVGElement> | NodeListOf<SVGSVGElement>;
   txt: string;
   secHeight: number;
   finalSecWidth: number;
@@ -113,179 +117,87 @@ export interface PdfExportStats {
   timings: { [phase: string]: number };
 }
 
-/** The hidden DOM in which one document at a time is rendered for measuring and drawing. */
-export interface PdfRenderHost {
-  element: HTMLElement;
-  render(job: PdfDocJob, settings?: ProjectSettings | null): Promise<void>;
-  /** Optional: time per render phase (ms), summed over all renders. */
-  phaseMs?: { [phase: string]: number };
-  /** Empties the host again. */
-  clear(): void;
-}
-
 @Injectable({ providedIn: 'root' })
 export class PdfExportService {
-  private host: PdfRenderHost | null = null;
   lastStats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
 
-  constructor(private focus: FocusService, private zone: NgZone) {}
+  constructor(private zone: NgZone) {}
 
-  registerHost(host: PdfRenderHost | null): void { this.host = host; }
-  get hasHost(): boolean { return !!this.host; }
 
   /**
-   * Replaces the note-head images of an SVG by vector paths with the same outline. The images
-   * are base64 SVG data URIs that svg2pdf would have to decode and render for every single
-   * note; as paths they draw faster, stay sharp at any zoom and make the PDF smaller.
+   * Measures the printed parts of a line straight from the model (no DOM): syllable geometry
+   * from the drawables, lyric widths in the PDF font, marker widths. The vertical numbers keep
+   * the conventions of the edition view (raw top 10, 65 + 10 + bottom padding per voice).
    */
-  private vectorizeNoteHeads(svg: Element, color: string): void {
-    const ns = 'http://www.w3.org/2000/svg';
-    svg.querySelectorAll('image[data-glyph]').forEach((img) => {
-      const d = GLYPH_PATHS[img.getAttribute('data-glyph') || ''] || GLYPH_PATHS['Normal'];
-      const x = parseFloat(img.getAttribute('x') || '0');
-      const y = parseFloat(img.getAttribute('y') || '0');
-      const k = parseFloat(img.getAttribute('width') || '12') / 12; // 12 wide normal, 8 wide liquescent
-      const path = document.createElementNS(ns, 'path');
-      path.setAttribute('d', d);
-      path.setAttribute('fill', color);
-      // the glyph's viewBox starts at x = 24; uniform scale like preserveAspectRatio "meet"
-      path.setAttribute('transform', `translate(${x} ${y}) scale(${k}) translate(-24 0)`);
-      img.replaceWith(path);
-    });
-  }
-
-  /** Measure one `app-notes` / `app-line-change` / `app-folio-change` element for
-   *  the PDF layout. Returns null for parts without a drawable section. */
-  private measurePdfPart(part: HTMLElement, doc: jsPDF, fontFamily: string, pdfFontSize: number,
-                         SCALE: number, extraSyllableSpacing: number, textOffset: number): PdfMeasuredPart | null {
-    const tagName = part.tagName.toLowerCase();
-    if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
-      const isFolio = tagName === 'app-folio-change';
-      // Mirrors the marker drawing: gap, [second tick], gap + 2. The folio label is
-      // set right-aligned at the margin when there is room (see the layout loop), so
-      // it is not part of the width unless it has to stay inline.
-      let width = 3 + 3 + 2;
-      let folioLabel: string | undefined;
-      let labelWidth = 0;
-      if (isFolio) {
-        width += PDF_MARKER_TICK_GAP;
-        // Only the SVG text: the element's textContent repeats the label (note/syllable divs).
-        folioLabel = (part.querySelector('svg text')?.textContent || '').trim() || undefined;
-        if (folioLabel) {
-          doc.setFont(fontFamily, 'normal');
-          doc.setFontSize(pdfFontSize * 0.85);
-          labelWidth = doc.getTextWidth(folioLabel);
-          doc.setFontSize(pdfFontSize);
+  private measureLineParts(zeile: VM.ZeileContainer, c: {
+    doc: jsPDF; fontFamily: string; pdfFontSize: number; SCALE: number; extraSyllableSpacing: number;
+    textOffset: number; clefMode: ClefDisplayMode; firstSyllableUuid: string | null;
+  }): PdfMeasuredPart[] {
+    const { doc, fontFamily, pdfFontSize, SCALE } = c;
+    const adiastematic = zeile.notation === 'adiastematic';
+    const children = zeile.children || [];
+    const out: PdfMeasuredPart[] = [];
+    children.forEach((lp, idx) => {
+      if (lp.kind === 'LineChange' || lp.kind === 'FolioChange') {
+        // gap, [second tick], gap + 2 — the folio label is placed by the layout loop
+        let width = 3 + 3 + 2;
+        let folioLabel: string | undefined;
+        let labelWidth = 0;
+        if (lp.kind === 'FolioChange') {
+          width += PDF_MARKER_TICK_GAP;
+          folioLabel = (lp.text || '').trim() || undefined;
+          if (folioLabel) {
+            doc.setFont(fontFamily, 'normal');
+            doc.setFontSize(pdfFontSize * 0.85);
+            labelWidth = doc.getTextWidth(folioLabel);
+            doc.setFontSize(pdfFontSize);
+          }
         }
+        out.push({ lp, geom: null, voiceStep: 0, isMarker: true, txt: '', secHeight: 0, finalSecWidth: width, width, svgWidth: 0, hasClef: false, folioLabel, labelWidth, lyricShift: 0, lyricWidth: 0 });
+        return;
       }
-      return { part, isMarker: true, svgs: [], txt: '', secHeight: 0, finalSecWidth: width, width, svgWidth: 0, hasClef: false, folioLabel, labelWidth, lyricShift: 0, lyricWidth: 0 };
-    }
+      if (lp.kind !== 'Syllable') return;
+      const showClef = !adiastematic && (lp.uuid === c.firstSyllableUuid || shouldShowClef(c.clefMode, {
+        firstInDocument: false, firstInZeile: idx === 0, afterLineChange: idx > 0 && children[idx - 1].kind === 'LineChange', wrapStart: false,
+      }));
+      const geom = syllableGeometry(lp, { showClef, adiastematic });
+      const voiceHeights = geom.voices.map((_, v) => 65 + 10 + Math.max(16, Math.ceil((geom.lowest[v] || 0) + 2 - 85)));
+      const secHeight = voiceHeights.reduce((a, b) => a + b, 0) * SCALE;
+      const svgWidth = geom.widthUnits * SCALE;
 
-    const sec = part.querySelector('.section') as HTMLElement | null;
-    if (!sec) return null;
-    const svgs = sec.querySelectorAll('svg');
-    const textEl = sec.querySelector('.syllableText:not(.dnone)') as HTMLElement | null;
-
-    let maxRawWidth = 50;
-    let totalRawHeight = 0;
-    let noteShiftUnits = -1; // -1: this part has no note group (boxes, missing notes)
-    for (let v = 0; v < svgs.length; v++) {
-      const s = svgs[v];
-      let w = parseFloat(s.getAttribute('width') || '50');
-
-      // Dynamic width check: inspect note image and slur path coordinates
-      // to ensure we never truncate content if DOM attributes are too small or lag.
-      let maxContentRight = 0;
-      s.querySelectorAll('image').forEach(img => {
-        const x = parseFloat(img.getAttribute('x') || '0');
-        const width = parseFloat(img.getAttribute('width') || '12');
-        if (x + width > maxContentRight) maxContentRight = x + width;
-      });
-      s.querySelectorAll('path').forEach(p => {
-        const right = parseFloat(p.getAttribute('data-right') || '');
-        if (Number.isFinite(right) && right > maxContentRight) maxContentRight = right;
-      });
-      if (maxContentRight > 0) {
-        // The notes group is shifted right by 12 units (44 with a clef) — find that shift.
-        let translateAmt = 12;
-        s.querySelectorAll('g[transform]').forEach((g) => {
-          const match = /^translate\(\s*([0-9.]+)\s*,\s*0\s*\)$/.exec(g.getAttribute('transform') || '');
-          if (match) translateAmt = parseFloat(match[1]);
-        });
-        if (v === 0) noteShiftUnits = translateAmt;
-        const contentWidth = maxContentRight + translateAmt + 8;
-        if (contentWidth > w) w = contentWidth;
-      }
-      if (w > maxRawWidth) maxRawWidth = w;
-      totalRawHeight += (s.getBoundingClientRect().height || 80);
-    }
-    if (svgs.length === 0) totalRawHeight = 80;
-
-    const svgWidth = maxRawWidth * SCALE;
-    const secHeight = totalRawHeight * SCALE;
-
-    let txt = '';
-    let textWidth = 0;
-    if (textEl) {
-      txt = textEl.innerText.trim();
+      let txt = (lp.text || '').trim();
+      let textWidth = 0;
       if (txt && txt !== 'X' && txt !== '...' && txt !== '<...>') {
-        // The printed edition marks a syllable break with an en dash, not a hyphen.
-        txt = txt.replace(/-$/, '\u2013');
+        txt = txt.replace(/-$/, '\u2013');   // the printed edition marks a syllable break with an en dash
         doc.setFontSize(pdfFontSize);
         doc.setFont(fontFamily, 'normal');
         textWidth = doc.getTextWidth(txt);
       } else {
         txt = '';
       }
-    }
-    // The lyric starts at the first note head (print edition), i.e. right of the clef.
-    const lyricShift = noteShiftUnits >= 0 ? Math.max(0, noteShiftUnits - 0.5) * SCALE : 0;
-    const finalSecWidth = Math.max(svgWidth, lyricShift + textWidth + extraSyllableSpacing - 12 * SCALE);
+      // the lyric starts at the first note head (right of the clef)
+      const lyricShift = geom.shiftUnits >= 0 ? Math.max(0, geom.shiftUnits - 0.5) * SCALE : 0;
+      const finalSecWidth = Math.max(svgWidth, lyricShift + textWidth + c.extraSyllableSpacing - 12 * SCALE);
 
-    // How much of the 30 units above the top staff line (y = 40) is actually needed:
-    // note heads/stems, neume brackets and ledger lines above. The rest is trimmed so
-    // systems sit as tight as in print; high notes or brackets keep their room.
-    let trimUnits = 0;
-    let rawTop = 10;
-    if (svgs.length === 1) {
-      let minTop = 40;
-      svgs[0].querySelectorAll('image').forEach((img) => {
-        minTop = Math.min(minTop, parseFloat(img.getAttribute('y') || '40') + 18); // stem top of an ascending note
-      });
-      svgs[0].querySelectorAll('path[data-right]').forEach((p) => {
-        try { minTop = Math.min(minTop, (p as unknown as SVGGraphicsElement).getBBox().y - 1); } catch { /* not rendered */ }
-      });
-      svgs[0].querySelectorAll('rect').forEach((r) => {
-        if (r.getAttribute('width') === '15px' && r.getAttribute('height') === '1px') {
-          minTop = Math.min(minTop, parseFloat(r.getAttribute('y') || '40'));
-        }
-      });
-      // Negative trim = very high notes: the system gets more room than the SVG itself has.
-      const headroom = Math.max(PDF_MIN_HEADROOM_UNITS, 40 - minTop + 3);
-      const rootG = svgs[0].querySelector('g[transform*="translate"]');
-      const mt = /translate\(\s*0\s*,\s*(-?[0-9.]+)\s*\)/.exec(rootG?.getAttribute('transform') || '');
-      if (mt) rawTop = -parseFloat(mt[1]);
-      trimUnits = (40 - rawTop) - headroom;
-    }
-
-    // Ledger lines below the staff (rects 15 wide, 1 high at y = 90/100/110) must not
-    // run into the syllable text: push the text down by what is missing.
-    let lowestLedger = 0;
-    sec.querySelectorAll('rect').forEach((r) => {
-      if (r.getAttribute('width') === '15px' && r.getAttribute('height') === '1px') {
-        lowestLedger = Math.max(lowestLedger, parseFloat(r.getAttribute('y') || '0') + 0.5);
+      // room above the top staff line that is actually needed (negative trim = very high notes)
+      let trimUnits = 0;
+      if (geom.voices.length === 1) {
+        const headroom = Math.max(PDF_MIN_HEADROOM_UNITS, 40 - geom.minTop + 3);
+        trimUnits = 30 - headroom;
       }
+      // ledger lines below the staff must not run into the lyric
+      let belowExtra = 0;
+      if (geom.lowestLedger > 80) {
+        const clearTop = SCALE * (geom.lowestLedger - 10 + 5);
+        const textTop = secHeight + c.textOffset - pdfFontSize * 0.7;
+        belowExtra = Math.max(0, clearTop - textTop);
+      }
+      out.push({
+        lp, geom, voiceStep: voiceHeights[0] || 91, isMarker: false, txt, secHeight, finalSecWidth, width: finalSecWidth, svgWidth,
+        hasClef: geom.showClef, belowExtra, trimUnits, rawTop: 10, lyricShift, lyricWidth: textWidth,
+      });
     });
-    let belowExtra = 0;
-    if (lowestLedger > 80) {
-      const clearTop = SCALE * (lowestLedger - rawTop + 5);       // ledger line + note head, from svg top
-      const textTop = secHeight + textOffset - pdfFontSize * 0.7; // cap height of the lyric
-      belowExtra = Math.max(0, clearTop - textTop);
-    }
-    return {
-      part, isMarker: false, svgs, txt, secHeight, finalSecWidth, width: finalSecWidth, svgWidth,
-      hasClef: !!sec.querySelector('.auto-clef'), belowExtra, trimUnits, rawTop, lyricShift, lyricWidth: textWidth,
-    };
+    return out;
   }
 
   /** Splits a small-caps lyric into runs of equal size (first letter full size, the rest small). */
@@ -323,41 +235,6 @@ export class PdfExportService {
     doc.setFontSize(fs);
   }
 
-  /** Staff + G-clef segment for a wrapped system (clef setting "every line break").
-   *  Built as an SVG with the same geometry as the note SVGs and drawn through svg2pdf,
-   *  so it matches the clef of the first system exactly. */
-  private async drawPdfStaffClef(doc: jsPDF, x: number, top: number, width: number, SCALE: number, color: string, rawTop = 10): Promise<void> {
-    const units = width / SCALE;
-    const H = 101 - rawTop; // staff + clef plus the usual 21 units below the bottom line (91 in the standard layout)
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('width', String(units));
-    svg.setAttribute('height', String(H));
-    svg.setAttribute('viewBox', `0 0 ${units} ${H}`);
-    svg.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden';
-    const g = document.createElementNS(ns, 'g');
-    g.setAttribute('transform', `translate(0, ${-rawTop})`);
-    for (let ly = 40; ly <= 80; ly += 10) {
-      const line = document.createElementNS(ns, 'line');
-      line.setAttribute('x1', '0'); line.setAttribute('x2', String(units));
-      line.setAttribute('y1', String(ly)); line.setAttribute('y2', String(ly));
-      line.setAttribute('stroke', color);
-      g.appendChild(line);
-    }
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', G_CLEF_PATH);
-    path.setAttribute('fill', color);
-    g.appendChild(path);
-    svg.appendChild(g);
-    document.body.appendChild(svg);
-    try {
-      await doc.svg(svg, { x, y: top, width, height: H * SCALE });
-    } finally {
-      svg.remove();
-    }
-  }
-
-
   /**
    * Typesets one or several documents into one PDF like the printed edition. One document:
    * optional title page with metadata, then the edition and its apparatus. Several documents:
@@ -373,12 +250,9 @@ export class PdfExportService {
   }
 
   private async exportInner(jobs: PdfDocJob[], opts: PdfExportOptions): Promise<PdfExportStats> {
-    if (!this.host) throw new Error('PDF render host is not available');
     if (!jobs.length) throw new Error('Nothing to print');
-    const hostEl = this.host.element;
     const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, outline: [], timings: {} };
     const t0 = performance.now();
-    if (this.host.phaseMs) this.host.phaseMs = {};
     /** Adds the time `fn` takes to the phase `name` (also for async work). */
     const timed = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
       const a = performance.now();
@@ -391,8 +265,6 @@ export class PdfExportService {
     this.lastStats = stats;
     const multi = jobs.length > 1;
 
-    // The renderer reads these from the focus service; remember them for the editor behind us.
-    const saved = { clef: this.focus.clefDisplayMode, color: this.focus.notationColor, first: this.focus.firstSyllableUuid, pad: this.focus.docPadTop };
     try {
         const s: any = { ...(opts.settings || {}), ...(opts.pageFormat ? { pdfFormat: opts.pageFormat, pdfOrientation: 'portrait' } : {}) };
         const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait'), compress: true });
@@ -454,8 +326,7 @@ export class PdfExportService {
         };
 
 
-        this.focus.clefDisplayMode = sanitizeClefDisplayMode(s.clefDisplayMode);
-        this.focus.notationColor = sanitizeNotationColor(s.notationColor);
+        const clefMode: ClefDisplayMode = sanitizeClefDisplayMode(s.clefDisplayMode);
         const useTitlePage = opts.titlePage;
         let titlePageCount = 0;
         if (useTitlePage) {
@@ -643,8 +514,9 @@ export class PdfExportService {
                doc.line(endX - foot, bY, endX, bY);
             };
         
-            // Grab all app-containers in document order, only from the main document area
-            const containers = hostEl.querySelectorAll('app-root-section .app-container');
+            // The document in print order, straight from the model
+            const blocks = documentBlocks(job.cont);
+            const firstSyllableUuid = VM.getSyllables(job.cont)[0]?.uuid ?? null;
         
             // Track active comments for drawing brackets
             const activeBrackets: { [key: string]: { startX: number, startLineY: number, label: string } } = {};
@@ -666,56 +538,22 @@ export class PdfExportService {
             let paratextPending = false; // no staff drawn since the last paratext (structure rows in between don't count)
             let lastParatextPage = 0;
 
-            for (let i = 0; i < containers.length; i++) {
-              const container = containers[i] as HTMLElement;
-          
-              // Calculate indentation based on left padding/margin of parent .child elements
-              let paddingLeft = 0;
-              let currentElement: HTMLElement | null = container;
-              while (currentElement) {
-                  if (currentElement.classList && currentElement.classList.contains('child')) {
-                      paddingLeft += 20;
-                  }
-                  currentElement = currentElement.parentElement;
-              }
-          
-              // structural text xOffset
-              const xOffset = pdfMarginLeft + paddingLeft;
-
-              // Only look inside the immediate content-row, not inside nested .children
-              const firstDiv = container.children[0];
-              if (!firstDiv) continue;
-          
-              const contentRow = firstDiv.querySelector('.content-row') as HTMLElement;
-              if (!contentRow) continue;
-          
-              // 1. Check for Signatur
-              const formteilDivs = contentRow.querySelectorAll('.formteil-line > div');
-              let rowSignature = '';
-              for (let k = 0; k < formteilDivs.length; k++) {
-                 const fDiv = formteilDivs[k] as HTMLElement;
-                 if (fDiv.innerText && fDiv.innerText.indexOf("Signatur") !== -1) {
-                     const input = fDiv.querySelector('input');
-                     if (input && input.value.trim()) {
-                         currentSignatures.push(input.value.trim());
-                         rowSignature = input.value.trim();
-                     }
-                 }
-              }
-
-              // Add vertical space ONLY if this is a FormteilContainer (level section)
-              if (contentRow.classList.contains('formteil-section')) {
+            for (let i = 0; i < blocks.length; i++) {
+              const block = blocks[i];
+              if (block.kind === 'formteil') {
+                // a section: its signature goes in front of its first line; space before it
+                if (block.signature) currentSignatures.push(block.signature);
                 if (!wasLastElementParatext) {
                   checkPageOverflow(pdfVerticalSpace);
                   cursorY += pdfVerticalSpace;
                 }
                 wasLastElementParatext = false;
+                continue;
               }
+              const zeile = block.kind === 'zeile' ? block.zeile : null;
+              const parts = zeile ? printedParts(zeile) : [];
           
-              // Check if this row is a Zeile (contains musical notes)
-              const parts = contentRow.querySelectorAll('app-notes, app-line-change, app-folio-change');
-          
-              if (parts.length > 0) {
+              if (zeile && parts.length > 0) {
                 const afterParatext = paratextPending;
                 paratextPending = false;
                 wasLastElementParatext = false;
@@ -732,8 +570,9 @@ export class PdfExportService {
             
                 // Pass 1: measure every part, then let the pure layout decide systems,
                 // indents and clefs (see pdf-layout.ts).
-                const entries = timedSync('measure', () => Array.from(parts).map((pt) => this.measurePdfPart(pt as HTMLElement, doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, pdfSyllableTextOffset)));
-                const measured = entries.filter((e): e is PdfMeasuredPart => e !== null);
+                const measured = timedSync('measure', () => this.measureLineParts(zeile, {
+                  doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, textOffset: pdfSyllableTextOffset, clefMode, firstSyllableUuid,
+                }));
                 // All-caps syllables ("SA– LUS") are set in small capitals; the first letter of a
                 // word stays full size, the continuation of a hyphenated word is all small.
                 let prevLyric = '';
@@ -752,7 +591,7 @@ export class PdfExportService {
                   continuationIndent: pdfContinuationIndent,
                   clefWidth: PDF_CLEF_WIDTH * SCALE,
                   // adiastematic lines have no staff, hence no clef either
-                  clefMode: Array.from(parts).some((pt) => pt.querySelector('line')) ? this.focus.clefDisplayMode : 'document-start' as const,
+                  clefMode: zeile.notation === 'adiastematic' ? 'document-start' as const : clefMode,
                 };
                 // Folio labels go right-aligned to the margin. A label whose system leaves
                 // no room for it stays inline (and reserves its width); re-layout until stable.
@@ -805,6 +644,22 @@ export class PdfExportService {
                   cursorY = pdfMarginTop;
                   lineStartY = cursorY;
                 }
+                // The staff is drawn once per system (and per voice), not per syllable.
+                const adiastematicLine = zeile.notation === 'adiastematic';
+                const sysVoices = layout.systems.map((sys) => {
+                  let v = 1, step = 91;
+                  for (let k = sys.first; k <= sys.last; k++) { const g = measured[k].geom; if (g && g.voices.length > v) { v = g.voices.length; step = measured[k].voiceStep; } }
+                  return { v, step };
+                });
+                let staffDrawn = -1;
+                const ensureStaff = (si: number) => {
+                  if (staffDrawn === si) return;
+                  staffDrawn = si;
+                  if (adiastematicLine) return;
+                  const sys = layout.systems[si];
+                  const top = cursorY - (sysTrims[si] || 0) + (40 - sysRawTops[si]) * SCALE;
+                  for (let v = 0; v < sysVoices[si].v; v++) drawStaff(doc, sys.startX, sys.endX, top + v * sysVoices[si].step * SCALE, SCALE, notationColor);
+                };
                 let curSystem = 0;
                 stats.systems += layout.systems.length;
                 stats.clefs += measured.filter((m) => m.hasClef).length + layout.placed.filter((pl) => pl.injectClef).length;
@@ -813,27 +668,17 @@ export class PdfExportService {
                   const m = measured[j];
                   const pl = layout.placed[j];
                   const trim = sysTrims[pl.system] || 0;
-                  const part = m.part;
-                  const tagName = part.tagName.toLowerCase();
+                  const lpKind = m.lp.kind;
               
-                  if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
+                  if (lpKind === 'LineChange' || lpKind === 'FolioChange') {
                     // Manuscript line/folio breaks: a short vertical tick (or two, for a
                     // folio change) hanging just below the staff — matching the on-screen
                     // look. They must NOT wrap the PDF line; only ZeileContainer boundaries
                     // start a new staff line.
-                    const isFolio = tagName === 'app-folio-change';
+                    const isFolio = lpKind === 'FolioChange';
                     const gap = 3;
                     cursorX = pl.x;
-                    // Keep the staff running through the marker (the printed edition's
-                    // system is continuous); adiastematic lines have no staff.
-                    if (part.querySelector('line')) {
-                      doc.setDrawColor(notationColor[0], notationColor[1], notationColor[2]);
-                      doc.setLineWidth(0.4);
-                      for (let ly = 40; ly <= 80; ly += 10) {
-                        const y = cursorY - trim + (ly - sysRawTops[pl.system]) * SCALE;
-                        doc.line(cursorX, y, cursorX + m.width, y);
-                      }
-                    }
+                    ensureStaff(pl.system);   // the staff runs through the marker
                     const mx = cursorX + gap;
                     const h = sysHeights[pl.system] || lineMaxHeight || 24;
                     // Like the printed edition: a thin stroke set in the lyric row
@@ -866,11 +711,11 @@ export class PdfExportService {
                     continue;
                   }
               
-                  const { svgs, txt, secHeight, finalSecWidth } = m;
+                  const { txt, secHeight, finalSecWidth } = m;
                   if (txt) lineHasLyrics = true;
 
 
-                  const partUuid = part.getAttribute('data-uuid');
+                  const partUuid = m.lp.uuid;
                   const partUuids = partUuid ? (uuidMap[partUuid] || [partUuid]) : [];
               
                   // 1. Check if any comments start here
@@ -932,39 +777,22 @@ export class PdfExportService {
                   }
               
                   lineMaxHeight = Math.max(lineMaxHeight, sysHeights[pl.system] || secHeight);
+                  ensureStaff(pl.system);
                   if (pl.injectClef) {
-                    await this.drawPdfStaffClef(doc, pl.clefX, cursorY - trim, PDF_CLEF_WIDTH * SCALE, SCALE, sanitizeNotationColor(s.notationColor), sysRawTops[pl.system]);
+                    drawGClef(doc, pl.clefX, cursorY - trim + (40 - sysRawTops[pl.system]) * SCALE, SCALE, notationColor);
                   }
                   cursorX = pl.x;
               
-                  // Draw SVGs
-                  if (svgs.length > 0) {
-                    // High notes need more room than the SVG has: widen its view upwards (the
-                    // SVG would clip them) and start the drawing that much higher.
-                    const topExtra = trim < 0 ? -trim / SCALE : 0;
-                    let currentSvgY = cursorY - trim - topExtra * SCALE;
-                    for (let v = 0; v < svgs.length; v++) {
-                      const svg = svgs[v];
-                      const rawHeight = svg.getBoundingClientRect().height || 80;
-                      const extra = v === 0 ? topExtra : 0;
-                      const svgSecHeight = (rawHeight + extra) * SCALE;
-                      const originalViewBox = svg.getAttribute('viewBox');
-                      if (!originalViewBox) {
-                        const finalRawWidth = finalSecWidth / SCALE;
-                        svg.setAttribute('viewBox', `0 ${-extra} ${finalRawWidth} ${rawHeight + extra}`);
-                      }
-                  
-                      this.vectorizeNoteHeads(svg, this.focus.notationColor);
-                  await timed('svg', () => doc.svg(svg, { x: cursorX, y: currentSvgY, width: finalSecWidth, height: svgSecHeight }));
-                      currentSvgY += svgSecHeight;
-                  
-                      if (!originalViewBox) {
-                        svg.removeAttribute('viewBox');
-                      }
-                    }
+                  // Notes, brackets, ledger lines and the clef, drawn directly from the geometry
+                  if (m.geom) {
+                    const g = m.geom;
+                    timedSync('draw', () => {
+                      drawSyllableNotation(doc, g, { cellX: cursorX, rawTopY: cursorY - trim, rawTop: sysRawTops[pl.system], S: SCALE, voiceStep: m.voiceStep }, notationColor);
+                      if (g.showClef) drawGClef(doc, cursorX, cursorY - trim + (40 - sysRawTops[pl.system]) * SCALE, SCALE, notationColor);
+                    });
                   }
               
-                  // Draw Syllable Text below the SVG
+                  // Draw Syllable Text below the notes
                   if (txt) {
                     this.drawLyric(doc, fontFamily, txt, cursorX + m.lyricShift, cursorY + lineMaxHeight + pdfSyllableTextOffset, pdfFontSize, m.smallCaps);
                   }
@@ -1008,17 +836,9 @@ export class PdfExportService {
                 cursorY = lineBottomY + pdfStaffSpacing;
                 checkPageOverflow(0);
             
-              } else {
-                // Normal Text / Paratext
-                const contentDiv = contentRow.querySelector('.after-dragger > div:not(.type-identifier)');
-                const textEl = contentDiv ? contentDiv.querySelector('textarea, span') : null;
-            
-                let txt = "";
-                if (textEl && textEl.tagName.toLowerCase() === 'textarea') {
-                  txt = (textEl as HTMLTextAreaElement).value.trim();
-                } else if (textEl) {
-                   txt = (textEl as HTMLElement).innerText.trim();
-                }
+              } else if (block.kind === 'paratext') {
+                // Rubric / paratext
+                const txt = block.text;
             
                 if (txt) {
                   doc.setFontSize(pdfParatextFontSize);
@@ -1028,11 +848,10 @@ export class PdfExportService {
                   // Keep with next: a rubric (or a run of rubrics) must not be left alone at the
                   // bottom of a page — the first system that follows has to fit with it.
                   let followNeed = 0;
-                  for (let k = i + 1; k < Math.min(containers.length, i + 8); k++) {
-                    const row = (containers[k] as HTMLElement).children[0]?.querySelector('.content-row') as HTMLElement | null;
-                    if (!row) continue;
-                    if (row.querySelector('app-notes')) { followNeed += 55; break; }
-                    if (row.classList.contains('formteil-section')) continue;
+                  for (let k = i + 1; k < Math.min(blocks.length, i + 8); k++) {
+                    const nb = blocks[k];
+                    if (nb.kind === 'zeile') { if (printedParts(nb.zeile).length) { followNeed += 55; break; } continue; }
+                    if (nb.kind === 'formteil') continue;
                     followNeed += pdfParatextFontSize * 1.4 + pdfParatextSpacing; // another rubric in between
                   }
                   const ownNeed = splitText.length * pdfParatextFontSize * 1.4 + pdfParatextSpacing;
@@ -1055,13 +874,74 @@ export class PdfExportService {
         };
 
         // ── Critical apparatus of one document ──────────────────────────────────────────────
-        const drawApparatusFor = async (job: PdfDocJob, ji: number, hasDom: boolean) => {
+        // ── Lines of notes outside the edition (comment trees, line comments) ──────────────
+        // Drawn at the apparatus scale in one or more rows; `context` notes in grey.
+        const inlineZeileBox = (zeile: VM.ZeileContainer, context: boolean, maxW: number): Box => {
+          const Sc = pdfCommentStaffScale;
+          const fs = pdfCommentFontSize;
+          const adia = zeile.notation === 'adiastematic';
+          type Item = { kind: 's'; g: SyllableGeometry; txt: string; w: number; shift: number } | { kind: 'm'; w: number; folio: boolean };
+          const items: Item[] = printedParts(zeile).map((lp): Item => {
+            if (lp.kind !== 'Syllable') return { kind: 'm', w: 7, folio: lp.kind === 'FolioChange' };
+            const g = syllableGeometry(lp, { showClef: false, adiastematic: adia });
+            let txt = (lp.text || '').trim();
+            if (txt === 'X' || txt === '...' || txt === '<...>') txt = '';
+            txt = txt.replace(/-$/, '\u2013');
+            doc.setFont(fontFamily, 'normal');
+            doc.setFontSize(fs);
+            const tw = txt ? doc.getTextWidth(txt) : 0;
+            const shift = g.shiftUnits >= 0 ? Math.max(0, g.shiftUnits - 0.5) * Sc : 0;
+            return { kind: 's', g, txt, w: Math.max(g.widthUnits * Sc, shift + tw + 4), shift };
+          });
+          let minTop = 40, low = 80;
+          for (const it of items) if (it.kind === 's') { minTop = Math.min(minTop, it.g.minTop); low = Math.max(low, ...it.g.lowest); }
+          const head = Math.max(6, 40 - minTop + 3);
+          const below = Math.max(14, low + 2 - 80);
+          const hasText = items.some((it) => it.kind === 's' && !!it.txt);
+          const rowH = (head + 40 + below) * Sc + (hasText ? fs * 1.3 : 0);
+          const rows: Item[][] = [[]];
+          let x = 0;
+          for (const it of items) {
+            if (x + it.w > maxW && rows[rows.length - 1].length) { rows.push([]); x = 0; }
+            rows[rows.length - 1].push(it);
+            x += it.w;
+          }
+          const rowW = (r: Item[]) => r.reduce((acc, it) => acc + it.w, 0);
+          const color: RGB = context ? [165, 165, 165] : notationColor;
+          return {
+            w: Math.max(0, ...rows.map(rowW)), h: rows.length * rowH + (rows.length - 1) * 4,
+            draw: (ox, oy) => rows.forEach((r, ri) => {
+              const staffTop = oy + ri * (rowH + 4) + head * Sc;
+              if (!adia && r.length) drawStaff(doc, ox, ox + rowW(r), staffTop, Sc, color);
+              let cx = ox;
+              for (const it of r) {
+                if (it.kind === 's') {
+                  drawSyllableNotation(doc, it.g, { cellX: cx, rawTopY: staffTop, rawTop: 40, S: Sc, voiceStep: 91 }, color);
+                  if (it.txt) {
+                    doc.setFont(fontFamily, 'normal');
+                    doc.setFontSize(fs);
+                    if (context) doc.setTextColor(150, 150, 150); else doc.setTextColor(0, 0, 0);
+                    doc.text(it.txt, cx + it.shift, staffTop + (40 + below) * Sc + fs * 0.9);
+                    doc.setTextColor(0, 0, 0);
+                  }
+                } else {
+                  const t = staffTop + (40 + below) * Sc;
+                  doc.setDrawColor(color[0], color[1], color[2]);
+                  doc.setLineWidth(0.4);
+                  doc.line(cx + 3, t, cx + 3, t + fs);
+                  if (it.folio) doc.line(cx + 5, t, cx + 5, t + fs);
+                }
+                cx += it.w;
+              }
+            }),
+          };
+        };
+
+        // ── Critical apparatus of one document ──────────────────────────────────────────────
+        const drawApparatusFor = async (job: PdfDocJob, ji: number) => {
           const jobParts = VM.getAllLineParts(job.cont);
-        // Critical apparatus: one entry per comment in text order, each cited by the text its
-        // grey corner marks frame ("lemma] comment"), as in the printed edition.
-        const commentsArea = (hasDom ? hostEl.querySelector('#pdf-comments-render-area') : hostEl) as HTMLElement | null;
-        const hasComments = (job.cont.comments && job.cont.comments.length > 0) || job.cont.globalComment;
-        if (commentsArea && hasComments) {
+          const hasComments = (job.cont.comments && job.cont.comments.length > 0) || job.cont.globalComment;
+          if (!hasComments) return;
             if (!apparatusStarted) {
                 // the apparatus starts on a page of its own, after all editions
                 doc.addPage();
@@ -1097,149 +977,37 @@ export class PdfExportService {
                 cursorY += pdfCommentFontSize * 1.9 + 3;
             }
 
-            // Entries whose content is a tree or a set of lines are rendered from the DOM.
-            const drawDomBlock = async (block: HTMLElement) => {
-            const blockRect = block.getBoundingClientRect();
-            const blockWidth = blockRect.width > 0 ? blockRect.width : 1000;
-            const maxScale = pdfCommentStaffScale;
-            const SCALE_C = Math.min(maxScale, (pageWidth - textX - pdfMarginRight) / blockWidth);
-            
-            const bHeight = blockRect.height * SCALE_C;
-            if (cursorY + bHeight > maxContentY) {
-                doc.addPage();
-                cursorY = pdfMarginTop;
-            }
-
-            // Draw each element relative to the block
-            const elementsToDraw = block.querySelectorAll('textarea, svg, .bracket, h4, span.text, .syllableText:not(.dnone), .app-index, .app-category, .app-witness-siglum');
-            for (let j = 0; j < elementsToDraw.length; j++) {
-                const el = elementsToDraw[j] as HTMLElement;
-                const elRect = el.getBoundingClientRect();
-                
-                const relX = elRect.left - blockRect.left;
-                const relY = elRect.top - blockRect.top;
-                
-                const sRelX = relX * SCALE_C;
-                const sRelY = relY * SCALE_C;
-                const drawX = textX + sRelX;
-                const drawY = cursorY + sRelY;
-                
-                if (el.tagName.toLowerCase() === 'svg') {
-                    const rawWidth = parseFloat(el.getAttribute('width') || elRect.width.toString() || '50');
-                    const rawHeight = elRect.height > 0 ? elRect.height : 100;
-                    const svgWidth = rawWidth * SCALE_C;
-                    const svgHeight = rawHeight * SCALE_C;
-                    const originalViewBox = el.getAttribute('viewBox');
-                    if (!originalViewBox) {
-                        el.setAttribute('viewBox', `0 0 ${rawWidth} ${rawHeight}`);
-                    }
-                    await timed('apparatusSvg', () => doc.svg(el as unknown as SVGElement, { x: drawX, y: drawY, width: svgWidth, height: svgHeight }));
-                    if (!originalViewBox) {
-                        el.removeAttribute('viewBox');
-                    }
-                } 
-                else if (el.classList.contains('syllableText')) {
-                    const val = el.innerText.trim();
-                    if (val && val !== "X" && val !== "..." && val !== "<...>") {
-                        doc.setFontSize(pdfCommentFontSize);
-                        doc.setFont(fontFamily, "normal");
-                        doc.text(val, drawX, drawY + pdfCommentFontSize);
-                    }
-                }
-                else if (el.tagName.toLowerCase() === 'span' && el.classList.contains('app-index')) {
-                    // the lemma of tree/lines entries, set like the one of text entries (roman)
-                    doc.setFontSize(pdfCommentFontSize);
-                    doc.setFont(fontFamily, 'normal');
-                    doc.setTextColor(0, 0, 0);
-                    doc.text(el.innerText.trim(), drawX, drawY + pdfCommentFontSize);
-                }
-                else if (el.tagName.toLowerCase() === 'textarea' || el.tagName.toLowerCase() === 'span') {
-                    let val = "";
-                    if (el.tagName.toLowerCase() === 'textarea') {
-                        val = (el as HTMLTextAreaElement).value.trim();
-                    } else {
-                        val = el.innerText.trim();
-                    }
-                    if (val) {
-                        const commentLineHeight = pdfCommentFontSize * 1.4;
-                        const rightBoundary = pageWidth - pdfMarginRight;
-                        let curX = drawX;
-                        let textY = drawY + pdfCommentFontSize + 2;
-                        const tokens = val.split(/(\(\(.*?\)\)|\{\{.*?\}\}|\[\[.*?\]\])/g);
-                        
-                        // Word-wrap helper: splits text into words and wraps at rightBoundary
-                        const wrapAndDraw = (text: string, fontStyle: string, fontSize: number, isBoxed: boolean) => {
-                          doc.setFontSize(fontSize);
-                          doc.setFont(fontFamily, fontStyle);
-                          // Split on whitespace, keeping the spaces as tokens
-                          const words = text.split(/(\s+)/);
-                          for (const word of words) {
-                            if (!word) continue;
-                            const wordWidth = doc.getTextWidth(word);
-                            // Wrap if the word would overflow (but only if we've advanced past the left margin)
-                            if (curX + wordWidth > rightBoundary && curX > drawX + 1) {
-                              curX = drawX;
-                              textY += commentLineHeight;
-                            }
-                            doc.text(word, curX, textY);
-                            if (isBoxed) {
-                              doc.setLineWidth(0.2);
-                              doc.rect(curX - 1, textY - fontSize, wordWidth + 2, fontSize + 2);
-                            }
-                            curX += wordWidth;
-                          }
-                        };
-                        
-                        for (const token of tokens) {
-                            if (!token) continue;
-                            if (token.startsWith('((')) {
-                                const t = token.replace(/\(\(|\)\)/g, '');
-                                wrapAndDraw(t, 'normal', pdfCommentFontSize, false);
-                            } else if (token.startsWith('[[')) {
-                                const t = token.replace(/\[\[|\]\]/g, '').toUpperCase();
-                                wrapAndDraw(t, 'bold', pdfCommentFontSize - 1, false);
-                            } else if (token.startsWith('{{')) {
-                                const t = token.replace(/\{\{|\}\}/g, '');
-                                wrapAndDraw(t, 'normal', pdfCommentFontSize, true);
-                            } else {
-                                wrapAndDraw(token, 'italic', pdfCommentFontSize, false);
-                            }
-                        }
-                    }
-                }
-                else if (el.tagName.toLowerCase() === 'h4' || el.classList.contains('app-index')) {
-                    const val = el.innerText.trim();
-                    // sub-headings ("Global comment"): small, uppercase, letter-spaced, grey
-                    doc.setFontSize(pdfCommentFontSize - 0.5);
-                    doc.setFont(fontFamily, 'normal');
-                    doc.setTextColor(PDF_KEY_GREY - 40, PDF_KEY_GREY - 40, PDF_KEY_GREY - 40);
-                    doc.text(val.toUpperCase(), drawX, drawY + pdfCommentFontSize, { charSpace: 0.7 });
-                    doc.setTextColor(0, 0, 0);
-                }
-                else if (el.classList.contains('app-category')) {
-                    const val = el.innerText.trim();
-                    doc.setFontSize(pdfCommentTitleFontSizeActual);
-                    doc.setFont(fontFamily, "italic");
-                    doc.text(val, drawX, drawY + pdfCommentTitleFontSizeActual);
-                }
-                else if (el.classList.contains('app-witness-siglum')) {
-                    const val = el.innerText.trim();
-                    doc.setFontSize(pdfCommentFontSize);
-                    doc.setFont(fontFamily, "bold");
-                    doc.text(val, drawX, drawY + pdfCommentFontSize);
-                }
-                else if (el.classList.contains('bracket')) {
-                    const bWidth = elRect.width * SCALE_C;
-                    const bHeight = elRect.height * SCALE_C;
-                    doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
-                    doc.setLineWidth(PDF_CORNER_WIDTH);
-                    doc.line(drawX, drawY, drawX + bWidth, drawY); // top
-                    doc.line(drawX + bWidth, drawY, drawX + bWidth, drawY + bHeight); // right
-                    doc.line(drawX + bWidth, drawY + bHeight, drawX, drawY + bHeight); // bottom
-                }
-            }
-            
-            cursorY += bHeight + pdfCommentBlockGap;
+            // Text measuring/drawing and the comment-tree layout, all straight from the model.
+            const textKit: TextKit = {
+              width: (t, st, size) => { doc.setFont(fontFamily, st); doc.setFontSize(size); return doc.getTextWidth(t); },
+              draw: (t, x, y, st, size, grey) => {
+                doc.setFont(fontFamily, st);
+                doc.setFontSize(size);
+                if (grey) doc.setTextColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY); else doc.setTextColor(0, 0, 0);
+                doc.text(t, x, y);
+              },
+              rect: (x, y, w, h) => { doc.setLineWidth(0.2); doc.setDrawColor(0, 0, 0); doc.rect(x, y, w, h); },
+            };
+            const treeKit: TreeKit = {
+              ...textKit,
+              fs: pdfCommentFontSize,
+              lineH: pdfCommentFontSize * 1.38,
+              maxCellW: textColumnW * 0.6,
+              gapX: 9,
+              gapY: 5,
+              bracket: (x, y, h) => {
+                doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
+                doc.setLineWidth(PDF_CORNER_WIDTH);
+                doc.line(x, y, x + 3, y);
+                doc.line(x + 3, y, x + 3, y + h);
+                doc.line(x + 3, y + h, x, y + h);
+              },
+              notes: (zeile, context, maxW) => inlineZeileBox(zeile, context, maxW),
+            };
+            const placeBox = (box: Box, indent: number) => {
+              if (cursorY + box.h > maxContentY && cursorY > pdfMarginTop + 1) { doc.addPage(); cursorY = pdfMarginTop; }
+              box.draw(textX + indent, cursorY, box.h);
+              cursorY += box.h;
             };
 
             // Plain-text comments are typeset directly: lemma, "]", then the comment with the
@@ -1302,26 +1070,58 @@ export class PdfExportService {
                 cursorY += height + pdfCommentBlockGap;
             };
 
-            const globalBlock = commentsArea.querySelector('.pdf-global-comment') as HTMLElement | null;
-            if (globalBlock) await drawDomBlock(globalBlock);
-            const blocksByIdx = new Map<number, HTMLElement>();
-            commentsArea.querySelectorAll('.pdf-comment-block[data-idx]').forEach((el) => blocksByIdx.set(Number((el as HTMLElement).dataset['idx']), el as HTMLElement));
-            const allParts = jobParts;
-            const ordered = (job.cont.comments || [])
-              .map((c, i) => ({ c, i, pos: commentStartIndex(allParts, c) }))
-              .sort((x, y) => (x.pos - y.pos) || (x.i - y.i));
-            for (const { c, i } of ordered) {
-                if (commentType(c) === 'text') drawTextEntry(c);
-                else { const el = blocksByIdx.get(i); if (el) await drawDomBlock(el); }
-            }
-        }
 
+            // An entry whose body is a comment tree or a set of lines: the lemma line (as for text
+            // entries), then the tree / the lines below it.
+            const drawStructuredEntry = (c: VM.Comment, body: Box) => {
+              drawTextEntry({ ...c, text: '' } as VM.Comment);
+              cursorY -= pdfCommentBlockGap - 2;
+              placeBox(body, 8);
+              cursorY += pdfCommentBlockGap + 2;
+            };
+            const linesBox = (c: VM.Comment): Box => {
+              const parts: Box[] = [];
+              (c.lines || []).forEach((line: any, j: number) => {
+                const siglum = c.readingWitnesses?.[j];
+                if (siglum) {
+                  const w = textKit.width(siglum, 'bold', pdfCommentFontSize - 0.5);
+                  parts.push({ w, h: pdfCommentFontSize * 1.3, draw: (x, y) => textKit.draw(siglum, x, y + pdfCommentFontSize, 'bold', pdfCommentFontSize - 0.5) });
+                }
+                if (line.kind === VM.ContainerKind.ZeileContainer) parts.push(inlineZeileBox(line, false, textColumnW - 8));
+                else if (line.kind === VM.ContainerKind.ParatextContainer && line.text) {
+                  const ls = breakLines([{ w: line.text, style: 'normal', size: pdfCommentFontSize }], textColumnW - 8, textKit);
+                  parts.push({ w: linesWidth(ls), h: ls.length * pdfCommentFontSize * 1.38, draw: (x, y) => drawLines(ls, x, y + pdfCommentFontSize, pdfCommentFontSize * 1.38, textKit) });
+                }
+              });
+              const h = parts.reduce((a, p) => a + p.h + 3, 0);
+              return { w: Math.max(0, ...parts.map((p) => p.w)), h, draw: (x, y) => { let cy = y; for (const p of parts) { p.draw(x, cy, p.h); cy += p.h + 3; } } };
+            };
+
+            if (job.cont.globalComment) {
+              checkPageOverflow(30);
+              doc.setFont(fontFamily, 'normal');
+              doc.setFontSize(pdfCommentFontSize - 0.5);
+              doc.setTextColor(PDF_KEY_GREY - 40, PDF_KEY_GREY - 40, PDF_KEY_GREY - 40);
+              doc.text('GLOBAL COMMENT', textX, cursorY + pdfCommentFontSize, { charSpace: 0.7 });
+              doc.setTextColor(0, 0, 0);
+              cursorY += pdfCommentFontSize * 1.6;
+              placeBox(layoutCommentTree(job.cont.globalComment, treeKit, textColumnW - 8), 8);
+              cursorY += pdfCommentBlockGap + 4;
+            }
+            const ordered = (job.cont.comments || [])
+              .map((c, i) => ({ c, i, pos: commentStartIndex(jobParts, c) }))
+              .sort((x, y) => (x.pos - y.pos) || (x.i - y.i));
+            for (const { c } of ordered) {
+              const type = commentType(c);
+              if (type === 'tree' && c.tree) drawStructuredEntry(c, layoutCommentTree(c.tree, treeKit, textColumnW - 8));
+              else if (type === 'lines' && c.lines) drawStructuredEntry(c, linesBox(c));
+              else drawTextEntry(c);
+            }
         };
 
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
-          await timed('render', () => this.host!.render(jobs[ji], opts.settings));
           if (ji > 0) {
             if (opts.newPagePerDocument) { doc.addPage(); cursorY = pdfMarginTop; }
             else {
@@ -1337,14 +1137,8 @@ export class PdfExportService {
         }
         if (opts.apparatus) {
           for (let ji = 0; ji < jobs.length; ji++) {
-            const c = jobs[ji].cont;
-            if (!((c.comments && c.comments.length) || c.globalComment)) continue;
             opts.onProgress?.('Apparatus ' + (jobs[ji].document.dokumenten_id || ''), ji, jobs.length);
-            // Only tree/line comments and the global comment are drawn from the DOM; plain-text
-            // comments are typeset directly, so such a document needs no second render.
-            const needsDom = !!c.globalComment || (c.comments || []).some((cm) => commentType(cm) !== 'text');
-            if (needsDom) await timed('renderApparatus', () => this.host!.render(jobs[ji], opts.settings));
-            await drawApparatusFor(jobs[ji], ji, needsDom);
+            await drawApparatusFor(jobs[ji], ji);
           }
         }
         stats.documents = docEntries.map((e) => ({ id: jobs[e.job].document.dokumenten_id || '', page: e.page }));
@@ -1538,17 +1332,12 @@ export class PdfExportService {
         stats.pages = doc.getNumberOfPages();
         const tSave = performance.now();
         doc.save(opts.fileName || (multi ? 'Documents.pdf' : 'Document_' + (jobs[0].document.dokumenten_id || 'Export') + '.pdf'));
-        for (const [k, v] of Object.entries(this.host?.phaseMs || {})) stats.timings[k] = v;
         stats.timings['save'] = performance.now() - tSave;
         stats.timings['total'] = performance.now() - t0;
         console.debug('[pdf-export]', JSON.stringify({ documents: jobs.length, pages: stats.pages, ms: Object.fromEntries(Object.entries(stats.timings).map(([k, v]) => [k, Math.round(v)])) }));
         return stats;
     } finally {
-      this.focus.clefDisplayMode = saved.clef;
-      this.focus.notationColor = saved.color;
-      this.focus.firstSyllableUuid = saved.first;
-      this.focus.docPadTop = saved.pad;
-      this.host?.clear();
+      // nothing to restore: the export reads the model and never touches the page
     }
   }
 }

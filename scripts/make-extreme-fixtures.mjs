@@ -130,4 +130,30 @@ save('x14-page-breaks', root(Array.from({ length: 14 }, (_, c) => formteil([
   zeile(Array.from({ length: 6 + ((c * 7) % 5) * 11 }, (_, k) => syl(sylText(k + c), [randNeume(3, 3, 4)]))),
 ]))));
 
+// 15. Every apparatus form: text, tree (text, bracket, notes, context notes, nested grid),
+//     line comments with sigla (notes + paratext) and a global comment.
+{
+  const sy = Array.from({ length: 24 }, (_, k) => syl(sylText(k), [randNeume(3, 3, 4)]));
+  const firstNote = (x) => x.notes.spaced[0].nonSpaced[0].grouped[0].uuid;
+  const lastNote = (x) => x.notes.spaced.at(-1).nonSpaced.at(-1).grouped.at(-1).uuid;
+  const leaf = (content) => ({ kind: 'CommentTreeLeaf', id: id(), content });
+  const text = (t) => leaf({ kind: 'Text', content: t });
+  const notes = (k, n, context = false) => leaf({ kind: 'Notes', content: zeile(Array.from({ length: n }, (_, i) => syl(sylText(k + i), [randNeume(3, 3, 5)]))), context });
+  const grid = (...rows) => ({ kind: 'CommentTreeGrid', id: id(), items: rows });
+  const doc15 = root([formteil([para('APPARATUS FORMS'), zeile(sy)])]);
+  doc15.globalComment = grid([text('Überlieferung: ((Pa 1235)), ((Pa 1121)); Melodie nur in ((Pa 1235)) vollständig.')]);
+  doc15.comments = [
+    { startUUID: firstNote(sy[1]), endUUID: lastNote(sy[2]), commentType: 'text', text: 'Lesart von ((Pa 1121)) nach Rasur.' },
+    { startUUID: firstNote(sy[4]), endUUID: lastNote(sy[6]), commentType: 'tree', text: '', tree: grid(
+      [text('((Pa 1235))'), leaf({ kind: 'Bracket' }), grid([notes(4, 3)], [notes(4, 3, true)])],
+      [text('((Pa 1121))'), leaf({ kind: 'Bracket' }), text('fehlt, Lücke von drei Silben; vgl. die Parallelstelle in ((Pa 909)), die eine längere Fassung überliefert.')],
+    ) },
+    { startUUID: firstNote(sy[10]), endUUID: lastNote(sy[13]), commentType: 'lines', text: '', readingWitnesses: ['Pa 1121', 'Pa 909'],
+      lines: [zeile(Array.from({ length: 5 }, (_, i) => syl(sylText(10 + i), [randNeume(4, 3, 4)]))), para('Rubrik in roter Tinte nachgetragen.')] },
+    { startUUID: firstNote(sy[16]), endUUID: lastNote(sy[23]), commentType: 'lines', text: '', readingWitnesses: ['Pa 1084'],
+      lines: [zeile(Array.from({ length: 40 }, (_, i) => syl(sylText(16 + i), [randNeume(3, 2, 6)])))] },
+  ];
+  save('x15-apparatus-forms', doc15);
+}
+
 console.log('wrote extreme fixtures to', out);

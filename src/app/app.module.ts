@@ -20,7 +20,6 @@ import { SettingsComponent } from './settings/settings.component';
 import { SourcesOverviewComponent } from './sources-overview/sources-overview.component';
 import { SourceComponent } from './source/source.component';
 import { DocumentComponent } from './document/document.component';
-import { PdfRenderHostComponent } from './pdf-render-host.component';
 import { PdfExportDialogComponent } from './pdf-export-dialog.component';
 import { SmartTableComponent } from './smart-table/smart-table.component';
 import { SselectComponent } from './sselect/sselect.component';
@@ -51,7 +50,6 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
         SubcorporaSelectorComponent,
         SourceComponent,
         DocumentComponent,
-        PdfRenderHostComponent,
         PdfExportDialogComponent,
         SmartTableComponent,
         SselectComponent,

@@ -57,7 +57,7 @@
                   }
                   @if (isNote(drawable)) {
                     <image
-                      class="note" [attr.x]="drawable.x" [attr.y]="drawable.y" [attr.data-glyph]="drawable.ref.noteType"
+                      class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
                       [attr.height]="drawable.ref.liquescent ? 40 : 60"
                       [attr.width]="drawable.ref.liquescent ? 8 : 12"
                       [attr.href]="getGlyphDataUri(drawable.ref.noteType, hasCurrentFocus(drawable, i))" />

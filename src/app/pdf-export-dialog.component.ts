@@ -4,7 +4,6 @@ import * as VM from './types/model';
 import { APIService, Document, ProjectSettings, Source } from './api.service';
 import { UserService } from './user.service';
 import { PdfDocJob, PdfExportService } from './pdf-export.service';
-import { PdfHostLauncher } from './pdf-render-host.component';
 import { genreOf } from './document-metadata';
 
 interface Entry { id: string; doc: Document | null; job: PdfDocJob | null; }
@@ -170,7 +169,7 @@ export class PdfExportDialogComponent implements OnInit {
   status = '';
   error = '';
 
-  constructor(private api: APIService, private users: UserService, private pdf: PdfExportService, private host: PdfHostLauncher) {}
+  constructor(private api: APIService, private users: UserService, private pdf: PdfExportService) {}
 
   get multi(): boolean { return this.entries.length > 1; }
 
@@ -262,7 +261,6 @@ export class PdfExportDialogComponent implements OnInit {
         jobs.push(job);
       }
 
-      this.host.ensure();
       await this.pdf.exportDocuments(jobs, {
         settings,
         titlePage: this.o.titlePage,
