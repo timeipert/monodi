@@ -11,10 +11,12 @@ import {
   NoteType
 } from '../types/model';
 import { Document as MonodiDocument } from '../api.service';
+import { extractPattern } from '../transcription-analyzer-core';
 import { 
   MeiMappingProfileV2, 
   MeiEntityKey, 
-  MeiEntityRule 
+  MeiEntityRule,
+  resolvePatternRule
 } from './mei-mapping.model';
 
 export function resolveFormteilFields(formteil: FormteilContainer): Record<string, string> {
@@ -118,7 +120,11 @@ function getOrCreateWrapper(parent: Element, wrapperTag: string, doc: Document):
   return existing;
 }
 
+/** Siglum of the manuscript being exported; read by the pattern-rule lookup. emitMei is synchronous, so a module variable is safe. */
+let activeSiglum: string | undefined;
+
 export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, documentMeta?: MonodiDocument, sourceSiglum?: string): string {
+  activeSiglum = sourceSiglum || undefined;
   const doc = document.implementation.createDocument('http://www.music-encoding.org/ns/mei', 'mei', null);
   const mei = doc.documentElement;
   mei.setAttribute('meiversion', '5.0');
@@ -422,6 +428,15 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   return header + xmlString;
 }
 
+/** Sets pattern-rule attributes; empty values are skipped, pitch is never overridden. */
+function applyRuleAttributes(element: Element, attrs?: Record<string, string>) {
+  if (!attrs) return;
+  for (const [name, value] of Object.entries(attrs)) {
+    if (value === '' || value == null || name === 'pname' || name === 'oct') continue;
+    element.setAttribute(name, value);
+  }
+}
+
 function applyAttributes(
   element: Element, 
   rule: MeiEntityRule, 
@@ -610,14 +625,34 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
   }
 }
 
+/**
+ * Break INSIDE a neume: consecutive non-empty `grouped` arrays are not
+ * graphically ligated (`*u` as opposed to the ligature `[*u]`), so the nc at
+ * the break carries con="g". Placement decides whether that is the nc that
+ * starts the new group ('next') or the last nc of the previous one.
+ */
+function isGroupBreakGap(
+  groups: { grouped: Note[] }[], gIndex: number, nIndex: number, placement: 'next' | 'previous'
+): boolean {
+  const filled = (g?: { grouped: Note[] }) => !!g && !!g.grouped && g.grouped.length > 0;
+  if (placement === 'next') {
+    if (nIndex !== 0) return false;
+    for (let g = gIndex - 1; g >= 0; g--) if (filled(groups[g])) return true;
+    return false;
+  }
+  if (nIndex !== groups[gIndex].grouped.length - 1) return false;
+  for (let g = gIndex + 1; g < groups.length; g++) if (filled(groups[g])) return true;
+  return false;
+}
+
 function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
   if (!syllable.notes || !syllable.notes.spaced) return;
 
   const spacedArr = syllable.notes.spaced;
-  // A graphical gap (space) is the boundary BETWEEN spaced units. con="g"
-  // ("gapped") therefore belongs on the LAST note of a spaced unit that is
-  // followed by another non-empty unit — e.g. "a bc" → the 'a' nc gets con="g".
-  // Notes inside a unit are graphically connected and carry no con.
+  // con="g" ("gapped") marks two kinds of break: (1) between spaced units — on
+  // the LAST note of a unit followed by another non-empty unit ("a  bc" → 'a'),
+  // and (2) inside a unit between non-ligated groups (`*u`, see isGroupBreakGap).
+  // Notes inside one `grouped` array are a ligature (`[*u]`) and carry no con.
   let lastNonEmptySpaced = -1;
   for (let s = spacedArr.length - 1; s >= 0; s--) {
     if (spacedArr[s].nonSpaced && spacedArr[s].nonSpaced.some(ns => ns.grouped && ns.grouped.length > 0)) {
@@ -640,6 +675,9 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       }
     }
 
+    const patternRule = resolvePatternRule(profile.patternRules, extractPattern(neumeData), activeSiglum);
+    let flatIndex = 0;
+
     const neumeRule = profile.entities.neume;
     let targetParent = parentElement;
 
@@ -650,7 +688,8 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       }
       const neume = doc.createElementNS('http://www.music-encoding.org/ns/mei', neumeRule.tag);
       applyAttributes(neume, neumeRule, {});
-      parentElement.appendChild(neume);
+      applyRuleAttributes(neume, patternRule?.neume);
+      targetParent.appendChild(neume);
       targetParent = neume;
     }
 
@@ -685,11 +724,14 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         nc.setAttribute('xml:id', 'm-' + note.uuid);
 
         const isLastNoteOfUnit = (gIndex === lastGroupIdx && nIndex === groupedData.grouped.length - 1);
-        const isConnectionGap = isLastNoteOfUnit && sIndex < lastNonEmptySpaced;
-        
+        const isUnitBoundaryGap = isLastNoteOfUnit && sIndex < lastNonEmptySpaced;
+        const isConnectionGap = isUnitBoundaryGap || isGroupBreakGap(
+          neumeData.nonSpaced, gIndex, nIndex, profile.gapPlacement || 'next');
+
         // Find custom attribute name mappings for curve/con rules to perform proper conditional checks
-        const liquescentRule = noteRule.attributes[2];
-        const connectionRule = noteRule.attributes[3];
+        // Addressed by name (curve / con), not by position, so users can reorder rules.
+        const liquescentRule = noteRule.attributes.find(a => a.name === 'curve') || noteRule.attributes[2];
+        const connectionRule = noteRule.attributes.find(a => a.name === 'con') || noteRule.attributes[3];
         const liquescentAttrName = liquescentRule?.name || 'curve';
         const connectionAttrName = connectionRule?.name || 'con';
         const connectionGapValue = connectionRule?.value || 'g';
@@ -705,6 +747,10 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
           }
           return null; // Keep resolved default
         });
+
+        // Pattern rule: the rule's nc entry for this note position (never pname/oct).
+        applyRuleAttributes(nc, patternRule?.nc[flatIndex]);
+        flatIndex++;
 
         noteTargetParent.appendChild(nc);
       }

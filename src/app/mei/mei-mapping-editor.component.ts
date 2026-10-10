@@ -5,7 +5,7 @@ import { APIService, ProjectSettings, Document as MonodiDocument } from '../api.
 import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
-import { MeiMappingProfileV2, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
+import { MeiMappingProfileV2, MeiPatternRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
 import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
@@ -276,13 +276,13 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
   /** Convenience for the rule editor: does the currently selected entity differ? */
   get selectedEntityDiffers(): boolean {
-    if (this.selectedNodeId === 'skeleton') return false;
+    if (this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns') return false;
     return this.entityDiffers(this.selectedNodeId as MeiEntityKey);
   }
 
   /** Two-click revert of only the selected entity's rule to the default. */
   resetEntityToDefault() {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton') return;
+    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns') return;
     const key = this.selectedNodeId as MeiEntityKey;
 
     if (this.armedResetEntity !== key) {
@@ -301,8 +301,110 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     this.toastr.success(`"${key}" reset to default.`);
   }
 
+  // --- Pattern rules (pattern [+ manuscript] → MEI attributes per nc) ---
+  /** Structured nc attributes offered as quick fields; any other name can be added freely. */
+  readonly ncAttributeNames = ['tilt', 'curve', 'con', 'q', 'ho', 'type', 'facs'];
+  newPatternCode = '';
+  newPatternSigle = '';
+
+  get patternRules(): MeiPatternRule[] {
+    const p = this.activeProfile;
+    if (!p) return [];
+    return p.patternRules ??= [];
+  }
+
+  addPatternRule() {
+    const code = patternBaseCode(this.newPatternCode);
+    if (!code || patternNoteCount(code) === 0) {
+      this.toastr.warning('Enter a pattern code such as [*ud] or *uu.');
+      return;
+    }
+    const sigle = this.newPatternSigle.trim() || undefined;
+    if (this.patternRules.some(r => r.pattern === code && (r.sigle || undefined) === sigle)) {
+      this.toastr.warning('A rule for this pattern and manuscript already exists.');
+      return;
+    }
+    this.patternRules.push(normalizePatternRule({ id: uuidv4(), pattern: code, sigle, enabled: true, nc: [] }));
+    this.newPatternCode = '';
+    this.emitChange(true);
+  }
+
+  removePatternRule(i: number) {
+    this.patternRules.splice(i, 1);
+    this.emitChange(true);
+  }
+
+  onPatternRuleCode(rule: MeiPatternRule) {
+    const norm = normalizePatternRule(rule);
+    rule.pattern = norm.pattern;
+    rule.nc = norm.nc;
+    this.emitChange();
+  }
+
+  setRuleAttr(attrs: Record<string, string>, oldName: string, newName: string, value: string) {
+    if (oldName !== newName) delete attrs[oldName];
+    if (newName.trim()) attrs[newName.trim()] = value;
+    this.emitChange();
+  }
+
+  addRuleAttr(attrs: Record<string, string>, name: string) {
+    if (!name.trim() || name === 'pname' || name === 'oct') return;
+    if (!(name in attrs)) attrs[name] = '';
+    this.emitChange();
+  }
+
+  removeRuleAttr(attrs: Record<string, string>, name: string) {
+    delete attrs[name];
+    this.emitChange();
+  }
+
+  ruleAttrNames(attrs: Record<string, string>): string[] {
+    return Object.keys(attrs || {});
+  }
+
+  /** Copy the first nc's attributes to all other notes of the rule ("↓ all"). */
+  copyFirstToAll(rule: MeiPatternRule) {
+    rule.nc = rule.nc.map(() => ({ ...(rule.nc[0] || {}) }));
+    this.emitChange();
+  }
+
+  /** Neume Viewer interchange: { [code]: { mei: [ncAttrs] } }; manuscript-specific rules are not part of that format. */
+  exportPatternRules() {
+    const out: Record<string, { mei: Record<string, string>[] }> = {};
+    for (const r of this.patternRules.filter(r => !r.sigle && r.enabled)) out[r.pattern] = { mei: r.nc };
+    const blob = new Blob([JSON.stringify({ patterns: out }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'pattern-mei.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async importPatternRules(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const patterns = data.patterns ?? data;
+      let n = 0;
+      for (const [code, entry] of Object.entries<any>(patterns)) {
+        if (!Array.isArray(entry?.mei)) continue;
+        const base = patternBaseCode(code);
+        const rule = normalizePatternRule({ id: uuidv4(), pattern: base, enabled: true, nc: entry.mei });
+        const existing = this.patternRules.find(r => r.pattern === base && !r.sigle);
+        if (existing) existing.nc = rule.nc; else this.patternRules.push(rule);
+        n++;
+      }
+      this.emitChange(true);
+      this.toastr.success(`${n} pattern rule(s) imported.`);
+    } catch {
+      this.toastr.error('Not a valid pattern library JSON.');
+    }
+    (event.target as HTMLInputElement).value = '';
+  }
+
   get activeRule(): MeiEntityRule | undefined {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton') return undefined;
+    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns') return undefined;
     return this.activeProfile.entities[this.selectedNodeId as MeiEntityKey];
   }
 

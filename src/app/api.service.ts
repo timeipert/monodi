@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
-import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings } from './mei/mei-mapping.model';
+import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule } from './mei/mei-mapping.model';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
 import { PushCache } from './push-cache';
@@ -894,6 +894,14 @@ export function sanitizeSettings(settings: any): ProjectSettings {
         settings.meiProfiles.push(migrated);
         settings.activeMeiProfileId = migrated.id;
       }
+    }
+  }
+
+  for (const prof of settings.meiProfiles ?? []) {
+    if (prof.patternRules !== undefined) {
+      prof.patternRules = Array.isArray(prof.patternRules)
+        ? prof.patternRules.filter((r: any) => r && typeof r.id === 'string' && typeof r.pattern === 'string').map((r: any) => normalizePatternRule(r))
+        : [];
     }
   }
 

@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { MeiExportService } from '../mei-export.service';
 import { emitMei } from './mei-emitter';
 import { defaultMeiProfile } from './mei-mapping.model';
 import { 
@@ -18,149 +17,43 @@ import {
 import { Document as MonodiDocument } from '../api.service';
 
 describe('MeiEmitter', () => {
-  let oldExporter: MeiExportService;
-
-  beforeEach(() => {
-    TestBed.configureTestingModule({});
-    oldExporter = TestBed.inject(MeiExportService);
-  });
-
-  // Helper to compare two DOM nodes recursively
-  function compareDOM(el1: Element, el2: Element) {
-    expect(el1.tagName).toBe(el2.tagName);
-    expect(el1.namespaceURI).toBe(el2.namespaceURI);
-    
-    // Compare attributes
-    const attrs1 = Array.from(el1.attributes).sort((a, b) => a.name.localeCompare(b.name));
-    const attrs2 = Array.from(el2.attributes).sort((a, b) => a.name.localeCompare(b.name));
-    
-    expect(attrs1.length).toBe(attrs2.length);
-    for (let i = 0; i < attrs1.length; i++) {
-      expect(attrs1[i].name).toBe(attrs2[i].name);
-      expect(attrs1[i].value).toBe(attrs2[i].value);
-    }
-    
-    // Compare child element nodes
-    const children1 = Array.from(el1.children);
-    const children2 = Array.from(el2.children);
-    
-    if (children1.length === 0 && children2.length === 0) {
-      expect(el1.textContent?.trim()).toBe(el2.textContent?.trim());
-    }
-    
-    expect(children1.length).toBe(children2.length);
-    for (let i = 0; i < children1.length; i++) {
-      compareDOM(children1[i], children2[i]);
-    }
+  function nc(uuid: string, base: BaseNote = BaseNote.G): any {
+    return { uuid, base, octave: 4, noteType: NoteType.Normal, liquescent: false, focus: false };
   }
 
-  it('should generate MEI XML that is deep-equal to the old exporter output', () => {
-    // 1. Build a rich fixture
+  function ncsOf(spaced: any[], placement?: 'next' | 'previous'): Element[] {
     const root = emptyRootContainer();
     const formteil = emptyFormteilContainer(DocumentType.Level1, []);
     const zeile = emptyZeileContainer(1);
-    
-    const clef = emptyClef();
-    clef.shape = 'C';
-
-    const paratext = emptyParatextContainer();
-    paratext.text = 'Rubrica Test';
-    
-    // Syllable 1: "Glo" with 2 notes (1 liquescent, 1 connection gap)
-    const syl1 = emptySyllable(1);
-    syl1.text = 'Glo';
-    syl1.notes = {
-      spaced: [{
-        nonSpaced: [
-          {
-            grouped: [
-              {
-                uuid: 'note-1',
-                base: BaseNote.G,
-                octave: 4,
-                noteType: NoteType.Normal,
-                liquescent: true, // liquescent
-                focus: false
-              }
-            ]
-          },
-          {
-            grouped: [
-              {
-                uuid: 'note-2',
-                base: BaseNote.A,
-                octave: 4,
-                noteType: NoteType.Normal,
-                liquescent: false,
-                focus: false
-              }
-            ]
-          }
-        ]
-      }]
-    };
-
-    // Note 1 (the first note in first nonSpaced group) should have connection gap isConnectionGap = true 
-    // because gIndex (0) < nonSpaced.length - 1 (1).
-
-    // Syllable 2: "ri" with 2 normal notes
-    const syl2 = emptySyllable(1);
-    syl2.text = 'ri';
-    syl2.notes = {
-      spaced: [{
-        nonSpaced: [{
-          grouped: [
-            {
-              uuid: 'note-3',
-              base: BaseNote.B,
-              octave: 4,
-              noteType: NoteType.Normal,
-              liquescent: false,
-              focus: false
-            },
-            {
-              uuid: 'note-4',
-              base: BaseNote.C,
-              octave: 5,
-              noteType: NoteType.Normal,
-              liquescent: false,
-              focus: false
-            }
-          ]
-        }]
-      }]
-    };
-    
-    zeile.children = [clef, syl1, syl2, paratext as any];
+    const syl = emptySyllable(1);
+    syl.text = 'A';
+    syl.notes = { spaced };
+    zeile.children = [syl];
     formteil.children = [zeile];
     root.children = [formteil];
+    const profile = defaultMeiProfile();
+    if (placement) profile.gapPlacement = placement;
+    const doc = new DOMParser().parseFromString(emitMei(root, profile), 'application/xml');
+    return Array.from(doc.querySelectorAll('nc'));
+  }
 
-    const meta: MonodiDocument = {
-      id: 'doc-123',
-      dokumenten_id: 'Test-Doc',
-      textinitium: 'Gloria in excelsis',
-      kommentar: 'Main test document comments',
-      gattung1: 'Antiphon',
-      gattung2: 'Intro',
-      festtag: 'Christmas',
-      feier: 'Mass',
-      quelle_id: 'q-1',
-      version: 1
-    } as any;
+  it('puts con="g" on the nc after a break between non-ligated groups (*u), none for a ligature ([*u])', () => {
+    const gapped = ncsOf([{ nonSpaced: [{ grouped: [nc('a')] }, { grouped: [nc('b', BaseNote.A)] }] }]);
+    expect(gapped.map(n => n.getAttribute('con'))).toEqual([null, 'g']);
 
-    // 2. Export via both methods
-    const oldXml = (oldExporter as any).legacyExport(root, null, meta);
-    const newXml = emitMei(root, defaultMeiProfile(), meta);
+    const ligature = ncsOf([{ nonSpaced: [{ grouped: [nc('a'), nc('b', BaseNote.A)] }] }]);
+    expect(ligature.map(n => n.getAttribute('con'))).toEqual([null, null]);
+  });
 
-    // 3. Parse and assert deep-equality
-    const parser = new DOMParser();
-    const docOld = parser.parseFromString(oldXml, 'application/xml');
-    const docNew = parser.parseFromString(newXml, 'application/xml');
+  it('supports gapPlacement "previous" and keeps the gap between neumes on the last nc', () => {
+    const prev = ncsOf([{ nonSpaced: [{ grouped: [nc('a')] }, { grouped: [nc('b', BaseNote.A)] }] }], 'previous');
+    expect(prev.map(n => n.getAttribute('con'))).toEqual(['g', null]);
 
-    expect(docOld.querySelector('parsererror')).toBeNull();
-    expect(docNew.querySelector('parsererror')).toBeNull();
-
-    compareDOM(docOld.documentElement, docNew.documentElement);
+    const neumes = ncsOf([
+      { nonSpaced: [{ grouped: [nc('a'), nc('b', BaseNote.A)] }] },
+      { nonSpaced: [{ grouped: [nc('c')] }] }
+    ]);
+    expect(neumes.map(n => n.getAttribute('con'))).toEqual([null, 'g', null]);
   });
 
   it('should flatten ncs into syllable when neume entity is disabled', () => {
@@ -418,5 +311,31 @@ describe('MeiEmitter', () => {
     const noteEl = doc.querySelector('nc');
     expect(noteEl).not.toBeNull();
     expect(doc.querySelector('unclear')).toBeNull();
+  });
+
+  it('applies pattern rules per note, preferring a manuscript-specific rule over a global one', () => {
+    const spaced = [{ nonSpaced: [{ grouped: [nc('a'), nc('b', BaseNote.A)] }] }]; // [*u]
+    const root = emptyRootContainer();
+    const formteil = emptyFormteilContainer(DocumentType.Level1, []);
+    const zeile = emptyZeileContainer(1);
+    const syl = emptySyllable(1);
+    syl.notes = { spaced };
+    zeile.children = [syl];
+    formteil.children = [zeile];
+    root.children = [formteil];
+
+    const profile = defaultMeiProfile();
+    profile.patternRules = [
+      { id: 'g', pattern: '[*u]', enabled: true, nc: [{ tilt: 'n' }, { tilt: 's' }] },
+      { id: 'm', pattern: '[*u]', sigle: 'X', enabled: true, nc: [{ tilt: 'e' }, { pname: 'z', q: 'x' }] }
+    ];
+    const run = (sigle?: string) => Array.from(new DOMParser()
+      .parseFromString(emitMei(root, profile, undefined, sigle), 'application/xml').querySelectorAll('nc'));
+
+    expect(run().map(n => n.getAttribute('tilt'))).toEqual(['n', 's']);
+    const x = run('X');
+    expect(x.map(n => n.getAttribute('tilt'))).toEqual(['e', null]);
+    expect(x[1].getAttribute('q')).toBe('x');
+    expect(x[1].getAttribute('pname')).toBe('a'); // pitch is never overridden
   });
 });
