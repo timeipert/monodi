@@ -156,4 +156,30 @@ save('x14-page-breaks', root(Array.from({ length: 14 }, (_, c) => formteil([
   save('x15-apparatus-forms', doc15);
 }
 
+// 16. A dense apparatus like the printed one: many short entries, each "notes ] korrigiert aus notes",
+//     a few "formal plausibler" variants with a trailing text cell, and plain text entries.
+{
+  const sy = Array.from({ length: 40 }, (_, k) => syl(sylText(k), [randNeume(3, 3, 4)]));
+  const firstNote = (x) => x.notes.spaced[0].nonSpaced[0].grouped[0].uuid;
+  const lastNote = (x) => x.notes.spaced.at(-1).nonSpaced.at(-1).grouped.at(-1).uuid;
+  const leaf = (content) => ({ kind: 'CommentTreeLeaf', id: id(), content });
+  const text = (t) => leaf({ kind: 'Text', content: t });
+  const notes = (k, n) => leaf({ kind: 'Notes', content: zeile(Array.from({ length: n }, (_, i) => syl(sylText(k + i), [randNeume(3, 3, 4)]))), context: false });
+  const grid = (...rows) => ({ kind: 'CommentTreeGrid', id: id(), items: rows });
+  const doc16 = root([formteil([para('DENSE APPARATUS'), zeile(sy)])]);
+  doc16.comments = [];
+  for (let c = 0; c < 12; c++) {
+    const from = c * 3, n = 1 + (c % 3);
+    const last = Math.min(sy.length - 1, from + n - 1);
+    const tree = c % 4 === 3
+      ? grid([notes(from, n), leaf({ kind: 'Bracket' }), text('formal plausibler:'), notes(from, n), text('(wie 2b).')])
+      : grid([notes(from, n), leaf({ kind: 'Bracket' }), text('korrigiert aus'), notes(from, n)]);
+    doc16.comments.push({ startUUID: firstNote(sy[from]), endUUID: lastNote(sy[last]), commentType: 'tree', text: '', tree });
+  }
+  for (let c = 0; c < 6; c++) {
+    doc16.comments.push({ startUUID: firstNote(sy[30 + c]), endUUID: lastNote(sy[30 + c]), commentType: 'text', text: c % 2 ? 'Lesart unsicher, vgl. ((Pa 1235)).' : 'korrigiert aus ((' + sylText(c) + '))' });
+  }
+  save('x16-apparatus-dense', doc16);
+}
+
 console.log('wrote extreme fixtures to', out);

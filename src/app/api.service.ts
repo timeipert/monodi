@@ -424,7 +424,7 @@ export class APIService {
       pdfCommentBlockGap: 25,
       pdfCommentFontSize: 9,
       pdfCommentTitleFontSize: 10,
-      pdfCommentStaffScale: 0.40,
+      pdfCommentStaffScale: 0.28,
       pdfBracketWidth: 12,
       pdfBracketThickness: 1.2,
       pdfMarginTop: 40,

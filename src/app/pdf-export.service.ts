@@ -309,10 +309,13 @@ export class PdfExportService {
         const notationColor = hexToRgb(sanitizeNotationColor(s.notationColor));
         const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? PRINT_PDF_DEFAULTS.pdfParatextFontSize);
         const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? PRINT_PDF_DEFAULTS.pdfParatextSpacing);
-        const pdfCommentStaffScale = Number(s.pdfCommentStaffScale ?? s.pdfScale ?? PRINT_PDF_DEFAULTS.pdfScale);
+        // The print look sets the apparatus as dense as the printed edition (small staves, tight gaps);
+        // only the classic style takes these sizes from the sliders in the settings.
+        const printLook = s.pdfPageStyle !== 'classic';
+        const pdfCommentStaffScale = printLook ? PRINT_PDF_DEFAULTS.pdfCommentStaffScale : Number(s.pdfCommentStaffScale ?? PRINT_PDF_DEFAULTS.pdfCommentStaffScale);
         const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentFontSize);
         const pdfCommentTitleFontSizeActual = Number(s.pdfCommentTitleFontSize ?? PRINT_PDF_DEFAULTS.pdfCommentTitleFontSize);
-        const pdfCommentBlockGap = Number(s.pdfCommentBlockGap ?? PRINT_PDF_DEFAULTS.pdfCommentBlockGap);
+        const pdfCommentBlockGap = printLook ? PRINT_PDF_DEFAULTS.pdfCommentBlockGap : Number(s.pdfCommentBlockGap ?? PRINT_PDF_DEFAULTS.pdfCommentBlockGap);
         const pdfShowPageNumbers = s.pdfShowPageNumbers === true || s.pdfShowPageNumbers === 'true';
         const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? PRINT_PDF_DEFAULTS.pdfPageNumberFontSize);
         const pdfHeadlineFontSize = Number(s.pdfHeadlineFontSize ?? PRINT_PDF_DEFAULTS.pdfHeadlineFontSize);
@@ -905,7 +908,7 @@ export class PdfExportService {
         // Drawn at the apparatus scale in one or more rows; `context` notes in grey.
         const inlineZeileBox = (zeile: VM.ZeileContainer, context: boolean, maxW: number): Box => {
           const Sc = pdfCommentStaffScale;
-          const fs = pdfCommentFontSize;
+          const fs = pdfCommentFontSize - 1;      // lyrics under the small staves
           const adia = zeile.notation === 'adiastematic';
           type Item = { kind: 's'; g: SyllableGeometry; txt: string; w: number; shift: number } | { kind: 'm'; w: number; folio: boolean };
           const items: Item[] = printedParts(zeile).map((lp): Item => {
@@ -922,10 +925,10 @@ export class PdfExportService {
           });
           let minTop = 40, low = 80;
           for (const it of items) if (it.kind === 's') { minTop = Math.min(minTop, it.g.minTop); low = Math.max(low, ...it.g.lowest); }
-          const head = Math.max(6, 40 - minTop + 3);
-          const below = Math.max(14, low + 2 - 80);
+          const head = Math.max(4, 40 - minTop + 2);
+          const below = Math.max(10, low + 2 - 80);
           const hasText = items.some((it) => it.kind === 's' && !!it.txt);
-          const rowH = (head + 40 + below) * Sc + (hasText ? fs * 1.3 : 0);
+          const rowH = (head + 40 + below) * Sc + (hasText ? fs * 1.15 : 0);
           const rows: Item[][] = [[]];
           let x = 0;
           for (const it of items) {
@@ -936,9 +939,10 @@ export class PdfExportService {
           const rowW = (r: Item[]) => r.reduce((acc, it) => acc + it.w, 0);
           const color: RGB = context ? [165, 165, 165] : notationColor;
           return {
-            w: Math.max(0, ...rows.map(rowW)), h: rows.length * rowH + (rows.length - 1) * 4,
+            w: Math.max(0, ...rows.map(rowW)), h: rows.length * rowH + (rows.length - 1) * 2,
+            anchor: (head + 20) * Sc,
             draw: (ox, oy) => rows.forEach((r, ri) => {
-              const staffTop = oy + ri * (rowH + 4) + head * Sc;
+              const staffTop = oy + ri * (rowH + 2) + head * Sc;
               if (!adia && r.length) drawStaff(doc, ox, ox + rowW(r), staffTop, Sc, color);
               let cx = ox;
               for (const it of r) {
@@ -948,7 +952,7 @@ export class PdfExportService {
                     doc.setFont(fontFamily, 'normal');
                     doc.setFontSize(fs);
                     if (context) doc.setTextColor(150, 150, 150); else doc.setTextColor(0, 0, 0);
-                    doc.text(it.txt, cx + it.shift, staffTop + (40 + below) * Sc + fs * 0.9);
+                    doc.text(it.txt, cx + it.shift, staffTop + (40 + below) * Sc + fs * 0.8);
                     doc.setTextColor(0, 0, 0);
                   }
                 } else {
@@ -1020,8 +1024,8 @@ export class PdfExportService {
               fs: pdfCommentFontSize,
               lineH: pdfCommentFontSize * 1.38,
               maxCellW: textColumnW * 0.6,
-              gapX: 9,
-              gapY: 5,
+              gapX: 6,
+              gapY: 3,
               bracket: (x, y, h) => {
                 doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
                 doc.setLineWidth(PDF_CORNER_WIDTH);
@@ -1098,30 +1102,58 @@ export class PdfExportService {
             };
 
 
-            // An entry whose body is a comment tree or a set of lines: the lemma line (as for text
-            // entries), then the tree / the lines below it.
-            const drawStructuredEntry = (c: VM.Comment, body: Box) => {
-              drawTextEntry({ ...c, text: '' } as VM.Comment);
-              cursorY -= pdfCommentBlockGap - 2;
-              placeBox(body, 8);
-              cursorY += pdfCommentBlockGap + 2;
+            // An entry whose body is a comment tree or a set of lines: like the printed apparatus the
+            // lemma stands in a narrow left column, level with the staff, and the body to its right.
+            const LEMMA_COL_MAX = 110;
+            const lemmaOf = (c: VM.Comment) => { const l = commentLemma(jobParts, c); return l ? l + ']' : ''; };
+            const lemmaColW = (c: VM.Comment): number => {
+              const t = lemmaOf(c);
+              if (!t) return 0;
+              const w = textKit.width(t, 'normal', pdfCommentFontSize) + 8;
+              return w <= LEMMA_COL_MAX ? Math.max(w, 26) : 0;   // longer: above the body
             };
-            const linesBox = (c: VM.Comment): Box => {
-              const parts: Box[] = [];
+            const drawStructuredEntry = (c: VM.Comment, makeBody: (maxW: number) => Box) => {
+              const colW = lemmaColW(c);
+              const lemma = lemmaOf(c);
+              const body = makeBody(textColumnW - colW - 4);
+              const above = !!lemma && colW === 0;
+              const aboveH = above ? pdfCommentFontSize * 1.38 : 0;
+              if (cursorY + body.h + aboveH > maxContentY && cursorY > pdfMarginTop + 1) { doc.addPage(); cursorY = pdfMarginTop; }
+              if (lemma) {
+                const mid = body.anchor ?? pdfCommentFontSize * 0.7;
+                if (above) { textKit.draw(lemma, textX, cursorY + pdfCommentFontSize, 'normal', pdfCommentFontSize); }
+                else textKit.draw(lemma, textX, cursorY + mid + pdfCommentFontSize * 0.33, 'normal', pdfCommentFontSize);
+              }
+              body.draw(textX + colW + (above ? 8 : 0), cursorY + aboveH, body.h);
+              cursorY += aboveH + body.h + pdfCommentBlockGap - 1;
+            };
+            const linesBox = (c: VM.Comment, maxW: number): Box => {
+              // witness siglum in a left column, its notes / text to the right (as printed)
+              const sigFs = pdfCommentFontSize - 0.5;
+              const sigs = (c.lines || []).map((_: any, j: number) => c.readingWitnesses?.[j] || '');
+              const sigW = Math.max(0, ...sigs.map((sg) => (sg ? textKit.width(sg, 'bold', sigFs) + 8 : 0)));
+              const parts: { sig: string; box: Box }[] = [];
               (c.lines || []).forEach((line: any, j: number) => {
-                const siglum = c.readingWitnesses?.[j];
-                if (siglum) {
-                  const w = textKit.width(siglum, 'bold', pdfCommentFontSize - 0.5);
-                  parts.push({ w, h: pdfCommentFontSize * 1.3, draw: (x, y) => textKit.draw(siglum, x, y + pdfCommentFontSize, 'bold', pdfCommentFontSize - 0.5) });
-                }
-                if (line.kind === VM.ContainerKind.ZeileContainer) parts.push(inlineZeileBox(line, false, textColumnW - 8));
+                let box: Box | null = null;
+                if (line.kind === VM.ContainerKind.ZeileContainer) box = inlineZeileBox(line, false, maxW - sigW);
                 else if (line.kind === VM.ContainerKind.ParatextContainer && line.text) {
-                  const ls = breakLines([{ w: line.text, style: 'normal', size: pdfCommentFontSize }], textColumnW - 8, textKit);
-                  parts.push({ w: linesWidth(ls), h: ls.length * pdfCommentFontSize * 1.38, draw: (x, y) => drawLines(ls, x, y + pdfCommentFontSize, pdfCommentFontSize * 1.38, textKit) });
+                  const ls = breakLines([{ w: line.text, style: 'italic', size: pdfCommentFontSize }], maxW - sigW, textKit);
+                  box = { w: linesWidth(ls), h: ls.length * pdfCommentFontSize * 1.38, anchor: pdfCommentFontSize * 0.7, draw: (x, y) => drawLines(ls, x, y + pdfCommentFontSize, pdfCommentFontSize * 1.38, textKit) };
                 }
+                if (box) parts.push({ sig: sigs[j], box });
               });
-              const h = parts.reduce((a, p) => a + p.h + 3, 0);
-              return { w: Math.max(0, ...parts.map((p) => p.w)), h, draw: (x, y) => { let cy = y; for (const p of parts) { p.draw(x, cy, p.h); cy += p.h + 3; } } };
+              const h = parts.reduce((acc, p) => acc + p.box.h + 2, -2);
+              return {
+                w: sigW + Math.max(0, ...parts.map((p) => p.box.w)), h: Math.max(0, h), anchor: parts[0]?.box.anchor,
+                draw: (x, y) => {
+                  let cy = y;
+                  for (const p of parts) {
+                    if (p.sig) textKit.draw(p.sig, x, cy + (p.box.anchor ?? sigFs * 0.7) + sigFs * 0.33, 'bold', sigFs);
+                    p.box.draw(x + sigW, cy, p.box.h);
+                    cy += p.box.h + 2;
+                  }
+                },
+              };
             };
 
             if (job.cont.globalComment) {
@@ -1133,15 +1165,15 @@ export class PdfExportService {
               doc.setTextColor(0, 0, 0);
               cursorY += pdfCommentFontSize * 1.6;
               placeBox(layoutCommentTree(job.cont.globalComment, treeKit, textColumnW - 8), 8);
-              cursorY += pdfCommentBlockGap + 4;
+              cursorY += pdfCommentBlockGap + 2;
             }
             const ordered = (job.cont.comments || [])
               .map((c, i) => ({ c, i, pos: commentStartIndex(jobParts, c) }))
               .sort((x, y) => (x.pos - y.pos) || (x.i - y.i));
             for (const { c } of ordered) {
               const type = commentType(c);
-              if (type === 'tree' && c.tree) drawStructuredEntry(c, layoutCommentTree(c.tree, treeKit, textColumnW - 8));
-              else if (type === 'lines' && c.lines) drawStructuredEntry(c, linesBox(c));
+              if (type === 'tree' && c.tree) drawStructuredEntry(c, (w) => layoutCommentTree(c.tree!, treeKit, w));
+              else if (type === 'lines' && c.lines) drawStructuredEntry(c, (w) => linesBox(c, w));
               else drawTextEntry(c);
             }
         };

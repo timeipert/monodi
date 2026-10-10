@@ -17,8 +17,10 @@ export const PRINT_PDF_DEFAULTS = {
   pdfParatextFontSize: 10,
   pdfFontSize: 10,
   pdfCommentFontSize: 8.5,
+  /** Staves in the apparatus are smaller than in the edition (printed edition: about 2/3). */
+  pdfCommentStaffScale: 0.28,
   pdfCommentTitleFontSize: 8.5,
-  pdfCommentBlockGap: 5,
+  pdfCommentBlockGap: 4,
   pdfHeadlineFontSize: 9,
   pdfPageNumberFontSize: 9,
   pdfMarginLeft: 56.7,

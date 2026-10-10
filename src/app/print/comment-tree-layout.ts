@@ -7,6 +7,8 @@ export interface Box {
   h: number;
   /** Takes the height of its grid row (brackets). */
   stretch?: boolean;
+  /** y of the middle of its staff: text and brackets of the same row are centred on it. */
+  anchor?: number;
   draw(x: number, y: number, rowH: number): void;
 }
 
@@ -48,7 +50,17 @@ export function layoutCommentTree(tree: VM.CommentTree, kit: TreeKit, maxW: numb
       const cellMax = Math.max(40, (maxW - kit.gapX * (cols - 1)) / cols);
       const boxes = rows.map((r) => r.map((t) => layoutCommentTree(t, kit, cellMax)));
       const colW = Array.from({ length: cols }, (_, ci) => Math.max(0, ...boxes.map((r) => r[ci]?.w ?? 0)));
-      const rowH = boxes.map((r) => Math.max(kit.fs, ...r.filter((b) => !b.stretch).map((b) => b.h)));
+      // Rows with a staff are centred on its middle line (text level with the notes, as printed).
+      const anchors = boxes.map((r) => {
+        const a = r.filter((b) => b.anchor !== undefined).map((b) => b.anchor as number);
+        return a.length ? Math.max(...a) : undefined;
+      });
+      const offs = boxes.map((r, ri) => r.map((b) => {
+        const an = anchors[ri];
+        if (b.stretch || an === undefined) return 0;
+        return b.anchor !== undefined ? an - b.anchor : Math.max(0, an - b.h / 2);
+      }));
+      const rowH = boxes.map((r, ri) => Math.max(kit.fs, ...r.map((b, ci) => (b.stretch ? 0 : offs[ri][ci] + b.h))));
       const colX: number[] = [];
       let x = 0;
       colW.forEach((w, ci) => { colX.push(x); x += w + (ci < cols - 1 ? kit.gapX : 0); });
@@ -56,8 +68,8 @@ export function layoutCommentTree(tree: VM.CommentTree, kit: TreeKit, maxW: numb
       let y = 0;
       rowH.forEach((h, ri) => { rowY.push(y); y += h + (ri < rows.length - 1 ? kit.gapY : 0); });
       return {
-        w: x, h: y,
-        draw: (ox, oy) => boxes.forEach((r, ri) => r.forEach((b, ci) => b.draw(ox + colX[ci], oy + rowY[ri], rowH[ri]))),
+        w: x, h: y, anchor: anchors[0],
+        draw: (ox, oy) => boxes.forEach((r, ri) => r.forEach((b, ci) => b.draw(ox + colX[ci], oy + rowY[ri] + offs[ri][ci], rowH[ri] - offs[ri][ci]))),
       };
     }
   }
