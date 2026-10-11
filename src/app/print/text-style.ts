@@ -13,13 +13,25 @@ export function isTextStyle(x: unknown): x is TextStyle {
   return typeof x === 'string' && (TEXT_STYLES as readonly string[]).includes(x);
 }
 
-/** The per-status styles from the settings: unknown styles are dropped, 'none' is the default. */
+/** Entry marks and primary chant segments are set in small capitals unless the settings say otherwise. */
+export const DEFAULT_STATUS_TEXT_STYLES: { [status: string]: TextStyle } = {
+  'Entry Mark': 'smallcaps',
+  'Primary Chant Segment': 'smallcaps',
+};
+
+/** The style of a status: the setting if there is a valid one (also 'none'), else the default. */
+export function statusTextStyleOf(raw: unknown, status: string): TextStyle {
+  const set = raw && typeof raw === 'object' ? (raw as Record<string, unknown>)[status] : undefined;
+  return isTextStyle(set) ? set : DEFAULT_STATUS_TEXT_STYLES[status] ?? 'none';
+}
+
+/** The styles per status from the settings on top of the defaults; 'none' (as typed) is left out. */
 export function resolveStatusTextStyles(raw: unknown): { [status: string]: TextStyle } {
   const out: { [status: string]: TextStyle } = {};
-  if (raw && typeof raw === 'object') {
-    for (const [status, style] of Object.entries(raw as Record<string, unknown>)) {
-      if (isTextStyle(style) && style !== 'none') out[status] = style;
-    }
+  const statuses = new Set([...Object.keys(DEFAULT_STATUS_TEXT_STYLES), ...(raw && typeof raw === 'object' ? Object.keys(raw as object) : [])]);
+  for (const status of statuses) {
+    const style = statusTextStyleOf(raw, status);
+    if (style !== 'none') out[status] = style;
   }
   return out;
 }

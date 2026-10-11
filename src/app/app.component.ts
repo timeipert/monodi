@@ -150,7 +150,16 @@ export class AppComponent {
     this.contextMenuService.open(event, items, undefined, undefined);
   }
 
+  /** A tool with a menu opens it (text entries) below its button. */
+  openToolMenu(event: MouseEvent, t: Tool) {
+    event.preventDefault();
+    event.stopPropagation();
+    const r = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.contextMenuService.openAt(r.left, r.bottom + 4, (t.menu || []).map(m => ({ ...m })));
+  }
+
   onToolContextMenu(event: MouseEvent, t: Tool) {
+    if (t.menu) { this.openToolMenu(event, t); return; }
     event.preventDefault();
     event.stopPropagation();
     

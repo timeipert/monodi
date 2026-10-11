@@ -28,6 +28,12 @@ export interface SyllableGeometry {
 export const CLEF_SHIFT = 32;
 const NOTE_GROUP_X = 12;
 
+/** A normal syllable with neither text nor a single note: in print it would only leave a gap. */
+export function isEmptySyllable(s: VM.Syllable): boolean {
+  if ((s.text || '').trim() !== '' || s.syllableType !== VM.SyllableType.Normal) return false;
+  return [s.notes, ...(s.additionalMelodies || [])].every((sp) => !sp || (sp.spaced || []).every((x) => (x.nonSpaced || []).every((n) => !(n.grouped || []).length)));
+}
+
 export function syllableGeometry(s: VM.Syllable, opts: { showClef: boolean; adiastematic: boolean }): SyllableGeometry {
   const isNormal = s.syllableType === VM.SyllableType.Normal;
   const showClef = opts.showClef && !opts.adiastematic;

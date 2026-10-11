@@ -1,4 +1,4 @@
-import { syllableGeometry, CLEF_SHIFT } from './notation-geometry';
+import { syllableGeometry, isEmptySyllable, CLEF_SHIFT } from './notation-geometry';
 import { BaseNote, NoteType, Syllable, SyllableType } from '../types/model';
 
 let n = 0;
@@ -50,5 +50,15 @@ describe('syllableGeometry', () => {
     expect(g.isNormal).toBeFalse();
     expect(g.shiftUnits).toBe(-1);
     expect(g.voices[0].length).toBe(0);
+  });
+});
+
+describe('isEmptySyllable', () => {
+  it('is true only without text and without notes', () => {
+    expect(isEmptySyllable(syl([], { text: '' }))).toBeTrue();
+    expect(isEmptySyllable({ ...syl([]), text: '  ', notes: { spaced: [{ nonSpaced: [] }] } } as any)).toBeTrue();
+    expect(isEmptySyllable(syl([], { text: 'la' }))).toBeFalse();
+    expect(isEmptySyllable(syl([[note(BaseNote.C, 4)]], { text: '' }))).toBeFalse();
+    expect(isEmptySyllable(syl([], { text: '', syllableType: SyllableType.WithoutNotes }))).toBeFalse();
   });
 });

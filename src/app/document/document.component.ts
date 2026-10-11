@@ -1,4 +1,5 @@
 import { FocusService } from '../focus.service';
+import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
 import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -1182,7 +1183,8 @@ export class DocumentComponent implements OnInit {
       );
     }
 
-    // Standard buttons: editing first, then the view, then everything that leaves the editor.
+    // Few buttons, the rest in menus with text: search and the view toggle stay one click away,
+    // editing helpers, comments and everything that leaves the editor are grouped by what they do.
     tools.push(
       {
         callback: () => { this.toggleSearchReplace(); },
@@ -1192,36 +1194,29 @@ export class DocumentComponent implements OnInit {
         group: 'edit'
       },
       {
-        callback: () => { this.openFlagPatterns(); },
-        icon: 'flag',
-        title: 'Flag neumes by pattern',
-        group: 'edit'
+        icon: 'pencil-square',
+        label: 'Edit',
+        title: 'Editing helpers',
+        group: 'edit',
+        menu: [
+          { label: 'Flag neumes by pattern…', icon: 'bi-flag', action: () => this.openFlagPatterns() },
+          { label: 'Import text…', icon: 'bi-file-earmark-text', action: () => { this.modalService.open(this.textImportModal); } },
+          { label: 'Fix syllable hyphens', icon: 'bi-type-strikethrough', action: () => this.fixSyllableDashes() },
+        ]
       },
       {
-        callback: () => { this.modalService.open(this.textImportModal); },
-        icon: 'file-earmark-text',
-        title: 'Import Text',
-        group: 'edit'
-      },
-      {
-        callback: () => {
-          this.undoService.beforeChange();
-          if (this.cont) {
-            VM.fixSyllableDashes(this.cont);
-            this.save();
-            this.cont = { ...this.cont } as VM.RootContainer;
-          }
-          this.toastr.success("Syllable hyphens corrected.");
-        },
-        icon: 'type-strikethrough',
-        title: 'Fix Syllable Dashes',
-        group: 'edit'
-      },
-      {
-        callback: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); },
         icon: 'chat-left-text',
-        title: 'Edit Global Comment',
-        group: 'edit'
+        label: 'Comments',
+        title: 'Comments',
+        group: 'edit',
+        menu: [
+          { label: 'Add comment (Ctrl+K)', icon: 'bi-chat-left-plus', action: () => this.startCommentCreation() },
+          { label: 'Show comment list', icon: 'bi-list-ul', action: () => this.setSidebarTab('comments') },
+          { label: 'Edit global comment…', icon: 'bi-chat-left-text', action: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); } },
+          { label: 'Comments on empty syllables', header: true, action: () => {} },
+          { label: 'Placeholder notes (F3, D6) → comment on the syllable', icon: 'bi-box-arrow-in-down', action: () => this.convertPlaceholderComments(true) },
+          { label: 'Comment on the syllable → placeholder note', icon: 'bi-box-arrow-up', action: () => this.convertPlaceholderComments(false) },
+        ]
       },
       {
         callback: () => { this.toggleReadOnly(); },
@@ -1230,34 +1225,18 @@ export class DocumentComponent implements OnInit {
         group: 'view'
       },
       {
-        callback: () => { this.upload(); },
-        icon: 'upload',
-        title: 'Upload Document',
-        group: 'exchange'
-      },
-      {
-        callback: () => { this.openJsonExport(); },
-        icon: 'download',
-        title: 'Export Document',
-        group: 'exchange'
-      },
-      {
-        callback: () => { this.openPdfExport(); },
-        icon: 'file-pdf',
-        title: 'Export as PDF',
-        group: 'exchange'
-      },
-      {
-        callback: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); },
-        icon: 'mei',
-        title: 'Export MEI',
-        group: 'exchange'
-      },
-      {
-        callback: () => { this.exportVolpiano(); },
-        icon: 'music-note-beamed',
-        title: 'Export Volpiano',
-        group: 'exchange'
+        icon: 'arrow-left-right',
+        label: 'File',
+        title: 'Import and export',
+        group: 'exchange',
+        menu: [
+          { label: 'Upload document (JSON)…', icon: 'bi-upload', action: () => this.upload() },
+          { label: 'Export', header: true, action: () => {} },
+          { label: 'Document (JSON)…', icon: 'bi-download', action: () => this.openJsonExport() },
+          { label: 'PDF…', icon: 'bi-file-pdf', action: () => this.openPdfExport() },
+          { label: 'MEI', icon: 'bi-file-earmark-code', action: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); } },
+          { label: 'Volpiano', icon: 'bi-music-note-beamed', action: () => this.exportVolpiano() },
+        ]
       }
     );
 
@@ -1267,6 +1246,16 @@ export class DocumentComponent implements OnInit {
       source: this,
       tools: tools
     });
+  }
+
+  fixSyllableDashes(): void {
+    this.undoService.beforeChange();
+    if (this.cont) {
+      VM.fixSyllableDashes(this.cont);
+      this.save();
+      this.cont = { ...this.cont } as VM.RootContainer;
+    }
+    this.toastr.success('Syllable hyphens corrected.');
   }
 
   /** "Flag neumes by pattern" dialog; the dialog edits this.cont in place, we refresh and save afterwards. */
@@ -1462,7 +1451,38 @@ export class DocumentComponent implements OnInit {
     }
   }
 
+  /**
+   * Switches this document between the two ways of commenting on a syllable without notes:
+   * a comment on a placeholder note (old convention) or on the empty syllable itself.
+   */
+  convertPlaceholderComments(toSyllables: boolean): void {
+    if (!this.cont) return;
+    const cfg = placeholderConfigFromSettings(this.settings);
+    this.undoService.beforeChange(toSyllables ? 'Placeholder notes to syllable comments' : 'Syllable comments to placeholder notes');
+    // Work on a copy and swap it in: the note editors redraw on a new model object, not on a change inside the old one.
+    let out: VM.RootContainer = JSON.parse(JSON.stringify(this.cont));
+    let count: number;
+    if (toSyllables) {
+      count = placeholderCommentsToSyllables(out, cfg);
+    } else {
+      const before = this.cont.comments.map(c => c.startUUID + '|' + c.endUUID);
+      out = syllableCommentsToPlaceholders(out, cfg);
+      count = out.comments.filter((c, i) => c.startUUID + '|' + c.endUUID !== before[i]).length;
+    }
+    if (!count) {
+      this.toastr.info(toSyllables ? 'No comments on placeholder notes found.' : 'No comments on empty syllables found.');
+      return;
+    }
+    this.cont = out;
+    this.contJsonClone = JSON.stringify(this.cont);
+    this.save();
+    this.cdr.detectChanges();
+    this.toastr.success(`${count} comment(s) moved ${toSyllables ? 'onto the syllables' : 'onto placeholder notes'}.`);
+  }
+
   showJsonExportDialog = false;
+  /** Old versions: write a placeholder note under comments on syllables without notes. */
+  exportPlaceholderNotes = false;
   exportJsonMode: 'none' | 'comment' | 'consecutive_lines' | 'split_documents' = 'none';
 
   openJsonExport(): void {
@@ -1507,9 +1527,11 @@ export class DocumentComponent implements OnInit {
 
     if (compatMode === 'split_documents') {
       const split = VM.convertToBackwardsCompatibleSplitDocuments(this.cont, baseId);
-      this.triggerDownloadBlob(split.v1, split.filename1);
+      const cfg = placeholderConfigFromSettings(this.settings);
+      const part = (r: VM.RootContainer) => this.exportPlaceholderNotes ? syllableCommentsToPlaceholders(r, cfg) : r;
+      this.triggerDownloadBlob(part(split.v1), split.filename1);
       setTimeout(() => {
-        this.triggerDownloadBlob(split.v2, split.filename2);
+        this.triggerDownloadBlob(part(split.v2), split.filename2);
       }, 250);
       return;
     }
@@ -1521,6 +1543,7 @@ export class DocumentComponent implements OnInit {
       exportData = VM.convertToBackwardsCompatibleComment(this.cont);
     }
 
+    if (this.exportPlaceholderNotes) exportData = syllableCommentsToPlaceholders(exportData, placeholderConfigFromSettings(this.settings));
     this.triggerDownloadBlob(exportData, `${baseId}.json`);
   }
 
@@ -1554,6 +1577,7 @@ export class DocumentComponent implements OnInit {
             case 'Failed': this.toastr.error("Invalid format", "Upload failed!"); break;
             case 'NotesRetrieved':
               this.cont = VM.normalizeDocumentComments(res.data);
+              if (importPlaceholderCommentsEnabled(this.settings)) placeholderCommentsToSyllables(this.cont, placeholderConfigFromSettings(this.settings));
               this.contJsonClone = JSON.stringify(this.cont);
               this.toastr.success("Upload successful!");
               this.checkSecondVoiceComments(this.cont);

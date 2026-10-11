@@ -36,7 +36,13 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
         // it is also the only place that can resolve UUIDs across lines.
         let startUUID = e.startUUID;
         let endUUID = e.endUUID;
-        if (e.endKind !== undefined && e.endKind !== Model.CommentPartKind.Syllable) {
+        // A syllable picked as the end is the end of that whole syllable: if the start is one of its own
+        // notes the order is kept; otherwise (e.g. an empty syllable picked after a later note) it is swapped like any other.
+        const endSyllable = e.endKind === Model.CommentPartKind.Syllable
+          ? Model.getAllLineParts(this.data).find(lp => lp.kind === Model.LinePartKind.Syllable && lp.uuid === endUUID)
+          : undefined;
+        const startInsideEnd = !!endSyllable && Model.getCommentableUUIDsOfLinePart(endSyllable).includes(startUUID);
+        if (e.endKind !== undefined && !startInsideEnd) {
           const all = Model.getAllCommentableUUIDs(this.data);
           const iStart = all.indexOf(startUUID);
           const iEnd = all.indexOf(endUUID);

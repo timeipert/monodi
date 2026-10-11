@@ -1,4 +1,5 @@
 import { ClefDisplayMode, sanitizeClefDisplayMode } from './clef-policy';
+import type { HeadingField } from './print/doc-heading';
 import { FolioPrefixMode, sanitizeFolioPrefixMode } from './folio-label';
 import { sanitizeNotationColor } from './notation-color';
 import { PRINT_PDF_DEFAULTS } from './pdf-defaults';
@@ -573,10 +574,16 @@ export interface ProjectSettings {
   pdfWidowSlack?: number;
   pdfHideStaffWithoutNotes?: boolean;
   pdfCompactTextless?: boolean;
+  /** Syllables with neither text nor notes take no room (default); off keeps their gap. */
+  pdfSkipEmptySyllables?: boolean;
   /** Lyric style per section status (key: English status name): 'smallcaps' | 'uppercase' | 'lowercase'; missing = as typed. */
   pdfStatusTextStyle?: { [status: string]: 'none' | 'smallcaps' | 'uppercase' | 'lowercase' };
   pdfChapterHeadings?: boolean;
   pdfChapterNewPage?: boolean;
+  /** Transitions between Edition, Critical Apparatus and Source Descriptions: 'volume' = a page of its own with a rule (as in the printed volume, no running head), 'compact' = just a heading where the part begins. */
+  /** Contents of the Edition: only the manuscripts (default, as in the printed volume) or every document. */
+  pdfContentsEdition?: 'chapters' | 'documents';
+  pdfPartStyle?: 'volume' | 'compact';
   pdfContentsApparatus?: 'chapters' | 'documents' | 'none';
   pdfBookmarks?: boolean;
   /** Frame the edition number (document field "Print Edition") in the margin next to the title. */
@@ -592,6 +599,16 @@ export interface ProjectSettings {
   activeMeiProfileId?: string;
   /** User-defined note flags (virga etc.), see notes/note-flags.ts. */
   noteFlags?: NoteFlagDef[];
+  /** Heading where a document begins in the PDF: fields, labels, styles (see print/doc-heading.ts). Default: ID, reference, genre (genre only where the PDF has several). */
+  pdfDocHeadingFields?: HeadingField[];
+  /** Between the parts of that heading (default three spaces). */
+  pdfDocHeadingSeparator?: string;
+  /** Import: comments on placeholder notes (old convention) move onto the syllables. Default on. */
+  importPlaceholderComments?: boolean;
+  /** Notes that count as placeholders on import, e.g. "F3, D6". */
+  placeholderNotes?: string;
+  /** Note written for a commented syllable without notes when exporting for old versions, e.g. "F3". */
+  placeholderExportNote?: string;
 }
 
 export interface MeiMappingSettings {

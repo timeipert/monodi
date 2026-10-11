@@ -160,7 +160,7 @@
                   class="btn d-flex align-items-center justify-content-center"
                   style="min-width: 40px; height: 40px;"
                   [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
-                  (click)="t.callback && t.callback()"
+                  (click)="t.menu ? openToolMenu($event, t) : (t.callback && t.callback())"
                   (contextmenu)="onToolContextMenu($event, t)"
                   [title]="t.title">
                   @if (t.icon === 'mei') {
@@ -169,7 +169,10 @@
                   @if (t.icon !== 'mei') {
                     <i class="bi bi-{{t.icon}}" style="font-size: 1.25rem;"></i>
                   }
-                  @if (t.active) {
+                  @if (t.menu && t.label) {
+                    <span class="ms-2 small fw-medium">{{t.label}}</span>
+                    <i class="bi bi-chevron-down ms-1" style="font-size: .7rem;"></i>
+                  } @else if (t.active) {
                     <span class="ms-1">{{t.title}}</span>
                   }
                 </button>

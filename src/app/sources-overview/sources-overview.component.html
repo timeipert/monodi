@@ -354,6 +354,12 @@
                   Split Documents (Generates -v1 and -v2 document folders)
                 </label>
               </div>
+              <div class="form-check mt-3 pt-2 border-top">
+                <input class="form-check-input" type="checkbox" id="zipPlaceholder" [(ngModel)]="exportPlaceholderNotes">
+                <label class="form-check-label text-dark fw-medium ms-1" for="zipPlaceholder">
+                  Placeholder note (default F3) for comments on syllables without notes
+                </label>
+              </div>
             </div>
           }
           <!-- Loading Spinner -->

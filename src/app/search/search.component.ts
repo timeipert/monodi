@@ -1262,7 +1262,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.pdfDialog.open({
       ids,
       docs: this.selectedDocs.length ? [...this.selectedDocs] : undefined,
-      title: ids.length === 1 ? '' : (this.selectedDocs.length ? 'Selected documents' : 'Search results'),
+      title: '',
     });
   }
 

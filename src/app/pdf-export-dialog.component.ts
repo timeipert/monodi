@@ -86,7 +86,7 @@ const OPTIONS_KEY = (multi: boolean) => `monodi_pdf_dialog_${multi ? 'multi' : '
               <div class="small fw-semibold text-uppercase text-muted mb-2" style="letter-spacing: .06em;">Options</div>
               @if (multi) {
                 <label class="form-label small text-muted mb-1" for="pdfTitle">Title</label>
-                <input id="pdfTitle" class="form-control form-control-sm mb-3" [(ngModel)]="title" [disabled]="busy" placeholder="Title of the print">
+                <input id="pdfTitle" class="form-control form-control-sm mb-3" [(ngModel)]="title" [disabled]="busy" placeholder="Optional — leave empty for a title page with the contents only">
               }
               <label class="form-label small text-muted mb-1" for="pdfFormat">Page format</label>
               <select id="pdfFormat" class="form-select form-select-sm mb-3" [(ngModel)]="o.pageFormat" [disabled]="busy" (ngModelChange)="save()">
@@ -286,7 +286,7 @@ export class PdfExportDialogComponent implements OnInit {
         newPagePerDocument: this.o.newPage,
         boxLabel: this.o.boxLabel,
         pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
-        title: this.title.trim() || `${jobs.length} documents`,
+        title: this.title.trim(),
         fileName: (this.fileBase.trim() || 'Documents').replace(/[\\/:*?"<>|]+/g, '_') + '.pdf',
         onProgress: (msg, done, total) => { this.status = msg; this.progress = 40 + (done / Math.max(1, total)) * 60; },
       });

@@ -19,10 +19,12 @@ import { NotesStore } from '../notes-store';
 import { PushCache } from '../push-cache';
 import { WORKSPACE_SCHEMA_VERSION } from '../schema';
 import { buildWorkspaceExport, parseWorkspaceImport, BackwardsCompatMode } from '../workspace-io';
+import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
 import { 
   convertToBackwardsCompatibleComment, 
   convertToBackwardsCompatibleConsecutiveLines, 
   convertToBackwardsCompatibleSplitDocuments, 
+  normalizeDocumentComments,
   RootContainer 
 } from '../types/model';
 import * as JSZip from 'jszip';
@@ -80,6 +82,8 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   selectedDocsForExport: any[] = [];
   renderingDocument: any = null;
   exportBackwardsCompatMode: BackwardsCompatMode = 'none';
+  /** Old versions: write a placeholder note under comments on syllables without notes. */
+  exportPlaceholderNotes = false;
 
   // CSV export options
   showCsvExportDialog = false;
@@ -397,7 +401,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const notes = await NotesStore.getAll();
       const settings = await localforage.getItem('monodi_settings');
       
-      const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode);
+      const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode, this.exportPlaceholderNotes);
       
       const res = await this.fsService.saveFile(JSON.stringify(data, null, 2), {
         suggestedName: `workspace_export_${new Date().toISOString().split('T')[0]}.monodijson`,
@@ -923,6 +927,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         details: '',
       });
 
+      const importSettings = await localforage.getItem<any>('monodi_settings');
       for (let i = 0; i < docMetas.length; i++) {
         if (this.importProgress.cancelled) return;
         const { meta, sourceId, docId, dataPath } = docMetas[i];
@@ -972,6 +977,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           //   1. NotesStore.set(...)
           //   2. documents.push(...) / documents[idx] = ...
           let notesPersisted = false;
+          if (docData && docData.kind === 'RootContainer' && importPlaceholderCommentsEnabled(importSettings)) {
+            normalizeDocumentComments(docData);
+            placeholderCommentsToSyllables(docData, placeholderConfigFromSettings(importSettings));
+          }
           try {
             await NotesStore.set(docId, docData);
             notesPersisted = true;
@@ -1160,8 +1169,12 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
   onExportSelectionChange(selection: { selectedSources: Source[], selectedDocs: any[] }) {
-    this.selectedSourcesForExport = selection.selectedSources;
-    this.selectedDocsForExport = selection.selectedDocs;
+    // The selector reports its first selection while the dialog is still being checked; apply it right after
+    // (changing the Export button's state in the middle of the check raises NG0100).
+    Promise.resolve().then(() => {
+      this.selectedSourcesForExport = selection.selectedSources;
+      this.selectedDocsForExport = selection.selectedDocs;
+    });
   }
 
   get hasSelectedItems(): boolean {
@@ -1178,7 +1191,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         const docs = [...this.selectedDocsForExport]
           .sort((a: any, b: any) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
         this.closeExportDialog();
-        this.pdfDialog.open({ docs, title: this.selectedSourcesForExport.length === 1 ? (this.selectedSourcesForExport[0].quellensigle || '') : docs.length + ' documents' });
+        this.pdfDialog.open({ docs, title: '' });
       } else {
         await this.generateHtmlEdition();
       }
@@ -1194,6 +1207,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const totalSources = this.selectedSourcesForExport.length;
       let i = 0;
       
+      const zipSettings = await localforage.getItem<any>('monodi_settings');
       for (const s of this.selectedSourcesForExport) {
         if (!s.id) continue;
         i++;
@@ -1264,14 +1278,18 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
               doc1.textinitium = (mappedDoc.textinitium || d.id) + ' (Voice 1)';
               doc2.textinitium = (mappedDoc.textinitium || d.id) + ' (Voice 2)';
               zip.file(`${s.id}/${d.id}-v1/meta.json`, JSON.stringify(doc1, null, 2));
-              zip.file(`${s.id}/${d.id}-v1/data.json`, JSON.stringify(split.v1, null, 2));
+              const part = (r: RootContainer) => this.exportPlaceholderNotes ? syllableCommentsToPlaceholders(r, placeholderConfigFromSettings(zipSettings)) : r;
+              zip.file(`${s.id}/${d.id}-v1/data.json`, JSON.stringify(part(split.v1), null, 2));
               zip.file(`${s.id}/${d.id}-v2/meta.json`, JSON.stringify(doc2, null, 2));
-              zip.file(`${s.id}/${d.id}-v2/data.json`, JSON.stringify(split.v2, null, 2));
+              zip.file(`${s.id}/${d.id}-v2/data.json`, JSON.stringify(part(split.v2), null, 2));
             } else {
               if (this.exportBackwardsCompatMode === 'consecutive_lines') {
                 notes = convertToBackwardsCompatibleConsecutiveLines(notes as RootContainer);
               } else if (this.exportBackwardsCompatMode === 'comment') {
                 notes = convertToBackwardsCompatibleComment(notes as RootContainer);
+              }
+              if (this.exportPlaceholderNotes && notes && (notes as any).kind === 'RootContainer') {
+                notes = syllableCommentsToPlaceholders(notes as RootContainer, placeholderConfigFromSettings(zipSettings));
               }
               zip.file(`${s.id}/${d.id}/meta.json`, JSON.stringify(mappedDoc, null, 2));
               zip.file(`${s.id}/${d.id}/data.json`, JSON.stringify(notes, null, 2));

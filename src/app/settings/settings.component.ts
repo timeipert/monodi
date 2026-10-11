@@ -1,6 +1,8 @@
 import { PRINT_PRESET } from '../pdf-defaults';
 import { FORMTEIL_STATUSES } from '../types/formteil-status';
-import { TextStyle, isTextStyle } from '../print/text-style';
+import { TextStyle, statusTextStyleOf } from '../print/text-style';
+import { HEADING_FIELD_KEYS, HeadingField, DEFAULT_HEADING_SEPARATOR, sanitizeHeadingFields } from '../print/doc-heading';
+import { metadataFieldLabel } from '../document-metadata';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.service';
 import { UserService, User } from '../user.service';
@@ -130,15 +132,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
   readonly formteilStatuses = FORMTEIL_STATUSES;
 
   statusTextStyle(status: string): TextStyle {
-    const style = this.settings?.pdfStatusTextStyle?.[status];
-    return isTextStyle(style) ? style : 'none';
+    return statusTextStyleOf(this.settings?.pdfStatusTextStyle, status);
   }
 
   setStatusTextStyle(status: string, style: TextStyle): void {
     if (!this.settings) return;
-    const styles = { ...(this.settings.pdfStatusTextStyle || {}) };
-    if (style === 'none') delete styles[status]; else styles[status] = style;
-    this.settings.pdfStatusTextStyle = styles;
+    this.settings.pdfStatusTextStyle = { ...(this.settings.pdfStatusTextStyle || {}), [status]: style };
     this.onSettingsChange();
   }
 
@@ -447,6 +446,60 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (!this.settings || !this.settings.genreLevelProfiles) return;
     this.settings.genreLevelProfiles = this.settings.genreLevelProfiles.filter(p => p.id !== id);
     this.saveSettings();
+  }
+
+  // ── Heading where a document begins in the PDF ─────────────────────────────────────────
+  private defaultHeadingFields?: HeadingField[];
+  readonly defaultHeadingSeparator = DEFAULT_HEADING_SEPARATOR;
+
+  /** The configured fields, or the (stable) default list while nothing is configured. */
+  headingFieldsList(): HeadingField[] {
+    return this.settings?.pdfDocHeadingFields ?? (this.defaultHeadingFields ??= sanitizeHeadingFields(undefined));
+  }
+
+  headingFieldOptions(): { key: string; label: string }[] {
+    const keys = [...HEADING_FIELD_KEYS, ...(this.settings?.customDocumentFields || []).map(f => f.key)];
+    return keys.map(key => ({ key, label: metadataFieldLabel(key, this.settings) }));
+  }
+
+  headingFieldLabel(key: string): string { return metadataFieldLabel(key, this.settings); }
+
+  private editableHeadingFields(): HeadingField[] {
+    if (!this.settings) return [];
+    return this.settings.pdfDocHeadingFields ??= this.headingFieldsList().map(f => ({ ...f }));
+  }
+
+  setHeadingField(i: number, patch: Partial<HeadingField>): void {
+    const list = this.editableHeadingFields();
+    if (!list[i]) return;
+    Object.assign(list[i], patch);
+    this.onSettingsChange();
+  }
+
+  moveHeadingField(i: number, delta: number): void {
+    const list = this.editableHeadingFields();
+    const j = i + delta;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    this.onSettingsChange();
+  }
+
+  removeHeadingField(i: number): void {
+    this.editableHeadingFields().splice(i, 1);
+    this.onSettingsChange();
+  }
+
+  addHeadingField(key: string): void {
+    if (!key) return;
+    this.editableHeadingFields().push({ key, style: 'normal', showLabel: true });
+    this.onSettingsChange();
+  }
+
+  resetHeadingFields(): void {
+    if (!this.settings) return;
+    delete this.settings.pdfDocHeadingFields;
+    delete this.settings.pdfDocHeadingSeparator;
+    this.onSettingsChange();
   }
 
   get availableHeadlineFields(): FieldDef[] {

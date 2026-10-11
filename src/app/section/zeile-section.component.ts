@@ -615,7 +615,8 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
     }
     if (mode.kind === 'CommentCreate') {
       // Don't let the user pick the SAME note as both start and end.
-      if (mode.startNoteUUID === endUUID) {
+      // (a syllable picked twice is a comment on that whole syllable)
+      if (mode.startNoteUUID === endUUID && kind !== Model.CommentPartKind.Syllable) {
         this.toastr.info('Pick a *different* note as the end of the comment.', 'Same note');
         return;
       }

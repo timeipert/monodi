@@ -36,6 +36,12 @@ describe('print options', () => {
   });
 
   it('switches default to on, and only an explicit false turns them off', () => {
+    expect(resolvePrintOptions({}).contentsEdition).toBe('chapters');
+    expect(resolvePrintOptions({ pdfContentsEdition: 'documents' }).contentsEdition).toBe('documents');
+    expect(resolvePrintOptions({}).skipEmptySyllables).toBeTrue();
+    expect(resolvePrintOptions({ pdfSkipEmptySyllables: false }).skipEmptySyllables).toBeFalse();
+    expect(resolvePrintOptions({}).partStyle).toBe('volume');
+    expect(resolvePrintOptions({ pdfPartStyle: 'compact' }).partStyle).toBe('compact');
     const o = resolvePrintOptions({ pdfChapterNewPage: false, pdfBookmarks: false, pdfHideStaffWithoutNotes: false });
     expect([o.chapterNewPage, o.bookmarks, o.hideBareStaff, o.chapterHeadings]).toEqual([false, false, false, true]);
   });

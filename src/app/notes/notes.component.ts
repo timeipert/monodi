@@ -594,6 +594,13 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     this.focusedVoiceIndex = voiceIndex;
     e.preventDefault();
     e.stopPropagation();
+    // While a comment is being made a click on the staff never enters a note. A syllable
+    // without notes can be picked as start / end of the comment (it is also the whole span
+    // when picked twice); one with notes is picked by clicking a note or its text.
+    if (this.focusService.mode.kind === 'CommentPickStart' || this.focusService.mode.kind === 'CommentCreate') {
+      if (!this.hasNotes()) this.request.emit({ kind: 'EndCommentRequested', endKind: VM.CommentPartKind.Syllable, endUUID: this.model.uuid });
+      return;
+    }
     const voices = this.getVoices();
     const focused = VM.getFocused(voices[voiceIndex]);
     if (voices[voiceIndex].spaced.length === 0 || voices[voiceIndex].spaced[0].nonSpaced.length === 0) {
@@ -623,6 +630,24 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     }
     this.notesToText();
     this.recalculateWidths();
+  }
+
+  /** True if the syllable has a note in any voice. */
+  hasNotes(): boolean {
+    return this.getVoices().some(v => VM.allNotes(v).length > 0);
+  }
+
+  /** The empty syllable that was picked as start of the comment in progress. */
+  get isPickedStartSyllable(): boolean {
+    const m = this.focusService.mode;
+    return m.kind === 'CommentCreate' && m.startNoteUUID === this.model.uuid;
+  }
+
+  /** Click on a bracket of a comment that hangs on the syllable itself: opens its comments. */
+  openSyllableComments(e: MouseEvent): void {
+    e.preventDefault();
+    e.stopPropagation();
+    this.showComments(true);
   }
 
   getNoteByClickPos(y: number): VM.Note {
@@ -930,6 +955,19 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   deleteNote(focusLast: boolean): void {
+    // The only note of a syllable may go even if comments end on it (the typical placeholder note):
+    // they move onto the now empty syllable instead of being lost.
+    const voice = this.getVoices()[this.focusedVoiceIndex];
+    const focused = VM.getFocused(voice);
+    const active = this.getActiveComments();
+    if (focused && active.length > 0 && VM.allNotes(voice).length === 1
+        && active.every(c => c.startUUID === focused.uuid || c.endUUID === focused.uuid)) {
+      for (const c of active) {
+        if (c.startUUID === focused.uuid) c.startUUID = this.model.uuid;
+        if (c.endUUID === focused.uuid) c.endUUID = this.model.uuid;
+      }
+      this.drawablesDirty = true;
+    }
     if (this.getActiveComments().length > 0) {
       this.toastr.info('Please delete the comment before deleting the symbol.');
     } else {
@@ -1183,17 +1221,15 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       const uuidInfo = VM.copyUuids(voices[voiceIndex], newNotes);
       const commentsToUpdate = this.comments.filter(c => uuidInfo.lostUUIDs.find(u => c.startUUID === u || c.endUUID === u));
 
-      if (commentsToUpdate.length > 0 && uuidInfo.fallbackUUID === undefined) {
-        window.alert('You cannot delete this note because a comment would be lost. Please remove the comment first.');
-        this.notesToText();
-        return;
-      } else if (uuidInfo.fallbackUUID) {
+      // Without a note left in this voice the comments move onto the syllable itself instead of blocking the edit.
+      const fallbackUUID = uuidInfo.fallbackUUID ?? (commentsToUpdate.length > 0 ? this.model.uuid : undefined);
+      if (fallbackUUID) {
         for (let c of commentsToUpdate) {
           if (uuidInfo.lostUUIDs.find(u => c.startUUID === u)) {
-            c.startUUID = uuidInfo.fallbackUUID;
+            c.startUUID = fallbackUUID;
           }
           if (uuidInfo.lostUUIDs.find(u => c.endUUID === u)) {
-            c.endUUID = uuidInfo.fallbackUUID;
+            c.endUUID = fallbackUUID;
           }
         }
       }
@@ -1388,6 +1424,32 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       });
     }
 
+    this.contextMenuService.open(me, items, 'transcription', 'entering-notes');
+  }
+
+  /** Right-click on the staff of the syllable (not on a note): comment on the syllable, start a longer comment, open its comments. */
+  onStaffContextMenu(me: MouseEvent): void {
+    if (this.readOnly) return;
+    me.preventDefault();
+    me.stopPropagation();
+    const count = this.getSyllableComments().length;
+    const items = [
+      {
+        label: 'Comment on this syllable',
+        icon: 'bi-chat-left-plus',
+        action: () => this.request.emit({ kind: 'NewCommentRequested', startUUID: this.model.uuid, endUUID: this.model.uuid, text: '', endKind: VM.CommentPartKind.Syllable })
+      },
+      {
+        label: 'Start a comment here (then click its end)',
+        icon: 'bi-chat-left-dots',
+        action: () => this.request.emit({ kind: 'StartCommentRequested', startKind: VM.CommentPartKind.Syllable, startUUID: this.model.uuid })
+      },
+      ...(count ? [{
+        label: `Show comments (${count})`,
+        icon: 'bi-chat-left-text',
+        action: () => this.showComments(true)
+      }] : []),
+    ];
     this.contextMenuService.open(me, items, 'transcription', 'entering-notes');
   }
 

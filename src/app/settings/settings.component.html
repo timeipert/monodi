@@ -645,6 +645,23 @@
                         <input type="number" class="form-control form-control-sm" min="0" max="80" step="1" [ngModel]="settings.pdfWidowSlack ?? 32" (ngModelChange)="settings.pdfWidowSlack = $event; onSettingsChange()">
                         <div class="form-text small">A last system with a single syllable gets no staff of its own if that syllable overshoots the right edge by at most this much. 0 = never.</div>
                       </div>
+                      <div class="col-12">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="importPlaceholderComments" [ngModel]="settings.importPlaceholderComments !== false" (ngModelChange)="settings.importPlaceholderComments = $event; onSettingsChange()">
+                          <label class="form-check-label small" for="importPlaceholderComments">On import, move comments on placeholder notes onto the (empty) syllables</label>
+                          <div class="form-text small">Old convention: a comment on a lone placeholder note means “something was here, no longer legible”. The syllable stays, without notes; the comment is kept and printed.</div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                          <div class="col-md-6">
+                            <label class="form-label small mb-0" for="placeholderNotes">Placeholder notes</label>
+                            <input class="form-control form-control-sm" id="placeholderNotes" placeholder="F3, D6" [ngModel]="settings.placeholderNotes ?? 'F3, D6'" (ngModelChange)="settings.placeholderNotes = $event; onSettingsChange()">
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label small mb-0" for="placeholderExportNote">Note written on export for old versions</label>
+                            <input class="form-control form-control-sm" id="placeholderExportNote" placeholder="F3" [ngModel]="settings.placeholderExportNote ?? 'F3'" (ngModelChange)="settings.placeholderExportNote = $event; onSettingsChange()">
+                          </div>
+                        </div>
+                      </div>
                       <div class="col-md-6 d-flex align-items-start">
                         <div class="form-check">
                           <input class="form-check-input" type="checkbox" id="pdfHideStaffWithoutNotes" [ngModel]="settings.pdfHideStaffWithoutNotes !== false" (ngModelChange)="settings.pdfHideStaffWithoutNotes = $event; onSettingsChange()">
@@ -659,6 +676,13 @@
                           <div class="form-text small">No empty lyric zone; off keeps the space for lyrics.</div>
                         </div>
                       </div>
+                      <div class="col-md-6 d-flex align-items-start">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="pdfSkipEmptySyllables" [ngModel]="settings.pdfSkipEmptySyllables !== false" (ngModelChange)="settings.pdfSkipEmptySyllables = $event; onSettingsChange()">
+                          <label class="form-check-label small" for="pdfSkipEmptySyllables">Syllables with neither text nor notes take no room</label>
+                          <div class="form-text small">Text-less chants then stand close together instead of being spread out by empty syllables.</div>
+                        </div>
+                      </div>
                       <div class="col-12"><hr class="my-1"><div class="small fw-semibold text-uppercase text-muted" style="letter-spacing: .06em;">Lyric style by section status</div></div>
                       @for (status of formteilStatuses; track status) {
                         <div class="col-md-6">
@@ -671,7 +695,7 @@
                           </select>
                         </div>
                       }
-                      <div class="col-12 form-text small mt-0">Applies to the syllable text of the sections with this status, including sections nested inside them. Small capitals: capitals stay full size, lower-case letters become smaller capitals.</div>
+                      <div class="col-12 form-text small mt-0">Applies to the syllable text of the sections with this status, including sections nested inside them. Entry Mark and Primary Chant Segment default to small capitals. Small capitals: capitals stay full size, lower-case letters become smaller capitals.</div>
                       <div class="col-12"><hr class="my-1"><div class="small fw-semibold text-uppercase text-muted" style="letter-spacing: .06em;">Critical apparatus (print style)</div></div>
                       <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Staff size</label>
@@ -702,6 +726,22 @@
                           <label class="form-check-label small" for="pdfChapterNewPage">Every manuscript starts on a new page</label>
                           
                         </div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium text-muted mb-1">Contents of the Edition</label>
+                        <select class="form-select form-select-sm" [ngModel]="settings.pdfContentsEdition || 'chapters'" (ngModelChange)="settings.pdfContentsEdition = $event; onSettingsChange()">
+                          <option value="chapters">Only the manuscripts (as in the printed volume)</option>
+                          <option value="documents">Every document</option>
+                        </select>
+                        <div class="form-text small">The documents stay reachable through the PDF bookmarks. Needs more than one manuscript.</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium text-muted mb-1">Transitions between Edition, Apparatus and Source Descriptions</label>
+                        <select class="form-select form-select-sm" [ngModel]="settings.pdfPartStyle || 'volume'" (ngModelChange)="settings.pdfPartStyle = $event; onSettingsChange()">
+                          <option value="volume">Volume: a page of its own with a rule, no running head</option>
+                          <option value="compact">Compact: only a heading (for short chants)</option>
+                        </select>
+                        <div class="form-text small">Volume style only applies when the PDF has more than one part.</div>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label small fw-medium text-muted mb-1">Contents under “Critical Apparatus”</label>
@@ -794,6 +834,59 @@
                           <span class="badge bg-secondary">{{settings.pdfCommentTitleFontSize}} pt</span>
                         </label>
                         <input type="range" class="form-range" min="5" max="18" step="0.5" [(ngModel)]="settings.pdfCommentTitleFontSize" (ngModelChange)="onSettingsChange()">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Heading where a document begins -->
+                <div class="card shadow-sm border-light mb-4">
+                  <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-card-heading me-2"></i>Document Heading</h6>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="resetHeadingFields()">Reset to default</button>
+                  </div>
+                  <div class="card-body bg-white py-3">
+                    <div class="form-text small mb-2">What is printed where each document begins in the PDF. Default: document ID, reference and genre — the genre only if the PDF contains more than one.</div>
+                    @for (f of headingFieldsList(); track $index) {
+                      <div class="row g-2 align-items-center mb-2">
+                        <div class="col-md-3 small fw-medium">{{ headingFieldLabel(f.key) }}</div>
+                        <div class="col-md-2">
+                          <select class="form-select form-select-sm" [ngModel]="f.style || 'normal'" (ngModelChange)="setHeadingField($index, { style: $event })">
+                            <option value="normal">Regular</option>
+                            <option value="bold">Bold</option>
+                            <option value="grey">Grey</option>
+                          </select>
+                        </div>
+                        <div class="col-md-3 d-flex gap-2 align-items-center">
+                          <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" [id]="'hf-label-' + $index" [ngModel]="f.showLabel === true" (ngModelChange)="setHeadingField($index, { showLabel: $event })">
+                            <label class="form-check-label small" [for]="'hf-label-' + $index">Label</label>
+                          </div>
+                          <input class="form-control form-control-sm" [placeholder]="headingFieldLabel(f.key)" [disabled]="f.showLabel !== true" [ngModel]="f.label || ''" (ngModelChange)="setHeadingField($index, { label: $event })">
+                        </div>
+                        <div class="col-md-2">
+                          <div class="form-check mb-0" title="Printed only if the value differs between the documents of the PDF">
+                            <input class="form-check-input" type="checkbox" [id]="'hf-varies-' + $index" [ngModel]="f.onlyIfVaries === true" (ngModelChange)="setHeadingField($index, { onlyIfVaries: $event })">
+                            <label class="form-check-label small" [for]="'hf-varies-' + $index">Only if it varies</label>
+                          </div>
+                        </div>
+                        <div class="col-md-2 text-end">
+                          <button type="button" class="btn btn-sm btn-outline-secondary py-0 me-1" (click)="moveHeadingField($index, -1)" [disabled]="$first" title="Move up"><i class="bi bi-arrow-up"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-secondary py-0 me-1" (click)="moveHeadingField($index, 1)" [disabled]="$last" title="Move down"><i class="bi bi-arrow-down"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger py-0" (click)="removeHeadingField($index)" title="Remove"><i class="bi bi-x"></i></button>
+                        </div>
+                      </div>
+                    }
+                    <div class="row g-2 mt-2">
+                      <div class="col-md-6">
+                        <select class="form-select form-select-sm" #addHeading (change)="addHeadingField(addHeading.value); addHeading.value = ''">
+                          <option value="">Add a field…</option>
+                          @for (o of headingFieldOptions(); track o.key) {
+                            <option [value]="o.key">{{ o.label }}</option>
+                          }
+                        </select>
+                      </div>
+                      <div class="col-md-6">
+                        <input class="form-control form-control-sm" placeholder="Separator (default: three spaces)" [ngModel]="settings.pdfDocHeadingSeparator ?? defaultHeadingSeparator" (ngModelChange)="settings.pdfDocHeadingSeparator = $event; onSettingsChange()">
                       </div>
                     </div>
                   </div>
@@ -1312,125 +1405,13 @@
                       }
                     </div>
                   </div>
-                  <!-- ─────────────────── Import & Export card ─────────────────── -->
+                  <!-- ─────────────────── Import & Export: one place ─────────────────── -->
                   <div class="card shadow-sm border-0 mb-4">
-                    <div class="card-body">
-                      <h5 class="fw-bold mb-3"><i class="bi bi-box-arrow-in-down me-2 text-primary"></i>Import & Export</h5>
-                      <p class="text-muted small mb-3">Move workspace data in or out of the browser. Heavy imports show a progress bar.</p>
-                      <div class="row g-3">
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-zip' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Import a ZIP of an export_monodi or OMMR4all folder">
-                            <i class="bi bi-file-zip text-primary"></i>
-                            <div>
-                              <div class="ws-action-title">Import ZIP</div>
-                              <div class="ws-action-sub">monodi or OMMR4all export folder</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-workspace' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Import a previously-exported workspace JSON">
-                            <i class="bi bi-upload text-secondary"></i>
-                            <div>
-                              <div class="ws-action-title">Import Workspace JSON</div>
-                              <div class="ws-action-sub">Restore a <code>.monodijson</code> backup</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-workspace' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Download the whole workspace as JSON">
-                            <i class="bi bi-download text-success"></i>
-                            <div>
-                              <div class="ws-action-title">Export Workspace JSON</div>
-                              <div class="ws-action-sub">Single <code>.monodijson</code> file</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-pdf' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Choose sources or documents and print them as one PDF typeset like the printed edition">
-                            <i class="bi bi-file-pdf text-danger"></i>
-                            <div>
-                              <div class="ws-action-title">Print PDF</div>
-                              <div class="ws-action-sub">Documents as a printed edition</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-zip' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Download the workspace as a ZIP file compatible with monodi+">
-                            <i class="bi bi-file-earmark-zip text-info"></i>
-                            <div>
-                              <div class="ws-action-title">Export ZIP</div>
-                              <div class="ws-action-sub">ZIP for monodi+ / OMMR</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-html' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Generate a static HTML edition">
-                            <i class="bi bi-globe text-warning"></i>
-                            <div>
-                              <div class="ws-action-title">Export HTML Edition</div>
-                              <div class="ws-action-sub">Browse offline as a static site</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-csv' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Download all source & document metadata as a CSV, with Volpiano and text columns">
-                            <i class="bi bi-filetype-csv text-success"></i>
-                            <div>
-                              <div class="ws-action-title">Export CSV</div>
-                              <div class="ws-action-sub">Metadata + Volpiano + text, one row per document</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-csv' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Create or update sources & documents from a CSV file">
-                            <i class="bi bi-filetype-csv text-secondary"></i>
-                            <div>
-                              <div class="ws-action-title">Import CSV</div>
-                              <div class="ws-action-sub">Rows become sources &amp; documents</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                          <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-annotations' }"
-                            class="ws-action-card text-decoration-none"
-                            title="Add line regions, snippets and neume table rows made in the Neumen-Editor">
-                            <i class="bi bi-images text-primary"></i>
-                            <div>
-                              <div class="ws-action-title">Import annotations</div>
-                              <div class="ws-action-sub">File from the Neumen-Editor</div>
-                            </div>
-                            <i class="bi bi-arrow-right ws-action-arrow"></i>
-                          </a>
-                        </div>
-                      </div>
-                      <p class="text-muted small mt-3 mb-0">
-                        <i class="bi bi-info-circle me-1"></i>
-                        Each card opens the Sources page and triggers the action immediately — the progress modal and HTML export dialog stay visible while you keep working.
-                      </p>
+                    <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                      <h5 class="fw-bold mb-0"><i class="bi bi-arrow-down-up me-2 text-primary"></i>Import & Export</h5>
+                      <a class="btn btn-outline-primary btn-sm" [routerLink]="['/import-export']">
+                        Open Import / Export <i class="bi bi-arrow-right ms-1"></i>
+                      </a>
                     </div>
                   </div>
                   <!-- ───────────── Direct OS File Backup / Sync (Chromium) ───────────── -->

@@ -42,8 +42,20 @@ export class ToolsService {
   }
 }
 
+/** One entry of a tool's drop-down menu (text, optional icon); `header` makes a non-clickable section title. */
+export interface ToolMenuItem {
+  label: string;
+  icon?: string;
+  header?: boolean;
+  disabled?: boolean;
+  action: () => void;
+}
+
 export interface Tool {
   callback?: () => void;
+  /** A tool with `menu` opens a text menu instead of running `callback`; `label` is shown next to the icon. */
+  menu?: ToolMenuItem[];
+  label?: string;
   icon?: string;
   title: string;
   active?: boolean;

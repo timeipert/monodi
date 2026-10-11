@@ -9,6 +9,12 @@ export function metadataFieldLabel(key: string, settings: ProjectSettings | null
   if (key === 'gattung2') return 'Genre 2';
   if (key === 'festtag') return 'Feast Day';
   if (key === 'feier') return 'Feast';
+  if (key === 'genre') return 'Genre';
+  if (key === 'bibliographischerverweis') return 'Reference';
+  if (key === 'druckausgabe') return 'Edition';
+  if (key === 'foliostart') return 'Folio';
+  if (key === 'zeilenstart') return 'Line';
+  if (key === 'kommentar') return 'Comment';
   const custom = settings?.customDocumentFields?.find((f) => f.key === key);
   return custom ? custom.label : key;
 }
@@ -21,6 +27,12 @@ export function metadataFieldValue(document: Document | null | undefined, key: s
   if (key === 'gattung2') return document.gattung2 || '';
   if (key === 'festtag') return document.festtag || '';
   if (key === 'feier') return document.feier || '';
+  if (key === 'genre') return genreOf(document);
+  if (key === 'bibliographischerverweis') return document.bibliographischerverweis || '';
+  if (key === 'druckausgabe') return document.druckausgabe || '';
+  if (key === 'foliostart') return document.foliostart || '';
+  if (key === 'zeilenstart') return document.zeilenstart || '';
+  if (key === 'kommentar') return document.kommentar || '';
   return document.custom?.[key] || '';
 }
 

@@ -787,6 +787,13 @@
                 <div class="text-muted small mt-1">Save as two separate files (-v1 & -v2)</div>
               </div>
             </div>
+            <div class="form-check p-3 border rounded bg-white shadow-sm">
+              <input class="form-check-input ms-0" type="checkbox" id="formatPlaceholder" [(ngModel)]="exportPlaceholderNotes" style="float: left;">
+              <div class="ms-4">
+                <label class="form-check-label fw-bold text-dark" for="formatPlaceholder">Placeholder note for comments on empty syllables</label>
+                <div class="text-muted small mt-1">Old versions cannot comment on a syllable without notes: it gets one placeholder note (default F3, see Settings) for the comment.</div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">

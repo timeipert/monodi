@@ -1,6 +1,6 @@
 <div class="section" [class.grouped-layout]="isGroupedLayout()" [style.width]="getWidth() + 'px'" [class.read-only]="readOnly">
   @for (voice of getVoices(); track trackByIndex(i, voice); let i = $index) {
-    <div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
+    <div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" (contextmenu)="onStaffContextMenu($event)" tabindex="-1"
       (focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
       <svg [attr.width]="getWidth() + 'px'" [style.height.px]="readOnly ? ((65 + padTopEff + readOnlyPadBottomFor(i)) * staffScale) : 120">
         <g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, ' + (padTopEff - 20) + ')' : 'scale(' + staffScale + ') translate(0, 0)'">
@@ -21,6 +21,12 @@
           @if (!readOnly && isThisCommentStart()) {
             <rect [attr.x]="0" [attr.y]="30" width="2px"
               height="60px" [attr.fill]="syllableBracketColor('start')" />
+          }
+          @if (!readOnly && isPickedStartSyllable) {
+            <rect x="1" y="32" [attr.width]="getWidth() - 2" height="56" fill="none" stroke="#f59f00" stroke-width="2.5"
+              stroke-dasharray="4 3" class="comment-start-marker" style="pointer-events: none;" />
+            <text [attr.x]="getWidth() / 2" y="26" text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
+              style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
           }
           @if (!readOnly && isThisCommentStart()) {
             <rect [attr.x]="0" [attr.y]="30" width="10px"
@@ -111,6 +117,13 @@
           @if (!readOnly && isThisCommentEnd()) {
             <rect [attr.x]="getWidth()-14" [attr.y]="30"
               width="10px" height="2px" [attr.fill]="syllableBracketColor('end')" />
+          }
+          <!-- the brackets of a comment on the syllable itself are clickable: they open the comment -->
+          @if (!readOnly && isThisCommentStart()) {
+            <rect x="0" y="26" width="10" height="68" fill="transparent" style="cursor: pointer;" (click)="openSyllableComments($event)"><title>Open comment</title></rect>
+          }
+          @if (!readOnly && isThisCommentEnd()) {
+            <rect [attr.x]="getWidth()-10" y="26" width="10" height="68" fill="transparent" style="cursor: pointer;" (click)="openSyllableComments($event)"><title>Open comment</title></rect>
           }
         </g>
         @if (!isNormal()) {
