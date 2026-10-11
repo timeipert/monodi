@@ -33,6 +33,7 @@ import { FileSystemService } from '../file-system.service';
 import { SOURCE_DESCRIPTION_KEY, sourceDescription } from '../source-description';
 import { applyPlan, describePlan, ImportPreview, parseExchange, planChangesAnything, planImport } from '../annotation-exchange';
 import { safeStorage } from '../safe-storage';
+import { downloadBlob } from '../download';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -454,12 +455,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `workspace_export_${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `workspace_export_${new Date().toISOString().split('T')[0]}.csv`);
       this.toastr.success('CSV exported successfully.');
     } catch (e) {
       this.toastr.error('CSV export failed: ' + e);

@@ -38,6 +38,7 @@ import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
+import { downloadBlob } from '../download';
 
 @Component({
     selector: 'app-document',
@@ -1574,17 +1575,7 @@ export class DocumentComponent implements OnInit {
   }
 
   private triggerDownloadBlob(data: any, filename: string): void {
-    const pom = document.createElement('a');
-    pom.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2)));
-    pom.setAttribute('download', filename);
-
-    if (document.createEvent) {
-      var event = document.createEvent('MouseEvents');
-      event.initEvent('click', true, true);
-      pom.dispatchEvent(event);
-    } else {
-      pom.click();
-    }
+    downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), filename);
   }
 
   upload(): void {

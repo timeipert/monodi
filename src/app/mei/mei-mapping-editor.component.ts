@@ -11,6 +11,7 @@ import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
 import { RootContainer, ContainerKind, LinePartKind } from '../types/model';
+import { downloadBlob } from '../download';
 
 /** Above this syllable count the preview is truncated to the first N lines so
  *  a large chant doesn't freeze the debounced live-preview render. */
@@ -593,11 +594,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     const out: Record<string, { mei: Record<string, string>[] }> = {};
     for (const r of this.patternRules.filter(r => !r.sigle && r.enabled)) out[r.pattern] = { mei: r.nc };
     const blob = new Blob([JSON.stringify({ patterns: out }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'pattern-mei.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    downloadBlob(blob, 'pattern-mei.json');
   }
 
   async importPatternRules(event: Event) {
@@ -859,13 +856,8 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   onExportProfile() {
     if (!this.activeProfile) return;
     
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.activeProfile, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `mei-profile-${this.activeProfile.name.replace(/\\s+/g, '-').toLowerCase()}.json`);
-    document.body.appendChild(downloadAnchorNode); // required for firefox
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+    const blob = new Blob([JSON.stringify(this.activeProfile, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `mei-profile-${this.activeProfile.name.replace(/\s+/g, '-').toLowerCase()}.json`);
   }
 
   onImportProfile(event: Event) {

@@ -7,6 +7,7 @@ import {
   VolpianoImportResult,
   VolpianoTextMode,
 } from './volpiano/volpiano';
+import { downloadBlob } from './download';
 
 /**
  * Thin Angular wrapper around the pure Volpiano core (see `./volpiano/volpiano.ts`).
@@ -30,12 +31,7 @@ export class VolpianoService {
   exportAndDownload(root: RootContainer, filename = 'export.volpiano.txt'): VolpianoExportResult {
     const result = this.export(root);
     const blob = new Blob([result.volpiano], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadBlob(blob, filename);
     return result;
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import * as localforage from 'localforage';
+import { downloadBlob } from './download';
 
 export interface FilePickerTypeOption {
   description?: string;
@@ -265,15 +266,6 @@ export class FileSystemService {
    * Utility to trigger standard browser download for Blobs.
    */
   public downloadBlob(blob: Blob, filename: string): void {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    }, 100);
+    downloadBlob(blob, filename);
   }
 }
