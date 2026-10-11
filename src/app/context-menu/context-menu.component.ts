@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ElementRef, NgZone } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { Router } from '@angular/router';
 import { ContextMenuService, ContextMenuState, ContextMenuItem } from './context-menu.service';
@@ -18,7 +18,8 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
   constructor(
     private contextMenuService: ContextMenuService,
     private router: Router,
-    private el: ElementRef
+    private el: ElementRef,
+    private zone: NgZone
   ) {}
 
   ngOnInit() {
@@ -31,8 +32,15 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
         document.body.appendChild(host);
       }
     } catch { /* SSR / detached DOM: ignore */ }
-    for (const t of ContextMenuComponent.OUTSIDE_EVENTS) document.addEventListener(t, this.closeOutside, { capture: true, passive: true });
-    document.addEventListener('keydown', this.closeOnEscape, true);
+    // Outside the Angular zone: these fire on every press, wheel tick and scroll of the whole page, and each one
+    // inside the zone would run a full change-detection pass (which re-ran every bound getter, and once rebuilt a
+    // table between a press and its release, so the click never landed). Only closing re-enters the zone.
+    this.zone.runOutsideAngular(() => {
+      for (const t of ContextMenuComponent.OUTSIDE_EVENTS) document.addEventListener(t, this.closeOutside, { capture: true, passive: true });
+      document.addEventListener('keydown', this.closeOnEscape, true);
+      window.addEventListener('scroll', this.closeOnWindowEvent, { passive: true });
+      window.addEventListener('resize', this.closeOnWindowEvent, { passive: true });
+    });
     this.sub = this.contextMenuService.state$.subscribe(state => {
       this.state = state;
       this.expanded.clear();
@@ -70,6 +78,8 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
     for (const t of ContextMenuComponent.OUTSIDE_EVENTS) document.removeEventListener(t, this.closeOutside, true);
     document.removeEventListener('keydown', this.closeOnEscape, true);
+    window.removeEventListener('scroll', this.closeOnWindowEvent);
+    window.removeEventListener('resize', this.closeOnWindowEvent);
     try {
       const host = this.el.nativeElement as HTMLElement;
       if (host.parentElement === document.body) {
@@ -87,21 +97,19 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
     if (!this.state.isOpen) return;
     const menu = this.el.nativeElement.querySelector('.custom-context-menu') as HTMLElement | null;
     if (menu && event.target instanceof Node && menu.contains(event.target)) return;
-    this.contextMenuService.close();
+    this.closeInZone();
   };
   private readonly closeOnEscape = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && this.state.isOpen) this.contextMenuService.close();
+    if (event.key === 'Escape' && this.state.isOpen) this.closeInZone();
   };
-  private static readonly OUTSIDE_EVENTS = ['mousedown', 'click', 'contextmenu', 'touchstart', 'wheel'];
-
-  // Close on scroll or resize
-  @HostListener('window:scroll')
-  @HostListener('window:resize')
-  onWindowEvents() {
-    if (this.state.isOpen) {
-      this.contextMenuService.close();
-    }
+  /** Close on scroll or resize. */
+  private readonly closeOnWindowEvent = () => {
+    if (this.state.isOpen) this.closeInZone();
+  };
+  private closeInZone() {
+    this.zone.run(() => this.contextMenuService.close());
   }
+  private static readonly OUTSIDE_EVENTS = ['mousedown', 'click', 'contextmenu', 'touchstart', 'wheel'];
 
   // Prevent closing when clicking inside the menu itself (unless clicking an action)
   onMenuClick(event: MouseEvent) {
