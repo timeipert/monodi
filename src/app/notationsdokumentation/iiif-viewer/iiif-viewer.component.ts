@@ -3,6 +3,7 @@ import {
   ViewChild, ElementRef, NgZone, OnDestroy, OnInit, HostListener
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Subscription } from 'rxjs';
 import { Source } from '../../api.service';
 import * as VM from '../../types/model';
 import { v4 as UUID } from 'uuid';
@@ -319,7 +320,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     // In simpleMode (document split-screen), keep the sidebar open so the user can navigate pages.
     // In full annotation mode (source view), start collapsed to give more space.
     this.leftSidebarCollapsed = false;
-    this.navService.focusFolio$.subscribe(f => this.selectFolio(f));
+    this.focusFolioSub = this.navService.focusFolio$.subscribe(f => this.selectFolio(f));
   }
 
   ngOnChanges(c: SimpleChanges) {
@@ -354,7 +355,10 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  private focusFolioSub?: Subscription;
+
   ngOnDestroy() {
+    this.focusFolioSub?.unsubscribe();
     if (this._viewportRef?.nativeElement)
       this._viewportRef.nativeElement.removeEventListener('wheel', this.wheelFn);
   }

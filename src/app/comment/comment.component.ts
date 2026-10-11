@@ -1,4 +1,5 @@
 import { Component, OnInit, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
+import { take } from 'rxjs';
 import * as M from '../types/model';
 import { commentColor } from './comment-colors';
 import { lemmaText } from './lemma-utils';
@@ -100,7 +101,7 @@ export class CommentComponent implements OnInit, OnDestroy {
   loadSigla() {
     if (this.siglaLoaded) return;
     this.siglaLoaded = true;
-    this.userService.user.subscribe(user => {
+    this.userService.user.pipe(take(1)).subscribe(user => {
       if (user && user.token) {
         this.api.listSources(user.token).subscribe(res => {
           if (res.kind === 'SourcesRetrieved') {
