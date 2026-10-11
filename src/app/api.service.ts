@@ -17,6 +17,7 @@ import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
 import { PushCache } from './push-cache';
 import { ORPHAN_BUNDLE_ID } from './workspace-source';
+import { repairStoredSources } from './source-repair';
 
 @Injectable({
   providedIn: 'root'
@@ -24,6 +25,14 @@ import { ORPHAN_BUNDLE_ID } from './workspace-source';
 export class APIService {
   private sourcesCache: Source[] | null = null;
   private documentsCache: Document[] | null = null;
+  /** The first read of each list. The app start and the first page both ask for it at the same moment; they must
+   *  share one read, or each would build its own copy (and, for sources, its own repaired ids). */
+  private sourcesLoading: Promise<Source[]> | null = null;
+  private documentsLoading: Promise<Document[]> | null = null;
+  /** Bumped by `invalidateCache`: a read that started before it must not fill the cache afterwards. */
+  private cacheGeneration = 0;
+  /** The tail of the queue of writes, see `serialized`. */
+  private writeQueue: Promise<unknown> = Promise.resolve();
   public storagePersisted: boolean | null = null;
 
   constructor(private backupReminder: BackupReminderService) {
@@ -35,15 +44,45 @@ export class APIService {
   }
 
   public invalidateCache() {
+    this.cacheGeneration++;
     this.sourcesCache = null;
     this.documentsCache = null;
+    this.sourcesLoading = null;
+    this.documentsLoading = null;
   }
 
-  private async getSources(): Promise<Source[]> {
-    if (this.sourcesCache) return this.sourcesCache;
-    const sources = await localforage.getItem<Source[]>('monodi_sources');
-    this.sourcesCache = sources || [];
-    return this.sourcesCache;
+  /**
+   * Runs a write after every write started before it has finished. A write reads the list, changes it and stores
+   * it again; two that overlap would both start from the same list, and the second would silently undo the first
+   * (a deleted document coming back, an edit lost). One failing write does not block the ones behind it.
+   */
+  private serialized<T>(write: () => Promise<T>): Promise<T> {
+    const run = this.writeQueue.then(write, write);
+    this.writeQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private getSources(): Promise<Source[]> {
+    if (this.sourcesCache) return Promise.resolve(this.sourcesCache);
+    return this.sourcesLoading ??= this.loadSources();
+  }
+
+  private async loadSources(): Promise<Source[]> {
+    const generation = this.cacheGeneration;
+    try {
+      const { sources, repaired } = repairStoredSources(await localforage.getItem<Source[]>('monodi_sources'));
+      // A save or an invalidation that happened while we were reading wins over what we read.
+      if (this.sourcesCache || generation !== this.cacheGeneration) return this.sourcesCache ?? sources;
+      this.sourcesCache = sources;
+      if (repaired) {
+        console.warn('Repaired sources without a usable id.');
+        await localforage.setItem('monodi_sources', sources).catch(e => console.warn('Could not save repaired sources:', e));
+      }
+      return sources;
+    } catch (e) {
+      if (generation === this.cacheGeneration) this.sourcesLoading = null;   // let the next call try again
+      throw e;
+    }
   }
 
   private async saveSources(sources: Source[]): Promise<void> {
@@ -52,11 +91,23 @@ export class APIService {
     this.backupReminder.markChanged();
   }
 
-  private async getDocuments(): Promise<Document[]> {
-    if (this.documentsCache) return this.documentsCache;
-    const docs = await localforage.getItem<Document[]>('monodi_documents');
-    this.documentsCache = docs || [];
-    return this.documentsCache;
+  private getDocuments(): Promise<Document[]> {
+    if (this.documentsCache) return Promise.resolve(this.documentsCache);
+    return this.documentsLoading ??= this.loadDocuments();
+  }
+
+  private async loadDocuments(): Promise<Document[]> {
+    const generation = this.cacheGeneration;
+    try {
+      const stored = await localforage.getItem<Document[]>('monodi_documents');
+      const docs = Array.isArray(stored) ? stored : [];
+      if (this.documentsCache || generation !== this.cacheGeneration) return this.documentsCache ?? docs;
+      this.documentsCache = docs;
+      return docs;
+    } catch (e) {
+      if (generation === this.cacheGeneration) this.documentsLoading = null;
+      throw e;
+    }
   }
 
   private async saveDocuments(docs: Document[]): Promise<void> {
@@ -121,7 +172,7 @@ export class APIService {
   }
 
   public updateSource(token: string, source: Source): Observable<LoginRequired | Ok | SourceNotFound> {
-    return from((async () => {
+    return from(this.serialized(async () => {
       let sources = await this.getSources();
       const index = sources.findIndex((s: Source) => s.id === source.id);
       if (index !== -1) {
@@ -131,7 +182,7 @@ export class APIService {
         return { kind: "Ok" as const };
       }
       return { kind: "SourceNotFound" as const };
-    })());
+    }));
   }
 
   public getSource(token: string, id: string): Observable<LoginRequired | SourceRetrieved | SourceNotFound | InsufficientPermissions> {
@@ -188,7 +239,7 @@ export class APIService {
   }
 
   public createSource(token: string, source: Source): Observable<LoginRequired | SourceCreated> {
-    return from((async () => {
+    return from(this.serialized(async () => {
       let sources = await this.getSources();
       const newId = uuidv4();
       source.id = newId;
@@ -196,7 +247,7 @@ export class APIService {
       await this.saveSources(sources);
       await PushCache.markDirty(newId);
       return { kind: "SourceCreated" as const, id: newId };
-    })());
+    }));
   }
 
   public importZip(token: string, data: string): Observable<LoginRequired | UploadFinished | InsufficientPermissions> {
@@ -212,16 +263,17 @@ export class APIService {
   }
 
   public deleteDocuments(token: string, data: string): Observable<LoginRequired | UploadFinished | InsufficientPermissions> {
-    return from((async () => {
+    return from(this.serialized(async () => {
       const docIdsToRemove = JSON.parse(data) as string[];
+      const doomed = new Set(docIdsToRemove);
       let documents = await this.getDocuments();
 
       // The manuscripts losing a document still exist remotely and need a
       // push to reflect the removal, so they're dirty — not deleted.
-      const removed = documents.filter((d: Document) => docIdsToRemove.includes(d.id));
+      const removed = documents.filter((d: Document) => doomed.has(d.id));
       const affectedManuscripts = [...new Set(removed.map(d => d.quelle_id || ORPHAN_BUNDLE_ID))];
 
-      documents = documents.filter((d: Document) => !docIdsToRemove.includes(d.id));
+      documents = documents.filter((d: Document) => !doomed.has(d.id));
       await this.saveDocuments(documents);
       // Per-document deletion via NotesStore avoids re-saving the whole
       // notes dict (which can exceed the IndexedDB structured-clone limit
@@ -229,19 +281,20 @@ export class APIService {
       await NotesStore.removeMany(docIdsToRemove);
       await PushCache.markDirty(affectedManuscripts);
       return { kind: "UploadFinished" as const, errors: [] };
-    })());
+    }));
   }
 
   public deleteSources(token: string, data: string): Observable<LoginRequired | UploadFinished | InsufficientPermissions> {
-    return from((async () => {
+    return from(this.serialized(async () => {
       const sourceIdsToRemove = JSON.parse(data) as string[];
+      const doomed = new Set(sourceIdsToRemove);
       let sources = await this.getSources();
       let documents = await this.getDocuments();
 
-      sources = sources.filter((s: Source) => !sourceIdsToRemove.includes(s.id!));
+      sources = sources.filter((s: Source) => !doomed.has(s.id!));
 
-      const docIdsToRemove = documents.filter((d: Document) => sourceIdsToRemove.includes(d.quelle_id)).map(d => d.id);
-      documents = documents.filter((d: Document) => !sourceIdsToRemove.includes(d.quelle_id));
+      const docIdsToRemove = documents.filter((d: Document) => doomed.has(d.quelle_id)).map(d => d.id);
+      documents = documents.filter((d: Document) => !doomed.has(d.quelle_id));
 
       await this.saveSources(sources);
       await this.saveDocuments(documents);
@@ -250,7 +303,7 @@ export class APIService {
       // from GitHub rather than just re-upload a changed version of them.
       await PushCache.markDeleted(sourceIdsToRemove);
       return { kind: "UploadFinished" as const, errors: [] };
-    })());
+    }));
   }
 
   public listDocuments(token: string): Observable<LoginRequired | DocumentsRetrieved> {
@@ -261,7 +314,7 @@ export class APIService {
   }
 
   public updateDocument(token: string, update: CreateDocument): Observable<LoginRequired | Ok | DocumentNotFound | InsufficientPermissions> {
-    return from((async () => {
+    return from(this.serialized(async () => {
       let documents = await this.getDocuments();
 
       const index = documents.findIndex((d: Document) => d.id === update.document.id);
@@ -277,7 +330,7 @@ export class APIService {
         return { kind: "Ok" as const };
       }
       return { kind: "DocumentNotFound" as const };
-    })());
+    }));
   }
 
   public getDocument(token: string, id: string): Observable<LoginRequired | DocumentRetrieved | DocumentNotFound | InsufficientPermissions> {
@@ -292,7 +345,7 @@ export class APIService {
   }
 
   public removeDocument(token: string, id: string): Observable<LoginRequired | Ok> {
-    return from((async () => {
+    return from(this.serialized(async () => {
       let documents = await this.getDocuments();
       const removed = documents.find((d: Document) => d.id === id);
       documents = documents.filter((d: Document) => d.id !== id);
@@ -300,11 +353,11 @@ export class APIService {
       await NotesStore.remove(id);
       await PushCache.markDirty(removed?.quelle_id || ORPHAN_BUNDLE_ID);
       return { kind: "Ok" as const };
-    })());
+    }));
   }
 
   public createDocument(token: string, creation: CreateDocument): Observable<LoginRequired | DocumentCreated> {
-    return from((async () => {
+    return from(this.serialized(async () => {
       let documents = await this.getDocuments();
 
       const newId = uuidv4();
@@ -314,7 +367,7 @@ export class APIService {
       await NotesStore.set(newId, creation.notes);
       await PushCache.markDirty(creation.document.quelle_id || ORPHAN_BUNDLE_ID);
       return { kind: "DocumentCreated" as const, id: newId };
-    })());
+    }));
   }
 
   public queryDocuments(token: string, query: DocumentQuery): Observable<LoginRequired | DocumentsRetrieved> {

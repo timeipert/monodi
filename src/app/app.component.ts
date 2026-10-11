@@ -83,9 +83,10 @@ export class AppComponent {
   isNavCollapsed = true;
 
   constructor (
-    // Injected only for its constructor: it configures localforage (database and store name) before
-    // anything else reads from storage. Do not remove.
-    api: APIService,
+    // Injecting it also configures localforage (database and store name) before anything else reads from
+    // storage. Do not remove. Whatever this component writes to storage itself must be followed by
+    // `api.invalidateCache()`, or the API keeps serving (and later saving) its stale copy.
+    private api: APIService,
     userService: UserService,
     private toolsService: ToolsService,
     public github: GithubService,
@@ -289,6 +290,7 @@ export class AppComponent {
       }
     }
     await localforage.setItem('monodi_sources', sources);
+    this.api.invalidateCache();   // the list was written behind the API's back: its copy is out of date now
     await PushCache.markDirty(Array.from(selectedIds));
     for (const m of this.manuscriptList) {
       if (selectedIds.has(m.id) && !m.assigned.includes(me)) m.assigned.push(me);
@@ -377,6 +379,7 @@ export class AppComponent {
 
     await localforage.setItem('monodi_sources', keptSources);
     await localforage.setItem('monodi_documents', keptDocuments);
+    this.api.invalidateCache();
     // Local now holds exactly what GitHub had — no push needed for these.
     await PushCache.markClean(ids);
 
@@ -536,6 +539,7 @@ export class AppComponent {
     // Metadata arrays are written back as whole rows (they always were).
     await localforage.setItem('monodi_sources', Array.from(sourcesById.values()));
     await localforage.setItem('monodi_documents', Array.from(docsById.values()));
+    this.api.invalidateCache();
 
     this.isSyncing = false;
     this.syncProgress = null;
@@ -727,6 +731,7 @@ export class AppComponent {
 
       await localforage.setItem('monodi_sources', Array.from(sourcesById.values()));
       await localforage.setItem('monodi_documents', Array.from(docsById.values()));
+      this.api.invalidateCache();
     }
 
     if (nowClean.length > 0) await PushCache.markClean(nowClean);
