@@ -23,6 +23,7 @@ import {
   PatternGroup,
   computePatternGroups
 } from './pattern-algo';
+import { safeStorage } from '../safe-storage';
 
 // ─── Column config ────────────────────────────────────────────────────────────
 
@@ -1142,9 +1143,9 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return defaults.map(c => ({ ...c }));
   }
 
-  saveSrcCols() { localStorage.setItem(SRC_RES_KEY, JSON.stringify(this.srcResultCols)); }
-  saveDocCols() { localStorage.setItem(DOC_RES_KEY, JSON.stringify(this.docResultCols)); }
-  saveSynopsisCols() { localStorage.setItem(SYNOPSIS_COLS_KEY, JSON.stringify(this.synopsisMetadataCols)); }
+  saveSrcCols() { safeStorage.setJson(SRC_RES_KEY, this.srcResultCols); }
+  saveDocCols() { safeStorage.setJson(DOC_RES_KEY, this.docResultCols); }
+  saveSynopsisCols() { safeStorage.setJson(SYNOPSIS_COLS_KEY, this.synopsisMetadataCols); }
 
   get visibleSynopsisCols() {
     return this.synopsisMetadataCols.filter(c => c.visible);
@@ -1159,18 +1160,18 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   // ── Recent searches ───────────────────────────────────────────────────────
 
   loadRecentSearches() {
-    try { this.recentSearches = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); }
-    catch { this.recentSearches = []; }
+    const recent = safeStorage.getJson<unknown>(RECENT_KEY, []);
+    this.recentSearches = Array.isArray(recent) ? recent.filter((r): r is string => typeof r === 'string') : [];
   }
 
   addRecentSearch(q: string) {
     if (!q.trim()) return;
     this.recentSearches = [q, ...this.recentSearches.filter(r => r !== q)].slice(0, 8);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(this.recentSearches));
+    safeStorage.setJson(RECENT_KEY, this.recentSearches);
   }
 
   applyRecent(q: string)  { this.quickText = q; this.searchQuick(); }
-  clearRecent()           { this.recentSearches = []; localStorage.removeItem(RECENT_KEY); }
+  clearRecent()           { this.recentSearches = []; safeStorage.remove(RECENT_KEY); }
   countQuickResults(kind: 'source' | 'document'): number {
     return this.quickResults.filter(r => r.kind === kind).length;
   }

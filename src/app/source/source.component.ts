@@ -18,6 +18,7 @@ import { Header, BatchField } from '../smart-table/smart-table.component';
 import { NotesStore } from '../notes-store';
 import { ContainerKind, RootContainer } from '../types/model';
 import { sourceDescription, setSourceDescription } from '../source-description';
+import { safeStorage } from '../safe-storage';
 
 /** A document's notes with what the notation analysis needs to know about it. */
 interface NotationInput {
@@ -112,7 +113,7 @@ export class SourceComponent implements OnInit {
   }
 
   saveDocCols() {
-    localStorage.setItem(DOC_COLS_KEY, JSON.stringify(this.docCols));
+    safeStorage.setJson(DOC_COLS_KEY, this.docCols);
     this.updateDocHeaders();
   }
 

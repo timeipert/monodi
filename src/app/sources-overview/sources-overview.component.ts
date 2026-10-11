@@ -32,6 +32,7 @@ import * as Handlebars from 'handlebars';
 import { FileSystemService } from '../file-system.service';
 import { SOURCE_DESCRIPTION_KEY, sourceDescription } from '../source-description';
 import { applyPlan, describePlan, ImportPreview, parseExchange, planChangesAnything, planImport } from '../annotation-exchange';
+import { safeStorage } from '../safe-storage';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -255,7 +256,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
   saveCols() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.cols));
+    safeStorage.setJson(STORAGE_KEY, this.cols);
     this.updateHeaders();
   }
 

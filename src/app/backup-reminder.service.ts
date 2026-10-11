@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+import { safeStorage } from './safe-storage';
 
 const K_LAST_CHANGE = 'monodi_last_change';
 const K_LAST_BACKUP = 'monodi_last_backup';
@@ -50,7 +51,7 @@ export class BackupReminderService {
   /** Call after a full backup (workspace/ZIP export, GitHub push). */
   markBackup(): void {
     this.setNum(K_LAST_BACKUP, Date.now());
-    localStorage.removeItem(K_SNOOZE_UNTIL);
+    safeStorage.remove(K_SNOOZE_UNTIL);
     this.evaluate();
   }
 
@@ -60,7 +61,7 @@ export class BackupReminderService {
   }
 
   dismissForever(): void {
-    localStorage.setItem(K_DISMISSED, '1');
+    safeStorage.set(K_DISMISSED, '1');
     this.evaluate();
   }
 
@@ -70,7 +71,7 @@ export class BackupReminderService {
   }
 
   private isDismissed(): boolean {
-    return localStorage.getItem(K_DISMISSED) === '1';
+    return safeStorage.get(K_DISMISSED) === '1';
   }
 
   private evaluate(): void {
@@ -86,16 +87,13 @@ export class BackupReminderService {
   }
 
   private getNum(key: string): number {
-    const v = localStorage.getItem(key);
+    const v = safeStorage.get(key);
     const n = v ? parseInt(v, 10) : 0;
     return isNaN(n) ? 0 : n;
   }
 
   private setNum(key: string, value: number): void {
-    try {
-      localStorage.setItem(key, String(value));
-    } catch {
-      /* localStorage may be unavailable in private mode; the banner just won't show. */
-    }
+    // Unavailable storage (private mode ...) just means the banner never shows.
+    safeStorage.set(key, String(value));
   }
 }
