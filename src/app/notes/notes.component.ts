@@ -116,23 +116,31 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     return voices;
   }
 
-  private isUUIDInCommentSpan(targetUUID: string, comment: VM.Comment): boolean {
+  /**
+   * Where each element that carries a `data-uuid` sits in the page, in reading order. Walking the whole
+   * document is the expensive part of asking "is this note inside that comment?", so it is done once per
+   * question and shared by every (note, comment) pair, not repeated for each pair.
+   */
+  private uuidOrder(): Map<string, number> | null {
+    if (typeof document === 'undefined') return null;
+    const order = new Map<string, number>();
+    document.querySelectorAll('[data-uuid]').forEach(el => {
+      const uuid = el.getAttribute('data-uuid');
+      if (uuid && !order.has(uuid)) order.set(uuid, order.size);
+    });
+    return order.size > 0 ? order : null;
+  }
+
+  private isUUIDInCommentSpan(targetUUID: string, comment: VM.Comment, order: Map<string, number> | null): boolean {
     if (!targetUUID || !comment) return false;
     if (comment.startUUID === targetUUID || comment.endUUID === targetUUID) return true;
 
-    if (typeof document !== 'undefined') {
-      const allEl = Array.from(document.querySelectorAll('[data-uuid]'));
-      if (allEl.length > 0) {
-        const uuids = allEl.map(el => el.getAttribute('data-uuid')).filter((u): u is string => !!u);
-        const startIdx = uuids.indexOf(comment.startUUID);
-        const endIdx = uuids.indexOf(comment.endUUID);
-        const targetIdx = uuids.indexOf(targetUUID);
-
-        if (startIdx !== -1 && endIdx !== -1 && targetIdx !== -1) {
-          const min = Math.min(startIdx, endIdx);
-          const max = Math.max(startIdx, endIdx);
-          return targetIdx >= min && targetIdx <= max;
-        }
+    if (order) {
+      const startIdx = order.get(comment.startUUID);
+      const endIdx = order.get(comment.endUUID);
+      const targetIdx = order.get(targetUUID);
+      if (startIdx !== undefined && endIdx !== undefined && targetIdx !== undefined) {
+        return targetIdx >= Math.min(startIdx, endIdx) && targetIdx <= Math.max(startIdx, endIdx);
       }
     }
     return false;
@@ -141,7 +149,8 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   getActiveComments(): VM.Comment[] {
     const focusedNote = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
     if (focusedNote) {
-      return this.comments.filter(c => this.isUUIDInCommentSpan(focusedNote.uuid, c));
+      const order = this.uuidOrder();
+      return this.comments.filter(c => this.isUUIDInCommentSpan(focusedNote.uuid, c, order));
     }
     return [];
   }
@@ -157,8 +166,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         }
       }
     }
+    const order = this.uuidOrder();
     return this.comments.filter(c =>
-      syllableUUIDs.some(uuid => this.isUUIDInCommentSpan(uuid, c))
+      syllableUUIDs.some(uuid => this.isUUIDInCommentSpan(uuid, c, order))
     );
   }
 
