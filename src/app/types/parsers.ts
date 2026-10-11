@@ -104,7 +104,5 @@ export function makeSyllable(text: string, kind: M.SyllableType = M.SyllableType
   return s;
 }
 
-export function log<A>(p: P.Parser<A>): P.Parser<A> { return p.map(a => { console.log(JSON.stringify(a)); console.log(a); return a }); }
 export const word: P.Parser<string> = P.regex(/[A-Za-z\u00C0-\u017F\.…<>]+[0-9]*/);
-export const wordR = /[A-Za-z\u00C0-\u017F\.…<>]+[0-9]*/;
 export const reference: P.Parser<string> = P.regex(/; *[A-Z]+ *[0-9]+ *(, *[0-9]+)?/)

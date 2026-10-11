@@ -1,4 +1,5 @@
 import { Output, EventEmitter, SimpleChanges, Input, OnChanges, Component, OnInit } from '@angular/core';
+import { compareNatural } from '../../utils';
 
 @Component({
     selector: 'app-smart-table',
@@ -129,9 +130,8 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
       return numA - numB;
     }
 
-    const lowerA = txtA.toLowerCase();
-    const lowerB = txtB.toLowerCase();
-    return lowerA < lowerB ? -1 : lowerA > lowerB ? 1 : 0;
+    // Text with numbers in it (a document ID such as "Pa 10-1-1") is ordered part by part, see compareNatural.
+    return compareNatural(txtA, txtB);
   }
 
   private saveSortState() {
@@ -149,31 +149,52 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
     }
   }
 
+  /** What `allRows` was built from. Rows are only rebuilt when this no longer matches, so a parent that hands in
+   *  a fresh-but-equal `[batchFields]` array on every change-detection pass cannot make the table rebuild itself
+   *  (which used to swap the rows out from under the mouse between press and release, eating the click). */
+  private builtFrom: { objects: T[]; headers: Header<T>[]; size: number } | null = null;
+
+  private rowsAreStale(): boolean {
+    const b = this.builtFrom;
+    return !b || b.objects !== this.objects || b.headers !== this.headers || b.size !== (this.objects?.length ?? 0);
+  }
+
+  /** Cells for every object, in the order the objects came in, then sorted if a sort is active. */
+  private rebuildRows() {
+    const objects = this.objects ?? [];
+    const headers = this.headers ?? [];
+    this.allRows = objects.map(o => ({
+      dataObject: o,
+      cells: headers.map(h => h.makeCell(o))
+    }));
+    this.builtFrom = { objects: this.objects, headers: this.headers, size: objects.length };
+    this.applySort();
+  }
+
+  private applySort() {
+    if (this.sortFieldName === undefined) return;
+    const index = (this.headers ?? []).findIndex(x => x.name === this.sortFieldName);
+    if (index < 0) {
+      this.sortFieldName = undefined;
+      this.saveSortState();
+      return;
+    }
+    const multiplier = this.sortDescending ? -1 : 1;
+    this.allRows.sort((a, b) => multiplier * this.compareCells(a.cells[index], b.cells[index]));
+  }
+
   ngOnChanges(changes: SimpleChanges) {
     this.ensureStateLoaded();
 
-    this.allRows = this.objects.map(o => ({
-      dataObject: o,
-      cells: this.headers.map(h => h.makeCell(o))
-    }));
+    if (this.rowsAreStale()) {
+      this.rebuildRows();
 
-    // Clean up selection if underlying objects changed
-    const validObjects = new Set(this.objects);
-    for (const item of Array.from(this.selectedObjects)) {
-      if (!validObjects.has(item)) {
-        this.selectedObjects.delete(item);
-      }
-    }
-
-    if (this.sortFieldName !== undefined) {
-      const h = this.headers.find(x => x.name === this.sortFieldName);
-      if (h) {
-        const index = this.headers.indexOf(h);
-        const multiplier = this.sortDescending ? -1 : 1;
-        this.allRows.sort((a, b) => multiplier * this.compareCells(a.cells[index], b.cells[index]));
-      } else {
-        this.sortFieldName = undefined;
-        this.saveSortState();
+      // Clean up selection if underlying objects changed
+      const validObjects = new Set(this.objects ?? []);
+      for (const item of Array.from(this.selectedObjects)) {
+        if (!validObjects.has(item)) {
+          this.selectedObjects.delete(item);
+        }
       }
     }
 
@@ -181,15 +202,10 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
   }
 
   sortBy(h: Header<T>) {
-    const index = this.headers.indexOf(h);
     if (this.sortFieldName === h.name) {
       if (this.sortDescending) {
         this.sortFieldName = undefined;
         this.sortDescending = false;
-        this.allRows = this.objects.map(o => ({
-          dataObject: o,
-          cells: this.headers.map(h => h.makeCell(o))
-        }));
       } else {
         this.sortDescending = true;
       }
@@ -200,9 +216,10 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
 
     this.saveSortState();
 
-    if (this.sortFieldName !== undefined) {
-      const multiplier = this.sortDescending ? -1 : 1;
-      this.allRows.sort((a, b) => multiplier * this.compareCells(a.cells[index], b.cells[index]));
+    if (this.sortFieldName === undefined) {
+      this.rebuildRows();   // back to the order the objects came in
+    } else {
+      this.applySort();
     }
 
     this.applyFilterAndPagination();
@@ -433,6 +450,7 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
 
     this.closeBatchEditModal();
     this.clearSelection();
+    this.rebuildRows();   // the objects were changed in place, so their cells are out of date
     this.applyFilterAndPagination();
   }
 

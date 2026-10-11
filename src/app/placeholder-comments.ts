@@ -50,10 +50,6 @@ export function parsePlaceholderPitches(s: string): PlaceholderPitch[] {
   return (s || '').split(/[\s,;]+/).map(parsePlaceholderPitch).filter((p): p is PlaceholderPitch => !!p);
 }
 
-export function formatPlaceholderPitches(ps: PlaceholderPitch[]): string {
-  return ps.map((p) => `${p.base}${p.octave}`).join(', ');
-}
-
 interface PlaceholderSettings {
   placeholderNotes?: string;
   placeholderExportNote?: string;

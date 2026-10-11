@@ -9,6 +9,4 @@ if (environment.production) {
 }
 
 platformBrowserDynamic().bootstrapModule(AppModule, { applicationProviders: [provideZoneChangeDetection()], })
-  .catch(err => console.log(err));
-
-console.log("2024-01-30T11:45")
+  .catch(err => console.error(err));

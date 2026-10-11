@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+import { safeStorage } from '../safe-storage';
 
 export interface ShortcutConfig {
   // Building Blocks & Note Insertion
@@ -76,16 +77,12 @@ export class EditorShortcutsService {
   }
 
   saveShortcuts(config: ShortcutConfig): void {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(config));
-    }
+    safeStorage.setJson(this.STORAGE_KEY, config);
     this.shortcutsSubject.next({ ...config });
   }
 
   resetToDefaults(): void {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem(this.STORAGE_KEY);
-    }
+    safeStorage.remove(this.STORAGE_KEY);
     this.shortcutsSubject.next({ ...DEFAULT_SHORTCUTS });
   }
 }

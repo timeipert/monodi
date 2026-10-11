@@ -1,4 +1,4 @@
-import { flatten, flatMap, maxOf } from './utils';
+import { flatten, flatMap, maxOf, compareNatural } from './utils';
 
 describe('Utility Helpers (utils.ts)', () => {
     describe('flatten', () => {
@@ -46,6 +46,21 @@ describe('Utility Helpers (utils.ts)', () => {
 
         it('should return the maximum value when list contains duplicates', () => {
             expect(maxOf([4, 7, 7, 1])).toBe(7);
+        });
+    });
+
+    describe('compareNatural', () => {
+        const sorted = (a: string[]) => [...a].sort(compareNatural);
+
+        it('orders every part of an ID by its value, letters first', () => {
+            expect(sorted(['Pa 10-1-1', 'Pa 2-1-1', 'Mo 1-10-1', 'Mo 1-2-1', 'Mo 1-1-10', 'Mo 1-1-2', 'Pa 1-1-1', 'Aa 20-1-1']))
+                .toEqual(['Aa 20-1-1', 'Mo 1-1-2', 'Mo 1-1-10', 'Mo 1-2-1', 'Mo 1-10-1', 'Pa 1-1-1', 'Pa 2-1-1', 'Pa 10-1-1']);
+        });
+
+        it('ignores case and treats missing text as empty', () => {
+            expect(compareNatural('a 1', 'A 1')).toBe(0);
+            expect(compareNatural(undefined, 'A')).toBeLessThan(0);
+            expect(compareNatural(null, '')).toBe(0);
         });
     });
 });

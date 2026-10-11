@@ -21,6 +21,7 @@ import { FileSystemService } from '../file-system.service';
 import { buildWorkspaceExport } from '../workspace-io';
 
 import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from '../notes/editor-shortcuts.service';
+import { safeStorage } from '../safe-storage';
 
 export interface FieldDef { key: string, label: string, isCustom: boolean }
 
@@ -569,7 +570,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return parts.join('   •   ');
   }
 
-  private saveSettings() {
+  protected saveSettings() {
     if (!this.settings || !this.user) return;
     this.saveState = 'saving';
     clearTimeout(this.saveStateTimer);
@@ -663,8 +664,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.isGithubConnecting = true;
     this.github.connectWithApp(repo.owner, repo.name, this.selectedBranch);
     this.githubConfig = { ...this.github.config! };
-    const ok = await this.github.testConnection();
-    this.isGithubConnecting = false;
+    let ok = false;
+    try {
+      ok = await this.github.testConnection();
+    } finally {
+      this.isGithubConnecting = false;   // a failed test must not leave the button spinning
+    }
     if (ok) {
       this.toastr.success(`Connected to ${repo.fullName}. Use the Sync button in the top bar to push or pull.`);
     } else {
@@ -723,7 +728,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   loadCachedStats(): void {
-    const cached = localStorage.getItem('monodi_cached_workspace_stats');
+    const cached = safeStorage.get('monodi_cached_workspace_stats');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -1115,8 +1120,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   async loadLinkedBackupInfo() {
-    this.linkedBackupFileName = localStorage.getItem('monodi_os_backup_name');
-    this.lastBackupTime = localStorage.getItem('monodi_os_backup_time');
+    this.linkedBackupFileName = safeStorage.get('monodi_os_backup_name');
+    this.lastBackupTime = safeStorage.get('monodi_os_backup_time');
     this.linkedBackupHandle = await this.fsService.getStoredHandle('monodi_os_backup_handle');
     this.cdRef.markForCheck();
   }
@@ -1131,7 +1136,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.linkedBackupHandle = handle;
         const name = handle.name || 'monodi_workspace_backup.monodijson';
         this.linkedBackupFileName = name;
-        localStorage.setItem('monodi_os_backup_name', name);
+        safeStorage.set('monodi_os_backup_name', name);
         this.toastr.success(`Linked to ${name}`, 'OS File Linked');
         await this.syncWorkspaceToOsFile();
       }
@@ -1144,8 +1149,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async unlinkOsBackupFile() {
     await this.fsService.removeStoredHandle('monodi_os_backup_handle');
-    localStorage.removeItem('monodi_os_backup_name');
-    localStorage.removeItem('monodi_os_backup_time');
+    safeStorage.remove('monodi_os_backup_name');
+    safeStorage.remove('monodi_os_backup_time');
     this.linkedBackupHandle = null;
     this.linkedBackupFileName = null;
     this.lastBackupTime = null;
@@ -1177,7 +1182,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       if (success) {
         const now = new Date().toLocaleTimeString();
         this.lastBackupTime = now;
-        localStorage.setItem('monodi_os_backup_time', now);
+        safeStorage.set('monodi_os_backup_time', now);   // the file is written; a full storage must not turn that into an error
         this.toastr.success(`Workspace saved directly to ${this.linkedBackupFileName || 'OS file'}.`, 'OS Backup Complete');
       } else {
         this.toastr.warning('Permission required or write failed. Please re-link or permit access to your backup file.', 'Write Access Needed');

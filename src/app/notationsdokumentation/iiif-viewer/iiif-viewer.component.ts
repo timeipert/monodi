@@ -3,6 +3,7 @@ import {
   ViewChild, ElementRef, NgZone, OnDestroy, OnInit, HostListener
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Subscription } from 'rxjs';
 import { Source } from '../../api.service';
 import * as VM from '../../types/model';
 import { v4 as UUID } from 'uuid';
@@ -52,6 +53,8 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
    *  navigates to the canvas containing the region linked to this UUID and highlights it. */
   @Input() highlightedLineUUID = '';
   @Output() sourceChanged = new EventEmitter<void>();
+  /** The "Close image view" button: the host decides where to go back to. */
+  @Output() closed = new EventEmitter<void>();
   @Output() regionClicked = new EventEmitter<{ name: string, folio: string, lineUUID?: string }>();
   /** Emitted when the user presses the "Link to line" button for a region.
    *  The document component should enter link-mode so the next line-change click links the line. */
@@ -88,7 +91,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   leftSidebarCollapsed = false;
   translateX = 0;
   translateY = 0;
-  private isPanning = false;
+  protected isPanning = false;
   private panStartX = 0;
   private panStartY = 0;
   private readonly wheelFn = (e: WheelEvent) => {
@@ -317,7 +320,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     // In simpleMode (document split-screen), keep the sidebar open so the user can navigate pages.
     // In full annotation mode (source view), start collapsed to give more space.
     this.leftSidebarCollapsed = false;
-    this.navService.focusFolio$.subscribe(f => this.selectFolio(f));
+    this.focusFolioSub = this.navService.focusFolio$.subscribe(f => this.selectFolio(f));
   }
 
   ngOnChanges(c: SimpleChanges) {
@@ -352,7 +355,10 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  private focusFolioSub?: Subscription;
+
   ngOnDestroy() {
+    this.focusFolioSub?.unsubscribe();
     if (this._viewportRef?.nativeElement)
       this._viewportRef.nativeElement.removeEventListener('wheel', this.wheelFn);
   }
@@ -396,6 +402,11 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
       this.imageLoading = true;
     } else {
       this.selectFirstVisibleCanvas();
+    }
+    const requested = this.navService.takePendingFolio(this.source?.id);
+    if (requested) {
+      this.userHasNavigated = true;   // the patterns that arrive later must not move it back to the first page
+      this.selectFolio(requested);
     }
     this.resetView();
     this.backToRegions();
@@ -1191,6 +1202,10 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
                  rawRect: raw,
                  linked: item.uuid ? uuidMap.get(item.uuid) : undefined };
       }).filter(g => !!g.imageUrl);
+  }
+
+  closeViewer() {
+    this.closed.emit();
   }
 
   navigateToItem(g: GalleryItem) {

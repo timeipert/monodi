@@ -23,7 +23,6 @@ import { MarkdownEditorComponent } from './markdown-editor/markdown-editor.compo
 import { DocumentComponent } from './document/document.component';
 import { PdfExportDialogComponent } from './pdf-export-dialog.component';
 import { SmartTableComponent } from './smart-table/smart-table.component';
-import { SselectComponent } from './sselect/sselect.component';
 import { ConfirmDeactivateGuard } from './ConfirmDeactivateGuard';
 import { ZipUploadComponent } from './zip-upload/zip-upload.component';
 import { CommentComponent } from './comment/comment.component';
@@ -55,7 +54,6 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
         DocumentComponent,
         PdfExportDialogComponent,
         SmartTableComponent,
-        SselectComponent,
         ZipUploadComponent,
         CommentComponent,
         FlagPatternsDialogComponent,

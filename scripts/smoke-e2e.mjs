@@ -35,7 +35,12 @@ await page.setViewport({ width: 1400, height: 1000 });
 let current = '';
 const problems = new Map();
 const note = (msg) => { if (IGNORE.test(msg)) return; (problems.get(current) || problems.set(current, []).get(current)).push(msg.slice(0, 220)); };
-page.on('console', (m) => { if (m.type() === 'error') note('console: ' + m.text()); });
+page.on('console', (m) => {
+  if (m.type() === 'error') note('console: ' + m.text());
+  // NG0955/NG0956: a list rebuilt all of its DOM (or tracks duplicate keys). On a table that swaps the rows out
+  // from under the mouse, and the click never lands.
+  else if (m.type() === 'warning' && /NG095[56]/.test(m.text())) note('console: ' + m.text());
+});
 page.on('pageerror', (e) => note('pageerror: ' + String(e)));
 
 await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });
@@ -46,6 +51,9 @@ for (const route of ROUTES) {
     await page.goto(BASE + route, { waitUntil: 'networkidle0', timeout: 40000 });
     await page.reload({ waitUntil: 'networkidle0', timeout: 40000 });
     await new Promise((r) => setTimeout(r, 1200));    // let late change-detection passes run
+    // A tab that renders nothing is a bug no console error will ever report (the Shortcuts pane once sat inside
+    // the PDF preview column and never showed).
+    if (route.startsWith('/#/settings?tab=') && !(await page.$('.tab-pane'))) note('the settings tab shows no pane');
   } catch (e) { note('navigation: ' + String(e).split('\n')[0]); }
   console.log(problems.has(route) ? 'FAIL ' : 'ok   ', route, problems.get(route)?.[0] ?? '');
 }
@@ -79,6 +87,23 @@ try {
   await new Promise((r) => setTimeout(r, 1200));
 } catch (e) { note('interaction: ' + String(e).split('\n')[0]); }
 console.log(problems.has(current) ? 'FAIL ' : 'ok   ', current, problems.get(current)?.[0] ?? '');
+
+// The rows of both tables must open what they show. A click that lands on a row which is replaced between press
+// and release does nothing, so this goes through the real mouse (press + release), not `element.click()`.
+async function clickRowAndExpect(route, rowSelector, expectedHash, label) {
+  current = label;
+  try {
+    await page.goto(BASE + route, { waitUntil: 'networkidle0' });
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.waitForSelector(rowSelector + ' td.td-smart-row', { timeout: 15000 });
+    await new Promise((r) => setTimeout(r, 800));                 // let the document counts arrive and re-render
+    await (await page.$(rowSelector + ' td.td-smart-row')).click();
+    await page.waitForFunction((h) => location.hash === h, { timeout: 5000 }, expectedHash);
+  } catch (e) { note(`click did not open ${expectedHash}: ` + String(e).split('\n')[0]); }
+  console.log(problems.has(current) ? 'FAIL ' : 'ok   ', current, problems.get(current)?.[0] ?? '');
+}
+await clickRowAndExpect('/#/sources', 'app-smart-table tbody tr', '#/source/src1', 'click: source row opens the source');
+await clickRowAndExpect('/#/source/src1', 'app-smart-table tbody tr', '#/document/src1/doc-1', 'click: document row opens the document');
 
 await browser.close();
 process.exit(problems.size ? 1 : 0);

@@ -5,7 +5,7 @@ import { APIService } from '../api.service';
 import { UserService } from '../user.service';
 import { GithubService } from '../github.service';
 import { ToastrService } from 'ngx-toastr';
-import { forkJoin } from 'rxjs';
+import { forkJoin, take } from 'rxjs';
 
 @Component({
     selector: 'app-welcome',
@@ -44,7 +44,8 @@ export class WelcomeComponent implements OnInit {
 
   loadDashboardData() {
     this.loading = true;
-    this.userService.user.subscribe(user => {
+    // `user` never completes: take the current one, or this page would stay subscribed after it is left.
+    this.userService.user.pipe(take(1)).subscribe(user => {
       if (user) {
         forkJoin({
           sourcesRes: this.api.listSources(user.token),

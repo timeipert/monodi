@@ -79,7 +79,15 @@ export class SubcorporaSelectorComponent implements OnInit, OnChanges {
     { key: 'feier', label: 'Feast', visible: false }
   ];
   
+  /** Built once per `initData`: it is iterated in the template, and a new list of new objects on every
+   *  change-detection pass would rebuild those rows each time. */
+  private fieldsCache: MetaField[] | null = null;
+
   get allFields(): MetaField[] {
+    return this.fieldsCache ??= this.buildFields();
+  }
+
+  private buildFields(): MetaField[] {
     const list = [...STANDARD_FIELDS];
     this.customSourceKeys.forEach(k => {
       list.push({ key: k, label: `${k} (Custom Source)`, type: 'custom_source' });
@@ -103,6 +111,7 @@ export class SubcorporaSelectorComponent implements OnInit, OnChanges {
   }
   
   initData() {
+    this.fieldsCache = null;
     this.customSourceKeys.clear();
     this.customDocKeys.clear();
     

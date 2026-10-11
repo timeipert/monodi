@@ -2,6 +2,14 @@ import { Component, EventEmitter, HostBinding, Input, Output } from '@angular/co
 import { ToastrService } from 'ngx-toastr';
 import * as M from '../../../types/model';
 
+/** One cell of the grid, with where it sits. */
+interface GridEntry {
+  row: number;
+  col: number;
+  path: M.CommentTreePath;
+  sub: M.CommentTree;
+}
+
 @Component({
     selector: 'app-comment-tree-grid',
     templateUrl: './comment-tree-grid.component.html',
@@ -41,7 +49,7 @@ export class CommentTreeGridComponent {
     return "max-content";
   }
 
-  entries(): { path: M.CommentTreePath, sub: M.CommentTree }[] {
+  entries(): GridEntry[] {
     return Array.from(Array(this.data.items.length).keys()).flatMap(y => {
       return Array.from(Array(this.data.items[y].length).keys()).map(x => {
         return {
@@ -54,7 +62,7 @@ export class CommentTreeGridComponent {
     });
   }
 
-  identifyEntry(_: number, entry: { path: M.CommentTreePath, sub: M.CommentTree }): any {
+  identifyEntry(_: number, entry: GridEntry): string {
     return entry.sub.id;
   }
 

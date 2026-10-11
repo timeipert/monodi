@@ -38,7 +38,7 @@
 
 @if (activeComments().length > 1) {
   <div class="comment-chips-container">
-    @for (item of getCommentsWithIndices(); track item) {
+    @for (item of getCommentsWithIndices(); track item.originalIndex) {
       <button
         class="comment-chip"
         [class.active]="selectedIndex === item.originalIndex"

@@ -376,7 +376,8 @@
                   [documentPatterns]="documentPatternIds"
                   [allPatterns]="allPatterns"
                   [jumpToPattern]="iiifGalleryPattern"
-                  (sourceChanged)="save()">
+                  (sourceChanged)="save()"
+                  (closed)="setNotationTab('select')">
                 </app-iiif-viewer>
               </div>
             }

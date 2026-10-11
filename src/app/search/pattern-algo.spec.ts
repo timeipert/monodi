@@ -7,7 +7,9 @@ import {
   jaccardSimilarity,
   toPitchNames,
   toContour,
-  toIntervals
+  toIntervals,
+  nestedPairs,
+  dropNestedOccurrences
 } from './pattern-algo';
 import * as VM from '../types/model';
 
@@ -128,6 +130,78 @@ describe('PatternAlgo Characterization Tests', () => {
     it('should calculate interval diff numbers', () => {
       // notes: C4 (28) -> D4 (29) (+1) -> Cb4 (28) (-1) -> C#4 (28) (0)
       expect(toIntervals(mockNotes)).toEqual(['+1', '-1', '0']);
+    });
+  });
+
+  describe('nesting of occurrences', () => {
+    // The plain pairwise versions the fast ones replaced: slow, but obviously right.
+    const oraclePairs = (nodes: { d: number; start: number; end: number }[]): [number, number][] => {
+      const pairs: [number, number][] = [];
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i], b = nodes[j];
+          if (a.d !== b.d) continue;
+          if ((a.start >= b.start && a.end <= b.end) || (b.start >= a.start && b.end <= a.end)) pairs.push([i, j]);
+        }
+      }
+      return pairs;
+    };
+    const oracleDrop = <T extends { doc: { id: string }; startNoteIdx: number; endNoteIdx: number }>(occs: T[]): T[] => {
+      const kept: T[] = [];
+      for (const occ of occs) {
+        let redundant = false;
+        for (const other of occs) {
+          if (occ === other || occ.doc.id !== other.doc.id) continue;
+          if (occ.startNoteIdx >= other.startNoteIdx && occ.endNoteIdx <= other.endNoteIdx) {
+            if (occ.startNoteIdx === other.startNoteIdx && occ.endNoteIdx === other.endNoteIdx) {
+              if (occs.indexOf(occ) > occs.indexOf(other)) { redundant = true; break; }
+            } else { redundant = true; break; }
+          }
+        }
+        if (!redundant) kept.push(occ);
+      }
+      return kept;
+    };
+    const random = (seed: number) => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+
+    it('finds the same nested pairs as comparing every pair', () => {
+      const rnd = random(42);
+      for (let round = 0; round < 200; round++) {
+        const seen = new Set<string>();
+        const nodes: { d: number; start: number; end: number }[] = [];
+        for (let k = 0, n = 1 + Math.floor(rnd() * 40); k < n; k++) {
+          const d = Math.floor(rnd() * 4), start = Math.floor(rnd() * 20), end = start + Math.floor(rnd() * 8);
+          if (!seen.has(`${d}_${start}_${end}`)) { seen.add(`${d}_${start}_${end}`); nodes.push({ d, start, end }); }   // ids are unique per range
+        }
+        expect(nestedPairs(nodes)).toEqual(oraclePairs(nodes));
+      }
+    });
+
+    it('drops the same occurrences as comparing every pair, in the same order', () => {
+      const rnd = random(7);
+      for (let round = 0; round < 200; round++) {
+        const occs = Array.from({ length: 1 + Math.floor(rnd() * 40) }, (_, k) => {
+          const start = Math.floor(rnd() * 15);
+          return { doc: { id: `d${Math.floor(rnd() * 3)}` }, startNoteIdx: start, endNoteIdx: start + Math.floor(rnd() * 6), k };
+        });
+        expect(dropNestedOccurrences(occs)).toEqual(oracleDrop(occs));
+      }
+    });
+
+    it('keeps the first of identical ranges and everything that is not inside another', () => {
+      const a = { doc: { id: 'x' }, startNoteIdx: 2, endNoteIdx: 5 };
+      const b = { doc: { id: 'x' }, startNoteIdx: 2, endNoteIdx: 5 };
+      const inside = { doc: { id: 'x' }, startNoteIdx: 3, endNoteIdx: 4 };
+      const other = { doc: { id: 'y' }, startNoteIdx: 3, endNoteIdx: 4 };
+      const overlapping = { doc: { id: 'x' }, startNoteIdx: 4, endNoteIdx: 8 };
+      const kept = dropNestedOccurrences([a, inside, b, other, overlapping]);
+      expect(kept).toEqual([a, other, overlapping]);
+      expect(kept[0]).toBe(a);
+    });
+
+    it('copes with nothing to compare', () => {
+      expect(nestedPairs([])).toEqual([]);
+      expect(dropNestedOccurrences([])).toEqual([]);
     });
   });
 });

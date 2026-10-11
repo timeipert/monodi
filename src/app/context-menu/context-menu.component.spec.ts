@@ -1,4 +1,4 @@
-import { ElementRef } from '@angular/core';
+import { ElementRef, NgZone } from '@angular/core';
 import { Router } from '@angular/router';
 import { ContextMenuComponent } from './context-menu.component';
 import { ContextMenuService } from './context-menu.service';
@@ -9,6 +9,7 @@ describe('ContextMenuComponent', () => {
   let host: HTMLElement;
   let menu: HTMLElement;
   let component: ContextMenuComponent;
+  let zone: NgZone;
 
   beforeEach(() => {
     service = new ContextMenuService();
@@ -18,7 +19,8 @@ describe('ContextMenuComponent', () => {
     menu.innerHTML = '<div class="menu-item">Do it</div>';
     host.appendChild(menu);
     document.body.appendChild(host);
-    component = new ContextMenuComponent(service, {} as Router, new ElementRef(host));
+    zone = new NgZone({ enableLongStackTrace: false });
+    component = new ContextMenuComponent(service, {} as Router, new ElementRef(host), zone);
     component.ngOnInit();
     service.openAt(10, 10, [{ label: 'Do it', action: () => {} }]);
   });
@@ -57,6 +59,34 @@ describe('ContextMenuComponent', () => {
     item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     item.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(component.state.isOpen).toBeTrue();
+  });
+
+  it('closes on scroll and on resize', () => {
+    window.dispatchEvent(new Event('scroll'));
+    expect(component.state.isOpen).toBeFalse();
+    service.openAt(10, 10, []);
+    window.dispatchEvent(new Event('resize'));
+    expect(component.state.isOpen).toBeFalse();
+  });
+
+  it('does not run change detection for presses while no menu is open', () => {
+    service.close();
+    let passes = 0;
+    const sub = zone.onMicrotaskEmpty.subscribe(() => passes++);
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    document.body.dispatchEvent(new Event('wheel', { bubbles: true }));
+    window.dispatchEvent(new Event('scroll'));
+    sub.unsubscribe();
+    expect(passes).toBe(0);
+  });
+
+  it('re-enters the zone to close, so the menu disappears on screen', () => {
+    let passes = 0;
+    const sub = zone.onMicrotaskEmpty.subscribe(() => passes++);
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    sub.unsubscribe();
+    expect(component.state.isOpen).toBeFalse();
+    expect(passes).toBeGreaterThan(0);
   });
 
   it('stops listening once destroyed', () => {

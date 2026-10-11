@@ -1,4 +1,5 @@
 import * as T from './model';
+import { safeStorage } from '../safe-storage';
 
 export function insert(r: T.RootContainer, at: number[], stripNotes: boolean, stripText: boolean): string | null {
   const old = getStore();
@@ -39,17 +40,18 @@ export function insert(r: T.RootContainer, at: number[], stripNotes: boolean, st
   return "This element cannot be inserted at this level.";
 }
 
-export function store(sdp: StoredDocumentPart): void {
-  localStorage.setItem(lsKey, JSON.stringify(sdp));
+/**
+ * Puts a copied part on the clipboard. `false` when it did not fit (a large part can exceed the storage quota);
+ * the old clipboard is dropped then, so a later paste says "nothing was copied" instead of pasting stale content.
+ */
+export function store(sdp: StoredDocumentPart): boolean {
+  if (safeStorage.setJson(lsKey, sdp)) return true;
+  safeStorage.remove(lsKey);
+  return false;
 }
 
 export function getStore(): StoredDocumentPart | null {
-  const old = localStorage.getItem(lsKey);
-  if (old === null) {
-    return null;
-  } else {
-    return JSON.parse(old);
-  }
+  return safeStorage.getJson<StoredDocumentPart | null>(lsKey, null);
 }
 
 export interface StoredDocumentPart {

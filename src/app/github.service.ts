@@ -4,6 +4,7 @@ import { ToastrService } from 'ngx-toastr';
 import * as localforage from 'localforage';
 import { PushCache } from './push-cache';
 import { GithubSessionService } from './github-session.service';
+import { safeStorage } from './safe-storage';
 
 export interface GithubConfig {
   /**
@@ -236,16 +237,16 @@ export class GithubService {
   }
 
   private async loadConfig() {
-    const saved = localStorage.getItem('monodi_github_config');
+    const saved = safeStorage.getJson<GithubConfig | null>('monodi_github_config', null);
     if (saved) {
-      this.config = JSON.parse(saved);
+      this.config = saved;
       this.initOctokit();
     } else {
       try {
         const backup = await localforage.getItem<string>('monodi_github_config_backup');
         if (backup) {
           this.config = JSON.parse(backup);
-          localStorage.setItem('monodi_github_config', backup);
+          safeStorage.set('monodi_github_config', backup);
           this.initOctokit();
         }
       } catch (e) {
@@ -257,7 +258,7 @@ export class GithubService {
   public saveConfig(config: GithubConfig) {
     this.config = config;
     const configStr = JSON.stringify(config);
-    localStorage.setItem('monodi_github_config', configStr);
+    safeStorage.set('monodi_github_config', configStr);
     localforage.setItem('monodi_github_config_backup', configStr).catch(err => {
       console.error('Failed to save GitHub config backup to localforage:', err);
     });
@@ -267,7 +268,7 @@ export class GithubService {
   public clearConfig() {
     this.config = null;
     this.octokit = null;
-    localStorage.removeItem('monodi_github_config');
+    safeStorage.remove('monodi_github_config');
     localforage.removeItem('monodi_github_config_backup').catch(err => {
       console.error('Failed to clear GitHub config backup from localforage:', err);
     });

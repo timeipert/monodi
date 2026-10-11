@@ -1,6 +1,7 @@
 import { FocusService } from '../focus.service';
 import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
-import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, inject } from '@angular/core';
+import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, NgZone, inject } from '@angular/core';
+import { followDrag } from '../follow-drag';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
@@ -8,7 +9,7 @@ import { APIService, Document, ProjectSettings, Source } from '../api.service';
 import { assertNever } from '../../utils';
 import { ToolsService } from '../tools.service';
 import { ToastrService } from 'ngx-toastr';
-import { Subscription, combineLatest } from 'rxjs';
+import { Subscription, combineLatest, finalize } from 'rxjs';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { FlagPatternsDialogComponent } from '../notes/flag-patterns-dialog.component';
 import { parsers } from '../types/parser';
@@ -37,6 +38,7 @@ import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
+import { downloadBlob } from '../download';
 
 @Component({
     selector: 'app-document',
@@ -415,7 +417,8 @@ export class DocumentComponent implements OnInit {
     public searchExecSvc: SearchExecService,
     private searchReplaceSvc: SearchReplaceService,
     private cdr: ChangeDetectorRef,
-    private fsService: FileSystemService) {
+    private fsService: FileSystemService,
+    private zone: NgZone) {
   }
 
   get activeHighlight() {
@@ -876,9 +879,9 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  @HostListener('window:mousemove', ['$event'])
-  onMouseMove(event: MouseEvent) {
-    if (!this.isDraggingSplitter) return;
+  private stopSplitDrag?: () => void;
+
+  private onSplitMove(event: MouseEvent) {
     const container = document.getElementById('split-screen-container');
     if (container) {
       const rect = container.getBoundingClientRect();
@@ -891,18 +894,17 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  @HostListener('window:mouseup')
-  onMouseUp() {
-    if (this.isDraggingSplitter) {
-      this.isDraggingSplitter = false;
-      document.body.style.cursor = 'default';
-    }
+  private onSplitEnd() {
+    this.isDraggingSplitter = false;
+    document.body.style.cursor = 'default';
   }
 
   startSplitDrag(event: MouseEvent) {
+    this.stopSplitDrag?.();
     this.isDraggingSplitter = true;
     document.body.style.cursor = 'col-resize';
     event.preventDefault();
+    this.stopSplitDrag = followDrag(this.zone, e => this.onSplitMove(e), () => this.onSplitEnd());
   }
 
   /** Opens the print dialog for this document (as it is now, unsaved changes included). */
@@ -1405,23 +1407,48 @@ export class DocumentComponent implements OnInit {
         return;
       }
       this.isSaving = true;
-      this.api.createDocument(this.user.token, { document: doc, notes: cont }).subscribe(res => {
-        this.isSaving = false;
-        switch (res.kind) {
-          case 'LoginRequired': this.userService.logout(); break;
-          case 'DocumentCreated': 
-            this.toastr.success("Saved successfully");
-            this.document!.id = res.id;
-            this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
-            break;
-          default: assertNever(res);
-        }
-        if (this.savePending) {
-          this.savePending = false;
-          this.save();
-        }
+      this.api.createDocument(this.user.token, { document: doc, notes: cont }).pipe(
+        finalize(() => this.saveFinished())
+      ).subscribe({
+        next: res => {
+          switch (res.kind) {
+            case 'LoginRequired': this.userService.logout(); break;
+            case 'DocumentCreated': 
+              this.toastr.success("Saved successfully");
+              this.document!.id = res.id;
+              this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
+              break;
+            default: assertNever(res);
+          }
+        },
+        error: e => this.saveFailed(e),
       });
     }
+  }
+
+  /**
+   * Runs after every save, whether it worked or not. Not clearing `isSaving` on a failed save (the storage is
+   * full, say) would leave it set for good: every later save would only be queued, never run, and the person
+   * would keep typing into a document that is no longer being saved.
+   */
+  private saveFinished(): void {
+    this.isSaving = false;
+    if (this.savePending) {
+      this.savePending = false;
+      this.save();
+    }
+  }
+
+  private lastSaveErrorToast = 0;
+
+  private saveFailed(error: unknown): void {
+    console.error('Saving the document failed', error);
+    // Autosave retries on every edit: tell the person once in a while, not with every keystroke.
+    if (Date.now() - this.lastSaveErrorToast < 10_000) return;
+    this.lastSaveErrorToast = Date.now();
+    this.toastr.error(
+      'The document could not be saved: ' + (error instanceof Error ? error.message : String(error)) +
+      '. Your changes are still here; export the document as JSON to keep them.', 'Save failed');
   }
 
   update(): void {
@@ -1431,22 +1458,22 @@ export class DocumentComponent implements OnInit {
         return;
       }
       this.isSaving = true;
-      this.api.updateDocument(this.user.token, { document: this.document, notes: this.cont }).subscribe(res => {
-        this.isSaving = false;
-        switch (res.kind) {
-          case 'LoginRequired': this.userService.logout(); break;
-          case 'Ok': 
-            // Removed toastr to prevent spamming on autosave
-            this.resetClones(); 
-            break;
-          case 'DocumentNotFound': this.toastr.error("It looks like this document was deleted in the meantime."); break;
-          case 'InsufficientPermissions': this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
-          default: assertNever(res);
-        }
-        if (this.savePending) {
-          this.savePending = false;
-          this.save();
-        }
+      this.api.updateDocument(this.user.token, { document: this.document, notes: this.cont }).pipe(
+        finalize(() => this.saveFinished())
+      ).subscribe({
+        next: res => {
+          switch (res.kind) {
+            case 'LoginRequired': this.userService.logout(); break;
+            case 'Ok': 
+              // Removed toastr to prevent spamming on autosave
+              this.resetClones(); 
+              break;
+            case 'DocumentNotFound': this.toastr.error("It looks like this document was deleted in the meantime."); break;
+            case 'InsufficientPermissions': this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
+            default: assertNever(res);
+          }
+        },
+        error: e => this.saveFailed(e),
       });
     }
   }
@@ -1548,17 +1575,7 @@ export class DocumentComponent implements OnInit {
   }
 
   private triggerDownloadBlob(data: any, filename: string): void {
-    const pom = document.createElement('a');
-    pom.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2)));
-    pom.setAttribute('download', filename);
-
-    if (document.createEvent) {
-      var event = document.createEvent('MouseEvents');
-      event.initEvent('click', true, true);
-      pom.dispatchEvent(event);
-    } else {
-      pom.click();
-    }
+    downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), filename);
   }
 
   upload(): void {
@@ -1639,11 +1656,6 @@ export class DocumentComponent implements OnInit {
     } catch (e) {
       this.toastr.success('Document saved successfully.', 'Saved');
     }
-  }
-
-  @HostListener('window:unload', ['$event'])
-  unloadHandler($event: any) {
-    this.hasChanges();
   }
 
   @HostListener('window:beforeunload', ['$event'])
@@ -1833,6 +1845,8 @@ export class DocumentComponent implements OnInit {
   }
 
   ngOnDestroy(): void {
+    this.stopSplitDrag?.();
+    if (this.isDraggingSplitter) this.onSplitEnd();
     this.manuscriptView.unregister(this.manuscriptViewContext);
     this.manuscriptView.close();
     for (const s of this.subs) {
@@ -1854,7 +1868,7 @@ export class DocumentComponent implements OnInit {
         this.cont = { ...this.cont };
         this.modalService.dismissAll();
       } else {
-        console.log(result);
+        console.error(result);
         this.toastr.error("Technical details are available in the console.", "Could not parse text");
         this.modalService.dismissAll();
       }

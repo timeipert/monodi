@@ -304,10 +304,6 @@ export function isOfZeileContainer(x: any): boolean {
   return x['kind'] === ContainerKind.ZeileContainer && typeof (x['uuid']) === 'string' && x['children'].filter((x: any) => { return isOfLinePart(x); }).length === x['children'].length;
 }
 
-export function isOfContainer(x: any): boolean {
-  return isOfFormteilContainer(x) || isOfMiscContainer(x) || isOfParatextContainer(x) || isOfRootContainer(x) || isOfZeileContainer(x);
-}
-
 export function isOfRootChildren(x: any): boolean {
   return isOfFormteilContainer(x) || isOfMiscContainer(x) || isOfZeileContainer(x) || isOfParatextContainer(x);
 }
@@ -797,28 +793,6 @@ export interface UUIDInfo {
   fallbackUUID: string | undefined;
 }
 
-export function splitGroup(g: Grouped, n: Note): [Grouped, Grouped, Grouped] {
-  const notesBefore = g.grouped.slice(0, g.grouped.indexOf(n) + 1);
-  const notesAfter = g.grouped.slice(g.grouped.indexOf(n) + 1);
-
-  return [
-    { grouped: notesBefore },
-    { grouped: [n] },
-    { grouped: notesAfter },
-  ];
-}
-
-export function splitNonSpaced(ns: NonSpaced, g: Grouped): [NonSpaced, NonSpaced, NonSpaced] {
-  const groupsBefore = ns.nonSpaced.slice(0, ns.nonSpaced.indexOf(g) + 1);
-  const groupsAfter = ns.nonSpaced.slice(ns.nonSpaced.indexOf(g) + 1);
-
-  return [
-    { nonSpaced: groupsBefore },
-    { nonSpaced: [g] },
-    { nonSpaced: groupsAfter },
-  ];
-}
-
 export function resolve(c: Container, zipper: number[]): Container | undefined {
   const children = getContainerChildren(c);
 
@@ -1135,25 +1109,6 @@ export function getStructure(docType: any): FormteilDescription[] {
   return structure.Level1;
 }
 
-export function print(c: Container, indent: string): void {
-  switch (c.kind) {
-    case ContainerKind.RootContainer:
-      console.log(indent + "root");
-      for (let child of c.children) {
-        print(child, indent + "  ");
-      }
-      break;
-    case ContainerKind.FormteilContainer:
-      console.log(indent + "formteil");
-      for (let child of c.children) {
-        print(child, indent + "  ");
-      }
-      break;
-    case ContainerKind.ParatextContainer: console.log(indent + "para"); break;
-    case ContainerKind.ZeileContainer: console.log(indent + "zeile"); break;
-  }
-}
-
 export function getUUID(x: Container | Note | LinePart): string {
   return x.uuid;
 }
@@ -1337,7 +1292,6 @@ export const applyCommentTreeEvent = (commentTree: CommentTree, event: CommentTr
           if (node.kind !== "CommentTreeLeaf") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-leaf node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
           return setter({ ...node, content: event.intent.content });
         case "Delete":
-          console.log("deleting");
           return setter(null);
         case "DeleteRow": {
           const index = event.intent.index;

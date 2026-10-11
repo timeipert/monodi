@@ -72,11 +72,6 @@ export function isEmbeddedFamily(family: string | undefined | null): boolean {
   return embeddedFamily(family) !== null;
 }
 
-/** Backwards-compatible name kept for existing call sites. */
-export function isNotoFamily(family: string | undefined | null): boolean {
-  return isEmbeddedFamily(family);
-}
-
 /**
  * Fetch and register the given embedded font family into `doc`. Call once per
  * document before rendering text. No-op for built-in families.
@@ -99,9 +94,4 @@ export async function registerEmbeddedFont(doc: jsPDF, family: string | undefine
     if (!added.has(file)) { doc.addFileToVFS(file, base64Cache[file]); added.add(file); }
     doc.addFont(file, fam, style);
   }
-}
-
-/** Backwards-compatible alias. */
-export async function registerNotoSans(doc: jsPDF): Promise<void> {
-  await registerEmbeddedFont(doc, 'NotoSans');
 }

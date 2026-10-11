@@ -83,9 +83,10 @@ export class AppComponent {
   isNavCollapsed = true;
 
   constructor (
-    // Injected only for its constructor: it configures localforage (database and store name) before
-    // anything else reads from storage. Do not remove.
-    api: APIService,
+    // Injecting it also configures localforage (database and store name) before anything else reads from
+    // storage. Do not remove. Whatever this component writes to storage itself must be followed by
+    // `api.invalidateCache()`, or the API keeps serving (and later saving) its stale copy.
+    private api: APIService,
     userService: UserService,
     private toolsService: ToolsService,
     public github: GithubService,
@@ -214,6 +215,23 @@ export class AppComponent {
     return this.user?.user || '';
   }
 
+  /**
+   * Runs one step of a sync. `isSyncing` locks the Sync buttons while it runs: a step that throws (the network
+   * drops in the middle of a pull) must still release them, and say what happened, or they stay disabled until
+   * the page is reloaded and the person never learns why.
+   */
+  private async guardSync(step: string, run: () => Promise<void>): Promise<void> {
+    try {
+      await run();
+    } catch (e) {
+      console.error(`${step} failed`, e);
+      alert(`${step} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      this.isSyncing = false;
+      this.syncProgress = null;
+    }
+  }
+
   async openSyncDialog(action: 'pull' | 'push') {
     this.syncDialogAction = action;
     this.syncFilterText = '';
@@ -289,6 +307,7 @@ export class AppComponent {
       }
     }
     await localforage.setItem('monodi_sources', sources);
+    this.api.invalidateCache();   // the list was written behind the API's back: its copy is out of date now
     await PushCache.markDirty(Array.from(selectedIds));
     for (const m of this.manuscriptList) {
       if (selectedIds.has(m.id) && !m.assigned.includes(me)) m.assigned.push(me);
@@ -311,6 +330,10 @@ export class AppComponent {
 
   /** Pushes only the chosen manuscripts; everything else on GitHub is left as-is. */
   private async pushSelected(ids: Set<string>) {
+    await this.guardSync('Push', () => this.pushSelectedCore(ids));
+  }
+
+  private async pushSelectedCore(ids: Set<string>) {
     this.isSyncing = true;
     this.syncProgress = { phase: 'Preparing…', current: 0, total: 0 };
     const date = new Date().toLocaleString();
@@ -334,6 +357,10 @@ export class AppComponent {
    * manuscripts; all other local data is left untouched.
    */
   private async pullSelected(ids: Set<string>) {
+    await this.guardSync('Pull', () => this.pullSelectedCore(ids));
+  }
+
+  private async pullSelectedCore(ids: Set<string>) {
     this.isSyncing = true;
     this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
 
@@ -377,6 +404,7 @@ export class AppComponent {
 
     await localforage.setItem('monodi_sources', keptSources);
     await localforage.setItem('monodi_documents', keptDocuments);
+    this.api.invalidateCache();
     // Local now holds exactly what GitHub had — no push needed for these.
     await PushCache.markClean(ids);
 
@@ -402,6 +430,10 @@ export class AppComponent {
    * footprint flat no matter how large the corpus is.
    */
   async sync(action: 'pull' | 'push') {
+    await this.guardSync('Sync', () => this.syncCore(action));
+  }
+
+  private async syncCore(action: 'pull' | 'push') {
     this.isSyncing = true;
     this.pendingAction = action;
     this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
@@ -536,6 +568,7 @@ export class AppComponent {
     // Metadata arrays are written back as whole rows (they always were).
     await localforage.setItem('monodi_sources', Array.from(sourcesById.values()));
     await localforage.setItem('monodi_documents', Array.from(docsById.values()));
+    this.api.invalidateCache();
 
     this.isSyncing = false;
     this.syncProgress = null;
@@ -661,6 +694,10 @@ export class AppComponent {
    * memory-safe even when the whole corpus is in conflict.
    */
   async resolveConflicts() {
+    await this.guardSync('Applying your choices', () => this.resolveConflictsCore());
+  }
+
+  private async resolveConflictsCore() {
     this.showMergeDialog = false;
     this.isSyncing = true;
     this.syncProgress = { phase: 'Applying your choices…', current: 0, total: 0 };
@@ -727,6 +764,7 @@ export class AppComponent {
 
       await localforage.setItem('monodi_sources', Array.from(sourcesById.values()));
       await localforage.setItem('monodi_documents', Array.from(docsById.values()));
+      this.api.invalidateCache();
     }
 
     if (nowClean.length > 0) await PushCache.markClean(nowClean);
@@ -746,6 +784,10 @@ export class AppComponent {
    * and reports the outcome.
    */
   async finishSync() {
+    await this.guardSync('Finishing the sync', () => this.finishSyncCore());
+  }
+
+  private async finishSyncCore() {
     this.isSyncing = true;
 
     let reload = true;

@@ -1,4 +1,5 @@
-import { Component, Input, OnChanges, HostListener } from '@angular/core';
+import { Component, Input, NgZone, OnChanges, OnDestroy } from '@angular/core';
+import { followDrag } from '../../follow-drag';
 
 export interface CutoutOverlayItem {
   id: string;
@@ -13,7 +14,9 @@ export interface CutoutOverlayItem {
     styleUrls: ['./annotation-cutout.component.css'],
     standalone: false
 })
-export class AnnotationCutoutComponent implements OnChanges {
+export class AnnotationCutoutComponent implements OnChanges, OnDestroy {
+  constructor(private zone: NgZone) {}
+
   @Input() imageUrl!: string;
   @Input() regionPoints!: string;
   @Input() items: CutoutOverlayItem[] = [];
@@ -98,15 +101,21 @@ export class AnnotationCutoutComponent implements OnChanges {
   private lastMouseX = 0;
   private lastMouseY = 0;
 
+  private stopDrag?: () => void;
+
   onMouseDown(event: MouseEvent) {
+    this.stopDrag?.();
     this.isDragging = true;
     this.lastMouseX = event.clientX;
     this.lastMouseY = event.clientY;
+    this.stopDrag = followDrag(this.zone, e => this.onMouseMove(e), () => this.onMouseUp());
   }
 
-  @HostListener('window:mousemove', ['$event'])
-  onMouseMove(event: MouseEvent) {
-    if (!this.isDragging) return;
+  ngOnDestroy() {
+    this.stopDrag?.();
+  }
+
+  private onMouseMove(event: MouseEvent) {
     const dx = event.clientX - this.lastMouseX;
     const dy = event.clientY - this.lastMouseY;
     this.lastMouseX = event.clientX;
@@ -120,8 +129,7 @@ export class AnnotationCutoutComponent implements OnChanges {
     this.applyZoomAndPan();
   }
 
-  @HostListener('window:mouseup')
-  onMouseUp() {
+  private onMouseUp() {
     this.isDragging = false;
   }
 

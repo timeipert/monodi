@@ -6,7 +6,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, inject } from 
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService, User } from '../user.service';
 import { APIService, Source, Document } from '../api.service'
-import { assertNever } from '../../utils';
+import { assertNever, compareNatural } from '../../utils';
 import { buildWorkspaceCsv, parseWorkspaceCsv } from '../workspace-csv';
 import { BackupReminderService } from '../backup-reminder.service';
 import { Subscription, firstValueFrom } from 'rxjs';
@@ -32,6 +32,8 @@ import * as Handlebars from 'handlebars';
 import { FileSystemService } from '../file-system.service';
 import { SOURCE_DESCRIPTION_KEY, sourceDescription } from '../source-description';
 import { applyPlan, describePlan, ImportPreview, parseExchange, planChangesAnything, planImport } from '../annotation-exchange';
+import { safeStorage } from '../safe-storage';
+import { downloadBlob } from '../download';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -123,21 +125,21 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   headers: Header<Source>[] = [];
 
-  get sourceBatchFields(): BatchField[] {
-    return [
-      { key: 'quellensigle', label: 'Source Siglum' },
-      { key: 'datierung', label: 'Dating' },
-      { key: 'herkunftsregion', label: 'Region of Origin' },
-      { key: 'herkunftsort', label: 'Place of Origin' },
-      { key: 'herkunftsinstitution', label: 'Institution' },
-      { key: 'ordenstradition', label: 'Order Tradition' },
-      { key: 'quellentyp', label: 'Source Type' },
-      { key: 'bibliotheksort', label: 'Library Location' },
-      { key: 'bibliothek', label: 'Library' },
-      { key: 'bibliothekssignatur', label: 'Library Signature' },
-      { key: 'kommentar', label: 'Comment' },
-    ];
-  }
+  /** A field, not a getter: it feeds an `@Input`, and a getter would hand the table a new array on every
+   *  change-detection pass. */
+  readonly sourceBatchFields: BatchField[] = [
+    { key: 'quellensigle', label: 'Source Siglum' },
+    { key: 'datierung', label: 'Dating' },
+    { key: 'herkunftsregion', label: 'Region of Origin' },
+    { key: 'herkunftsort', label: 'Place of Origin' },
+    { key: 'herkunftsinstitution', label: 'Institution' },
+    { key: 'ordenstradition', label: 'Order Tradition' },
+    { key: 'quellentyp', label: 'Source Type' },
+    { key: 'bibliotheksort', label: 'Library Location' },
+    { key: 'bibliothek', label: 'Library' },
+    { key: 'bibliothekssignatur', label: 'Library Signature' },
+    { key: 'kommentar', label: 'Comment' },
+  ];
 
   updateHeaders() {
     this.headers = this.cols
@@ -255,7 +257,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
   saveCols() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.cols));
+    safeStorage.setJson(STORAGE_KEY, this.cols);
     this.updateHeaders();
   }
 
@@ -337,9 +339,14 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
   goToSource(s: Source) {
-    if (s?.id) {
-      this.router.navigate(['/source', s.id]);
+    if (!s?.id) {
+      this.toastr.warning('This source has no id and cannot be opened. Export a backup and re-import it to repair it.', 'Source not opened');
+      return;
     }
+    this.router.navigate(['/source', s.id]).catch(e => {
+      console.error('Could not open source', s.id, e);
+      this.toastr.error('Could not open this source.');
+    });
   }
 
   delete(s: Source): void {
@@ -448,12 +455,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `workspace_export_${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `workspace_export_${new Date().toISOString().split('T')[0]}.csv`);
       this.toastr.success('CSV exported successfully.');
     } catch (e) {
       this.toastr.error('CSV export failed: ' + e);
@@ -1189,7 +1191,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       } else if (this.exportMode === 'pdf') {
         // hand the selection over to the print dialog (options, order, page format)
         const docs = [...this.selectedDocsForExport]
-          .sort((a: any, b: any) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+          .sort((a: any, b: any) => compareNatural(a.dokumenten_id, b.dokumenten_id));
         this.closeExportDialog();
         this.pdfDialog.open({ docs, title: '' });
       } else {

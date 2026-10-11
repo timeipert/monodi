@@ -15,6 +15,19 @@ export function textWidth(text: string, font: string = "Times", size: string = "
     return ctx.measureText(text).width;
 }
 
+const NATURAL_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/**
+ * The one order for text with numbers in it: document IDs such as "Pa 10-1-1", folios, pattern codes.
+ * It goes part by part: letters alphabetically, every run of digits by its value, case and accents ignored.
+ * So "Pa 2-1-1" comes before "Pa 10-1-1", "Mo 1-1-2" before "Mo 1-1-10", and "Aa 20-1-1" before "Pa 1-1-1".
+ * Use it wherever such text is sorted (`list.sort((a, b) => compareNatural(a.id, b.id))`), not a copy of the
+ * collator options: two copies drift apart, and the table and the print order then disagree.
+ */
+export function compareNatural(a: string | null | undefined, b: string | null | undefined): number {
+    return NATURAL_ORDER.compare(a ?? '', b ?? '');
+}
+
 export function assertNever(x: never): never {
     throw new Error("should never get: " + JSON.stringify(x));
 }

@@ -231,6 +231,66 @@ export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : inter / union;
 }
 
+/**
+ * The pairs of occurrences, as indexes into `nodes` (smaller first, in index order), of which one lies inside the
+ * other in the same document. Only occurrences of one document can nest, and in start order an occurrence can only
+ * hold the ones that begin before it ends, so this does not compare every occurrence of the corpus with every other.
+ */
+export function nestedPairs(nodes: ReadonlyArray<{ d: number; start: number; end: number }>): [number, number][] {
+  const byDoc = new Map<number, number[]>();
+  nodes.forEach((n, i) => {
+    const list = byDoc.get(n.d);
+    if (list) list.push(i); else byDoc.set(n.d, [i]);
+  });
+
+  const pairs: [number, number][] = [];
+  for (const indexes of byDoc.values()) {
+    // The outer one of two nested ranges always comes first: it starts earlier, or starts together and ends later.
+    indexes.sort((a, b) => nodes[a].start - nodes[b].start || nodes[b].end - nodes[a].end);
+    for (let x = 0; x < indexes.length; x++) {
+      const outer = nodes[indexes[x]];
+      for (let y = x + 1; y < indexes.length && nodes[indexes[y]].start <= outer.end; y++) {
+        if (nodes[indexes[y]].end <= outer.end) {
+          const i = indexes[x], j = indexes[y];
+          pairs.push(i < j ? [i, j] : [j, i]);
+        }
+      }
+    }
+  }
+  return pairs.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+}
+
+/**
+ * Drops the occurrences that lie inside another occurrence of the same document; of identical ranges the first
+ * stays. The rest keep their order.
+ */
+export function dropNestedOccurrences<T extends { doc: { id: string }; startNoteIdx: number; endNoteIdx: number }>(
+  occurrences: readonly T[]
+): T[] {
+  const byDoc = new Map<string, number[]>();
+  occurrences.forEach((o, i) => {
+    const list = byDoc.get(o.doc.id);
+    if (list) list.push(i); else byDoc.set(o.doc.id, [i]);
+  });
+
+  const redundant = new Array<boolean>(occurrences.length).fill(false);
+  for (const indexes of byDoc.values()) {
+    indexes.sort((a, b) =>
+      occurrences[a].startNoteIdx - occurrences[b].startNoteIdx
+      || occurrences[b].endNoteIdx - occurrences[a].endNoteIdx
+      || a - b);
+    // In this order everything that could hold an occurrence comes before it; it is held if one of them reaches
+    // at least as far.
+    let reach = -Infinity;
+    for (const i of indexes) {
+      const end = occurrences[i].endNoteIdx;
+      if (end <= reach) redundant[i] = true;
+      else reach = end;
+    }
+  }
+  return occurrences.filter((_, i) => !redundant[i]);
+}
+
 export function computePatternGroups(
   loadedDocs: LoadedDoc[],
   patternType: 'pitch' | 'interval' | 'contour',
@@ -433,18 +493,9 @@ export function computePatternGroups(
 
   const uniqueOccurrences = Array.from(occurrenceMap.values());
 
-  for (let i = 0; i < uniqueOccurrences.length; i++) {
-    const o1 = uniqueOccurrences[i];
-    for (let j = i + 1; j < uniqueOccurrences.length; j++) {
-      const o2 = uniqueOccurrences[j];
-      if (o1.d === o2.d) {
-        const isSub1 = o1.start >= o2.start && o1.end <= o2.end;
-        const isSub2 = o2.start >= o1.start && o2.end <= o1.end;
-        if (isSub1 || isSub2) {
-          links.push([o1.id, o2.id]);
-        }
-      }
-    }
+  // Occurrences that lie inside one another belong together, too.
+  for (const [i, j] of nestedPairs(uniqueOccurrences)) {
+    links.push([uniqueOccurrences[i].id, uniqueOccurrences[j].id]);
   }
 
   const adj = new Map<string, string[]>();
@@ -466,8 +517,9 @@ export function computePatternGroups(
     const queue: string[] = [occ.id];
     visitedOccs.add(occ.id);
 
-    while (queue.length > 0) {
-      const curr = queue.shift()!;
+    // `shift()` on a long array moves every element; walk it with a head index instead.
+    for (let head = 0; head < queue.length; head++) {
+      const curr = queue[head];
       comp.push(curr);
 
       for (const neighbor of adj.get(curr)!) {
@@ -538,29 +590,7 @@ export function computePatternGroups(
       });
     }
 
-    const uniqueOccsList: PatternOccurrence[] = [];
-    for (const occ of occurrences) {
-      let isRedundant = false;
-      for (const other of occurrences) {
-        if (occ === other) continue;
-        if (occ.doc.id === other.doc.id) {
-          if (occ.startNoteIdx >= other.startNoteIdx && occ.endNoteIdx <= other.endNoteIdx) {
-            if (occ.startNoteIdx === other.startNoteIdx && occ.endNoteIdx === other.endNoteIdx) {
-              if (occurrences.indexOf(occ) > occurrences.indexOf(other)) {
-                isRedundant = true;
-                break;
-              }
-            } else {
-              isRedundant = true;
-              break;
-            }
-          }
-        }
-      }
-      if (!isRedundant) {
-        uniqueOccsList.push(occ);
-      }
-    }
+    const uniqueOccsList = dropNestedOccurrences(occurrences);
 
     uniqueOccsList.sort((a, b) => {
       const sigleComp = a.sourceSigle.localeCompare(b.sourceSigle);
