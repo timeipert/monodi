@@ -123,21 +123,21 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   headers: Header<Source>[] = [];
 
-  get sourceBatchFields(): BatchField[] {
-    return [
-      { key: 'quellensigle', label: 'Source Siglum' },
-      { key: 'datierung', label: 'Dating' },
-      { key: 'herkunftsregion', label: 'Region of Origin' },
-      { key: 'herkunftsort', label: 'Place of Origin' },
-      { key: 'herkunftsinstitution', label: 'Institution' },
-      { key: 'ordenstradition', label: 'Order Tradition' },
-      { key: 'quellentyp', label: 'Source Type' },
-      { key: 'bibliotheksort', label: 'Library Location' },
-      { key: 'bibliothek', label: 'Library' },
-      { key: 'bibliothekssignatur', label: 'Library Signature' },
-      { key: 'kommentar', label: 'Comment' },
-    ];
-  }
+  /** A field, not a getter: it feeds an `@Input`, and a getter would hand the table a new array on every
+   *  change-detection pass. */
+  readonly sourceBatchFields: BatchField[] = [
+    { key: 'quellensigle', label: 'Source Siglum' },
+    { key: 'datierung', label: 'Dating' },
+    { key: 'herkunftsregion', label: 'Region of Origin' },
+    { key: 'herkunftsort', label: 'Place of Origin' },
+    { key: 'herkunftsinstitution', label: 'Institution' },
+    { key: 'ordenstradition', label: 'Order Tradition' },
+    { key: 'quellentyp', label: 'Source Type' },
+    { key: 'bibliotheksort', label: 'Library Location' },
+    { key: 'bibliothek', label: 'Library' },
+    { key: 'bibliothekssignatur', label: 'Library Signature' },
+    { key: 'kommentar', label: 'Comment' },
+  ];
 
   updateHeaders() {
     this.headers = this.cols
@@ -337,9 +337,14 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
   goToSource(s: Source) {
-    if (s?.id) {
-      this.router.navigate(['/source', s.id]);
+    if (!s?.id) {
+      this.toastr.warning('This source has no id and cannot be opened. Export a backup and re-import it to repair it.', 'Source not opened');
+      return;
     }
+    this.router.navigate(['/source', s.id]).catch(e => {
+      console.error('Could not open source', s.id, e);
+      this.toastr.error('Could not open this source.');
+    });
   }
 
   delete(s: Source): void {

@@ -229,5 +229,137 @@ describe('SmartTableComponent', () => {
     expect(item2.region).toBe('East');
     expect(component.selectedCount).toBe(0);
   });
+
+  describe('stable rows', () => {
+    const header = { name: 'Name', key: 'name', makeCell: (obj: any) => ({ kind: 'text' as const, text: obj.name }) };
+
+    it('keeps its rows when change detection hands it equal inputs again', () => {
+      const items = [{ name: 'A' }, { name: 'B' }];
+      component.headers = [header];
+      component.objects = items;
+      component.ngOnChanges({});
+      const rows = [...component.allRows];
+
+      component.ngOnChanges({});
+      component.ngOnChanges({});
+
+      expect(component.allRows.length).toBe(2);
+      expect(component.allRows[0]).toBe(rows[0]);
+      expect(component.allRows[1]).toBe(rows[1]);
+    });
+
+    it('rebuilds its rows when the objects or the headers are replaced', () => {
+      component.headers = [header];
+      component.objects = [{ name: 'A' }];
+      component.ngOnChanges({});
+      const first = component.allRows[0];
+
+      component.objects = [{ name: 'A' }];
+      component.ngOnChanges({});
+      expect(component.allRows[0]).not.toBe(first);
+
+      const second = component.allRows[0];
+      component.headers = [{ ...header }];
+      component.ngOnChanges({});
+      expect(component.allRows[0]).not.toBe(second);
+    });
+
+    it('rebuilds its rows when objects are added to the same array', () => {
+      const items: any[] = [{ name: 'A' }];
+      component.headers = [header];
+      component.objects = items;
+      component.ngOnChanges({});
+      expect(component.allRows.length).toBe(1);
+
+      items.push({ name: 'B' });
+      component.ngOnChanges({});
+      expect(component.allRows.length).toBe(2);
+    });
+
+    it('survives objects and headers that are missing', () => {
+      component.objects = undefined as any;
+      component.headers = undefined as any;
+      expect(() => component.ngOnChanges({})).not.toThrow();
+      expect(component.allRows).toEqual([]);
+    });
+
+    it('keeps the same <tr> elements while a parent keeps passing a new, equal batchFields array', () => {
+      const items = [{ name: 'A' }, { name: 'B' }];
+      fixture.componentRef.setInput('headers', [header]);
+      fixture.componentRef.setInput('objects', items);
+      fixture.detectChanges();
+      const trs = Array.from(fixture.nativeElement.querySelectorAll('tbody tr')) as HTMLElement[];
+      expect(trs.length).toBe(2);
+
+      for (let i = 0; i < 3; i++) {
+        fixture.componentRef.setInput('batchFields', [{ key: 'name', label: 'Name' }]);
+        fixture.detectChanges();
+      }
+
+      const after = Array.from(fixture.nativeElement.querySelectorAll('tbody tr')) as HTMLElement[];
+      expect(after.length).toBe(2);
+      expect(after[0]).toBe(trs[0]);
+      expect(after[1]).toBe(trs[1]);
+    });
+
+    it('keeps the same <tr> elements when a column is hidden or shown', () => {
+      const other = { name: 'Other', key: 'other', makeCell: (obj: any) => ({ kind: 'text' as const, text: obj.other }) };
+      const items = [{ name: 'A', other: 'x' }];
+      fixture.componentRef.setInput('headers', [header, other]);
+      fixture.componentRef.setInput('objects', items);
+      fixture.detectChanges();
+      const tr = fixture.nativeElement.querySelector('tbody tr') as HTMLElement;
+
+      fixture.componentRef.setInput('headers', [header]);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('tbody tr')).toBe(tr);
+      expect(tr.querySelectorAll('td.td-smart-row').length).toBe(1);
+    });
+
+    it('emits the row object when a row is clicked, also after the inputs were refreshed', () => {
+      const items = [{ name: 'A' }, { name: 'B' }];
+      fixture.componentRef.setInput('headers', [header]);
+      fixture.componentRef.setInput('objects', items);
+      fixture.detectChanges();
+      const clicked: any[] = [];
+      component.onRowClick.subscribe(o => clicked.push(o));
+
+      fixture.componentRef.setInput('batchFields', [{ key: 'name', label: 'Name' }]);
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelectorAll('tbody tr')[1].querySelector('td.td-smart-row') as HTMLElement).click();
+
+      expect(clicked).toEqual([items[1]]);
+    });
+
+    it('shows the new values after a batch edit', () => {
+      const item = { name: 'A', region: 'North' };
+      const region = { name: 'Region', key: 'region', makeCell: (obj: any) => ({ kind: 'text' as const, text: obj.region }) };
+      component.headers = [region];
+      component.objects = [item];
+      component.batchFields = [{ key: 'region', label: 'Region' }];
+      component.ngOnChanges({});
+      component.toggleSelectRow(item, { stopPropagation: () => {} } as any, 0);
+
+      component.openBatchEditModal();
+      component.batchEditValue = 'East';
+      component.applyBatchEdit();
+
+      expect(component.pagedRows[0].cells[0]).toEqual(jasmine.objectContaining({ text: 'East' }));
+    });
+
+    it('keeps the selection when only the headers change', () => {
+      const item = { name: 'A' };
+      component.headers = [header];
+      component.objects = [item];
+      component.ngOnChanges({});
+      component.toggleSelectRow(item, { stopPropagation: () => {} } as any, 0);
+
+      component.headers = [{ ...header }];
+      component.ngOnChanges({});
+
+      expect(component.isObjectSelected(item)).toBeTrue();
+    });
+  });
 });
 

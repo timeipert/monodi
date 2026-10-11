@@ -496,21 +496,21 @@ export class SourceComponent implements OnInit {
 
   docHeaders: Header<Document>[] = [];
 
-  get docBatchFields(): BatchField[] {
-    return [
-      { key: 'textinitium', label: 'Text Initium' },
-      { key: 'gattung1', label: 'Genre 1' },
-      { key: 'gattung2', label: 'Genre 2' },
-      { key: 'festtag', label: 'Feast Day' },
-      { key: 'feier', label: 'Celebration' },
-      { key: 'foliostart', label: 'Folio Start' },
-      { key: 'zeilenstart', label: 'Line Start' },
-      { key: 'druckausgabe', label: 'Print Edition' },
-      { key: 'bibliographischerverweis', label: 'Bibliographic Ref.' },
-      { key: 'editionsstatus', label: 'Edition Status' },
-      { key: 'kommentar', label: 'Comment' },
-    ];
-  }
+  /** A field, not a getter: it feeds an `@Input`, and a getter would hand the table a new array on every
+   *  change-detection pass. */
+  readonly docBatchFields: BatchField[] = [
+    { key: 'textinitium', label: 'Text Initium' },
+    { key: 'gattung1', label: 'Genre 1' },
+    { key: 'gattung2', label: 'Genre 2' },
+    { key: 'festtag', label: 'Feast Day' },
+    { key: 'feier', label: 'Celebration' },
+    { key: 'foliostart', label: 'Folio Start' },
+    { key: 'zeilenstart', label: 'Line Start' },
+    { key: 'druckausgabe', label: 'Print Edition' },
+    { key: 'bibliographischerverweis', label: 'Bibliographic Ref.' },
+    { key: 'editionsstatus', label: 'Edition Status' },
+    { key: 'kommentar', label: 'Comment' },
+  ];
 
   updateDocHeaders() {
     this.docHeaders = this.visibleDocCols.map(col => ({
