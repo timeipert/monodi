@@ -4,15 +4,6 @@ import * as M from './model';
 import { STATUS_TROPE_ELEMENT } from './formteil-status';
 import { v4 as UUID } from "uuid";
 
-export function ordinariumsParser(): P.Parser<M.RootContainer>{
-  const rootContainer = M.emptyRootContainer();
-  rootContainer.documentType = M.DocumentType.Level2;
-  return lineParser().sepBy(P.end.or(P.newline).trim(P.regexp(/ */))).map(lines => {
-    rootContainer.children = lines;
-    return rootContainer;
-  })
-}
-
 export function ordinariumRoot(): P.Parser<M.RootContainer> {
   function doParse(data: string): P.Parser<M.RootContainer> {
     const lines = data.split(/\n\r?/)

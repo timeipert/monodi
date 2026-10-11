@@ -1868,7 +1868,7 @@ export class DocumentComponent implements OnInit {
         this.cont = { ...this.cont };
         this.modalService.dismissAll();
       } else {
-        console.log(result);
+        console.error(result);
         this.toastr.error("Technical details are available in the console.", "Could not parse text");
         this.modalService.dismissAll();
       }

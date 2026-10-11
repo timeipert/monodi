@@ -633,9 +633,9 @@ export interface ProjectSettings {
   pdfStatusTextStyle?: { [status: string]: 'none' | 'smallcaps' | 'uppercase' | 'lowercase' };
   pdfChapterHeadings?: boolean;
   pdfChapterNewPage?: boolean;
-  /** Transitions between Edition, Critical Apparatus and Source Descriptions: 'volume' = a page of its own with a rule (as in the printed volume, no running head), 'compact' = just a heading where the part begins. */
   /** Contents of the Edition: only the manuscripts (default, as in the printed volume) or every document. */
   pdfContentsEdition?: 'chapters' | 'documents';
+  /** Transitions between Edition, Critical Apparatus and Source Descriptions: 'volume' = a page of its own with a rule (as in the printed volume, no running head), 'compact' = just a heading where the part begins. */
   pdfPartStyle?: 'volume' | 'compact';
   pdfContentsApparatus?: 'chapters' | 'documents' | 'none';
   pdfBookmarks?: boolean;
@@ -867,11 +867,6 @@ export interface DocumentQuery {
 
 export interface CreateDocument {
   "document": Document;
-  "notes": VM.RootContainer;
-}
-
-export interface SaveNotes {
-  "id": string;
   "notes": VM.RootContainer;
 }
 
