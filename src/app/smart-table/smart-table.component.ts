@@ -1,4 +1,5 @@
 import { Output, EventEmitter, SimpleChanges, Input, OnChanges, Component, OnInit } from '@angular/core';
+import { compareNatural } from '../../utils';
 
 @Component({
     selector: 'app-smart-table',
@@ -129,9 +130,8 @@ export class SmartTableComponent<T> implements OnInit, OnChanges {
       return numA - numB;
     }
 
-    const lowerA = txtA.toLowerCase();
-    const lowerB = txtB.toLowerCase();
-    return lowerA < lowerB ? -1 : lowerA > lowerB ? 1 : 0;
+    // Text with numbers in it (a document ID such as "Pa 10-1-1") is ordered part by part, see compareNatural.
+    return compareNatural(txtA, txtB);
   }
 
   private saveSortState() {

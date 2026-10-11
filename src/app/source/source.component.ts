@@ -8,7 +8,7 @@ import { APIService, Source, Document } from '../api.service'
 import { VolpianoService } from '../volpiano.service';
 import { ToastrService } from 'ngx-toastr';
 import { ToolsService } from '../tools.service';
-import { assertNever } from '../../utils';
+import { assertNever, compareNatural } from '../../utils';
 import { Subscription, combineLatest, firstValueFrom } from 'rxjs';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
@@ -127,7 +127,7 @@ export class SourceComponent implements OnInit {
   /** All documents of this manuscript as one PDF: contents table, every document on its own pages, collected apparatus. */
   printManuscript() {
     if (!this.documents.length) return;
-    const docs = [...this.documents].sort((a, b) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+    const docs = [...this.documents].sort((a, b) => compareNatural(a.dokumenten_id, b.dokumenten_id));
     const title = [this.source?.quellensigle, this.source?.bibliothekssignatur].filter(Boolean).join(' · ') || 'Manuscript';
     this.pdfDialog.open({ docs, title });
   }
@@ -135,7 +135,7 @@ export class SourceComponent implements OnInit {
   /** The documents selected in the table, as one PDF. */
   printDocuments(selected: Document[]) {
     if (!selected.length) return;
-    const docs = [...selected].sort((a, b) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+    const docs = [...selected].sort((a, b) => compareNatural(a.dokumenten_id, b.dokumenten_id));
     this.pdfDialog.open({ docs, title: this.source?.quellensigle || '' });
   }
 

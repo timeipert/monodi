@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
 import { AnalyzedPattern } from '../../transcription-analyzer.service';
 import { Source } from '../../api.service';
+import { compareNatural } from '../../../utils';
 
 export interface LocationGroup {
   label: string;      // e.g. "f3r/L5"
@@ -67,7 +68,7 @@ export class OverviewComponent implements OnChanges {
         locMap.get(key)!.count++;
       }
       g.locationGroups = Array.from(locMap.values())
-        .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+        .sort((a, b) => compareNatural(a.label, b.label));
     }
 
     this.patternGroups = Array.from(groupsMap.values());
@@ -100,7 +101,7 @@ export class OverviewComponent implements OnChanges {
       const aNum = parseFloat(a.refId);
       const bNum = parseFloat(b.refId);
       if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-      return a.refId.localeCompare(b.refId, undefined, { numeric: true });
+      return compareNatural(a.refId, b.refId);
     });
   }
 

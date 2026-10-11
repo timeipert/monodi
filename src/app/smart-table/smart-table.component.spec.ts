@@ -230,6 +230,45 @@ describe('SmartTableComponent', () => {
     expect(component.selectedCount).toBe(0);
   });
 
+  describe('sorting text with numbers in it', () => {
+    const header = { name: 'ID', key: 'id', makeCell: (obj: any) => ({ kind: 'text' as const, text: obj.id }) };
+    const sortedIds = (ids: string[], descending = false) => {
+      component.headers = [header];
+      component.objects = ids.map(id => ({ id }));
+      component.sortFieldName = undefined;
+      component.ngOnChanges({});
+      component.sortBy(header);
+      if (descending) component.sortBy(header);
+      return component.allRows.map(r => r.dataObject.id);
+    };
+
+    it('orders every part of an ID by its value, not by its characters', () => {
+      expect(sortedIds(['Pa 10-1-1', 'Pa 2-1-1'])).toEqual(['Pa 2-1-1', 'Pa 10-1-1']);
+      expect(sortedIds(['Mo 1-10-1', 'Mo 1-2-1'])).toEqual(['Mo 1-2-1', 'Mo 1-10-1']);
+      expect(sortedIds(['Mo 1-1-10', 'Mo 1-1-2'])).toEqual(['Mo 1-1-2', 'Mo 1-1-10']);
+    });
+
+    it('puts the letters first: Aa 20-1-1 comes before Pa 1-1-1', () => {
+      expect(sortedIds(['Pa 1-1-1', 'Aa 20-1-1'])).toEqual(['Aa 20-1-1', 'Pa 1-1-1']);
+    });
+
+    it('sorts a whole list, ascending and descending', () => {
+      const shuffled = ['Pa 10-1-1', 'Mo 1-1-10', 'Pa 1-1-1', 'Mo 1-10-1', 'Aa 20-1-1', 'Mo 1-1-2', 'Pa 2-1-1', 'Mo 1-2-1'];
+      const ascending = ['Aa 20-1-1', 'Mo 1-1-2', 'Mo 1-1-10', 'Mo 1-2-1', 'Mo 1-10-1', 'Pa 1-1-1', 'Pa 2-1-1', 'Pa 10-1-1'];
+      expect(sortedIds(shuffled)).toEqual(ascending);
+      expect(sortedIds(shuffled, true)).toEqual([...ascending].reverse());
+    });
+
+    it('does not let capitals decide, and keeps plain numbers numeric', () => {
+      expect(sortedIds(['b 1', 'A 2', 'a 10'])).toEqual(['A 2', 'a 10', 'b 1']);
+      expect(sortedIds(['10', '9', '100'])).toEqual(['9', '10', '100']);
+    });
+
+    it('keeps empty values together at the start', () => {
+      expect(sortedIds(['B 1', '', 'A 1'])).toEqual(['', 'A 1', 'B 1']);
+    });
+  });
+
   describe('stable rows', () => {
     const header = { name: 'Name', key: 'name', makeCell: (obj: any) => ({ kind: 'text' as const, text: obj.name }) };
 

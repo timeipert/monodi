@@ -6,7 +6,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, inject } from 
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService, User } from '../user.service';
 import { APIService, Source, Document } from '../api.service'
-import { assertNever } from '../../utils';
+import { assertNever, compareNatural } from '../../utils';
 import { buildWorkspaceCsv, parseWorkspaceCsv } from '../workspace-csv';
 import { BackupReminderService } from '../backup-reminder.service';
 import { Subscription, firstValueFrom } from 'rxjs';
@@ -1194,7 +1194,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       } else if (this.exportMode === 'pdf') {
         // hand the selection over to the print dialog (options, order, page format)
         const docs = [...this.selectedDocsForExport]
-          .sort((a: any, b: any) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+          .sort((a: any, b: any) => compareNatural(a.dokumenten_id, b.dokumenten_id));
         this.closeExportDialog();
         this.pdfDialog.open({ docs, title: '' });
       } else {

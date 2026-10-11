@@ -5,6 +5,7 @@ import { APIService, Document, ProjectSettings, Source } from './api.service';
 import { UserService } from './user.service';
 import { PdfBoxLabel, PdfDocJob, PdfExportService } from './pdf-export.service';
 import { genreOf } from './document-metadata';
+import { compareNatural } from '../utils';
 
 interface Entry { id: string; doc: Document | null; job: PdfDocJob | null; }
 
@@ -225,7 +226,7 @@ export class PdfExportDialogComponent implements OnInit {
   remove(i: number): void { this.entries = this.entries.filter((_, k) => k !== i); }
   sortBy(kind: 'id' | 'incipit' | 'genre'): void {
     const key = (e: Entry) => kind === 'id' ? (e.doc?.dokumenten_id || '') : kind === 'incipit' ? (e.doc?.textinitium || '') : genreOf(e.doc);
-    this.entries = [...this.entries].sort((a, b) => key(a).localeCompare(key(b), undefined, { numeric: true, sensitivity: 'base' }));
+    this.entries = [...this.entries].sort((a, b) => compareNatural(key(a), key(b)));
   }
 
   // ── remembered choices (kept apart for one and for several documents) ──
@@ -340,7 +341,7 @@ export class PdfDialogLauncher {
       bibliographischerverweis: undefined, druckausgabe: undefined, zeilenstart: undefined, foliostart: undefined, kommentar: undefined,
     }));
     const docs: Document[] = (res.documents || []).filter((d: Document) => d.quelle_id === sourceId)
-      .sort((a: Document, b: Document) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+      .sort((a: Document, b: Document) => compareNatural(a.dokumenten_id, b.dokumenten_id));
     this.open({ docs, title });
   }
 }
