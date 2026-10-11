@@ -1992,7 +1992,7 @@
                             <div class="list-group list-group-flush">
                               @for (occ of g.occurrences; track occ) {
                                 <div class="list-group-item py-2">
-                                  <div class="small fw-semibold text-accent mb-1">{{occ.sourceSigle}} <span class="text-muted fw-normal">· {{occ.docTitle}}</span></div>
+                                  <div class="small fw-semibold text-accent mb-1">{{occ.sourceSigle}} <span class="text-muted fw-normal">· {{occ.doc.textinitium || occ.doc.dokumenten_id}}</span></div>
                                   <div class="d-flex flex-nowrap overflow-auto pb-1 align-items-center bg-light rounded px-2 pt-2" style="min-height: 60px;">
                                     @for (syl of occ.matchingSyllables; track syl) {
                                       <div class="flex-shrink-0">
@@ -2008,7 +2008,7 @@
                             <div class="list-group list-group-flush">
                               @for (occ of visibleOccurrences(g); track occ) {
                                 <div class="list-group-item py-2">
-                                  <div class="small fw-semibold text-accent mb-1">{{occ.sourceSigle}} <span class="text-muted fw-normal">· {{occ.docTitle}}</span></div>
+                                  <div class="small fw-semibold text-accent mb-1">{{occ.sourceSigle}} <span class="text-muted fw-normal">· {{occ.doc.textinitium || occ.doc.dokumenten_id}}</span></div>
                                   <div class="d-flex flex-nowrap overflow-auto pb-1 align-items-center bg-light rounded px-2 pt-2" style="min-height: 60px;">
                                     @for (syl of occ.matchingSyllables; track syl) {
                                       <div class="flex-shrink-0">
