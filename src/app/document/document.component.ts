@@ -1,6 +1,7 @@
 import { FocusService } from '../focus.service';
 import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
-import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, inject } from '@angular/core';
+import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, NgZone, inject } from '@angular/core';
+import { followDrag } from '../follow-drag';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
@@ -415,7 +416,8 @@ export class DocumentComponent implements OnInit {
     public searchExecSvc: SearchExecService,
     private searchReplaceSvc: SearchReplaceService,
     private cdr: ChangeDetectorRef,
-    private fsService: FileSystemService) {
+    private fsService: FileSystemService,
+    private zone: NgZone) {
   }
 
   get activeHighlight() {
@@ -876,9 +878,9 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  @HostListener('window:mousemove', ['$event'])
-  onMouseMove(event: MouseEvent) {
-    if (!this.isDraggingSplitter) return;
+  private stopSplitDrag?: () => void;
+
+  private onSplitMove(event: MouseEvent) {
     const container = document.getElementById('split-screen-container');
     if (container) {
       const rect = container.getBoundingClientRect();
@@ -891,18 +893,17 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  @HostListener('window:mouseup')
-  onMouseUp() {
-    if (this.isDraggingSplitter) {
-      this.isDraggingSplitter = false;
-      document.body.style.cursor = 'default';
-    }
+  private onSplitEnd() {
+    this.isDraggingSplitter = false;
+    document.body.style.cursor = 'default';
   }
 
   startSplitDrag(event: MouseEvent) {
+    this.stopSplitDrag?.();
     this.isDraggingSplitter = true;
     document.body.style.cursor = 'col-resize';
     event.preventDefault();
+    this.stopSplitDrag = followDrag(this.zone, e => this.onSplitMove(e), () => this.onSplitEnd());
   }
 
   /** Opens the print dialog for this document (as it is now, unsaved changes included). */
@@ -1666,11 +1667,6 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  @HostListener('window:unload', ['$event'])
-  unloadHandler($event: any) {
-    this.hasChanges();
-  }
-
   @HostListener('window:beforeunload', ['$event'])
   beforeUnloadHander($event: any) {
     return !this.hasChanges();
@@ -1858,6 +1854,8 @@ export class DocumentComponent implements OnInit {
   }
 
   ngOnDestroy(): void {
+    this.stopSplitDrag?.();
+    if (this.isDraggingSplitter) this.onSplitEnd();
     this.manuscriptView.unregister(this.manuscriptViewContext);
     this.manuscriptView.close();
     for (const s of this.subs) {
