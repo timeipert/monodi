@@ -51,6 +51,9 @@ for (const route of ROUTES) {
     await page.goto(BASE + route, { waitUntil: 'networkidle0', timeout: 40000 });
     await page.reload({ waitUntil: 'networkidle0', timeout: 40000 });
     await new Promise((r) => setTimeout(r, 1200));    // let late change-detection passes run
+    // A tab that renders nothing is a bug no console error will ever report (the Shortcuts pane once sat inside
+    // the PDF preview column and never showed).
+    if (route.startsWith('/#/settings?tab=') && !(await page.$('.tab-pane'))) note('the settings tab shows no pane');
   } catch (e) { note('navigation: ' + String(e).split('\n')[0]); }
   console.log(problems.has(route) ? 'FAIL ' : 'ok   ', route, problems.get(route)?.[0] ?? '');
 }

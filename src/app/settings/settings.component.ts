@@ -569,7 +569,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return parts.join('   •   ');
   }
 
-  private saveSettings() {
+  protected saveSettings() {
     if (!this.settings || !this.user) return;
     this.saveState = 'saving';
     clearTimeout(this.saveStateTimer);
