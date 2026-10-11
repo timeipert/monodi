@@ -1,6 +1,7 @@
 import * as P from 'parsimmon'
 import * as PP from './parsers'
 import * as M from './model';
+import { STATUS_TROPE_ELEMENT } from './formteil-status';
 import { v4 as UUID } from "uuid";
 
 export function tropusParser(): P.Parser<M.RootContainer>{
@@ -22,7 +23,7 @@ function lineParser(): P.Parser<M.FormteilContainer>{
 function singleLineParser(): P.Parser<M.FormteilContainer>{
   return P.seqMap(
     P.alt(
-      P.regexp(/[0-9]+\t/).map(   t => ({name: t.trim(), sType: "Tropenelement" })),
+      P.regexp(/[0-9]+\t/).map(   t => ({name: t.trim(), sType: STATUS_TROPE_ELEMENT })),
       P.regexp(/[a-zA-Z]+\t/).map(t => ({name: t.trim(), sType: "" })),
     ),
     PP.lineContainerParser(),

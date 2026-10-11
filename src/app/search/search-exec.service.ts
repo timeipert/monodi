@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Subject, forkJoin, Subscription } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { APIService, SourceQuery, DocumentQuery, Source, Document } from '../api.service';
 import { UserService, User } from '../user.service';
 import { PatternAnalysisService } from './pattern-analysis.service';
@@ -12,7 +12,6 @@ import {
   toContour,
   toIntervals
 } from './pattern-algo';
-import { textWidth } from '../../utils';
 
 export interface TextSnippet {
   before: string;

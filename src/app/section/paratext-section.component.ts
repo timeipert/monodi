@@ -66,7 +66,6 @@ export class ParatextSectionComponent extends S.Section<Model.ParatextContainer>
   }
 
   onKeyDown(event: KeyboardEvent): void {
-    console.log(event);
     if (event.ctrlKey && event.key === 'z') {
       this.undoService.undo();
     } else {

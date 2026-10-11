@@ -1,5 +1,8 @@
-import { EventEmitter, Input, Output, OnInit, Directive } from '@angular/core';
+import { EventEmitter, Input, Output, OnInit, Directive, inject } from '@angular/core';
+import { FocusService } from '../focus.service';
+import { shouldShowClef } from '../clef-policy';
 import * as Model from '../types/model';
+import { canonicalStatus, FORMTEIL_STATUSES } from '../types/formteil-status';
 import * as MS from '../types/modelStorage';
 import { Event } from './Event';
 import { DragRequest } from '../dragger/dragger.component';
@@ -113,6 +116,12 @@ export abstract class Section<T extends Model.Container> implements OnInit {
     return actions;
   }
 
+  /** The statuses of the dropdown; a value the editor does not offer (from imported data) is kept as an extra entry. */
+  statusOptions(current: string | undefined): string[] {
+    const value = canonicalStatus(current);
+    return value && !FORMTEIL_STATUSES.includes(value) ? [...FORMTEIL_STATUSES, value] : [...FORMTEIL_STATUSES];
+  }
+
   getEnglishDataName(name: string): string {
     const names: { [key: string]: string } = {
       'Signatur': 'Signature',
@@ -207,6 +216,21 @@ export abstract class Section<T extends Model.Container> implements OnInit {
 
   kindIs(x: any, y: any) {
     return x.kind === y;
+  }
+
+  private readonly clefFocus = inject(FocusService);
+
+  /** Whether the child at `index` of this ZeileContainer gets the automatic G-clef,
+   *  per the project's `clefDisplayMode`. (The chant start itself is handled by
+   *  `NotesComponent.showClef` via `FocusService.firstSyllableUuid`.) */
+  showClefAt(index: number): boolean {
+    const children: any[] = (this.data as any)?.children || [];
+    return shouldShowClef(this.clefFocus.clefDisplayMode, {
+      firstInDocument: false,
+      firstInZeile: index === 0,
+      afterLineChange: index > 0 && children[index - 1]?.kind === 'LineChange',
+      wrapStart: false,
+    });
   }
 
   /** True when this section's line is set to adiastematic (contour-only) notation. */

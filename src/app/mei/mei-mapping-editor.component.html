@@ -1,52 +1,46 @@
-<div class="card shadow-sm border-light mb-4">
-  <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <div class="d-flex align-items-center gap-2">
-      <i class="bi bi-music-note-beamed fs-5 text-secondary"></i>
-      <h6 class="mb-0 fw-semibold">MEI Export Mappings v2</h6>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <!-- Profile Selector -->
-      <select class="form-select form-select-sm w-auto"
-        [ngModel]="settings.activeMeiProfileId"
-        (change)="onProfileChange($event)">
-        @for (p of settings.meiProfiles; track p) {
-          <option [value]="p.id">{{ p.name }}</option>
-        }
-      </select>
-
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-primary" (click)="onNewProfile()" title="Create New Profile">
-          <i class="bi bi-plus-lg"></i> New
-        </button>
-        <button class="btn btn-outline-secondary" (click)="onDuplicateProfile()" [disabled]="!activeProfile" title="Duplicate Profile">
-          <i class="bi bi-files"></i> Duplicate
-        </button>
+<div class="card shadow-sm border-light mb-4 mei-editor">
+  <!-- ===== Header: what this is + profile ===== -->
+  <div class="card-header bg-light">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h6 class="mb-1 fw-semibold"><i class="bi bi-music-note-beamed me-2 text-secondary"></i>MEI export</h6>
+        <p class="text-muted small mb-0 mei-intro">
+          Decide how your transcription is written as MEI. A <strong>profile</strong> holds all these choices.
+        </p>
       </div>
-
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-secondary" (click)="onRenameProfile()" [disabled]="!activeProfile" title="Rename Profile">
-          <i class="bi bi-pencil"></i> Rename
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm" [ngClass]="showPreview ? 'btn-secondary' : 'btn-outline-secondary'" (click)="togglePreview()">
+          <i class="bi bi-code-square me-1"></i>{{ showPreview ? 'Hide result' : 'Show result' }}
         </button>
-        <button class="btn btn-outline-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0" title="Delete Profile">
-          <i class="bi bi-trash"></i> Delete
-        </button>
+        <label class="small text-muted mb-0 ms-2" for="meiProfileSelect">Profile</label>
+        <select id="meiProfileSelect" class="form-select form-select-sm w-auto"
+          [ngModel]="settings.activeMeiProfileId"
+          (change)="onProfileChange($event)">
+          @for (p of settings.meiProfiles; track p) {
+            <option [value]="p.id">{{ p.name }}</option>
+          }
+        </select>
+        <div class="position-relative">
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="manageOpen = !manageOpen" [attr.aria-expanded]="manageOpen">
+            Manage <i class="bi bi-chevron-down ms-1" style="font-size: 0.7rem;"></i>
+          </button>
+          @if (manageOpen) {
+          <div class="mei-backdrop" (click)="manageOpen = false"></div>
+          <ul class="dropdown-menu dropdown-menu-end show" style="right: 0;" (click)="manageOpen = false">
+            <li><button class="dropdown-item" (click)="onNewProfile()"><i class="bi bi-plus-lg me-2"></i>New profile</button></li>
+            <li><button class="dropdown-item" (click)="onDuplicateProfile()" [disabled]="!activeProfile"><i class="bi bi-files me-2"></i>Duplicate</button></li>
+            <li><button class="dropdown-item" (click)="onRenameProfile()" [disabled]="!activeProfile"><i class="bi bi-pencil me-2"></i>Rename</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" (click)="onExportProfile()" [disabled]="!activeProfile"><i class="bi bi-download me-2"></i>Export as JSON</button></li>
+            <li><label class="dropdown-item mb-0 cursor-pointer"><i class="bi bi-upload me-2"></i>Import from JSON
+              <input type="file" accept=".json" class="d-none" (change)="onImportProfile($event)"></label></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" (click)="onResetProfile()" [disabled]="!activeProfile"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset to defaults</button></li>
+            <li><button class="dropdown-item text-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0"><i class="bi bi-trash me-2"></i>Delete profile</button></li>
+          </ul>
+          }
+        </div>
       </div>
-
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-secondary" (click)="onExportProfile()" [disabled]="!activeProfile" title="Export to JSON">
-          <i class="bi bi-download"></i> Export
-        </button>
-        <label class="btn btn-outline-secondary mb-0 cursor-pointer" title="Import from JSON">
-          <i class="bi bi-upload"></i> Import
-          <input type="file" accept=".json" class="d-none" (change)="onImportProfile($event)">
-        </label>
-      </div>
-
-      <button class="btn btn-sm btn-outline-warning" (click)="onResetProfile()" [disabled]="!activeProfile" title="Reset to Defaults">
-        <i class="bi bi-arrow-counterclockwise"></i> Reset
-      </button>
     </div>
   </div>
 
@@ -70,204 +64,47 @@
       </div>
     }
     @if (activeProfile && (!validationErrors || validationErrors.length === 0)) {
-      <div class="px-4 pt-3 pb-0">
-        <div class="alert alert-success alert-sm mb-2 d-flex align-items-center">
-          <i class="bi bi-check-circle-fill me-2"></i> Output is well-formed.
-        </div>
-      </div>
+      <div class="px-4 pt-2 small text-success"><i class="bi bi-check-circle-fill me-1"></i>Output is well-formed.</div>
     }
 
     @if (activeProfile) {
+      <!-- ===== Tabs ===== -->
+      <ul class="nav nav-tabs mei-tabs px-3 pt-2" role="tablist">
+        @for (t of tabs; track t.id) {
+          <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" role="tab" [class.active]="tab === t.id" (click)="setTab(t.id)">
+              <span class="d-flex align-items-center">
+                <i class="bi me-2" [ngClass]="t.icon"></i>
+                <span class="d-flex flex-column text-start">
+                  <span class="fw-medium">{{ t.label }}
+                    @if (tabCount(t.id) !== null) { <span class="badge bg-secondary ms-1">{{ tabCount(t.id) }}</span> }
+                  </span>
+                  <span class="tab-hint">{{ t.hint }}</span>
+                </span>
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+
       <div class="row g-0">
-        <!-- Column 1: Entities Tree -->
-        <div class="col-12 col-md-4 col-xl-3 border-end">
-          <div class="p-3 bg-light border-bottom">
-            <h6 class="mb-0 fw-semibold text-secondary">Mapping Structure</h6>
-          </div>
-          <div class="p-3" style="max-height: 600px; overflow-y: auto;">
-            <ul class="entity-tree">
-              <!-- SKELETON -->
-              <li>
-                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'skeleton'" (click)="selectNode('skeleton')">
-                  <i class="bi bi-file-code me-2 text-muted"></i>
-                  <span class="me-auto">Document Skeleton</span>
-                  @if (skeletonDiffers()) {
-                    <span class="modified-dot ms-2" title="Modified from default"></span>
-                  }
-                </div>
-              </li>
-              <!-- FORMTEIL -->
-              <li>
-                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'formteil'" [class.text-muted]="!activeProfile.entities.formteil.enabled" (click)="selectNode('formteil')">
-                  <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.formteil.enabled" (ngModelChange)="emitChange()">
-                  <span class="me-auto">Formteil</span>
-                  <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.formteil.tag}}&gt;</span>
-                  @if (entityDiffers('formteil')) {
-                    <span class="modified-dot ms-2" title="Modified from default"></span>
-                  }
-                </div>
-                <!-- ZEILE -->
-                <ul>
-                  <li>
-                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'zeile'" [class.text-muted]="!activeProfile.entities.zeile.enabled" (click)="selectNode('zeile')">
-                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.zeile.enabled" (ngModelChange)="emitChange()">
-                      <span class="me-auto">Line</span>
-                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.zeile.tag}}&gt;</span>
-                      @if (entityDiffers('zeile')) {
-                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                      }
-                    </div>
-                    <ul>
-                      <!-- CLEF -->
-                      <li>
-                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'clef'" [class.text-muted]="!activeProfile.entities.clef.enabled" (click)="selectNode('clef')">
-                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.clef.enabled" (ngModelChange)="emitChange()">
-                          <span class="me-auto">Clef</span>
-                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.clef.tag}}&gt;</span>
-                          @if (entityDiffers('clef')) {
-                            <span class="modified-dot ms-2" title="Modified from default"></span>
-                          }
-                        </div>
-                      </li>
-                      <!-- SYLLABLE -->
-                      <li>
-                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllable'" [class.text-muted]="!activeProfile.entities.syllable.enabled" (click)="selectNode('syllable')">
-                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllable.enabled" (ngModelChange)="emitChange()">
-                          <span class="me-auto">Syllable</span>
-                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllable.tag}}&gt;</span>
-                          @if (entityDiffers('syllable')) {
-                            <span class="modified-dot ms-2" title="Modified from default"></span>
-                          }
-                        </div>
-                        <ul>
-                          <!-- SYLLABLE TEXT -->
-                          <li>
-                            <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'syllableText'" [class.text-muted]="!activeProfile.entities.syllableText.enabled" (click)="selectNode('syllableText')">
-                              <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.syllableText.enabled" (ngModelChange)="emitChange()">
-                              <span class="me-auto">Text</span>
-                              <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.syllableText.tag}}&gt;</span>
-                              @if (entityDiffers('syllableText')) {
-                                <span class="modified-dot ms-2" title="Modified from default"></span>
-                              }
-                            </div>
-                          </li>
-                          <!-- NEUME -->
-                          <li>
-                            <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'neume'" [class.text-muted]="!activeProfile.entities.neume.enabled" (click)="selectNode('neume')">
-                              <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.neume.enabled" (ngModelChange)="emitChange()">
-                              <span class="me-auto">Neume</span>
-                              <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.neume.tag}}&gt;</span>
-                              @if (entityDiffers('neume')) {
-                                <span class="modified-dot ms-2" title="Modified from default"></span>
-                              }
-                            </div>
-                            <ul>
-                              <!-- NOTE -->
-                              <li>
-                                <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'note'" [class.text-muted]="!activeProfile.entities.note.enabled" (click)="selectNode('note')">
-                                  <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.note.enabled" (ngModelChange)="emitChange()">
-                                  <span class="me-auto">Note</span>
-                                  <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.note.tag}}&gt;</span>
-                                  @if (entityDiffers('note')) {
-                                    <span class="modified-dot ms-2" title="Modified from default"></span>
-                                  }
-                                </div>
-                                <ul>
-                                  <!-- ORISCUS -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'oriscus'" [class.text-muted]="!activeProfile.entities.oriscus.enabled" (click)="selectNode('oriscus')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.oriscus.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Oriscus</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.oriscus.tag}}&gt;</span>
-                                      @if (entityDiffers('oriscus')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                  <!-- QUILISMA -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'quilisma'" [class.text-muted]="!activeProfile.entities.quilisma.enabled" (click)="selectNode('quilisma')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.quilisma.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Quilisma</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.quilisma.tag}}&gt;</span>
-                                      @if (entityDiffers('quilisma')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                  <!-- STROPHICUS -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'strophicus'" [class.text-muted]="!activeProfile.entities.strophicus.enabled" (click)="selectNode('strophicus')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.strophicus.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Strophicus</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.strophicus.tag}}&gt;</span>
-                                      @if (entityDiffers('strophicus')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                  <!-- LIQUESCENT -->
-                                  <li>
-                                    <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'liquescent'" [class.text-muted]="!activeProfile.entities.liquescent.enabled" (click)="selectNode('liquescent')">
-                                      <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.liquescent.enabled" (ngModelChange)="emitChange()">
-                                      <span class="me-auto">Liquescent</span>
-                                      <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.liquescent.tag}}&gt;</span>
-                                      @if (entityDiffers('liquescent')) {
-                                        <span class="modified-dot ms-2" title="Modified from default"></span>
-                                      }
-                                    </div>
-                                  </li>
-                                </ul>
-                              </li>
-                            </ul>
-                          </li>
-                        </ul>
-                      </li>
-                      <!-- PARATEXT -->
-                      <li>
-                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === 'paratext'" [class.text-muted]="!activeProfile.entities.paratext.enabled" (click)="selectNode('paratext')">
-                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities.paratext.enabled" (ngModelChange)="emitChange()">
-                          <span class="me-auto">Paratext</span>
-                          <span class="badge bg-light text-dark border font-monospace">&lt;{{activeProfile.entities.paratext.tag}}&gt;</span>
-                          @if (entityDiffers('paratext')) {
-                            <span class="modified-dot ms-2" title="Modified from default"></span>
-                          }
-                        </div>
-                      </li>
-                    </ul>
-                  </li>
-                </ul>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <!-- Column 2: Rule Editor -->
-        <div class="col-12 col-md-8 col-xl-5 border-end bg-white">
-          <div class="p-3 bg-light border-bottom d-flex align-items-center">
-            <h6 class="mb-0 fw-semibold text-secondary">
-              {{ selectedNodeId === 'skeleton' ? 'Document Skeleton Settings' : 'Mapping Rule Editor' }}
-            </h6>
-          </div>
-          <div class="p-4" style="max-height: 600px; overflow-y: auto;">
-            <!-- SKELETON EDITOR -->
+        <!-- ===== Left: the active tab ===== -->
+        <div class="col-12 border-end" [class.col-xxl-7]="showPreview">
+          <!-- General -->
+          @if (tab === 'general') {
+            <div class="p-4 mei-pane">
+              <p class="mei-lead">The frame around your music: the header block and the elements that wrap everything.</p>
             @if (selectedNodeId === 'skeleton') {
               <div class="mb-4">
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox" id="emitHeaderCheck" [(ngModel)]="activeProfile.emitHeader" (ngModelChange)="emitChange()">
                   <label class="form-check-label fw-medium" for="emitHeaderCheck">Emit standard &lt;meiHead&gt; block</label>
                 </div>
-                <small class="text-muted d-block mt-1">If enabled, a standard MEI header containing document metadata will be prepended.</small>
-              </div>
-              <div class="mb-4">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="inlineInterventionsCheck" [(ngModel)]="activeProfile.inlineInterventions" (ngModelChange)="emitChange()">
-                  <label class="form-check-label fw-medium" for="inlineInterventionsCheck">Encode interventions inline (experimental)</label>
-                </div>
-                <small class="text-muted d-block mt-1">If enabled, unclear and supplied editorial interventions will be encoded directly in the musical notation structure.</small>
+                <small class="text-muted d-block mt-1">Document title, sources and comments at the top of the file.</small>
               </div>
               <div>
-                <label class="form-label fw-medium">Root Wrappers / Skeleton</label>
-                <p class="text-muted small mb-2">Defines the nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
+                <label class="form-label fw-medium">Structure around the music</label>
+                <p class="text-muted small mb-2">The nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
                 <div class="wrapper-chips mb-3">
                   @for (wrap of activeProfile.skeleton; track wrap; let i = $index; let last = $last) {
                     <div class="wrapper-chip">
@@ -292,8 +129,44 @@
                 </div>
               </div>
             }
-            <!-- ENTITY EDITOR -->
+            </div>
+          }
+
+          <!-- Elements -->
+          @if (tab === 'elements') {
+            <div class="p-4 pb-0">
+              <p class="mei-lead mb-0">Pick a part of your transcription and choose which MEI element it becomes, which attributes it gets, and what wraps it.</p>
+            </div>
+            <div class="row g-0 mei-pane">
+              <div class="col-12 col-md-4 p-3">
+                @for (g of entityGroups; track g.title) {
+                  <div class="mei-group-title">{{ g.title }}</div>
+                  <ul class="entity-tree mb-3">
+                    @for (e of g.items; track e.key) {
+                      <li>
+                        <div class="tree-node cursor-pointer" [class.active]="selectedNodeId === e.key"
+                          [class.text-muted]="!activeProfile.entities[e.key].enabled" (click)="selectNode(e.key)"
+                          [style.margin-left.rem]="e.depth * 0.9">
+                          <input type="checkbox" class="form-check-input me-2 mt-0" [(ngModel)]="activeProfile.entities[e.key].enabled"
+                            (ngModelChange)="emitChange()" (click)="$event.stopPropagation()" title="Include in the export">
+                          <span class="d-flex flex-column me-auto">
+                            <span>{{ e.label }}</span>
+                            <small class="text-muted">{{ e.hint }}</small>
+                          </span>
+                          <span class="badge bg-light text-dark border font-monospace">&lt;{{ activeProfile.entities[e.key].tag }}&gt;</span>
+                          @if (entityDiffers(e.key)) {
+                            <span class="modified-dot ms-2" title="Modified from default"></span>
+                          }
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+              <div class="col-12 col-md-8 p-4 border-start">
             @if (activeRule) {
+              <h6 class="fw-semibold mb-1">{{ selectedEntityMeta?.label }}</h6>
+              <p class="text-muted small mb-3">{{ selectedEntityMeta?.hint }}</p>
               @if (selectedEntityDiffers) {
                 <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
                   <span class="small text-warning-emphasis d-flex align-items-center">
@@ -411,12 +284,212 @@
                 </div>
               </div>
             }
-          </div>
+              </div>
+            </div>
+          }
+
+          <!-- Patterns -->
+          @if (tab === 'patterns') {
+            <div class="p-4 pb-0">
+              <p class="mei-lead mb-0">Give a neume shape fixed MEI attributes. Every neume with this pattern code gets them, for example every <code>[*ud]</code>. Pitch always comes from the notes.</p>
+            </div>
+            <div class="row g-0 mei-pane">
+              <!-- Pattern list -->
+              <div class="col-12 col-md-4 p-3">
+                <div class="input-group input-group-sm mb-2">
+                  <input type="text" class="form-control font-monospace" placeholder="New pattern, e.g. [*ud]" [(ngModel)]="newPatternCode" (keyup.enter)="addPatternRule()">
+                  <button class="btn btn-outline-primary" (click)="addPatternRule()" [disabled]="!newPatternCode.trim()">Add</button>
+                </div>
+                @if (patternRules.length > 6) {
+                  <input type="search" class="form-control form-control-sm mb-2" placeholder="Filter…" [(ngModel)]="patternFilter">
+                }
+                <ul class="entity-tree">
+                  @for (e of patternList; track e.code) {
+                    <li>
+                      <div class="tree-node cursor-pointer" [class.active]="selectedPattern === e.code" (click)="selectPattern(e.code)">
+                        <span class="font-monospace me-auto">{{ e.code }}</span>
+                        @if (e.overrides > 0) {
+                          <span class="badge bg-light text-dark border" title="Manuscript-specific variants">{{ e.overrides }} ms.</span>
+                        }
+                      </div>
+                    </li>
+                  }
+                </ul>
+                @if (patternRules.length === 0) {
+                  <div class="text-muted small px-2">No patterns yet. Add one above.</div>
+                }
+                <div class="mt-3 pt-2 border-top d-flex gap-2 flex-wrap">
+                  <button class="btn btn-link btn-sm p-0 text-decoration-none" (click)="exportPatternRules()" [disabled]="patternRules.length === 0">Export JSON</button>
+                  <label class="btn btn-link btn-sm p-0 text-decoration-none mb-0">Import JSON
+                    <input type="file" accept=".json" hidden (change)="importPatternRules($event)">
+                  </label>
+                </div>
+              </div>
+
+              <!-- Detail of the selected pattern -->
+              <div class="col-12 col-md-8 p-4 border-start">
+                @if (selectedPattern) {
+                  <div class="d-flex align-items-center mb-3">
+                    <h5 class="font-monospace mb-0 me-auto">{{ selectedPattern }}</h5>
+                    <button class="btn btn-link btn-sm text-danger text-decoration-none" (click)="removePattern(selectedPattern)"><i class="bi bi-trash me-1"></i>Delete</button>
+                  </div>
+
+                  <div class="mb-3">
+                    <div class="small text-muted mb-1">Applies to</div>
+                    <div class="d-flex flex-wrap gap-1 align-items-center">
+                      <button type="button" class="btn btn-sm" [ngClass]="scopeSigle === '' ? 'btn-secondary' : 'btn-outline-secondary'" (click)="scopeSigle = ''">All manuscripts</button>
+                      @for (sg of overrideSigles; track sg) {
+                        <span class="btn-group btn-group-sm">
+                          <button type="button" class="btn" [ngClass]="scopeSigle === sg ? 'btn-secondary' : 'btn-outline-secondary'" (click)="scopeSigle = sg">{{ sg }}</button>
+                          <button type="button" class="btn btn-outline-danger" (click)="removeOverride(sg)" title="Remove the variant for {{ sg }}">&times;</button>
+                        </span>
+                      }
+                      <span class="input-group input-group-sm w-auto">
+                        <input type="text" class="form-control" style="width: 9rem;" placeholder="+ manuscript" list="siglesList"
+                          [(ngModel)]="newOverrideSigle" (focus)="ensureSiglesLoaded()" (keyup.enter)="addOverride()">
+                        @if (newOverrideSigle.trim()) {
+                          <button class="btn btn-outline-secondary" (click)="addOverride()">Add</button>
+                        }
+                      </span>
+                    </div>
+                    @if (scopeSigle) {
+                      <div class="small text-muted mt-2">These attributes replace the all-manuscripts ones for <strong>{{ scopeSigle }}</strong>.</div>
+                    }
+                  </div>
+
+                  @if (scopeRule; as rule) {
+                    @for (attrs of rule.nc; track $index; let ni = $index) {
+                      <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                        <span class="small text-muted me-1" style="width: 3.5rem;">Note {{ ni + 1 }}</span>
+                        @for (name of ruleAttrNames(attrs); track name) {
+                          <span class="input-group input-group-sm w-auto">
+                            <span class="input-group-text font-monospace">{{ name }}</span>
+                            <input type="text" class="form-control" style="width: 4rem;" [ngModel]="attrs[name]" (ngModelChange)="attrs[name] = $event; emitChange()">
+                            <button class="btn btn-outline-danger" (click)="removeRuleAttr(attrs, name)">&times;</button>
+                          </span>
+                        }
+                        @for (n of quickAttributes; track n) {
+                          @if (!(n in attrs)) {
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="addRuleAttr(attrs, n)">+ {{ n }}</button>
+                          }
+                        }
+                        <input type="text" class="form-control form-control-sm w-auto" style="width: 6rem;" placeholder="other…" list="ncAttrNames" #na
+                          (keyup.enter)="addRuleAttr(attrs, na.value); na.value = ''" (change)="addRuleAttr(attrs, na.value); na.value = ''">
+                      </div>
+                    }
+                    @if (rule.nc.length > 1) {
+                      <button class="btn btn-link btn-sm p-0 text-decoration-none mb-3" (click)="copyFirstToAll(rule)">Copy note 1 to all notes</button>
+                    }
+                  }
+                } @else {
+                  <div class="text-muted text-center py-5">
+                    <i class="bi bi-arrow-left-circle fs-3 d-block mb-2"></i>
+                    Pick a pattern on the left, or add one.
+                  </div>
+                }
+              </div>
+            </div>
+            <datalist id="siglesList">
+              @for (sg of knownSigles; track sg) { <option [value]="sg"></option> }
+            </datalist>
+            <datalist id="ncAttrNames">
+              @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
+            </datalist>
+          }
+
+          <!-- Note flags -->
+          @if (tab === 'flags') {
+            <div class="p-4 mei-pane">
+              <p class="mei-lead">A flag is your own marker on a note, for example a virga. Set it in the editor with the number shown on its card (note selected), from the right-click menu, or by typing its letter in the note's brackets: <code>g[V]</code>.</p>
+
+              <div class="border rounded p-3 mb-4 bg-light">
+                <div class="row g-2 align-items-end">
+                  <div class="col-sm-6">
+                    <label class="form-label small mb-1" for="flagLabel">Name</label>
+                    <input id="flagLabel" type="text" class="form-control form-control-sm" placeholder="e.g. Virga" [(ngModel)]="newFlagLabel" (keyup.enter)="addNoteFlag()">
+                  </div>
+                  <div class="col-4 col-sm-2">
+                    <label class="form-label small mb-1" for="flagKey">Letter</label>
+                    <input id="flagKey" type="text" class="form-control form-control-sm font-monospace text-uppercase text-center" maxlength="2" #fk
+                      [placeholder]="suggestedFlagKey" [value]="newFlagKeyInput" (input)="onFlagKeyInput(fk)" (focus)="fk.select()" (keyup.enter)="addNoteFlag()">
+                  </div>
+                  <div class="col-8 col-sm-4">
+                    <button class="btn btn-sm btn-primary w-100" (click)="addNoteFlag()" [disabled]="!!flagFormHint">Add flag {{ newFlagLabel.trim() ? newFlagKey : '' }}</button>
+                  </div>
+                </div>
+                <div class="small mt-2" [class.text-muted]="!newFlagLabel.trim() || !flagFormHint" [class.text-danger]="newFlagLabel.trim() && flagFormHint">
+                  {{ flagFormHint || 'The letter is suggested from the name; type another one if you like (case does not matter).' }}
+                </div>
+              </div>
+
+              @for (fd of noteFlags; track fd.key; let fi = $index) {
+                <div class="border rounded mb-3">
+                  <div class="d-flex align-items-center gap-2 p-2 border-bottom bg-light">
+                    <span class="badge bg-dark font-monospace fs-6">{{ fd.key }}</span>
+                    @if (flagKeyFor(fd.key); as dk) {
+                      <span class="small text-muted" title="With a note selected in the editor, press this key to set or clear the flag">key <kbd>{{ dk }}</kbd></span>
+                    }
+                    <input type="text" class="form-control form-control-sm w-auto fw-medium" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Name">
+                    <button class="btn btn-link text-danger btn-sm ms-auto text-decoration-none" (click)="removeNoteFlag(fi)"><i class="bi bi-trash me-1"></i>Delete</button>
+                  </div>
+                  <div class="p-3">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <div class="small fw-medium mb-1">Looks like</div>
+                        <div class="d-flex align-items-center gap-2">
+                          @if (fd.svgPath) {
+                            <svg width="24" height="24" [attr.viewBox]="fd.viewBox" class="border rounded p-1"><path [attr.d]="fd.svgPath" fill="currentColor"/></svg>
+                            <label class="btn btn-sm btn-outline-secondary mb-0">Replace
+                              <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
+                            </label>
+                            <button class="btn btn-link btn-sm text-decoration-none" (click)="clearFlagSvg(fd)">Use letters instead</button>
+                          } @else {
+                            <input type="text" class="form-control form-control-sm text-center" style="width: 4rem;" maxlength="3" [(ngModel)]="fd.abbrev" (ngModelChange)="emitChange()" title="Shown above the note">
+                            <span class="small text-muted">or</span>
+                            <label class="btn btn-sm btn-outline-secondary mb-0">Load SVG
+                              <input type="file" accept=".svg,image/svg+xml" hidden (change)="onFlagSvg($event, fd)">
+                            </label>
+                          }
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="small fw-medium mb-1">In the MEI file</div>
+                        <div class="d-flex flex-wrap align-items-center gap-1">
+                          @for (name of ruleAttrNames(fd.mei || {}); track name) {
+                            <span class="input-group input-group-sm w-auto">
+                              <span class="input-group-text font-monospace">{{ name }}</span>
+                              <input type="text" class="form-control" style="width: 5rem;" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
+                              <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
+                            </span>
+                          }
+                          <input type="text" class="form-control form-control-sm w-auto" style="width: 9rem;" placeholder="+ attribute, e.g. type" list="ncAttrNames" #fa
+                            (keyup.enter)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''" (change)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''">
+                        </div>
+                        <div class="small text-muted mt-2">
+                          Element:
+                          <input type="text" class="form-control form-control-sm d-inline-block font-monospace" style="width: 7rem;" placeholder="nc" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" list="meiSuggestionsList">
+                          <span class="ms-1">(leave empty to keep the note's usual one)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              }
+              @if (noteFlags.length === 0) {
+                <div class="text-muted small">No flags yet.</div>
+              }
+              <datalist id="ncAttrNames">
+                @for (n of ncAttributeNames; track n) { <option [value]="n"></option> }
+              </datalist>
+            </div>
+          }
         </div>
-        <!-- Column 3: Preview -->
-        <div class="col-12 col-md-12 col-xl-4 bg-light p-4 d-none d-xl-flex flex-column" style="min-height: 600px;">
+
+        <!-- ===== Right: result, on demand ===== -->
+        @if (showPreview) {
+        <div class="col-12 col-xxl-5 bg-light p-4 d-flex flex-column mei-preview">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Live Preview</h6>
+            <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Result</h6>
             <button class="btn btn-sm btn-outline-secondary" (click)="copyXml()" [disabled]="!previewXml || previewXml.startsWith('<!--')">
               <i class="bi bi-clipboard"></i> Copy
             </button>
@@ -449,6 +522,7 @@
           </div>
           <pre class="bg-dark text-light p-3 rounded flex-grow-1" style="font-size: 11px; overflow: auto; margin-bottom: 0;"><code>{{ previewXml }}</code></pre>
         </div>
+        }
       </div>
     } @else {
       <div class="alert alert-warning text-center m-4">

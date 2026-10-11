@@ -11,6 +11,67 @@ import { CantusIndexService, CantusChant, CantusInfo } from '../cantus-index.ser
 
 type SelectableChant = CantusChant & { selected: boolean };
 
+interface IoAction {
+  id: string;
+  icon: string;
+  color: string;
+  title: string;
+  /** One short line. */
+  hint: string;
+  /** File type shown on the right. */
+  badge: string;
+  /** Action of the Sources page that does the work (`?ws=`); the Cantus import is a dialog here. */
+  ws?: string;
+}
+interface IoGroup { title: string; actions: IoAction[]; }
+interface IoSide { title: string; icon: string; groups: IoGroup[]; }
+
+/** Everything the page offers, by what the user wants to do. */
+const SIDES: IoSide[] = [
+  {
+    title: 'Import',
+    icon: 'bi-box-arrow-in-down text-primary',
+    groups: [
+      {
+        title: 'From a file',
+        actions: [
+          { id: 'import-workspace', ws: 'import-workspace', icon: 'bi-archive', color: 'text-secondary', title: 'Backup', hint: 'Restore your workspace', badge: '.monodijson' },
+          { id: 'import-zip', ws: 'import-zip', icon: 'bi-file-earmark-zip', color: 'text-secondary', title: 'ZIP', hint: 'monodi+ or OMMR4all', badge: 'ZIP' },
+          { id: 'import-csv', ws: 'import-csv', icon: 'bi-filetype-csv', color: 'text-secondary', title: 'Spreadsheet', hint: 'Each row becomes a document', badge: 'CSV' },
+          { id: 'import-annotations', ws: 'import-annotations', icon: 'bi-images', color: 'text-secondary', title: 'Annotations', hint: 'From the Neumen-Editor', badge: 'JSON' },
+        ],
+      },
+      {
+        title: 'From the web',
+        actions: [
+          { id: 'cantus', icon: 'bi-cloud-arrow-down', color: 'text-primary', title: 'Cantus Index', hint: 'Fetch a melody by its ID', badge: 'Volpiano' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Export',
+    icon: 'bi-box-arrow-up text-success',
+    groups: [
+      {
+        title: 'Print & publish',
+        actions: [
+          { id: 'export-pdf', ws: 'export-pdf', icon: 'bi-file-pdf', color: 'text-danger', title: 'PDF edition', hint: 'Pick documents, then page options', badge: 'PDF' },
+          { id: 'export-html', ws: 'export-html', icon: 'bi-globe', color: 'text-warning', title: 'Website', hint: 'Browse offline', badge: 'HTML' },
+        ],
+      },
+      {
+        title: 'Share & back up',
+        actions: [
+          { id: 'export-workspace', ws: 'export-workspace', icon: 'bi-archive', color: 'text-success', title: 'Backup', hint: 'Everything in one file', badge: '.monodijson' },
+          { id: 'export-zip', ws: 'export-zip', icon: 'bi-file-earmark-zip', color: 'text-info', title: 'ZIP', hint: 'For monodi+ or OMMR4all', badge: 'ZIP' },
+          { id: 'export-csv', ws: 'export-csv', icon: 'bi-filetype-csv', color: 'text-success', title: 'Spreadsheet', hint: 'Metadata, melody and text', badge: 'CSV' },
+        ],
+      },
+    ],
+  },
+];
+
 @Component({
     selector: 'app-import-export',
     templateUrl: './import-export.component.html',
@@ -19,6 +80,7 @@ type SelectableChant = CantusChant & { selected: boolean };
 })
 export class ImportExportComponent implements OnInit, OnDestroy {
   user: User | null = null;
+  readonly sides = SIDES;
   private subs: Subscription[] = [];
 
   // Cantus Index import dialog
@@ -49,6 +111,12 @@ export class ImportExportComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subs.forEach((s) => s.unsubscribe());
+  }
+
+  /** A row was clicked: the Sources page runs the action (file picker or dialog), Cantus Index has its own dialog here. */
+  run(a: IoAction): void {
+    if (!a.ws) { this.openCantusDialog(); return; }
+    this.router.navigate(['/sources'], { queryParams: { ws: a.ws } });
   }
 
   // ── Cantus Index ───────────────────────────────────────────────────────────

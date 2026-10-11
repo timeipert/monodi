@@ -99,7 +99,7 @@ export const SAMPLE_DOCUMENT: RootContainer = (() => {
   };
 
   // Syllable 3: "a" -> 3 notes (Normal, connectionGap, Normal).
-  // Connection gap in Monodi is derived when notes are in different `grouped` arrays within the same `nonSpaced`!
+  // con="g" is set on a note that starts a new `grouped` array within the same `nonSpaced` (a break inside the neume).
   const syl3: Syllable = {
     kind: LinePartKind.Syllable,
     uuid: uuidv4(),

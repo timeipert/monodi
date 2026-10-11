@@ -1,15 +1,15 @@
-import { ChangeDetectorRef, DoCheck, Component, OnInit, OnDestroy, ViewChild, TemplateRef } from '@angular/core';
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
+import { ChangeDetectorRef, Component, OnInit, ViewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UserService, User } from '../user.service';
-import { APIService, UserInfo, Source, Document } from '../api.service'
+import { APIService, Source, Document } from '../api.service'
 import { VolpianoService } from '../volpiano.service';
 import { ToastrService } from 'ngx-toastr';
-import { ToolsService, Tool } from '../tools.service';
+import { ToolsService } from '../tools.service';
 import { assertNever } from '../../utils';
 import { Subscription, combineLatest, firstValueFrom } from 'rxjs';
-import * as S from '../sselect/sselect.component';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
@@ -17,6 +17,7 @@ import { PageTitleService } from '../page-title.service';
 import { Header, BatchField } from '../smart-table/smart-table.component';
 import { NotesStore } from '../notes-store';
 import { ContainerKind, RootContainer } from '../types/model';
+import { sourceDescription, setSourceDescription } from '../source-description';
 
 export interface DocColDef {
   key: keyof Document | string;
@@ -63,7 +64,7 @@ export class SourceComponent implements OnInit {
   volpianoImportWarnings: string[] = [];
 
   // Tab state
-  activeTab: 'documents' | 'notation' = 'documents';
+  activeTab: 'documents' | 'notation' | 'description' = 'documents';
   activeNotationTab: 'select' | 'annotate' | 'view' = 'select';
 
   // Notation analysis
@@ -74,6 +75,9 @@ export class SourceComponent implements OnInit {
 
   showDocColPicker = false;
   showMetadataPanel = false;
+  /** New source: the optional metadata fields stay folded away until asked for. */
+  showMoreMeta = false;
+  documentsLoaded = false;
   iiifGalleryPattern = '';
   docCols: DocColDef[] = [];
 
@@ -115,15 +119,31 @@ export class SourceComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private modalService: NgbModal,
     private volpiano: VolpianoService,
-    private pageTitle: PageTitleService) {
+    private pageTitle: PageTitleService,
+    private pdfDialog: PdfDialogLauncher) {
     this.loadDocCols();
+  }
+
+  /** All documents of this manuscript as one PDF: contents table, every document on its own pages, collected apparatus. */
+  printManuscript() {
+    if (!this.documents.length) return;
+    const docs = [...this.documents].sort((a, b) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+    const title = [this.source?.quellensigle, this.source?.bibliothekssignatur].filter(Boolean).join(' · ') || 'Manuscript';
+    this.pdfDialog.open({ docs, title });
+  }
+
+  /** The documents selected in the table, as one PDF. */
+  printDocuments(selected: Document[]) {
+    if (!selected.length) return;
+    const docs = [...selected].sort((a, b) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+    this.pdfDialog.open({ docs, title: this.source?.quellensigle || '' });
   }
 
   ngOnInit() {
     // Restore panel state from the URL so a reload keeps you on the same tab.
     const q = this.route.snapshot.queryParamMap;
     const tab = q.get('tab');
-    if (tab === 'documents' || tab === 'notation') this.activeTab = tab;
+    if (tab === 'documents' || tab === 'notation' || tab === 'description') this.activeTab = tab;
     const ntab = q.get('ntab');
     if (ntab === 'select' || ntab === 'annotate' || ntab === 'view') this.activeNotationTab = ntab;
 
@@ -223,6 +243,7 @@ export class SourceComponent implements OnInit {
           case 'LoginRequired': this.userService.logout(); break;
           case 'DocumentsRetrieved':
             this.documents = res.documents.filter(d => d.quelle_id === id);
+            this.documentsLoaded = true;
             this.cdr.markForCheck();
             break;
           default: assertNever(res);
@@ -230,6 +251,10 @@ export class SourceComponent implements OnInit {
       });
     }
   }
+
+  /** The source's description (Markdown), kept in `custom.description`. */
+  get description(): string { return sourceDescription(this.source); }
+  set description(text: string) { if (this.source) setSourceDescription(this.source, text); }
 
   save(): void {
     if (this.source) {
@@ -377,7 +402,7 @@ export class SourceComponent implements OnInit {
     this.switchTab('notation'); // syncs URL (tab + ntab)
   }
 
-  switchTab(tab: 'documents' | 'notation') {
+  switchTab(tab: 'documents' | 'notation' | 'description') {
     this.activeTab = tab;
     this.syncTabUrl();
     // Eagerly load notation when switching to notation tab — patterns feed the annotator and viewer

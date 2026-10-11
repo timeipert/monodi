@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { RootContainer, ContainerKind, LinePartKind, ZeileContainer, Syllable, Clef, Note, FormteilContainer, MiscContainer } from './types/model';
+import { RootContainer, ContainerKind, LinePartKind, ZeileContainer, Syllable, FormteilContainer, MiscContainer } from './types/model';
 import { ProjectSettings, MeiMappingSettings, Document as MonodiDocument } from './api.service';
 import { emitMei } from './mei/mei-emitter';
 import { defaultMeiProfile } from './mei/mei-mapping.model';

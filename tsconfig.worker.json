@@ -12,6 +12,7 @@
   },
   "files": [],
   "include": [
-    "src/**/*.worker.ts"
+    "src/app/search/pattern.worker.ts",
+    "src/app/notationsdokumentation/layout-analysis.worker.ts"
   ]
 }

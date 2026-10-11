@@ -95,71 +95,6 @@
           </button>
         </div>
       }
-      <!-- Print-Only Metadata Inline styled & dense -->
-      @if (isPrinting && printIncludeMetadata) {
-        <div class="print-only mb-4">
-          <div class="inline-metadata" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; line-height: 1.5; color: #000; margin-bottom: 15px;">
-            @for (item of getInlineMetadataItems(); track item; let last = $last) {
-              <span>
-                <strong>{{item.label}}:</strong> {{item.val}}@if (!last) {
-                <span style="color: #000; margin: 0 8px;"> • </span>
-              }
-            </span>
-          }
-        </div>
-      </div>
-    }
-    <!-- Hidden area to pre-render comment trees for the PDF engine -->
-    @if (isPrinting) {
-      <div id="pdf-comments-render-area"
-        [style.--tree-padding]="(settings?.pdfCommentTreePadding ?? 4) + 'px'"
-        [style.--tree-gap]="(settings?.pdfCommentTreeGap ?? 4) + 'px'"
-        style="position: absolute; left: -9999px; top: 0; width: 1000px; background: white;">
-        <!-- Global Comment first -->
-        @if (cont?.globalComment) {
-          <div class="pdf-comment-block pdf-global-comment" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
-            <h4 class="app-index" style="margin-bottom: 5px;">Global comment</h4>
-            <app-comment-tree [tree]="cont.globalComment" [readOnly]="true"></app-comment-tree>
-          </div>
-        }
-        <!-- Numbered comments -->
-        @for (comment of cont?.comments; track comment; let i = $index) {
-          <div class="pdf-comment-block" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
-            <div style="display: flex; align-items: center; margin-bottom: 5px;">
-              @if (comment.category && getCategoryDetails(comment.category); as cat) {
-                <span class="app-category" style="font-family: times; font-style: italic; font-size: 10pt; margin-right: 5px;">{{cat.label}}</span>
-              }
-              <span class="app-index" style="font-family: times; font-weight: bold; font-size: 10pt;">{{i + 1}}@if (comment.emendation) {
-                <span> ⟨em.⟩</span>
-              }</span>
-            </div>
-            @if (getCommentType(comment) === 'text') {
-              <span class="text" style="font-family: helvetica; font-size: 10pt; margin-bottom: 10px;">{{comment.text}}</span>
-            }
-            @if (getCommentType(comment) === 'tree' && comment.tree) {
-              <app-comment-tree [tree]="comment.tree" [readOnly]="true"></app-comment-tree>
-            }
-            @if (getCommentType(comment) === 'lines' && comment.lines) {
-              <div class="lines-container" style="width: 100%;">
-                @for (line of comment.lines; track line; let j = $index) {
-                  <div style="margin-bottom: 10px; width: 100%;">
-                    @if (comment.readingWitnesses?.[j]) {
-                      <span class="app-witness-siglum" style="font-family: times; font-weight: bold; font-size: 9pt; display: block; margin-bottom: 2px;">{{comment.readingWitnesses[j]}}</span>
-                    }
-                    @if (line.kind === 'ZeileContainer') {
-                      <app-zeile-section [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-zeile-section>
-                    }
-                    @if (line.kind === 'ParatextContainer') {
-                      <app-paratext-section [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-paratext-section>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        }
-      </div>
-    }
     <div class="row g-4 d-flex" id="split-screen-container" [class.flex-nowrap]="splitScreen" [class.overflow-auto]="splitScreen">
       <!-- Left Sidebar: Metadata & Comments -->
       @if (!splitScreen || sidebarVisible) {
@@ -801,35 +736,6 @@
   </div>
 }
 
-<!-- PDF Export Modal -->
-@if (showPdfExportDialog) {
-  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content shadow">
-        <div class="modal-header bg-light border-bottom">
-          <h5 class="modal-title fw-bold">
-            <i class="bi bi-file-pdf me-2 text-danger"></i>Export to PDF
-          </h5>
-        </div>
-        <div class="modal-body p-4">
-          <p class="text-muted mb-4">You are about to export this document to PDF using the browser's native print function. Please ensure you select "Save as PDF" in the print dialog.</p>
-          <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" id="includeMetadataSwitch" [(ngModel)]="printIncludeMetadata">
-            <label class="form-check-label fw-medium" for="includeMetadataSwitch">Include Metadata as Table</label>
-            <div class="form-text mt-1">If enabled, a clean table with all metadata will be printed at the top of the document.</div>
-          </div>
-        </div>
-        <div class="modal-footer border-0 bg-light">
-          <button type="button" class="btn btn-outline-secondary px-3" (click)="showPdfExportDialog = false">Cancel</button>
-          <button type="button" class="btn btn-danger px-4" (click)="confirmPdfExport()">
-            <i class="bi bi-printer me-1"></i> Print / Save PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-}
-
 <!-- JSON Export Modal -->
 @if (showJsonExportDialog) {
   <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
@@ -879,6 +785,13 @@
                   Split Documents
                 </label>
                 <div class="text-muted small mt-1">Save as two separate files (-v1 & -v2)</div>
+              </div>
+            </div>
+            <div class="form-check p-3 border rounded bg-white shadow-sm">
+              <input class="form-check-input ms-0" type="checkbox" id="formatPlaceholder" [(ngModel)]="exportPlaceholderNotes" style="float: left;">
+              <div class="ms-4">
+                <label class="form-check-label fw-bold text-dark" for="formatPlaceholder">Placeholder note for comments on empty syllables</label>
+                <div class="text-muted small mt-1">Old versions cannot comment on a syllable without notes: it gets one placeholder note (default F3, see Settings) for the comment.</div>
               </div>
             </div>
           </div>

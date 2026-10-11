@@ -1,5 +1,8 @@
-import { Injectable } from '@angular/core';
-import { Subject, forkJoin, Subscription } from 'rxjs';
+import { FocusService } from '../focus.service';
+import { maxNoteBottomOf, minNoteYOf, requiredPadBottom, requiredPadTop } from '../notes/Drawables';
+import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
+import { Injectable, inject } from '@angular/core';
+import { forkJoin, Subscription } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -212,6 +215,7 @@ export class SynopsisService {
 
   user: User | null = null;
   private subs: Subscription[] = [];
+  private readonly focusSvc = inject(FocusService);
 
   constructor(
     private api: APIService,
@@ -415,8 +419,6 @@ export class SynopsisService {
   }
 
   alignSequential(rootContainers: VM.RootContainer[]): AlignedNode[] {
-    const K = rootContainers.length;
-    
     const leafs: VM.FormteilChildren[][] = rootContainers.map(root => {
       const result: VM.FormteilChildren[] = [];
       const traverse = (node: any) => {
@@ -616,6 +618,16 @@ export class SynopsisService {
   }
 
   runAlignment(rootContainers: VM.RootContainer[]) {
+    // One top padding for all witnesses so that their highest note fits and staves stay aligned.
+    let minY = Infinity, maxY = -Infinity;
+    for (const r of rootContainers) for (const sy of VM.getSyllables(r)) {
+      for (const sd of [sy.notes, ...((sy as any).additionalMelodies || [])]) {
+        minY = Math.min(minY, minNoteYOf(sd));
+        maxY = Math.max(maxY, maxNoteBottomOf(sd));
+      }
+    }
+    this.focusSvc.docPadTop = Number.isFinite(minY) ? requiredPadTop(minY) : 0;
+    this.focusSvc.docPadBottom = Number.isFinite(maxY) ? requiredPadBottom(maxY) : 0;
     if (this.alignmentMode === 'signature') {
       this.alignedTree = this.alignBySignature(rootContainers);
     } else if (this.alignmentMode === 'structure') {
@@ -799,18 +811,20 @@ export class SynopsisService {
       }
 
       const doc = new jsPDF({
+        compress: true,
         unit: 'mm',
         // One-line synopsis is auto-sized to its content; the stacked view uses
         // the configured page format/orientation.
-        format: singleLine ? [pageW, pageH] : ((settings as any)?.pdfFormat || 'a4'),
+        format: singleLine ? [pageW, pageH] : pdfPageFormat((settings as any)?.pdfFormat),
         orientation: singleLine ? 'landscape' : (((settings as any)?.pdfOrientation) || 'portrait')
       });
       pageW = doc.internal.pageSize.getWidth();
       pageH = doc.internal.pageSize.getHeight();
 
       // Use the embedded Unicode/CJK font when selected, so non-western text renders.
-      const embFam = embeddedFamily((settings as any)?.pdfFontFamily);
-      const font = embFam || 'times';
+      const famSetting: string = (settings as any)?.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
+      const embFam = embeddedFamily(famSetting);
+      const font = embFam || famSetting;
       if (embFam) { await registerEmbeddedFont(doc, embFam); }
 
       const contentX = margin;
@@ -850,9 +864,9 @@ export class SynopsisService {
       }
 
       if (showMeta && visibleSynopsisCols.length && selectedDocs.length) {
-        doc.setFont(font, 'bold');
+        doc.setFont(font, 'normal');
         doc.setFontSize(7.5);
-        doc.setTextColor(80, 80, 80);
+        doc.setTextColor(150, 150, 150);
         doc.text('WITNESSES', contentX, y);
         y += 1.5;
         autoTable(doc, {
@@ -872,9 +886,10 @@ export class SynopsisService {
             cellPadding: { top: 1, bottom: 1, left: 0, right: 3 },
             lineColor: [226, 232, 240], lineWidth: 0
           },
+          // Column keys stay in the background: light grey, regular, hairline rule.
           headStyles: {
-            fontStyle: 'bold', fontSize: 7, textColor: [51, 65, 85],
-            lineColor: [15, 23, 42], lineWidth: { top: 0.4, bottom: 0.25 }
+            fontStyle: 'normal', fontSize: 7, textColor: [150, 150, 150],
+            lineColor: [200, 200, 200], lineWidth: { top: 0, bottom: 0.15 }
           },
           bodyStyles: { lineWidth: { bottom: 0.1 } },
           didParseCell: data => {
@@ -933,7 +948,8 @@ export class SynopsisService {
           const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(cs.color);
           if (m) doc.setTextColor(+m[1], +m[2], +m[3]); else doc.setTextColor(0, 0, 0);
 
-          let text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+          // Syllable breaks are set as an en dash in the printed edition (same as the document PDF).
+          let text = (node.textContent || '').replace(/\s+/g, ' ').trim().replace(/(?<=\p{L})-$/u, '\u2013');
           const maxWmm = r.width * scale + 1.5;
           while (text.length > 1 && doc.getTextWidth(text) > maxWmm) {
             text = text.slice(0, -1);

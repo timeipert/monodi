@@ -17,6 +17,48 @@ export type MeiEntityKey =
   'formteil' | 'zeile' | 'paratext' | 'syllable' | 'syllableText' | 'neume' |
   'note' | 'clef' | 'oriscus' | 'quilisma' | 'strophicus' | 'liquescent';
 
+/**
+ * MEI attributes attached to a neume pattern (e.g. `[*ud]`), optionally only for
+ * one manuscript (`sigle`). `nc` holds one attribute object per note of the
+ * pattern, in the format of the Neume Viewer's pattern library (`mei`).
+ * pname/oct are never taken from a rule — they come from the notes.
+ */
+export interface MeiPatternRule {
+  id: string;
+  pattern: string;                       // base code, e.g. "[*ud]"
+  sigle?: string;                        // manuscript siglum; empty/undefined = all manuscripts
+  enabled: boolean;
+  neume?: Record<string, string>;        // extra attributes on <neume>
+  nc: Record<string, string>[];          // one entry per note
+}
+
+/** Pattern code without a trailing variant label (`*dd b` → `*dd`). */
+export function patternBaseCode(pattern: string | undefined): string {
+  return String(pattern ?? '').trim().split(' ')[0];
+}
+
+/** Number of notes in a pattern code: one `*` plus one u/d/e step per further note. */
+export function patternNoteCount(pattern: string): number {
+  return (patternBaseCode(pattern).match(/[*ude]/g) || []).length;
+}
+
+/** Resize `nc` to the pattern's note count (pad with {} / truncate). */
+export function normalizePatternRule(rule: MeiPatternRule): MeiPatternRule {
+  const n = patternNoteCount(rule.pattern);
+  const nc = Array.from({ length: n }, (_, i) => ({ ...(rule.nc?.[i] || {}) }));
+  return { ...rule, pattern: patternBaseCode(rule.pattern), nc };
+}
+
+/** Manuscript-specific rule beats a global one; disabled rules are ignored. */
+export function resolvePatternRule(
+  rules: MeiPatternRule[] | undefined, pattern: string, sigle?: string
+): MeiPatternRule | undefined {
+  if (!rules || !pattern) return undefined;
+  const code = patternBaseCode(pattern);
+  const live = rules.filter(r => r.enabled && patternBaseCode(r.pattern) === code);
+  return (sigle ? live.find(r => r.sigle === sigle) : undefined) || live.find(r => !r.sigle);
+}
+
 export interface MeiMappingProfileV2 {
   version: 2;
   id: string;
@@ -24,6 +66,8 @@ export interface MeiMappingProfileV2 {
   skeleton: string[];                 // element chain inside <mei> around the content, e.g. ['music','body','mdiv','score']
   emitHeader: boolean;                // emit the meiHead block
   inlineInterventions?: boolean;       // encode interventions inline
+  /** Pattern → MEI attribute rules ("transcription equivalents"), optionally per manuscript. */
+  patternRules?: MeiPatternRule[];
   entities: Record<MeiEntityKey, MeiEntityRule>;
 }
 
@@ -55,6 +99,7 @@ export const ENTITY_FIELDS: Record<MeiEntityKey, { key: string; label: string; e
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'note-123' }
   ],
   clef: [
@@ -69,24 +114,28 @@ export const ENTITY_FIELDS: Record<MeiEntityKey, { key: string; label: string; e
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'oriscus-123' }
   ],
   quilisma: [
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'quilisma-123' }
   ],
   strophicus: [
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'strophicus-123' }
   ],
   liquescent: [
     { key: 'base', label: 'Pitch Name', example: 'g' },
     { key: 'octave', label: 'Octave', example: '4' },
     { key: 'connectionGap', label: 'Connection Gap Flag', example: 'true' },
+    { key: 'flags', label: 'Note flags (keys, space-separated)', example: 'V' },
     { key: 'uuid', label: 'UUID', example: 'liquescent-123' }
   ]
 };

@@ -1,10 +1,12 @@
+import { G_CLEF_PATH } from '../clef-glyph';
+import { GLYPH_PATHS } from './glyph-paths';
 import {
   ChangeDetectorRef, Component, OnInit, OnChanges, QueryList, ViewChildren,
   OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, TemplateRef, Output, Input, EventEmitter, AfterViewInit, HostListener,
   SimpleChanges
 } from '@angular/core';
 import * as VM from '../types/model';
-import { fromSpaced, fromSpaceds, adiastematicFromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { fromSpaceds, adiastematicFromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
 import { spacedToParsons, parsonsToSpaced } from './parsons';
 import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from './editor-shortcuts.service';
 import { ToolsService } from '../tools.service';
@@ -20,24 +22,14 @@ import { CommentComponent } from '../comment/comment.component';
 import { commentColor } from '../comment/comment-colors';
 import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
-import { ContextMenuService } from '../context-menu/context-menu.service';
+import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFlagDefs } from './note-flags';
+import { ContextMenuItem, ContextMenuService } from '../context-menu/context-menu.service';
 import { Router } from '@angular/router';
 import { SearchExecService } from '../search/search-exec.service';
 import { extractPattern } from '../transcription-analyzer-core';
+import { ManuscriptViewService } from '../manuscript-view.service';
 
 declare const $: any;
-
-const GLYPH_PATHS: { [key: string]: string } = {
-  'Flat': 'm 28.113523,20.108109 c -0.066,1.39566 -0.110001,4.047415 -0.132,6.722431 0.571999,-0.93044 1.759997,-1.814358 2.903996,-1.814358 1.407998,0 2.243997,1.16305 2.243997,2.907626 0,3.349586 -4.465995,7.117869 -5.389993,7.117869 -0.286,0 -0.549999,-0.139566 -0.549999,-0.697829 -0.066,-3.18676 -0.176,-11.421157 -0.176,-13.886824 0,-0.348915 0.527999,-0.395437 1.099999,-0.348915 z m 1.583998,6.489821 c -0.637999,0 -1.319999,0.697831 -1.737998,1.279356 -0.022,2.395884 -0.022,4.721985 -0.022,6.071125 1.847998,-1.465445 2.815996,-3.512414 2.815996,-5.443079 0,-1.18631 -0.395999,-1.907402 -1.055998,-1.907402 z',
-  'Natural': 'm 32.612328,25.358907 c 0,4.866656 0.176511,9.960252 0.176511,13.818272 0,0.378238 -0.403453,0.504316 -1.059066,0.504316 0.05043,-1.487732 0.100861,-3.933667 0.100861,-6.480466 l -3.958885,1.765107 c -0.30259,0.126081 -0.403453,-0.07565 -0.403453,-0.378235 0,-5.92572 -0.201727,-10.313274 -0.201727,-13.793057 0,-0.378238 0.428669,-0.504317 1.059065,-0.504317 -0.05043,1.51295 -0.07565,3.933668 -0.100861,6.480467 l 3.933668,-1.714676 c 0.302591,-0.100861 0.453886,0.05043 0.453887,0.302589 z m -4.387554,4.009318 v 2.849388 L 31.855852,30.6038 v -2.849388 z',
-  'Sharp': 'm 33.240217,32.756023 c 0,0.134183 -0.01917,0.191679 -0.172513,0.230016 l -1.456777,0.460033 v 3.354422 c 0,0.153336 -0.383363,0.287519 -0.632546,0.230015 0,-0.881731 -0.01917,-2.070155 -0.01917,-3.392755 l -1.93598,0.613379 v 3.507766 c 0,0.153337 -0.383362,0.268356 -0.632547,0.230016 0,-0.920069 -0.01916,-2.165995 -0.01916,-3.546099 l -1.303432,0.402529 c -0.21085,0.05751 -0.325857,0 -0.325857,-0.230018 v -1.782635 c 0,-0.115001 0.03834,-0.153335 0.172512,-0.191679 l 1.437608,-0.440867 c -0.01916,-1.188424 -0.03834,-2.396015 -0.03834,-3.565268 l -1.245924,0.383362 c -0.210849,0.05751 -0.325858,0 -0.325858,-0.230017 v -1.782637 c 0,-0.115 0.03834,-0.172511 0.172515,-0.210846 l 1.380102,-0.421699 c -0.01917,-1.360935 -0.01917,-2.54936 -0.01917,-3.335252 0,-0.345025 0.4217,-0.498372 0.881734,-0.345025 -0.03834,0.670883 -0.05751,1.91681 -0.07665,3.450259 l 1.763468,-0.555874 c -0.01917,-1.418443 -0.01917,-2.664369 -0.01917,-3.469429 0,-0.383362 0.460034,-0.498372 0.900901,-0.383362 -0.03834,0.690052 -0.05751,2.012649 -0.07667,3.603603 l 1.341768,-0.40253 c 0.172512,-0.05751 0.249185,0 0.249185,0.172515 v 1.801801 c 0,0.153351 -0.01916,0.172514 -0.172513,0.230017 l -1.437618,0.440867 c 0,1.188424 -0.01916,2.415183 -0.01916,3.622775 l 1.380102,-0.440867 c 0.172514,-0.05751 0.249186,0 0.249186,0.172512 z m -2.319341,-1.341769 -0.03834,-3.584438 -1.840138,0.575044 c 0,1.169256 0,2.396016 -0.01916,3.584438 z',
-  'Normal': 'm 28.840114,34.975049 c -2.283304,0 -4.338278,-1.541231 -4.338278,-4.081407 0,-2.825589 3.082461,-5.822427 6.393253,-5.822427 2.911213,0 4.395361,1.94081 4.395361,3.995784 0,3.367874 -3.253709,5.90805 -6.450336,5.90805 z',
-  'Ascending': 'm 28.846225,35.094337 c -2.306802,0 -4.382925,-1.557091 -4.382925,-4.123409 0,-2.85467 3.114184,-5.88235 6.459049,-5.88235 1.672433,0 2.796998,0.749712 3.3737,1.528257 l 0.02883,-0.05767 c -0.02883,-0.34602 -0.08651,-0.807381 -0.11534,-1.903111 l -0.173006,-6.574387 c 0,-0.519032 0.634372,-0.720877 1.326412,-0.547867 v 11.591686 c 0,3.402533 -3.287195,5.968852 -6.51672,5.968851 z',
-  'Descending': 'm 35.388649,29.040909 v 0.260586 12.739849 c 0,0.463264 -0.463266,0.636991 -1.216075,0.608038 0.115817,-2.866468 0.260587,-6.804239 0.289543,-10.626192 -1.187124,1.824113 -3.416596,3.011237 -5.617115,3.011237 -2.316337,0 -4.401038,-1.563528 -4.401038,-4.14045 0,-2.866466 3.127053,-5.906657 6.485741,-5.906657 2.953327,0 4.458944,1.968886 4.458944,4.053589 z',
-  'Oriscus': 'm 24.852088,34.972151 c -1.488003,0 -0.909335,-5.125344 0.248001,-9.368908 0.137778,-0.468446 0.661335,-0.496001 1.12978,-0.496001 -0.08267,2.755562 -0.220444,4.546676 0.826668,4.546676 1.184891,0 6.558237,-4.629343 8.046239,-4.629343 1.488003,0 0.909336,5.125344 -0.248,9.368908 -0.110222,0.468446 -0.661334,0.496001 -1.102225,0.496001 0.08267,-2.755561 0.19289,-4.546676 -0.826668,-4.546676 -1.212447,0 -6.585792,4.629343 -8.073795,4.629343 z',
-  'Strophicus': 'm 25.01637,39.951822 c -0.353153,-0.0736 -0.510708,-0.208826 -0.510708,-0.438314 0,-0.07091 0.410392,-0.83157 1.113554,-2.063968 2.065526,-3.62015 2.984598,-5.397636 3.386043,-6.548609 0.204631,-0.586695 0.221806,-0.817451 0.08145,-1.094425 -0.268178,-0.529225 -1.009029,-1.101763 -3.006631,-2.323561 -1.605363,-0.98189 -2.225032,-1.437879 -2.345351,-1.725844 -0.04071,-0.09743 -0.0434,-0.169456 -0.01084,-0.29053 0.314859,-1.170954 3.570921,-4.258107 5.468489,-5.18481 0.664714,-0.324622 0.974136,-0.334641 1.633586,-0.05289 1.811657,0.774025 4.939675,3.102157 5.922604,4.408098 0.29108,0.386734 0.391821,0.614282 0.392957,0.887585 0.0037,0.88143 -1.428073,3.291894 -3.924811,6.607794 -2.720053,3.612483 -5.855617,7.089418 -6.845926,7.591245 -0.39415,0.199731 -1.000736,0.301946 -1.354417,0.228232 z',
-  'Quilisma': 'm 24.070966,29.337707 c 0,-0.688503 1.807319,-2.560368 2.388243,-2.560368 0.559409,0 2.366727,2.710978 3.012197,2.710978 0.666988,0 4.905581,-2.259149 6.002881,-2.990682 0.537892,-0.365766 0.580926,0.387283 0.215157,0.903659 -1.032753,1.463069 -6.519256,6.196521 -7.810199,6.196521 -0.710018,0 -3.808279,-3.528573 -3.808279,-4.260108 z'
-};
 
 @Component({
     selector: 'app-notes',
@@ -47,9 +39,16 @@ const GLYPH_PATHS: { [key: string]: string } = {
     standalone: false
 })
 export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, AfterViewInit {
+  /** Top padding actually used: the configured one, or more if the document has very high notes. */
+  get padTopEff(): number { return Math.max(this.readOnlyPadTop, this.focusService.docPadTop); }
+
+  /** Colour of all notation graphics (project setting `notationColor`). */
+  get color(): string { return this.focusService.notationColor; }
+  readonly gClefPath = G_CLEF_PATH;
+
   getGlyphDataUri(noteType: string, focused: boolean): string {
     const d = GLYPH_PATHS[noteType] || GLYPH_PATHS['Normal'];
-    const fill = focused ? '#5bf186' : '#000000';
+    const fill = focused ? '#5bf186' : this.color;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="60" viewBox="24 0 12 60"><path fill="${fill}" d="${d}"/></svg>`;
     return `data:image/svg+xml;base64,${btoa(svg)}`;
   }
@@ -173,13 +172,13 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     private focusService: FocusService,
     private cdr: ChangeDetectorRef,
     private toastr: ToastrService,
-    private domRoot: ElementRef,
     private toolsService: ToolsService,
     private undoService: UndoService,
     private modalService: NgbModal,
     private contextMenuService: ContextMenuService,
     private router: Router,
     private searchExecSvc: SearchExecService,
+    private manuscriptView: ManuscriptViewService,
     public shortcutsService: EditorShortcutsService) {
   }
 
@@ -595,6 +594,13 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     this.focusedVoiceIndex = voiceIndex;
     e.preventDefault();
     e.stopPropagation();
+    // While a comment is being made a click on the staff never enters a note. A syllable
+    // without notes can be picked as start / end of the comment (it is also the whole span
+    // when picked twice); one with notes is picked by clicking a note or its text.
+    if (this.focusService.mode.kind === 'CommentPickStart' || this.focusService.mode.kind === 'CommentCreate') {
+      if (!this.hasNotes()) this.request.emit({ kind: 'EndCommentRequested', endKind: VM.CommentPartKind.Syllable, endUUID: this.model.uuid });
+      return;
+    }
     const voices = this.getVoices();
     const focused = VM.getFocused(voices[voiceIndex]);
     if (voices[voiceIndex].spaced.length === 0 || voices[voiceIndex].spaced[0].nonSpaced.length === 0) {
@@ -624,6 +630,24 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     }
     this.notesToText();
     this.recalculateWidths();
+  }
+
+  /** True if the syllable has a note in any voice. */
+  hasNotes(): boolean {
+    return this.getVoices().some(v => VM.allNotes(v).length > 0);
+  }
+
+  /** The empty syllable that was picked as start of the comment in progress. */
+  get isPickedStartSyllable(): boolean {
+    const m = this.focusService.mode;
+    return m.kind === 'CommentCreate' && m.startNoteUUID === this.model.uuid;
+  }
+
+  /** Click on a bracket of a comment that hangs on the syllable itself: opens its comments. */
+  openSyllableComments(e: MouseEvent): void {
+    e.preventDefault();
+    e.stopPropagation();
+    this.showComments(true);
   }
 
   getNoteByClickPos(y: number): VM.Note {
@@ -783,7 +807,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       const sc = this.shortcutsService.getShortcuts();
       const k = e.key.toLowerCase();
 
-      if (k === sc.setSharp.toLowerCase()) { this.toggleNoteType(VM.NoteType.Sharp); }
+      const flagDef = this.flagForKeyEvent(e);
+      if (flagDef) { this.toggleFlag(flagDef.key); }
+      else if (k === sc.setSharp.toLowerCase()) { this.toggleNoteType(VM.NoteType.Sharp); }
       else if (k === sc.setNatural.toLowerCase()) { this.toggleNoteType(VM.NoteType.Natural); }
       else if (k === sc.setFlat.toLowerCase()) { this.toggleNoteType(VM.NoteType.Flat); }
       else if (k === sc.setOriscus.toLowerCase()) { this.toggleNoteType(VM.NoteType.Oriscus); }
@@ -929,10 +955,23 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   deleteNote(focusLast: boolean): void {
+    // The only note of a syllable may go even if comments end on it (the typical placeholder note):
+    // they move onto the now empty syllable instead of being lost.
+    const voice = this.getVoices()[this.focusedVoiceIndex];
+    const focused = VM.getFocused(voice);
+    const active = this.getActiveComments();
+    if (focused && active.length > 0 && VM.allNotes(voice).length === 1
+        && active.every(c => c.startUUID === focused.uuid || c.endUUID === focused.uuid)) {
+      for (const c of active) {
+        if (c.startUUID === focused.uuid) c.startUUID = this.model.uuid;
+        if (c.endUUID === focused.uuid) c.endUUID = this.model.uuid;
+      }
+      this.drawablesDirty = true;
+    }
     if (this.getActiveComments().length > 0) {
       this.toastr.info('Please delete the comment before deleting the symbol.');
     } else {
-      const nextNote = this.withPath((s, ns, gr, no) => {
+      this.withPath((s, ns, gr, no) => {
         this.undoService.beforeChange('Edit Note');
         this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
         let nextNote = !focusLast ? VM.getRightOf(s, no) : VM.getLeftOf(s, no);
@@ -981,6 +1020,62 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       f.liquescent = !f.liquescent;
     });
   }
+
+  toggleFlag(key: string): void {
+    this.withFocus(f => {
+      this.undoService.beforeChange('Edit Note');
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      if (f.isLatent) {
+        delete f.isLatent;
+      }
+      const flags = (f.flags ?? []).filter(k => k !== key);
+      if (flags.length === (f.flags ?? []).length) flags.push(key);
+      if (flags.length > 0) f.flags = flags; else delete f.flags;
+    });
+  }
+
+  /** Keyboard edits end with this; menu actions have to call it themselves. */
+  private refreshNoteText(): void {
+    this.notesToText();
+    this.recalculateWidths();
+  }
+
+  /** Digit key (1-9, 0) that toggles the flag; null beyond the tenth flag. */
+  flagShortcut(key: string): string | null {
+    return flagShortcutKey(getNoteFlagDefs(), key);
+  }
+
+  /** The flag a plain digit key press stands for, if any. */
+  private flagForKeyEvent(e: KeyboardEvent): NoteFlagDef | undefined {
+    if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return undefined;
+    return flagForShortcutKey(getNoteFlagDefs(), e.key);
+  }
+
+  /** Context-menu entries for the flags: a few are listed directly, many fold into one item. */
+  private flagMenuItems(note: VM.Note): ContextMenuItem[] {
+    const defs = getNoteFlagDefs();
+    if (defs.length === 0) return [];
+    const items: ContextMenuItem[] = defs.map(fd => {
+      const sc = this.flagShortcut(fd.key);
+      return {
+        label: sc ? `${fd.label}  (${sc})` : fd.label,
+        checked: (note.flags ?? []).includes(fd.key),
+        action: () => { this.toggleFlag(fd.key); this.refreshNoteText(); }
+      };
+    });
+    if (defs.length <= 4) {
+      return [{ label: 'Flags', header: true, action: () => {} }, ...items];
+    }
+    const set = items.filter(i => i.checked).map(i => i.label.split('  (')[0]);
+    return [{ label: set.length ? `Flags: ${set.join(', ')}` : `Flags (${defs.length})`, action: () => {}, children: items }];
+  }
+
+  /** Flag markers drawn above a note head (abbreviation or SVG outline). */
+  flagMarkers(n: VM.Note): NoteFlagDef[] {
+    return flagDefsOf(n.flags);
+  }
+
+  flagViewBox(d: NoteFlagDef): string { return d.viewBox || '0 0 10 10'; }
 
   toggleNoteType(t: VM.NoteType): void {
     this.withFocus(f => {
@@ -1090,6 +1185,20 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     }
   }
 
+  /**
+   * Bottom padding of the read-only SVG (units). Notes and ledger lines far below the
+   * staff (A3 and lower) used to be cut at the fixed edge; the SVG now grows as far as
+   * the lowest drawable needs. (The visible area ends at y = 85 + padBottom.)
+   */
+  readOnlyPadBottomFor(voiceIndex: number): number {
+    let lowest = 0;
+    for (const d of this.getDrawables(voiceIndex)) {
+      if (d instanceof DNote) lowest = Math.max(lowest, d.y + (d.ref.noteType === VM.NoteType.Descending ? 43 : 36));
+      else if (d instanceof DHelperLine) lowest = Math.max(lowest, d.y + 1);
+    }
+    return Math.max(this.readOnlyPadBottom, this.focusService.docPadBottom, Math.ceil(lowest + 2 - 85));
+  }
+
   getDrawables(voiceIndex: number): Drawable[] {
     if (this.drawablesDirty) {
       this.drawablesCache = this.adiastematic
@@ -1112,17 +1221,15 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       const uuidInfo = VM.copyUuids(voices[voiceIndex], newNotes);
       const commentsToUpdate = this.comments.filter(c => uuidInfo.lostUUIDs.find(u => c.startUUID === u || c.endUUID === u));
 
-      if (commentsToUpdate.length > 0 && uuidInfo.fallbackUUID === undefined) {
-        window.alert('You cannot delete this note because a comment would be lost. Please remove the comment first.');
-        this.notesToText();
-        return;
-      } else if (uuidInfo.fallbackUUID) {
+      // Without a note left in this voice the comments move onto the syllable itself instead of blocking the edit.
+      const fallbackUUID = uuidInfo.fallbackUUID ?? (commentsToUpdate.length > 0 ? this.model.uuid : undefined);
+      if (fallbackUUID) {
         for (let c of commentsToUpdate) {
           if (uuidInfo.lostUUIDs.find(u => c.startUUID === u)) {
-            c.startUUID = uuidInfo.fallbackUUID;
+            c.startUUID = fallbackUUID;
           }
           if (uuidInfo.lostUUIDs.find(u => c.endUUID === u)) {
-            c.endUUID = uuidInfo.fallbackUUID;
+            c.endUUID = fallbackUUID;
           }
         }
       }
@@ -1190,7 +1297,6 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     me.preventDefault();
     me.stopPropagation();
     this.focusService.preferredFocus = Focus.Notes;
-    const e = (this.domRoot.nativeElement as HTMLElement);
     if (d instanceof DNote || d instanceof DCommentStart || d instanceof DCommentEnd) {
       this.addNoteTools();
       this.focusService.registerFocus(() => { VM.removeFocusFromLinePart(this.model); this.cdr.markForCheck(); });
@@ -1210,13 +1316,14 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const notes = this.model.notes;
     if (!notes || !notes.spaced) return null;
 
+    // The pattern of a note is that of its whole neume (all ligature groups written without a gap).
     for (const spacedItem of notes.spaced) {
       if (spacedItem.nonSpaced) {
         for (const ns of spacedItem.nonSpaced) {
           if (ns.grouped) {
             for (const g of ns.grouped) {
               if (g.uuid === noteUuid) {
-                const patternId = extractPattern({ nonSpaced: [ns] } as VM.NonSpaced);
+                const patternId = extractPattern(spacedItem);
                 if (patternId) {
                   const basePattern = patternId.replace(/[QOSLAD]/g, '');
                   return { patternId, basePattern };
@@ -1259,23 +1366,24 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     this.drawableClicked(d, me, voiceIndex);
 
     const sc = this.shortcutsService.getShortcuts();
-    const items = [
+    const items: ContextMenuItem[] = [
       {
         label: `Set to Flat (${sc.setFlat})`,
-        action: () => { this.toggleNoteType(VM.NoteType.Flat); }
+        action: () => { this.toggleNoteType(VM.NoteType.Flat); this.refreshNoteText(); }
       },
       {
         label: `Set to Sharp (${sc.setSharp})`,
-        action: () => { this.toggleNoteType(VM.NoteType.Sharp); }
+        action: () => { this.toggleNoteType(VM.NoteType.Sharp); this.refreshNoteText(); }
       },
       {
         label: `Set to Natural (${sc.setNatural})`,
-        action: () => { this.toggleNoteType(VM.NoteType.Normal); }
+        action: () => { this.toggleNoteType(VM.NoteType.Normal); this.refreshNoteText(); }
       },
       {
         label: `Toggle Liquescent (${sc.toggleLiquescent})`,
-        action: () => { this.toggleLiquescent(); }
+        action: () => { this.toggleLiquescent(); this.refreshNoteText(); }
       },
+      ...this.flagMenuItems(d.ref),
       {
         label: 'Split Line After Syllable',
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
@@ -1290,8 +1398,22 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       }
     ];
 
+    if (this.manuscriptView.canShow()) {
+      const noteUuid = d.ref.uuid;
+      items.push({
+        label: 'Show in manuscript',
+        action: () => { void this.manuscriptView.show(noteUuid); }
+      });
+    }
+
     const patInfo = this.findPatternForNote(d.ref.uuid);
     if (patInfo) {
+      if (getNoteFlagDefs().length > 0) {
+        items.push({
+          label: 'Flag neumes like this…',
+          action: () => { this.request.emit({ kind: 'FlagPatternsRequested', pattern: patInfo.patternId.replace(/[A-Z]/g, '') }); }
+        });
+      }
       items.push({
         label: 'Open in Pattern Overview',
         action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern } }); }
@@ -1302,6 +1424,32 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       });
     }
 
+    this.contextMenuService.open(me, items, 'transcription', 'entering-notes');
+  }
+
+  /** Right-click on the staff of the syllable (not on a note): comment on the syllable, start a longer comment, open its comments. */
+  onStaffContextMenu(me: MouseEvent): void {
+    if (this.readOnly) return;
+    me.preventDefault();
+    me.stopPropagation();
+    const count = this.getSyllableComments().length;
+    const items = [
+      {
+        label: 'Comment on this syllable',
+        icon: 'bi-chat-left-plus',
+        action: () => this.request.emit({ kind: 'NewCommentRequested', startUUID: this.model.uuid, endUUID: this.model.uuid, text: '', endKind: VM.CommentPartKind.Syllable })
+      },
+      {
+        label: 'Start a comment here (then click its end)',
+        icon: 'bi-chat-left-dots',
+        action: () => this.request.emit({ kind: 'StartCommentRequested', startKind: VM.CommentPartKind.Syllable, startUUID: this.model.uuid })
+      },
+      ...(count ? [{
+        label: `Show comments (${count})`,
+        icon: 'bi-chat-left-text',
+        action: () => this.showComments(true)
+      }] : []),
+    ];
     this.contextMenuService.open(me, items, 'transcription', 'entering-notes');
   }
 
@@ -1620,7 +1768,8 @@ export function spacedToString(spaced: VM.Spaced): string {
     let modifierString =
       (explicitOctave !== -1 ? explicitOctave : '') +
       (note.noteType !== VM.NoteType.Normal ? VM.noteTypeToString(note.noteType) : '') +
-      (note.liquescent ? 'l' : '');
+      (note.liquescent ? 'l' : '') +
+      (note.flags ? note.flags.join('') : '');
 
     return baseStr + (modifierString !== '' ? (`[` + modifierString + `]`) : '');
   }

@@ -1,3 +1,8 @@
+import { ClefDisplayMode, sanitizeClefDisplayMode } from './clef-policy';
+import type { HeadingField } from './print/doc-heading';
+import { FolioPrefixMode, sanitizeFolioPrefixMode } from './folio-label';
+import { sanitizeNotationColor } from './notation-color';
+import { PRINT_PDF_DEFAULTS } from './pdf-defaults';
 import { Injectable } from '@angular/core';
 import { Observable, from, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
@@ -6,7 +11,8 @@ import { v4 as uuidv4 } from 'uuid';
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
-import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings } from './mei/mei-mapping.model';
+import { NoteFlagDef, sanitizeNoteFlags, setNoteFlagDefs } from './notes/note-flags';
+import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule } from './mei/mei-mapping.model';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
 import { PushCache } from './push-cache';
@@ -381,7 +387,12 @@ export class APIService {
     })());
   }
 
+  /** Fresh settings: structural defaults plus the print-edition look. */
   private defaultSettings(): ProjectSettings {
+    return { ...this.baseDefaultSettings(), ...PRINT_PDF_DEFAULTS };
+  }
+
+  private baseDefaultSettings(): ProjectSettings {
     return {
       quellensigle: [],
       herkunftsregion: [],
@@ -399,11 +410,12 @@ export class APIService {
       customSourceFields: [],
       customDocumentFields: [],
       customLists: {},
-      pdfScale: 0.40,
+      pdfScale: 0.36,
+      pdfContinuationIndent: 20,
       pdfFormat: 'a4',
       pdfOrientation: 'portrait',
       pdfSyllableSpacing: 10,
-      pdfVerticalSpace: 15,
+      pdfVerticalSpace: 12,
       pdfMarginLeft: 40,
       pdfSignaturSpace: 60,
       pdfFontSize: 10,
@@ -414,16 +426,16 @@ export class APIService {
       pdfCommentBlockGap: 25,
       pdfCommentFontSize: 9,
       pdfCommentTitleFontSize: 10,
-      pdfCommentStaffScale: 0.40,
+      pdfCommentStaffScale: 0.28,
       pdfBracketWidth: 12,
       pdfBracketThickness: 1.2,
       pdfMarginTop: 40,
       pdfMarginBottom: 40,
       pdfMarginRight: 40,
-      pdfStaffSpacing: 20,
+      pdfStaffSpacing: 2,
       pdfBracketGap: 5,
       pdfBracketTick: 4,
-      pdfSyllableTextOffset: 10,
+      pdfSyllableTextOffset: 8,
       pdfTextBlockGap: 10,
       pdfCommentTreePadding: 4,
       pdfCommentTreeGap: 4,
@@ -433,8 +445,11 @@ export class APIService {
       pdfHeadlineFontSize: 8,
       pdfPageNumberFontSize: 8,
       pdfParatextFontSize: 10,
-      pdfParatextSpacing: 12,
+      pdfParatextSpacing: 6.5,
       pdfFontFamily: 'times',
+      clefDisplayMode: 'document-start',
+      pdfFolioPrefix: 'auto',
+      notationColor: '#333333',
       meiMappings: {
         formteilContainer: { tag: 'section' },
         zeileContainer: { tag: 'sb' },
@@ -547,10 +562,53 @@ export interface ProjectSettings {
   pdfPageNumberFontSize?: number;
   pdfParatextFontSize?: number;
   pdfParatextSpacing?: number;
-  pdfFontFamily?: 'times' | 'helvetica';
+  /** 'CrimsonText' (print edition), 'times', 'helvetica' or an embedded Noto family. */
+  pdfFontFamily?: string;
+  /** 'print': running head + rule on every page, page number in the head; 'classic': footer "Page n of m". */
+  pdfPageStyle?: 'print' | 'classic';
+  /** Folio labels in print: leave as typed, add "f." once the manuscript uses it (default), or always. */
+  pdfFolioPrefix?: FolioPrefixMode;
+  pdfApparatusStaffScale?: number;
+  pdfApparatusEntryGap?: number;
+  pdfLemmaColumnMax?: number;
+  pdfWidowSlack?: number;
+  pdfHideStaffWithoutNotes?: boolean;
+  pdfCompactTextless?: boolean;
+  /** Syllables with neither text nor notes take no room (default); off keeps their gap. */
+  pdfSkipEmptySyllables?: boolean;
+  /** Lyric style per section status (key: English status name): 'smallcaps' | 'uppercase' | 'lowercase'; missing = as typed. */
+  pdfStatusTextStyle?: { [status: string]: 'none' | 'smallcaps' | 'uppercase' | 'lowercase' };
+  pdfChapterHeadings?: boolean;
+  pdfChapterNewPage?: boolean;
+  /** Transitions between Edition, Critical Apparatus and Source Descriptions: 'volume' = a page of its own with a rule (as in the printed volume, no running head), 'compact' = just a heading where the part begins. */
+  /** Contents of the Edition: only the manuscripts (default, as in the printed volume) or every document. */
+  pdfContentsEdition?: 'chapters' | 'documents';
+  pdfPartStyle?: 'volume' | 'compact';
+  pdfContentsApparatus?: 'chapters' | 'documents' | 'none';
+  pdfBookmarks?: boolean;
+  /** Frame the edition number (document field "Print Edition") in the margin next to the title. */
+  pdfShowEditionBox?: boolean;
+  /** When the automatic G-clef is drawn: chant start only (print edition), every manuscript line, or every line break. */
+  clefDisplayMode?: ClefDisplayMode;
+  /** Colour of staff lines, notes, slurs and clef in editor, PDF and HTML export (#rrggbb). */
+  notationColor?: string;
+  /** Indent (pt) of automatically wrapped continuation systems in the PDF. */
+  pdfContinuationIndent?: number;
   meiMappings?: MeiMappingSettings;
   meiProfiles?: MeiMappingProfileV2[];
   activeMeiProfileId?: string;
+  /** User-defined note flags (virga etc.), see notes/note-flags.ts. */
+  noteFlags?: NoteFlagDef[];
+  /** Heading where a document begins in the PDF: fields, labels, styles (see print/doc-heading.ts). Default: ID, reference, genre (genre only where the PDF has several). */
+  pdfDocHeadingFields?: HeadingField[];
+  /** Between the parts of that heading (default three spaces). */
+  pdfDocHeadingSeparator?: string;
+  /** Import: comments on placeholder notes (old convention) move onto the syllables. Default on. */
+  importPlaceholderComments?: boolean;
+  /** Notes that count as placeholders on import, e.g. "F3, D6". */
+  placeholderNotes?: string;
+  /** Note written for a commented syllable without notes when exporting for old versions, e.g. "F3". */
+  placeholderExportNote?: string;
 }
 
 export interface MeiMappingSettings {
@@ -806,6 +864,10 @@ export function sanitizeSettings(settings: any): ProjectSettings {
     'pdfCommentTreePadding',
     'pdfCommentTreeGap',
     'pdfCommentBlockGap',
+    'pdfApparatusStaffScale',
+    'pdfApparatusEntryGap',
+    'pdfLemmaColumnMax',
+    'pdfWidowSlack',
     'pdfParatextFontSize',
     'pdfTitleFontSize',
     'pdfTitleVerticalSpace',
@@ -815,13 +877,18 @@ export function sanitizeSettings(settings: any): ProjectSettings {
     'pdfCommentFontSize',
     'pdfCommentTitleFontSize',
     'pdfHeadlineFontSize',
-    'pdfPageNumberFontSize'
+    'pdfPageNumberFontSize',
+    'pdfContinuationIndent'
   ];
   for (const key of numericKeys) {
     if (settings[key] !== undefined && settings[key] !== null) {
       settings[key] = Number(settings[key]);
     }
   }
+  settings.clefDisplayMode = sanitizeClefDisplayMode(settings.clefDisplayMode);
+  settings.pdfFolioPrefix = sanitizeFolioPrefixMode(settings.pdfFolioPrefix);
+  if (!['chapters', 'documents', 'none'].includes(settings.pdfContentsApparatus)) settings.pdfContentsApparatus = 'chapters';
+  settings.notationColor = sanitizeNotationColor(settings.notationColor);
 
   if (settings.commentTemplates !== undefined) {
     settings.commentTemplates = Array.isArray(settings.commentTemplates)
@@ -869,6 +936,17 @@ export function sanitizeSettings(settings: any): ProjectSettings {
         settings.meiProfiles.push(migrated);
         settings.activeMeiProfileId = migrated.id;
       }
+    }
+  }
+
+  settings.noteFlags = sanitizeNoteFlags(settings.noteFlags);
+  setNoteFlagDefs(settings.noteFlags);
+
+  for (const prof of settings.meiProfiles ?? []) {
+    if (prof.patternRules !== undefined) {
+      prof.patternRules = Array.isArray(prof.patternRules)
+        ? prof.patternRules.filter((r: any) => r && typeof r.id === 'string' && typeof r.pattern === 'string').map((r: any) => normalizePatternRule(r))
+        : [];
     }
   }
 

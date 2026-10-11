@@ -11,6 +11,8 @@ import { ContextMenuService, ContextMenuState, ContextMenuItem } from './context
 })
 export class ContextMenuComponent implements OnInit, OnDestroy {
   state: ContextMenuState = { isOpen: false, x: 0, y: 0, items: [] };
+  /** Items with `children` that are currently unfolded. */
+  expanded = new Set<ContextMenuItem>();
   private sub?: Subscription;
 
   constructor(
@@ -29,8 +31,11 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
         document.body.appendChild(host);
       }
     } catch { /* SSR / detached DOM: ignore */ }
+    for (const t of ContextMenuComponent.OUTSIDE_EVENTS) document.addEventListener(t, this.closeOutside, { capture: true, passive: true });
+    document.addEventListener('keydown', this.closeOnEscape, true);
     this.sub = this.contextMenuService.state$.subscribe(state => {
       this.state = state;
+      this.expanded.clear();
       if (state.isOpen) {
         setTimeout(() => {
           const menuEl = document.querySelector('.custom-context-menu') as HTMLElement;
@@ -63,6 +68,8 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.sub?.unsubscribe();
+    for (const t of ContextMenuComponent.OUTSIDE_EVENTS) document.removeEventListener(t, this.closeOutside, true);
+    document.removeEventListener('keydown', this.closeOnEscape, true);
     try {
       const host = this.el.nativeElement as HTMLElement;
       if (host.parentElement === document.body) {
@@ -71,13 +78,21 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
     } catch { /* ignore */ }
   }
 
-  // Close when clicking anywhere outside
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent) {
-    if (this.state.isOpen) {
-      this.contextMenuService.close();
-    }
-  }
+  /**
+   * Closes the menu on any press, click, right-click or touch outside it, and on Escape. The listeners sit on the
+   * document in the capture phase: components that stop the event while it bubbles (notes, syllables, dialogs
+   * ...) can no longer keep a menu open. A right-click that opens the next menu closes the old one first.
+   */
+  private readonly closeOutside = (event: Event) => {
+    if (!this.state.isOpen) return;
+    const menu = this.el.nativeElement.querySelector('.custom-context-menu') as HTMLElement | null;
+    if (menu && event.target instanceof Node && menu.contains(event.target)) return;
+    this.contextMenuService.close();
+  };
+  private readonly closeOnEscape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && this.state.isOpen) this.contextMenuService.close();
+  };
+  private static readonly OUTSIDE_EVENTS = ['mousedown', 'click', 'contextmenu', 'touchstart', 'wheel'];
 
   // Close on scroll or resize
   @HostListener('window:scroll')
@@ -95,6 +110,10 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
 
   executeAction(item: ContextMenuItem, event: MouseEvent) {
     event.stopPropagation();
+    if (item.children) {
+      if (this.expanded.has(item)) this.expanded.delete(item); else this.expanded.add(item);
+      return;
+    }
     if (!item.disabled) {
       item.action();
       this.contextMenuService.close();

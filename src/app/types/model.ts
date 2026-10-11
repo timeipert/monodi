@@ -2,6 +2,7 @@ import { flatMap, assertNever } from '../../utils';
 import { v4 as UUID } from "uuid";
 import * as LDP from 'lodash/fp';
 import * as _ from 'lodash';
+import { canonicalStatus } from './formteil-status';
 
 export enum ContainerKind {
   FormteilContainer = "FormteilContainer",
@@ -54,7 +55,19 @@ export interface AnnotationRegion {
   id: string;
   name: string;
   points: string;
+  /**
+   * Legacy page reference. Monodi writes the IIIF canvas index here ("7"); the
+   * Neume Viewer used to write a folio label ("113r"). Do not read it directly:
+   * use `regionCanvasIndex` (notationsdokumentation/region-page.ts), which also
+   * understands the two fields below.
+   */
   folio: string;
+  /** IIIF canvas id: the exact, reorder-proof page reference. Readers try this first. */
+  canvasId?: string;
+  /** IIIF Image API base of the page image. Works where there is no manifest (the Neumen-Editor takes some pages from the corpus's own image addresses). */
+  imageId?: string;
+  /** Page label as the writer knew it, e.g. "113r". Readers try it after `canvasId`. */
+  folioLabel?: string;
   /** UUID of the LineChange in the transcription that this region corresponds to */
   lineUUID?: string;
 }
@@ -73,7 +86,7 @@ export interface TranscriptionAnnotation {
 export interface AnnotationItem {
   id: string;
   regionId: string;
-  pattern: string;  // base pattern, e.g. "Virga"
+  pattern: string;  // pattern code (a note sequence such as "*ud", not a neume name)
   variant?: string; // variant letter, e.g. "a", "b" — combined display is "Virga a"
   points: string;   // percentage-based polygon points
   uuid?: string;    // Reference to the NonSpaced UUID
@@ -194,6 +207,8 @@ export interface Note {
   octave: number;
   focus: boolean;
   isLatent?: boolean;
+  /** Keys of user-defined note flags (see notes/note-flags.ts), e.g. ['V']. */
+  flags?: string[];
 }
 
 export interface Spaced {
@@ -1436,6 +1451,7 @@ export const ensureCommentTree = (comment: Comment): CommentTree => {
  * 1. Ensures root.comments is defined as an array.
  * 2. Migrates legacy comments lacking a `tree` structure.
  * 3. Resolves startUUID/endUUID to note UUIDs if they were assigned to Syllable/Zeile UUIDs in older Monodi versions.
+ * 4. Renames German section statuses ("Einsatzmarke", "Tropenelement", ...) to the English ones.
  */
 export function normalizeDocumentComments(root: RootContainer): RootContainer {
   if (!root || root.kind !== ContainerKind.RootContainer) return root;
@@ -1489,6 +1505,12 @@ export function normalizeDocumentComments(root: RootContainer): RootContainer {
         uuidToNoteMap.set(zeile.uuid, { firstNoteUUID: zeileFirstNote, lastNoteUUID: zeileLastNote });
       }
     } else if (node.children && Array.isArray(node.children)) {
+      // Corpus Monodicum data carries German statuses ("Einsatzmarke", "Tropenelement"); the editor and the print settings use the English names.
+      if (node.kind === ContainerKind.FormteilContainer && Array.isArray(node.data)) {
+        for (const d of node.data) {
+          if (d && d.name === FormteilDataName.Status && typeof d.data === 'string') d.data = canonicalStatus(d.data);
+        }
+      }
       for (const child of node.children) {
         collectUUIDs(child);
       }

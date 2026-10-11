@@ -1,103 +1,36 @@
-<div class="container py-4" style="max-width: 960px;">
-  <div class="d-flex align-items-center gap-2 mb-1">
+<div class="container py-4" style="max-width: 1040px;">
+  <div class="d-flex align-items-center gap-2 mb-4">
     <i class="bi bi-arrow-down-up text-primary fs-4"></i>
     <h3 class="fw-bold mb-0">Import / Export</h3>
   </div>
-  <p class="text-muted mb-4">Everything for getting chant data in and out of your workspace, in one place.</p>
 
-  <!-- ── Import ─────────────────────────────────────────────────────────── -->
-  <h5 class="fw-semibold text-secondary mb-3"><i class="bi bi-box-arrow-in-down me-2"></i>Import</h5>
-  <div class="row g-3 mb-4">
-    <div class="col-md-6 col-lg-4">
-      <button type="button" class="card h-100 border-0 shadow-sm text-start w-100 io-card" (click)="openCantusDialog()">
-        <div class="card-body">
-          <i class="bi bi-cloud-arrow-down text-primary fs-4"></i>
-          <div class="fw-semibold mt-2">Import chant by Cantus ID</div>
-          <div class="text-muted small">Fetch a melody from cantusindex.org and open it as a new document</div>
-        </div>
-      </button>
-    </div>
-
-    <div class="col-md-6 col-lg-4">
-      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-workspace' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
-        <div class="card-body">
-          <i class="bi bi-upload text-secondary fs-4"></i>
-          <div class="fw-semibold mt-2 text-dark">Import Workspace JSON</div>
-          <div class="text-muted small">Restore a <code>.monodijson</code> backup</div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-md-6 col-lg-4">
-      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-zip' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
-        <div class="card-body">
-          <i class="bi bi-file-zip text-secondary fs-4"></i>
-          <div class="fw-semibold mt-2 text-dark">Import ZIP</div>
-          <div class="text-muted small">monodi or OMMR4all export folder</div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-md-6 col-lg-4">
-      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-csv' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
-        <div class="card-body">
-          <i class="bi bi-filetype-csv text-secondary fs-4"></i>
-          <div class="fw-semibold mt-2 text-dark">Import CSV</div>
-          <div class="text-muted small">Rows become sources &amp; documents</div>
-        </div>
-      </a>
-    </div>
+  <div class="row g-4">
+    @for (side of sides; track side.title) {
+      <div class="col-lg-6">
+        <h5 class="fw-semibold mb-3"><i class="bi me-2" [ngClass]="side.icon"></i>{{ side.title }}</h5>
+        @for (group of side.groups; track group.title) {
+          <div class="io-group-title">{{ group.title }}</div>
+          <div class="d-flex flex-column gap-2 mb-3">
+            @for (a of group.actions; track a.id) {
+              <button type="button" class="io-row" (click)="run(a)">
+                <i class="bi io-icon" [ngClass]="[a.icon, a.color]"></i>
+                <span class="io-text">
+                  <span class="io-title">{{ a.title }}</span>
+                  <span class="io-hint">{{ a.hint }}</span>
+                </span>
+                <span class="io-badge">{{ a.badge }}</span>
+                <i class="bi bi-chevron-right io-go"></i>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
   </div>
 
-  <!-- ── Export ─────────────────────────────────────────────────────────── -->
-  <h5 class="fw-semibold text-secondary mb-3"><i class="bi bi-box-arrow-up me-2"></i>Export</h5>
-  <div class="row g-3 mb-4">
-    <div class="col-md-6 col-lg-4">
-      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-workspace' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
-        <div class="card-body">
-          <i class="bi bi-download text-success fs-4"></i>
-          <div class="fw-semibold mt-2 text-dark">Export Workspace JSON</div>
-          <div class="text-muted small">Single <code>.monodijson</code> backup</div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-md-6 col-lg-4">
-      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-csv' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
-        <div class="card-body">
-          <i class="bi bi-filetype-csv text-success fs-4"></i>
-          <div class="fw-semibold mt-2 text-dark">Export CSV</div>
-          <div class="text-muted small">Metadata + melody (Volpiano) + text</div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-md-6 col-lg-4">
-      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-zip' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
-        <div class="card-body">
-          <i class="bi bi-file-earmark-zip text-info fs-4"></i>
-          <div class="fw-semibold mt-2 text-dark">Export ZIP</div>
-          <div class="text-muted small">ZIP for monodi+ / OMMR</div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-md-6 col-lg-4">
-      <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-html' }" class="card h-100 border-0 shadow-sm text-decoration-none io-card">
-        <div class="card-body">
-          <i class="bi bi-globe text-warning fs-4"></i>
-          <div class="fw-semibold mt-2 text-dark">Export HTML Edition</div>
-          <div class="text-muted small">Browse offline as a static site</div>
-        </div>
-      </a>
-    </div>
-  </div>
-
-  <div class="alert alert-light border small text-muted">
-    <i class="bi bi-info-circle me-1"></i>
-    Per-document exports — <strong>MEI</strong>, <strong>Volpiano</strong>, <strong>PDF</strong> and JSON — live on each document's toolbar.
-    <strong>Import Volpiano</strong> and <strong>Import Text</strong> are on the source and document pages.
-  </div>
+  <p class="text-muted small mt-2 mb-0">
+    <i class="bi bi-info-circle me-1"></i>One document only? Use <strong>File</strong> in its toolbar (JSON, PDF, MEI, Volpiano).
+  </p>
 </div>
 
 <!-- ── Cantus Index import dialog ───────────────────────────────────────── -->

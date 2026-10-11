@@ -1,10 +1,63 @@
-.io-card {
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-  cursor: pointer;
+.io-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #868e96;
+  margin-bottom: 6px;
 }
-.io-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+.io-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e3e7eb;
+  border-radius: 10px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+.io-row:hover,
+.io-row:focus-visible {
+  border-color: #adb5bd;
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  outline: none;
+}
+.io-icon {
+  font-size: 1.5rem;
+  width: 1.75rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+.io-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.io-title {
+  font-weight: 600;
+  color: #212529;
+  line-height: 1.2;
+}
+.io-hint {
+  font-size: 0.82rem;
+  color: #6c757d;
+}
+.io-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #495057;
+  background: #f1f3f5;
+  border-radius: 999px;
+  padding: 2px 9px;
+  flex-shrink: 0;
+}
+.io-go {
+  color: #adb5bd;
+  flex-shrink: 0;
 }
 .min-width-0 {
   min-width: 0;

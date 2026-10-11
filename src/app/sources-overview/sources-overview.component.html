@@ -11,18 +11,20 @@
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
       <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
       <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
+      <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" style="display: none" accept=".json,application/json" />
       <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
         class="btn btn-sm btn-outline-secondary"
         title="Import, export, storage usage & cleanup in Settings → Workspace">
         <i class="bi bi-gear me-1"></i>Workspace
       </a>
-      <button class="btn btn-sm btn-primary" title="Add New Source" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>New</button>
+      <button class="btn btn-sm btn-primary" title="Add a new source (manuscript)" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>New source</button>
     </div>
   </div>
 
   <div class="row mt-3">
     <div class="col">
       <!-- Column picker toggle -->
+      @if (sources.length > 0) {
       <div class="d-flex justify-content-end mb-2 position-relative">
         <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
           (click)="showColPicker = !showColPicker"
@@ -51,16 +53,22 @@
           </div>
         }
       </div>
+      }
 
       <!-- Empty state -->
       @if (sources.length === 0) {
         <div class="empty-state text-center py-5 text-muted">
           <i class="bi bi-journal-x" style="font-size: 3rem; opacity: 0.35;"></i>
           <p class="mt-3 mb-1 fw-semibold" style="font-size: 1.1rem;">No sources yet</p>
-          <p class="small mb-4">Create your first source to start adding chant documents.</p>
-          <button class="btn btn-primary" [routerLink]="['/source']">
-            <i class="bi bi-plus-lg me-1"></i>Add New Source
-          </button>
+          <p class="small mb-4">A source is a manuscript. Create one, then add its chant documents.</p>
+          <div class="d-flex justify-content-center gap-2 flex-wrap">
+            <button class="btn btn-primary" [routerLink]="['/source']">
+              <i class="bi bi-plus-lg me-1"></i>New source
+            </button>
+            <a class="btn btn-outline-secondary" [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }">
+              <i class="bi bi-box-arrow-in-down me-1"></i>Import existing data
+            </a>
+          </div>
         </div>
       }
 
@@ -192,6 +200,60 @@
 }
 
 <!-- CSV export options dialog -->
+<!-- Annotations from the Neumen-Editor: what the file would add, per manuscript -->
+@if (annotationImport) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
+      <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-images text-primary"></i><span>Import annotations</span>
+          </h5>
+          <button type="button" class="btn-close" aria-label="Close" (click)="closeAnnotationImport()" [disabled]="isApplyingAnnotations"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="text-muted small mb-3">
+            <strong>{{ annotationImport.fileName }}</strong> — line regions, snippets and neume table rows made in the
+            Neumen-Editor. Records are matched by id: what is new is added, and what the file also has is updated with
+            the editor's values. Your links to the transcription are kept, and nothing is deleted.
+            Export a workspace backup first if you want to be able to go back.
+          </p>
+          @if (annotationImport.preview.plans.length) {
+            <ul class="list-unstyled mb-0">
+              @for (plan of annotationImport.preview.plans; track plan.sourceId) {
+                <li class="mb-2">
+                  <span class="fw-semibold">{{ plan.label }}</span>
+                  <span class="text-muted small d-block">{{ describePlan(plan) || 'Nothing new.' }}</span>
+                  @if (plan.counts.itemsDropped) {
+                    <span class="text-warning small d-block">
+                      <i class="bi bi-exclamation-triangle me-1"></i>{{ plan.counts.itemsDropped }} snippet{{ plan.counts.itemsDropped === 1 ? '' : 's' }} left out: their line region is not in the file.
+                    </span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+          @if (annotationImport.preview.unmatched.length) {
+            <p class="text-warning small mt-3 mb-0">
+              <i class="bi bi-exclamation-triangle me-1"></i>Not in this workspace, so skipped:
+              {{ annotationImport.preview.unmatched.slice(0, 5).join(', ') }}{{ annotationImport.preview.unmatched.length > 5 ? ', …' : '' }}.
+            </p>
+          }
+        </div>
+        <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeAnnotationImport()" [disabled]="isApplyingAnnotations">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+          </button>
+          <button type="button" class="btn btn-sm btn-primary" (click)="confirmAnnotationImport()"
+            [disabled]="isApplyingAnnotations || !annotationPlansWithChanges.length">
+            <i class="bi bi-check-lg me-1"></i>Import
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
 @if (showCsvExportDialog) {
   <div class="modal fade show d-block" tabindex="-1"
     style="background: rgba(0,0,0,0.5);">
@@ -250,8 +312,8 @@
       <div class="modal-content shadow-lg">
         <div class="modal-header bg-light border-0 px-4 pt-4 pb-2">
           <h5 class="modal-title fw-bold text-dark">
-            <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : 'bi-globe text-warning'"></i>
-            {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : 'Export Static HTML Edition' }}
+            <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : exportMode === 'pdf' ? 'bi-file-pdf text-danger' : 'bi-globe text-warning'"></i>
+            {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : exportMode === 'pdf' ? 'Print documents as PDF' : 'Export Static HTML Edition' }}
           </h5>
           <button type="button" class="btn-close" (click)="closeExportDialog()" [disabled]="isExporting"></button>
         </div>
@@ -292,6 +354,12 @@
                   Split Documents (Generates -v1 and -v2 document folders)
                 </label>
               </div>
+              <div class="form-check mt-3 pt-2 border-top">
+                <input class="form-check-input" type="checkbox" id="zipPlaceholder" [(ngModel)]="exportPlaceholderNotes">
+                <label class="form-check-label text-dark fw-medium ms-1" for="zipPlaceholder">
+                  Placeholder note (default F3) for comments on syllables without notes
+                </label>
+              </div>
             </div>
           }
           <!-- Loading Spinner -->
@@ -309,9 +377,9 @@
             @if (isExporting) {
               <span class="spinner-border spinner-border-sm me-2"></span>
             }
-            {{ exportMode === 'zip' ? 'Generate & Download ZIP' : 'Generate & Download HTML' }}
+            {{ exportMode === 'zip' ? 'Generate & Download ZIP' : exportMode === 'pdf' ? 'Continue to print options' : 'Generate & Download HTML' }}
             @if (!isExporting) {
-              <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : 'bi-globe ms-1'"></i>
+              <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : exportMode === 'pdf' ? 'bi-file-pdf ms-1' : 'bi-globe ms-1'"></i>
             }
           </button>
         </div>

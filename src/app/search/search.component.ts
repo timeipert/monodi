@@ -1,33 +1,27 @@
-import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
+import { FocusService } from '../focus.service';
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
+import { sanitizeNotationColor } from '../notation-color';
+import { sanitizeClefDisplayMode } from '../clef-policy';
+import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { APIService, SourceQuery, DocumentQuery, Source, Document, ProjectSettings } from '../api.service';
+import { APIService, Source, Document, ProjectSettings } from '../api.service';
 import { UserService, User } from '../user.service';
 import { Subscription, forkJoin, Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { PageTitleService } from '../page-title.service';
-import { NotesStore } from '../notes-store';
 import { PatternAnalysisService } from './pattern-analysis.service';
 import { SynopsisService, AlignedNode, AlignedLineElement } from './synopsis.service';
 import { SearchExecService, TextSnippet, QuickResult, MelodyResult } from './search-exec.service';
 import * as VM from '../types/model';
-import { textWidth } from '../../utils';
-import * as localforage from 'localforage';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import 'svg2pdf.js';
 import { FileSystemService } from '../file-system.service';
 import {
-  LoadedDoc,
   PatternOccurrence,
   PatternGroup,
-  arrayLevenshtein,
-  levenshteinDistance,
-  computePatternGroups,
-  toPitchNames,
-  toContour,
-  toIntervals
+  computePatternGroups
 } from './pattern-algo';
 
 // ─── Column config ────────────────────────────────────────────────────────────
@@ -107,284 +101,7 @@ export interface TimelineDoc {
   occurrences: TimelineDocOccurrence[];
 }
 
-// LoadedDoc interface is imported from pattern-algo.ts
-
-
-// ─── Synoptic Alignment definitions ───────────────────────────────────────────
-
-
-// ─── Transcription utilities ──────────────────────────────────────────────────
-
-function walkZeilen(children: any[], cb: (zeile: any) => void) {
-  if (!Array.isArray(children)) return;
-  for (const child of children) {
-    if (child?.kind === 'ZeileContainer') cb(child);
-    else if (Array.isArray(child?.children)) walkZeilen(child.children, cb);
-  }
-}
-
-/** Extract syllables with full neume-group structure preserved. */
-function extractSyllables(root: VM.RootContainer): VM.Syllable[] {
-  const result: VM.Syllable[] = [];
-  walkZeilen(root.children, zeile => {
-    for (const part of (zeile.children || [])) {
-      if (part?.kind === 'Syllable') {
-        result.push(part as VM.Syllable);
-      }
-    }
-  });
-  return result;
-}
-
-/** Flat note array for pattern matching. Also returns per-note syllable index. */
-function flattenNotes(syllables: VM.Syllable[]): { notes: VM.Note[]; sylIdx: number[] } {
-  const notes: VM.Note[] = [];
-  const sylIdx: number[] = [];
-  syllables.forEach((syl, si) => {
-    const spaced = syl.notes?.spaced ?? [];
-    spaced.forEach(ns => {
-      const groups = ns.nonSpaced ?? [];
-      groups.forEach(g => {
-        const noteList = g.grouped ?? [];
-        noteList.forEach(n => { notes.push(n); sylIdx.push(si); });
-      });
-    });
-  });
-  return { notes, sylIdx };
-}
-
-/**
- * Extract syllable text for full-text matching.
- * Returns both the raw hyphenated form ("Al-le-lu-ia") and the clean form ("Alleluia").
- */
-function extractSyllableText(root: VM.RootContainer): string {
-  const texts: string[] = [];
-  walkZeilen(root.children, zeile => {
-    for (const part of (zeile.children || [])) {
-      if (part?.kind === 'Syllable' && part.text) texts.push(part.text as string);
-    }
-  });
-  const joined = texts.join('');
-  return joined + ' ' + joined.replace(/-/g, '');
-}
-
 export { arrayLevenshtein } from './pattern-algo';
-
-export interface SequenceMatch {
-  start: number;
-  end: number;
-  distance: number;
-}
-
-
-function isFuzzySubstring(target: string, query: string, maxDistance: number): { matched: boolean; matchedSub?: string } {
-  const N = query.length;
-  const M = target.length;
-  if (N === 0) return { matched: false };
-  if (M === 0) return { matched: false };
-
-  if (N > M + maxDistance) return { matched: false };
-
-  let bestDist = 999;
-  let bestSub = '';
-
-  for (let start = 0; start < M; start++) {
-    const minLen = Math.max(1, N - maxDistance);
-    const maxLen = N + maxDistance;
-
-    for (let len = minLen; len <= maxLen; len++) {
-      const end = start + len - 1;
-      if (end >= M) break;
-
-      const sub = target.substring(start, end + 1);
-      const dist = levenshteinDistance(sub, query);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestSub = sub;
-      }
-    }
-  }
-
-  return { matched: bestDist <= maxDistance, matchedSub: bestSub };
-}
-
-function sequenceDistance(s1: string[], s2: string[]): number {
-  const m = s1.length;
-  const n = s2.length;
-  const dp: number[][] = [];
-
-  for (let i = 0; i <= m; i++) {
-    dp[i] = [i];
-  }
-
-  dp[0][0] = 0;
-  for (let j = 1; j <= n; j++) {
-    const patTok = s2[j - 1].toLowerCase();
-    const skipCost = (patTok === '.?' || patTok === '?') ? 0 : 1;
-    dp[0][j] = dp[0][j - 1] + skipCost;
-  }
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const patTok = s2[j - 1].toLowerCase();
-      const seqTok = s1[i - 1].toLowerCase();
-
-      const isMatch = (patTok === '.' || patTok === '.?' || patTok === '?' || seqTok === patTok);
-      const cost = isMatch ? 0 : 1;
-      const skipCost = (patTok === '.?' || patTok === '?') ? 0 : 1;
-
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + skipCost,
-        dp[i - 1][j - 1] + cost
-      );
-    }
-  }
-  return dp[m][n];
-}
-
-function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistance: number): SequenceMatch[] {
-  const N = pattern.length;
-  const M = sequence.length;
-  if (N === 0 || M === 0) return [];
-
-  let optCount = 0;
-  for (const t of pattern) {
-    if (t === '.?' || t === '?') optCount++;
-  }
-
-  const matches: SequenceMatch[] = [];
-
-  for (let start = 0; start < M; start++) {
-    const minLen = Math.max(1, N - optCount - maxDistance);
-    const maxLen = N + maxDistance;
-
-    for (let len = minLen; len <= maxLen; len++) {
-      const end = start + len - 1;
-      if (end >= M) break;
-
-      const sub = sequence.slice(start, end + 1);
-      const dist = sequenceDistance(sub, pattern);
-      if (dist <= maxDistance) {
-        matches.push({ start, end, distance: dist });
-      }
-    }
-  }
-
-  matches.sort((a, b) => a.distance - b.distance || (a.end - a.start) - (b.end - b.start));
-  const filteredMatches: SequenceMatch[] = [];
-
-  for (const m of matches) {
-    let isRedundant = false;
-    for (const selected of filteredMatches) {
-      if (Math.abs(selected.start - m.start) <= 2 && Math.abs(selected.end - m.end) <= 2) {
-        isRedundant = true;
-        break;
-      }
-    }
-    if (!isRedundant) {
-      filteredMatches.push(m);
-    }
-  }
-
-  return filteredMatches.sort((a, b) => a.start - b.start);
-}
-
-function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour' | 'interval', withOctave: boolean): string[] {
-  const clean = raw.trim();
-  if (!clean) return [];
-
-  if (searchType === 'contour') {
-    const tokens: string[] = [];
-    const regex = /(\.\?|\.|\s+|[udrUDR])/g;
-    let m;
-    while ((m = regex.exec(clean)) !== null) {
-      const tok = m[1].trim();
-      if (tok) tokens.push((tok === '.?' || tok === '?') ? '.?' : tok.toLowerCase());
-    }
-    return tokens;
-  }
-
-  if (searchType === 'interval') {
-    const tokens: string[] = [];
-    const regex = /(\.\?|\.|[+-]?\d+)/g;
-    let m;
-    while ((m = regex.exec(clean)) !== null) {
-      const tok = m[1];
-      if (tok === '.?' || tok === '?') tokens.push('.?');
-      else if (tok === '.') tokens.push('.');
-      else {
-        const num = parseInt(tok, 10);
-        tokens.push(num > 0 ? `+${num}` : `${num}`);
-      }
-    }
-    return tokens;
-  }
-
-  const noteRegex = /(\.\?|\.)|(?:([bB])([b#♭♯]?)|([ac-ghAC-GH])([#♭♯]?))([0-9]?)/g;
-  const matches: string[] = [];
-  let match;
-  
-  while ((match = noteRegex.exec(clean)) !== null) {
-    if (match[1]) {
-      matches.push(match[1]);
-      continue;
-    }
-    const isB = match[2] !== undefined;
-    const base = (isB ? match[2] : match[4]).toLowerCase();
-    const accidental = (isB ? match[3] : match[5]) || '';
-    const octave = match[6] || '';
-
-    let note = base;
-    if (note === 'h') {
-      note = 'b';
-    } else if (note === 'b') {
-      note = 'bb';
-    }
-
-    let accNorm = accidental.replace(/♭/g, 'b').replace(/♯/g, '#');
-
-    if (accNorm) {
-      if (note === 'bb' && accNorm === 'b') {
-      } else {
-        note += accNorm;
-      }
-    }
-
-    if (withOctave && octave) {
-      note += octave;
-    }
-
-    matches.push(note);
-  }
-
-  return matches;
-}
-
-function escapeXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-}
-
-// ─── Text snippet ─────────────────────────────────────────────────────────────
-
-/** Find the query in text and return a { before, match, after } snippet. */
-function findTextSnippet(text: string, query: string, window = 35): TextSnippet | undefined {
-  const lower = text.toLowerCase();
-  const idx = lower.indexOf(query.toLowerCase());
-  if (idx === -1) return undefined;
-
-  // Walk back to a word boundary or window limit
-  let before = text.slice(Math.max(0, idx - window), idx);
-  if (idx - window > 0) before = '…' + before.replace(/^\S+\s/, ''); // trim partial word
-
-  const match = text.slice(idx, idx + query.length);
-
-  let after = text.slice(idx + query.length, idx + query.length + window);
-  if (idx + query.length + window < text.length) after = after.replace(/\s\S+$/, '') + '…';
-
-  return { before, match, after };
-}
 
 // ─── Melody SVG renderer ──────────────────────────────────────────────────────
 
@@ -407,6 +124,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   // ── Synoptic Comparison ───────────────────────────────────────────────────
   selectedDocs: Document[] = [];
   showSynopsis = false;
+  private readonly focusSvc = inject(FocusService);
+  private readonly pdfDialog = inject(PdfDialogLauncher);
   synopsisLoading = false;
   synopsisPdfExporting = false;
 
@@ -739,11 +458,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
 
   // ── Performance knobs ─────────────────────────────────────────────────────
-  /** Documents processed per yield in the chunked search loops. ~50 keeps
-   *  the progress bar smooth on a low-end laptop without amortising too
-   *  many extra Promise scheduling steps. */
-  private static readonly SEARCH_BATCH_SIZE = 50;
-
   /** Hard cap on how many results are *rendered* at once. Way over this and
    *  Angular spends all its time in change-detection / DOM updates on
    *  result rows the user can't even see. They can ask for more via the
@@ -813,7 +527,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     private route: ActivatedRoute,
     private userService: UserService,
     private pageTitle: PageTitleService,
-    private sanitizer: DomSanitizer,
     private cdRef: ChangeDetectorRef,
     private toastr: ToastrService,
     private patternSvc: PatternAnalysisService,
@@ -852,7 +565,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.user = user;
       if (this.user) {
         this.api.getSettings(this.user.token).subscribe(res => {
-          if (res.kind === 'SettingsRetrieved') this.settings = res.settings;
+          if (res.kind === 'SettingsRetrieved') {
+            this.settings = res.settings;
+            this.focusSvc.notationColor = sanitizeNotationColor(res.settings?.notationColor);
+            this.focusSvc.clefDisplayMode = sanitizeClefDisplayMode(res.settings?.clefDisplayMode);
+          }
         });
         await this.loadFromIndexedDB();
         this.restoreStateFromUrl();
@@ -1522,6 +1239,36 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.saveSearchStateToIndexedDB();
   }
 
+  /** Ids of the documents a print would contain: the selection, or else all results of the current tab. */
+  private printIds(): string[] {
+    if (this.selectedDocs.length) return this.selectedDocs.map((d) => d.id);
+    const ids: string[] = [];
+    switch (this.activeTab) {
+      case 'quick': for (const r of this.filteredQuickResults) if (r.kind === 'document') ids.push(r.id); break;
+      case 'documents': for (const d of this.filteredDocumentResults) ids.push(d.id); break;
+      case 'melody': for (const r of this.filteredMelodyResults) ids.push(r.document.id); break;
+      default: break;
+    }
+    return Array.from(new Set(ids));
+  }
+
+  /** Number shown on the print button: the selection if there is one, else all results. */
+  printCount(): number { return this.printIds().length; }
+
+  /** Opens the print dialog for the selection — or, with none, for all results of the tab. */
+  printResults(): void {
+    const ids = this.printIds();
+    if (!ids.length) return;
+    this.pdfDialog.open({
+      ids,
+      docs: this.selectedDocs.length ? [...this.selectedDocs] : undefined,
+      title: '',
+    });
+  }
+
+  /** Prints one result as a PDF of its own. */
+  printOne(id: string): void { this.pdfDialog.open({ ids: [id] }); }
+
   exitSynopsis() {
     this.showSynopsis = false;
     this.updateUrl();
@@ -2017,8 +1764,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   async exportPatternAnalysisPDF() {
     try {
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-      const pageHeight = 842;
-      const pageWidth = 595;
       const margin = 40;
       let y = margin;
 

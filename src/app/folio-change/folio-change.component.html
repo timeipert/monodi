@@ -3,10 +3,10 @@
     <svg [attr.width]="syllableWidth + 'px'">
       <g [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">
         <g [attr.transform]="'translate(' + ((syllableWidth - svgWidth)/2) + ', 0)'">
-          <rect x=0 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': 'black'" />
-          <rect x=5 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': 'black'" />
+          <rect x=0 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': color" />
+          <rect x=5 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus ? 'lightgreen': color" />
           @if (readOnly) {
-            <text x=10 y=97 fill="black" >{{model.text}}</text>
+            <text x=10 y=97 [attr.fill]="color" >{{model.text}}</text>
           }
         </g>
         <g [attr.transform]="'translate(' + (20/2) + ', 0)'">

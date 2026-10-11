@@ -8,6 +8,7 @@ import { jsPDF } from 'jspdf';
  *
  * Families:
  *   'NotoSans'   — extended Latin, Greek, Cyrillic, many diacritics (4 weights).
+ *   'CrimsonText' — Minion-like book serif (print-edition look), Latin + diacritics.
  *   'NotoSansTC' — Traditional Chinese (+ Latin), one weight for all styles.
  *   'NotoSansSC' — Simplified Chinese (+ Latin), one weight for all styles.
  *
@@ -27,6 +28,16 @@ const FONTS: { [family: string]: FontDef } = {
       { style: 'bold',       file: 'assets/font/static/NotoSans-Bold.ttf' },
       { style: 'italic',     file: 'assets/font/static/NotoSans-Italic.ttf' },
       { style: 'bolditalic', file: 'assets/font/static/NotoSans-BoldItalic.ttf' },
+    ],
+  },
+  // Crimson Text (SIL OFL): the face used for the printed-edition look. No bold-italic cut
+  // is bundled, so that style falls back to italic.
+  CrimsonText: {
+    styles: [
+      { style: 'normal',     file: 'assets/font/crimson/CrimsonText-Regular.ttf' },
+      { style: 'bold',       file: 'assets/font/crimson/CrimsonText-Bold.ttf' },
+      { style: 'italic',     file: 'assets/font/crimson/CrimsonText-Italic.ttf' },
+      { style: 'bolditalic', file: 'assets/font/crimson/CrimsonText-Italic.ttf' },
     ],
   },
   // CJK has no italics and only one bundled weight; map every style to Regular.

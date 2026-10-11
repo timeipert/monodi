@@ -6,6 +6,9 @@ import {
   normalizeDocumentComments,
   RootContainer 
 } from './types/model';
+import {
+  importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders
+} from './placeholder-comments';
 
 export interface WorkspaceImportResult {
   sources: any;
@@ -22,7 +25,8 @@ export function buildWorkspaceExport(
   documents: any,
   notesDict: any,
   settings: any,
-  backwardsCompatMode: BackwardsCompatMode | boolean = 'none'
+  backwardsCompatMode: BackwardsCompatMode | boolean = 'none',
+  placeholderNotes = false
 ): any {
   const mode: BackwardsCompatMode = typeof backwardsCompatMode === 'boolean'
     ? (backwardsCompatMode ? 'comment' : 'none')
@@ -70,6 +74,15 @@ export function buildWorkspaceExport(
     }
   }
 
+  if (placeholderNotes && processedNotes && typeof processedNotes === 'object') {
+    const cfg = placeholderConfigFromSettings(settings);
+    const next: any = {};
+    for (const [docId, root] of Object.entries(processedNotes)) {
+      next[docId] = root && (root as any).kind === 'RootContainer' ? syllableCommentsToPlaceholders(root as RootContainer, cfg) : root;
+    }
+    processedNotes = next;
+  }
+
   return {
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     sources,
@@ -86,9 +99,10 @@ export function parseWorkspaceImport(json: any): WorkspaceImportResult {
   const schemaVersion = json.schemaVersion !== undefined ? json.schemaVersion : 1;
   const notesDict = json.notes;
   if (notesDict && typeof notesDict === 'object') {
-    for (const [docId, root] of Object.entries(notesDict)) {
+    for (const root of Object.values(notesDict)) {
       if (root && typeof root === 'object' && (root as any).kind === 'RootContainer') {
         normalizeDocumentComments(root as RootContainer);
+        if (importPlaceholderCommentsEnabled(json.settings)) placeholderCommentsToSyllables(root as RootContainer, placeholderConfigFromSettings(json.settings));
       }
     }
   }

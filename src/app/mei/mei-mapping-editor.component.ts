@@ -5,7 +5,8 @@ import { APIService, ProjectSettings, Document as MonodiDocument } from '../api.
 import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
-import { MeiMappingProfileV2, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
+import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
+import { MeiMappingProfileV2, MeiPatternRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
 import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
@@ -236,8 +237,79 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Result panel shown next to the settings (off by default). */
+  showPreview = false;
+
+  togglePreview() {
+    this.showPreview = !this.showPreview;
+    if (this.showPreview) this.updatePreview();
+  }
+
+  /** Profile "Manage" menu open. */
+  manageOpen = false;
+
+  // --- Tabs ---
+  readonly tabs: { id: 'general' | 'elements' | 'patterns' | 'flags'; label: string; hint: string; icon: string }[] = [
+    { id: 'general',  label: 'General',    hint: 'Header and frame',          icon: 'bi-file-earmark-code' },
+    { id: 'elements', label: 'Elements',   hint: 'Tag and attributes per part', icon: 'bi-diagram-3' },
+    { id: 'patterns', label: 'Patterns',   hint: 'Fixed MEI per neume shape',  icon: 'bi-music-note-list' },
+    { id: 'flags',    label: 'Note flags', hint: 'Your own markers, e.g. virga', icon: 'bi-tags' }
+  ];
+
+  /** Last entity shown in the Elements tab, so switching tabs and back keeps the selection. */
+  private lastEntity: MeiEntityKey = 'note';
+
+  readonly entityGroups: { title: string; items: { key: MeiEntityKey; label: string; hint: string; depth: number }[] }[] = [
+    { title: 'Text and layout', items: [
+      { key: 'formteil', label: 'Section (Formteil)', hint: 'A part of the chant', depth: 0 },
+      { key: 'zeile', label: 'Line', hint: 'One manuscript line', depth: 1 },
+      { key: 'clef', label: 'Clef', hint: 'Clef at the start of a line', depth: 2 },
+      { key: 'paratext', label: 'Paratext', hint: 'Rubrics and other text outside the melody', depth: 2 }
+    ] },
+    { title: 'Syllables', items: [
+      { key: 'syllable', label: 'Syllable', hint: 'Text syllable with its notes', depth: 0 },
+      { key: 'syllableText', label: 'Syllable text', hint: 'The words under the notes', depth: 1 }
+    ] },
+    { title: 'Neumes and notes', items: [
+      { key: 'neume', label: 'Neume', hint: 'Notes written without a gap', depth: 0 },
+      { key: 'note', label: 'Note', hint: 'A single note (default)', depth: 1 },
+      { key: 'oriscus', label: 'Oriscus', hint: 'Replaces Note for oriscus notes', depth: 1 },
+      { key: 'quilisma', label: 'Quilisma', hint: 'Replaces Note for quilisma notes', depth: 1 },
+      { key: 'strophicus', label: 'Strophicus', hint: 'Replaces Note for strophicus notes', depth: 1 },
+      { key: 'liquescent', label: 'Liquescent', hint: 'Replaces Note for liquescent notes', depth: 1 }
+    ] }
+  ];
+
+  get tab(): 'general' | 'elements' | 'patterns' | 'flags' {
+    switch (this.selectedNodeId) {
+      case 'skeleton': return 'general';
+      case 'patterns': return 'patterns';
+      case 'flags': return 'flags';
+      default: return 'elements';
+    }
+  }
+
+  setTab(t: 'general' | 'elements' | 'patterns' | 'flags') {
+    this.selectNode(t === 'general' ? 'skeleton' : t === 'elements' ? this.lastEntity : t);
+  }
+
+  tabCount(t: string): number | null {
+    if (t === 'patterns') return this.patternRules.length;
+    if (t === 'flags') return this.noteFlags.length;
+    return null;
+  }
+
+  get selectedEntityMeta(): { label: string; hint: string } | undefined {
+    for (const g of this.entityGroups) {
+      const e = g.items.find(i => i.key === this.selectedNodeId);
+      if (e) return e;
+    }
+    return undefined;
+  }
+
   selectNode(id: string) {
     this.selectedNodeId = id;
+    if (this.entityGroups.some(g => g.items.some(i => i.key === id))) this.lastEntity = id as MeiEntityKey;
     this.armedResetEntity = null; // never carry an armed reset across nodes
   }
 
@@ -276,13 +348,13 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
   /** Convenience for the rule editor: does the currently selected entity differ? */
   get selectedEntityDiffers(): boolean {
-    if (this.selectedNodeId === 'skeleton') return false;
+    if (this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return false;
     return this.entityDiffers(this.selectedNodeId as MeiEntityKey);
   }
 
   /** Two-click revert of only the selected entity's rule to the default. */
   resetEntityToDefault() {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton') return;
+    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return;
     const key = this.selectedNodeId as MeiEntityKey;
 
     if (this.armedResetEntity !== key) {
@@ -301,8 +373,258 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     this.toastr.success(`"${key}" reset to default.`);
   }
 
+  // --- Note flags (user-defined, e.g. virga) ---
+  newFlagLabel = '';
+  /** Key typed by the user; empty means "use the suggestion". */
+  newFlagKeyInput = '';
+
+  get noteFlags(): NoteFlagDef[] {
+    return this.settings.noteFlags ??= [];
+  }
+
+  /** Letters still free for a new flag. */
+  get freeFlagKeys(): string[] {
+    const used = new Set(this.noteFlags.map(f => f.key));
+    return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(k => !RESERVED_FLAG_KEYS.includes(k) && !used.has(k));
+  }
+
+  /** The label's first free letter (Virga → V), else the first free letter. */
+  get suggestedFlagKey(): string {
+    const free = this.freeFlagKeys;
+    const fromLabel = this.newFlagLabel.toUpperCase().split('').find(c => free.includes(c));
+    return fromLabel ?? free[0] ?? '';
+  }
+
+  /** Digit that toggles a flag in the editor (1-9, 0), or null beyond the tenth. */
+  flagKeyFor(key: string): string | null {
+    return flagShortcutKey(this.noteFlags, key);
+  }
+
+  get newFlagKey(): string {
+    return this.newFlagKeyInput || this.suggestedFlagKey;
+  }
+
+  onFlagKeyInput(el: HTMLInputElement) {
+    // Case does not matter to the user: v → V, and only the last typed letter counts.
+    this.newFlagKeyInput = el.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(-1);
+    el.value = this.newFlagKeyInput;
+  }
+
+  /** Why the form cannot be submitted yet (null = fine). Shown inline instead of failing on click. */
+  get flagFormHint(): string | null {
+    if (!this.newFlagLabel.trim()) return 'Give the flag a name, e.g. Virga.';
+    const key = this.newFlagKey;
+    if (!key) return 'All letters are taken.';
+    const err = validateFlagKey(key, this.noteFlags);
+    if (!err) return null;
+    const alt = this.suggestedFlagKey;
+    const reason = RESERVED_FLAG_KEYS.includes(key) ? `${key} is already used for a note type.`
+      : `${key} is already used by another flag.`;
+    return alt ? `${reason} Try ${alt}.` : reason;
+  }
+
+  addNoteFlag() {
+    if (this.flagFormHint) return;
+    const key = this.newFlagKey;
+    const label = this.newFlagLabel.trim();
+    this.noteFlags.push({ key, label, abbrev: key, mei: {} });
+    this.newFlagLabel = '';
+    this.newFlagKeyInput = '';
+    this.emitChange(true);
+  }
+
+  removeNoteFlag(i: number) {
+    this.noteFlags.splice(i, 1);
+    this.emitChange(true);
+  }
+
+  /** Loads an SVG file (paths only) as the flag's outline. */
+  async onFlagSvg(event: Event, fd: NoteFlagDef) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const glyph = parseSvgToGlyph(await file.text());
+    if (!glyph) {
+      this.toastr.error('No <path> with a viewBox found in this SVG.');
+    } else {
+      fd.svgPath = glyph.d;
+      fd.viewBox = glyph.viewBox;
+      this.emitChange(true);
+    }
+    (event.target as HTMLInputElement).value = '';
+  }
+
+  clearFlagSvg(fd: NoteFlagDef) {
+    fd.svgPath = undefined;
+    fd.viewBox = undefined;
+    this.emitChange(true);
+  }
+
+  // --- Pattern rules (pattern [+ manuscript] → MEI attributes per nc) ---
+  /** Structured nc attributes offered as quick fields; any other name can be added freely. */
+  readonly ncAttributeNames = ['tilt', 'curve', 'con', 'q', 'ho', 'type', 'facs'];
+  /** One-click attributes offered per note in a pattern rule. */
+  readonly quickAttributes = ['tilt', 'curve', 'con', 'q', 'ho'];
+  newPatternCode = '';
+  newPatternSigle = '';
+
+  get patternRules(): MeiPatternRule[] {
+    const p = this.activeProfile;
+    if (!p) return [];
+    return p.patternRules ??= [];
+  }
+
+  /** Master/detail state of the Patterns tab. */
+  selectedPattern: string | null = null;
+  patternFilter = '';
+  /** Manuscript the shown rule applies to; '' = all manuscripts. */
+  scopeSigle = '';
+  newOverrideSigle = '';
+  knownSigles: string[] = [];
+  private siglesLoaded = false;
+
+  /** One entry per pattern code (its manuscript overrides are folded into it). */
+  get patternList(): { code: string; overrides: number }[] {
+    const byCode = new Map<string, number>();
+    for (const r of this.patternRules) {
+      byCode.set(r.pattern, (byCode.get(r.pattern) ?? 0) + (r.sigle ? 1 : 0));
+    }
+    const f = this.patternFilter.trim().toLowerCase();
+    return Array.from(byCode, ([code, overrides]) => ({ code, overrides }))
+      .filter(e => !f || e.code.toLowerCase().includes(f))
+      .sort((x, y) => x.code.localeCompare(y.code));
+  }
+
+  get scopeRule(): MeiPatternRule | undefined {
+    return this.patternRules.find(r => r.pattern === this.selectedPattern && (r.sigle || '') === this.scopeSigle);
+  }
+
+  get overrideSigles(): string[] {
+    return this.patternRules.filter(r => r.pattern === this.selectedPattern && r.sigle).map(r => r.sigle!);
+  }
+
+  selectPattern(code: string) {
+    this.selectedPattern = code;
+    this.scopeSigle = '';
+  }
+
+  addPatternRule() {
+    const code = patternBaseCode(this.newPatternCode);
+    if (!code || patternNoteCount(code) === 0) {
+      this.toastr.warning('Enter a pattern code such as [*ud] or *uu.');
+      return;
+    }
+    if (!this.patternRules.some(r => r.pattern === code && !r.sigle)) {
+      this.patternRules.push(normalizePatternRule({ id: uuidv4(), pattern: code, enabled: true, nc: [] }));
+      this.emitChange(true);
+    }
+    this.newPatternCode = '';
+    this.patternFilter = '';
+    this.selectPattern(code);
+  }
+
+  removePattern(code: string) {
+    if (!confirm(`Delete the rules for ${code}, including all manuscript overrides?`)) return;
+    const p = this.activeProfile!;
+    p.patternRules = this.patternRules.filter(r => r.pattern !== code);
+    this.selectedPattern = null;
+    this.emitChange(true);
+  }
+
+  ensureSiglesLoaded() {
+    if (this.siglesLoaded) return;
+    this.siglesLoaded = true;
+    this.api.listSources(this.token || '').subscribe({
+      next: res => {
+        if (res.kind === 'SourcesRetrieved') {
+          this.knownSigles = res.sources.map(s => s.quellensigle).filter(Boolean).sort();
+        }
+      },
+      error: () => { this.siglesLoaded = false; }
+    });
+  }
+
+  /** Starts a manuscript-specific rule as a copy of the all-manuscripts rule. */
+  addOverride() {
+    const sigle = this.newOverrideSigle.trim();
+    if (!sigle || !this.selectedPattern) return;
+    if (!this.patternRules.some(r => r.pattern === this.selectedPattern && r.sigle === sigle)) {
+      const base = this.patternRules.find(r => r.pattern === this.selectedPattern && !r.sigle);
+      this.patternRules.push(normalizePatternRule({
+        id: uuidv4(), pattern: this.selectedPattern, sigle, enabled: true,
+        nc: JSON.parse(JSON.stringify(base?.nc ?? [])),
+        neume: base?.neume ? { ...base.neume } : undefined
+      }));
+      this.emitChange(true);
+    }
+    this.scopeSigle = sigle;
+    this.newOverrideSigle = '';
+  }
+
+  removeOverride(sigle: string) {
+    const p = this.activeProfile!;
+    p.patternRules = this.patternRules.filter(r => !(r.pattern === this.selectedPattern && r.sigle === sigle));
+    if (this.scopeSigle === sigle) this.scopeSigle = '';
+    this.emitChange(true);
+  }
+
+  addRuleAttr(attrs: Record<string, string>, name: string) {
+    if (!name.trim() || name === 'pname' || name === 'oct') return;
+    if (!(name in attrs)) attrs[name] = '';
+    this.emitChange();
+  }
+
+  removeRuleAttr(attrs: Record<string, string>, name: string) {
+    delete attrs[name];
+    this.emitChange();
+  }
+
+  ruleAttrNames(attrs: Record<string, string>): string[] {
+    return Object.keys(attrs || {});
+  }
+
+  /** Copy the first nc's attributes to all other notes of the rule ("↓ all"). */
+  copyFirstToAll(rule: MeiPatternRule) {
+    rule.nc = rule.nc.map(() => ({ ...(rule.nc[0] || {}) }));
+    this.emitChange();
+  }
+
+  /** Neume Viewer interchange: { [code]: { mei: [ncAttrs] } }; manuscript-specific rules are not part of that format. */
+  exportPatternRules() {
+    const out: Record<string, { mei: Record<string, string>[] }> = {};
+    for (const r of this.patternRules.filter(r => !r.sigle && r.enabled)) out[r.pattern] = { mei: r.nc };
+    const blob = new Blob([JSON.stringify({ patterns: out }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'pattern-mei.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async importPatternRules(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const patterns = data.patterns ?? data;
+      let n = 0;
+      for (const [code, entry] of Object.entries<any>(patterns)) {
+        if (!Array.isArray(entry?.mei)) continue;
+        const base = patternBaseCode(code);
+        const rule = normalizePatternRule({ id: uuidv4(), pattern: base, enabled: true, nc: entry.mei });
+        const existing = this.patternRules.find(r => r.pattern === base && !r.sigle);
+        if (existing) existing.nc = rule.nc; else this.patternRules.push(rule);
+        n++;
+      }
+      this.emitChange(true);
+      this.toastr.success(`${n} pattern rule(s) imported.`);
+    } catch {
+      this.toastr.error('Not a valid pattern library JSON.');
+    }
+    (event.target as HTMLInputElement).value = '';
+  }
+
   get activeRule(): MeiEntityRule | undefined {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton') return undefined;
+    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return undefined;
     return this.activeProfile.entities[this.selectedNodeId as MeiEntityKey];
   }
 

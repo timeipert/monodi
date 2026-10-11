@@ -1,3 +1,8 @@
+import { PRINT_PRESET } from '../pdf-defaults';
+import { FORMTEIL_STATUSES } from '../types/formteil-status';
+import { TextStyle, statusTextStyleOf } from '../print/text-style';
+import { HEADING_FIELD_KEYS, HeadingField, DEFAULT_HEADING_SEPARATOR, sanitizeHeadingFields } from '../print/doc-heading';
+import { metadataFieldLabel } from '../document-metadata';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.service';
 import { UserService, User } from '../user.service';
@@ -116,6 +121,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
   subs: Subscription[] = [];
   settings: ProjectSettings | null = null;
 
+  /** Sets every print-related value to the printed-edition look (fonts, sizes, spacing, margins, colour). */
+  applyPrintPreset(): void {
+    if (!this.settings) return;
+    Object.assign(this.settings, PRINT_PRESET);
+    this.onSettingsChange();
+  }
+
+  /** Sections whose lyric the PDF can set in its own case style. */
+  readonly formteilStatuses = FORMTEIL_STATUSES;
+
+  statusTextStyle(status: string): TextStyle {
+    return statusTextStyleOf(this.settings?.pdfStatusTextStyle, status);
+  }
+
+  setStatusTextStyle(status: string, style: TextStyle): void {
+    if (!this.settings) return;
+    this.settings.pdfStatusTextStyle = { ...(this.settings.pdfStatusTextStyle || {}), [status]: style };
+    this.onSettingsChange();
+  }
+
   onSettingsChange() {
     if (this.settings) {
       sanitizeSettings(this.settings);
@@ -229,31 +254,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.toastr.info('Editor shortcuts reset to defaults.');
   }
 
-  get htmlExportSourceFields() {
-    return [
-      { key: 'quellensigle', label: 'Siglum' },
-      { key: 'herkunftsregion', label: 'Region of Origin' },
-      { key: 'herkunftsort', label: 'Place of Origin' },
-      { key: 'herkunftsinstitution', label: 'Institution of Origin' },
-      { key: 'ordenstradition', label: 'Order Tradition' },
-      { key: 'quellentyp', label: 'Source Type' },
-      { key: 'bibliotheksort', label: 'Library Location' },
-      { key: 'bibliothek', label: 'Library' },
-      { key: 'bibliothekssignatur', label: 'Library Signature' }
-    ];
-  }
+  /** Fixed lists: constants, so the template sees the same objects on every change-detection pass. */
+  readonly htmlExportSourceFields = [
+    { key: 'quellensigle', label: 'Siglum' },
+    { key: 'herkunftsregion', label: 'Region of Origin' },
+    { key: 'herkunftsort', label: 'Place of Origin' },
+    { key: 'herkunftsinstitution', label: 'Institution of Origin' },
+    { key: 'ordenstradition', label: 'Order Tradition' },
+    { key: 'quellentyp', label: 'Source Type' },
+    { key: 'bibliotheksort', label: 'Library Location' },
+    { key: 'bibliothek', label: 'Library' },
+    { key: 'bibliothekssignatur', label: 'Library Signature' }
+  ];
 
-  get htmlExportDocumentFields() {
-    return [
-      { key: 'textinitium', label: 'Text Initium' },
-      { key: 'dokumenten_id', label: 'Document ID' },
-      { key: 'gattung1', label: 'Genre 1' },
-      { key: 'gattung2', label: 'Genre 2' },
-      { key: 'festtag', label: 'Feast Day' },
-      { key: 'feier', label: 'Celebration' },
-      { key: 'liturgischer_status', label: 'Liturgical Status' }
-    ];
-  }
+  readonly htmlExportDocumentFields = [
+    { key: 'textinitium', label: 'Text Initium' },
+    { key: 'dokumenten_id', label: 'Document ID' },
+    { key: 'gattung1', label: 'Genre 1' },
+    { key: 'gattung2', label: 'Genre 2' },
+    { key: 'festtag', label: 'Feast Day' },
+    { key: 'feier', label: 'Celebration' },
+    { key: 'liturgischer_status', label: 'Liturgical Status' }
+  ];
 
   ngOnInit() {
     this.pageTitle.set('Settings');
@@ -300,6 +322,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
             if (!this.settings.htmlExportFooterHtml) {
               this.settings.htmlExportFooterHtml = `<footer class="edition-footer mt-5 pt-4 pb-3 border-top text-center text-muted small">\n  <p class="mb-1">&copy; 2026 Scholarly Monodi Edition Project. All rights reserved.</p>\n  <p class="opacity-75">Generated with Monodi+ zero. Free to share and adapt for non-commercial scholarly purposes.</p>\n</footer>`;
             }
+            if (!this.settings.clefDisplayMode) this.settings.clefDisplayMode = 'document-start';
+            if (!this.settings.notationColor) this.settings.notationColor = '#333333';
+            if (this.settings.pdfContinuationIndent === undefined) this.settings.pdfContinuationIndent = 20;
             if (this.settings.pdfSynopsisScale === undefined) this.settings.pdfSynopsisScale = 1.0;
             if (this.settings.pdfSynopsisShowHeader === undefined) this.settings.pdfSynopsisShowHeader = true;
             if (this.settings.pdfSynopsisShowHeaderMetadata === undefined) this.settings.pdfSynopsisShowHeaderMetadata = true;
@@ -421,6 +446,60 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (!this.settings || !this.settings.genreLevelProfiles) return;
     this.settings.genreLevelProfiles = this.settings.genreLevelProfiles.filter(p => p.id !== id);
     this.saveSettings();
+  }
+
+  // ── Heading where a document begins in the PDF ─────────────────────────────────────────
+  private defaultHeadingFields?: HeadingField[];
+  readonly defaultHeadingSeparator = DEFAULT_HEADING_SEPARATOR;
+
+  /** The configured fields, or the (stable) default list while nothing is configured. */
+  headingFieldsList(): HeadingField[] {
+    return this.settings?.pdfDocHeadingFields ?? (this.defaultHeadingFields ??= sanitizeHeadingFields(undefined));
+  }
+
+  headingFieldOptions(): { key: string; label: string }[] {
+    const keys = [...HEADING_FIELD_KEYS, ...(this.settings?.customDocumentFields || []).map(f => f.key)];
+    return keys.map(key => ({ key, label: metadataFieldLabel(key, this.settings) }));
+  }
+
+  headingFieldLabel(key: string): string { return metadataFieldLabel(key, this.settings); }
+
+  private editableHeadingFields(): HeadingField[] {
+    if (!this.settings) return [];
+    return this.settings.pdfDocHeadingFields ??= this.headingFieldsList().map(f => ({ ...f }));
+  }
+
+  setHeadingField(i: number, patch: Partial<HeadingField>): void {
+    const list = this.editableHeadingFields();
+    if (!list[i]) return;
+    Object.assign(list[i], patch);
+    this.onSettingsChange();
+  }
+
+  moveHeadingField(i: number, delta: number): void {
+    const list = this.editableHeadingFields();
+    const j = i + delta;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    this.onSettingsChange();
+  }
+
+  removeHeadingField(i: number): void {
+    this.editableHeadingFields().splice(i, 1);
+    this.onSettingsChange();
+  }
+
+  addHeadingField(key: string): void {
+    if (!key) return;
+    this.editableHeadingFields().push({ key, style: 'normal', showLabel: true });
+    this.onSettingsChange();
+  }
+
+  resetHeadingFields(): void {
+    if (!this.settings) return;
+    delete this.settings.pdfDocHeadingFields;
+    delete this.settings.pdfDocHeadingSeparator;
+    this.onSettingsChange();
   }
 
   get availableHeadlineFields(): FieldDef[] {

@@ -1,6 +1,7 @@
 import * as P from 'parsimmon'
 import * as PP from './parsers'
 import * as M from './model';
+import { STATUS_TROPE_ELEMENT } from './formteil-status';
 import { v4 as UUID } from "uuid";
 
 export function ordinariumsParser(): P.Parser<M.RootContainer>{
@@ -19,12 +20,10 @@ export function ordinariumRoot(): P.Parser<M.RootContainer> {
     rootContainer.documentType = M.DocumentType.Level2;
 
     for (let line of lines) {
-      console.log(line);
       const cont = getLineContinuation(line);
       const last = lastFormteilChildren(rootContainer);
 
       if (line.match(/^([A-Za-z\u00C0-\u017F\.…<>]+[0-9]*\s*)*$/)) {
-        console.log("as para");
         const paratext = makeParatext(line);
         if (last !== undefined) {
           last.push(paratext);
@@ -32,20 +31,16 @@ export function ordinariumRoot(): P.Parser<M.RootContainer> {
           rootContainer.children.push(makeLine("", "", [paratext]));
         }
       } else if (cont !== undefined) {
-        console.log("as cont");
         if (last === undefined) continue;
         const [lineContainer, folioChangePart ] = parseLineContainer(line);
         last.push(lineContainer);
         if (folioChangePart) {
-          console.log("filling folio change");
           fillLastFolioChange(last, folioChangePart);
         }
       } else {
-        console.log("as formteil");
         const [formteil, folioChangePart ] = makeFormteil(line);
         rootContainer.children.push(formteil);
         if (folioChangePart) {
-          console.log("filling folio change");
           fillLastFolioChange(formteil.children, folioChangePart);
         }
       }
@@ -80,7 +75,6 @@ function fillLastFolioChange(children: M.FormteilChildren[], text: string): bool
 
 function parseLineContainer(line: string): [M.ZeileContainer, string | undefined] {
   const [linePart, folioChangePart] = line.split("\t||");
-  console.log(`parsing >>>${line}<<< as >>${linePart}<< and >>${folioChangePart}<<`);
   const spaced = linePart.split(/\s+/);
   const cont: M.ZeileContainer = {
     "kind": M.ContainerKind.ZeileContainer,
@@ -106,7 +100,7 @@ function makeFormteil(line: string): [M.FormteilContainer, string | undefined] {
   const [lineContainer, folioChangePart] = parseLineContainer(afterTab);
 
   if (beforeTab.match(/^[1-9]*[IVX]*[a-zA-Z](\^[0–9]+)?$/)) {
-    return [makeLine(beforeTab, "Tropenelement", [lineContainer]), folioChangePart];
+    return [makeLine(beforeTab, STATUS_TROPE_ELEMENT, [lineContainer]), folioChangePart];
   } else {
     return [makeLine(beforeTab, "", [lineContainer]), folioChangePart];
   }
@@ -167,7 +161,7 @@ function lineParser(): P.Parser<M.FormteilContainer>{
 function singleLineParser(): P.Parser<M.FormteilContainer>{
   return P.seqMap(
     P.alt(
-      P.regexp(/[1-9]*[IVX]*[a-zA-Z](\^[0–9]+)?\t/).map(t => ({name: t.trim(), sType: "Tropenelement" })),
+      P.regexp(/[1-9]*[IVX]*[a-zA-Z](\^[0–9]+)?\t/).map(t => ({name: t.trim(), sType: STATUS_TROPE_ELEMENT })),
       P.regexp(/![^\t]*\t/).map(t => ({name: t.trim(), sType: "" })),
     ),
     PP.lineContainerParser(),

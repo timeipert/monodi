@@ -12,6 +12,5 @@ export class ComplexCommentComponent {
 
   treeEvent(event: M.CommentTreeEvent) {
     this.tree = M.applyCommentTreeEvent(this.tree, event);
-    console.log("hi")
   }
 }

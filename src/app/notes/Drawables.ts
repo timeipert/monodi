@@ -1,4 +1,4 @@
-import { Comment, Spaced, NonSpaced, Grouped, Note, BaseNote, baseNotes, comparePositions } from '../types/model';
+import { Comment, Spaced, NonSpaced, Grouped, Note, NoteType, baseNotes } from '../types/model';
 import { flatten, maxOf } from '../../utils';
 
 export type Drawable = DNote | DTie | DCommentEnd | DCommentStart | DHelperLine
@@ -14,9 +14,20 @@ export class DTie {
   constructor(public x: number, public y: number, public ref: Grouped, public width: number) { }
 
   addOffset(x: number): DTie { return new DTie(this.x + x, this.y, this.ref, this.width); }
+  /** Right edge of the bracket (same coordinate space as `x`). */
+  get right(): number { return this.x + Math.max(this.width - 5, 2 * DTie.R + 2); }
+
+  /**
+   * Neume bracket as in the printed edition: a flat horizontal stroke with short
+   * legs at both ends and rounded corners (not an arc).
+   */
   getPath(): string {
-    return "M" + this.x + " " + this.y + " c -2 -8, " + (this.width - 3) + " -8, " + (this.width - 5) + " 0 ";
+    const r = DTie.R, leg = DTie.LEG;
+    const span = Math.max(this.width - 5, 2 * r + 2);
+    return `M${this.x} ${this.y} v ${-(leg - r)} q 0 ${-r} ${r} ${-r} h ${span - 2 * r} q ${r} 0 ${r} ${r} v ${leg - r}`;
   }
+  static readonly R = 3;
+  static readonly LEG = 6;
 }
 
 export class DCommentStart {
@@ -36,7 +47,7 @@ export class DHelperLine {
 
 export function fromSpaced(sd: Spaced, comments: Comment[]): Drawable[] {
   const mapped = sd.spaced.map(x => fromNonSpaced(x, comments));
-  return flatten(spacedWith(35, mapped));
+  return flatten(spacedWith(NEUME_SPACE, mapped));
 }
 
 export function fromSpaceds(sds: Spaced[], comments: Comment[]): Drawable[][] {
@@ -60,7 +71,8 @@ export function fromSpaceds(sds: Spaced[], comments: Comment[]): Drawable[][] {
       }
     }
     
-    offset += 35 + maxWidth;
+    const present = sds.map((_, m) => mapped[m][i]).filter(Boolean);
+    offset += (present.length > 0 && present.every(isAccidentalOnly) ? ACCIDENTAL_SPACE : NEUME_SPACE) + maxWidth;
   }
   
   return aligned.map(a => flatten(a));
@@ -121,7 +133,7 @@ export function adiastematicFromSpaceds(sds: Spaced[], comments: Comment[]): Dra
           const minY = Math.min(...groupNotes.map(d => d.y));
           const firstX = groupNotes[0].x;
           const lastX = groupNotes[groupNotes.length - 1].x;
-          out.push(new DTie(firstX + 2, minY + 20, g, (lastX - firstX) + 12));
+          out.push(new DTie(firstX + 2, minY + 20, g, (lastX - firstX) + 12 + stemClearance(groupNotes[groupNotes.length - 1].ref)));
         }
         // No extra gap between groups: slurred and unslurred notes within a
         // neume are spaced identically — only the slur line differs.
@@ -145,42 +157,66 @@ function fromGrouped(g: Grouped, comments: Comment[]): Drawable[] {
       2,
       -(maxOf(notes.map(n => -n.y - 20)) || 0),
       g,
-      getWidth(notes) + 12
+      getWidth(notes) + 12 + stemClearance(g.grouped[g.grouped.length - 1])
     ));
   }
   return notes;
+}
+
+/**
+ * Extra bracket width when the group ends on a virga: its stem stands at x + 10…11, right where
+ * the bracket's closing leg would be (x + 9), and the two fuse into one stroke. Pushing the leg
+ * past the stem keeps the virga readable.
+ */
+export function stemClearance(last: Note | undefined): number {
+  return last && last.noteType === NoteType.Ascending && !last.liquescent ? 5 : 0;
+}
+
+/** Vertical position of a note's glyph box (staff lines are at y = 40..80, 5 units per step). */
+export function noteY(n: Note): number {
+  return 60 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5 + (n.liquescent ? 10 : 0);
+}
+
+/** Top padding (units) the read-only SVG needs so that a note at `minNoteY`, with its
+ *  neume bracket, is not cut off. The visible area starts at y = 20 - padTop. */
+export function requiredPadTop(minNoteY: number): number {
+  return Math.max(0, Math.ceil(8 - minNoteY));
+}
+
+/** Bottom padding (units) a read-only SVG needs so that a note whose glyph ends at `maxNoteBottom`
+ *  (and its ledger lines) is not cut off; the SVG's own area ends at y = 85. */
+export function requiredPadBottom(maxNoteBottom: number): number {
+  return Math.max(0, Math.ceil(maxNoteBottom + 2 - 85));
+}
+
+/** Lowest glyph bottom (largest y) of a voice, or -Infinity without notes. */
+export function maxNoteBottomOf(sd: Spaced | undefined): number {
+  let m = -Infinity;
+  for (const ns of sd?.spaced || []) for (const g of ns.nonSpaced) for (const n of g.grouped) m = Math.max(m, noteY(n) + (n.noteType === NoteType.Descending ? 43 : 36));
+  return m;
+}
+
+/** Highest (smallest-y) note of a voice, or +Infinity without notes. */
+export function minNoteYOf(sd: Spaced | undefined): number {
+  let m = Infinity;
+  for (const ns of sd?.spaced || []) for (const g of ns.nonSpaced) for (const n of g.grouped) m = Math.min(m, noteY(n));
+  return m;
 }
 
 function fromNote(n: Note, comments: Comment[]): Drawable[] {
   let ret: Drawable[] = [];
   let xOffset = 0;
 
-  if (comparePositions(n.octave, n.base, 4, BaseNote.C) <= 0) {
-    ret.push(new DHelperLine(0, 90, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 3, BaseNote.A) <= 0) {
-    ret.push(new DHelperLine(0, 100, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 3, BaseNote.F) <= 0) {
-    ret.push(new DHelperLine(0, 110, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 5, BaseNote.A) >= 0) {
-    ret.push(new DHelperLine(0, 30, n));
-  }
-
-  if (comparePositions(n.octave, n.base, 6, BaseNote.C) >= 0) {
-    ret.push(new DHelperLine(0, 20, n));
+  // Ledger lines every third step outside the staff: C4, A3, F3, D3, ... below (y = 90, 100, ...)
+  // and A5, C6, E6, ... above (y = 30, 20, ...), however far the note lies from the staff.
+  const step = (n.octave - 4) * 7 + baseNotes.indexOf(n.base); // C4 = 0
+  if (Number.isFinite(step)) {
+    for (let k = 0; step <= -2 * k && k < 40; k++) ret.push(new DHelperLine(0, 90 + 10 * k, n));
+    for (let k = 0; step >= 12 + 2 * k && k < 40; k++) ret.push(new DHelperLine(0, 30 - 10 * k, n));
   }
 
   //ret.push(new DNote(xOffset + 5, 92 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5, n));
-  if (n.liquescent) {
-    ret.push(new DNote(0, 60 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5 + 10, n));
-  } else {
-    ret.push(new DNote(-1, 60 - ((n.octave - 4) * 35) - baseNotes.indexOf(n.base) * 5, n));
-  }
+  ret.push(new DNote(n.liquescent ? 0 : -1, noteY(n), n));
   const startComment = comments.find(c => c.startUUID === n.uuid);
   const endComment = comments.find(c => c.endUUID === n.uuid);
 
@@ -193,6 +229,17 @@ function fromNote(n: Note, comments: Comment[]): Drawable[] {
   return ret;
 }
 
+/** Gap after a neume that is only an accidental (flat, natural, sharp): in the printed
+ *  edition it stands close before the note it applies to. */
+const NEUME_SPACE = 35;
+const ACCIDENTAL_SPACE = 15;
+const ACCIDENTALS: NoteType[] = [NoteType.Flat, NoteType.Natural, NoteType.Sharp];
+
+function isAccidentalOnly(ds: Drawable[]): boolean {
+  const notes = ds.filter((d): d is DNote => d instanceof DNote);
+  return notes.length > 0 && notes.every(n => ACCIDENTALS.includes(n.ref.noteType));
+}
+
 function spacedWith(space: number, dss: Drawable[][]): Drawable[][] {
   const ret: Drawable[][] = [];
 
@@ -200,7 +247,7 @@ function spacedWith(space: number, dss: Drawable[][]): Drawable[][] {
   for (const ds of dss) {
     const width = getWidth(ds);
     ret.push(ds.map(d => d.addOffset(offset)));
-    offset += space + width;
+    offset += (space === NEUME_SPACE && isAccidentalOnly(ds) ? ACCIDENTAL_SPACE : space) + width;
   }
 
   return ret;

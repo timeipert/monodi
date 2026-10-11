@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, ElementRef, ViewChild, OnDestroy, Output, EventEmitter, Input, Component, OnInit } from '@angular/core';
+import { ElementRef, ViewChild, OnDestroy, Output, EventEmitter, Input, Component, OnInit } from '@angular/core';
 import { assertNever, textWidth, focusContentEditable } from '../../utils';
 import { FocusService } from '../focus.service';
 import * as Model from '../types/model';
@@ -42,12 +42,14 @@ export class FolioChangeComponent implements OnDestroy, OnInit {
   svgWidth = 0;
   hasFocus = false;
 
+  /** Colour of all notation graphics (project setting `notationColor`). */
+  get color(): string { return this.focusService.notationColor; }
+
   constructor(
     private focusService: FocusService,
     private toolsService: ToolsService,
     private modalService: NgbModal,
-    private undoService: UndoService,
-    private cdr: ChangeDetectorRef) {
+    private undoService: UndoService) {
   }
 
   ngOnInit() {
@@ -134,7 +136,6 @@ export class FolioChangeComponent implements OnDestroy, OnInit {
   }
 
   onTextKeyDownChange(event: KeyboardEvent): void {
-    console.log("onTextKeyDownEvent");
     handleTextInputMove(this.changeText.nativeElement, event, e => this.request.emit(e));
   }
 

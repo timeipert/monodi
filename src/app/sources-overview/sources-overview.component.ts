@@ -1,7 +1,11 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone } from '@angular/core';
+import { FocusService } from '../focus.service';
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
+import { sanitizeNotationColor } from '../notation-color';
+import { sanitizeClefDisplayMode } from '../clef-policy';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService, User } from '../user.service';
-import { APIService, UserInfo, Source, Document } from '../api.service'
+import { APIService, Source, Document } from '../api.service'
 import { assertNever } from '../../utils';
 import { buildWorkspaceCsv, parseWorkspaceCsv } from '../workspace-csv';
 import { BackupReminderService } from '../backup-reminder.service';
@@ -9,24 +13,25 @@ import { Subscription, firstValueFrom } from 'rxjs';
 import { Header, BatchField } from '../smart-table/smart-table.component';
 import { ToastrService } from 'ngx-toastr';
 import { ContextMenuService } from '../context-menu/context-menu.service';
-import { ToolsService } from '../tools.service';
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
-import { HttpClient } from '@angular/common/http';
 import * as localforage from 'localforage';
 import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
 import { PushCache } from '../push-cache';
 import { WORKSPACE_SCHEMA_VERSION } from '../schema';
 import { buildWorkspaceExport, parseWorkspaceImport, BackwardsCompatMode } from '../workspace-io';
+import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
 import { 
   convertToBackwardsCompatibleComment, 
   convertToBackwardsCompatibleConsecutiveLines, 
   convertToBackwardsCompatibleSplitDocuments, 
+  normalizeDocumentComments,
   RootContainer 
 } from '../types/model';
 import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
 import { FileSystemService } from '../file-system.service';
+import { SOURCE_DESCRIPTION_KEY, sourceDescription } from '../source-description';
+import { applyPlan, describePlan, ImportPreview, parseExchange, planChangesAnything, planImport } from '../annotation-exchange';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -58,6 +63,8 @@ const STORAGE_KEY = 'monodi_source_cols';
     standalone: false
 })
 export class SourcesOverviewComponent implements OnInit, OnDestroy {
+  private readonly focusSvc = inject(FocusService);
+  private readonly pdfDialog = inject(PdfDialogLauncher);
   subs: Subscription[] = [];
   sources: Source[] = [];
   user: User | null = null;
@@ -67,7 +74,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   cols: SourceColDef[] = [];
 
   showExportDialog = false;
-  exportMode: 'zip' | 'html' = 'zip';
+  exportMode: 'zip' | 'html' | 'pdf' = 'zip';
   isExporting = false;
   exportStatusMessage = '';
   allDocuments: any[] = [];
@@ -75,9 +82,15 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   selectedDocsForExport: any[] = [];
   renderingDocument: any = null;
   exportBackwardsCompatMode: BackwardsCompatMode = 'none';
+  /** Old versions: write a placeholder note under comments on syllables without notes. */
+  exportPlaceholderNotes = false;
 
   // CSV export options
   showCsvExportDialog = false;
+
+  /** An annotation file from the Neumen-Editor waiting for the person's OK. */
+  annotationImport: { fileName: string; preview: ImportPreview } | null = null;
+  isApplyingAnnotations = false;
   csvIncludeSourceMeta = true;
   csvIncludeDocumentMeta = true;
   csvIncludeContent = true;
@@ -205,11 +218,17 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       case 'export-html':
         this.openExportDialog('html');
         break;
+      case 'export-pdf':
+        this.openExportDialog('pdf');
+        break;
       case 'export-csv':
         this.showCsvExportDialog = true;
         break;
       case 'import-csv':
         document.getElementById('importCsvFile')?.click();
+        break;
+      case 'import-annotations':
+        document.getElementById('importAnnotationsFile')?.click();
         break;
       default:
         console.warn('Unknown workspace action:', action);
@@ -382,7 +401,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const notes = await NotesStore.getAll();
       const settings = await localforage.getItem('monodi_settings');
       
-      const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode);
+      const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode, this.exportPlaceholderNotes);
       
       const res = await this.fsService.saveFile(JSON.stringify(data, null, 2), {
         suggestedName: `workspace_export_${new Date().toISOString().split('T')[0]}.monodijson`,
@@ -454,6 +473,60 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       }
     } else {
       document.getElementById('importFile')?.click();
+    }
+  }
+
+  /** A file from the Neumen-Editor was chosen: read it and show what it would add, before anything changes. */
+  async onAnnotationFilePicked(event: any): Promise<void> {
+    const file: File | undefined = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const parsed = parseExchange(await file.text());
+      const preview = planImport(parsed, this.sources);
+      this.annotationImport = { fileName: file.name, preview };
+      if (!preview.plans.length) {
+        this.toastr.warning(preview.unmatched.length
+          ? `None of the manuscripts in this file are here: ${preview.unmatched.slice(0, 3).join(', ')}.`
+          : 'The file holds no manuscripts.', 'Nothing to import');
+      }
+    } catch (err: any) {
+      this.annotationImport = null;
+      this.toastr.error(err?.message || String(err), 'Could not read the annotation file');
+    }
+    this.cdRef.markForCheck();
+  }
+
+  readonly describePlan = describePlan;
+
+  get annotationPlansWithChanges() {
+    return (this.annotationImport?.preview.plans ?? []).filter(planChangesAnything);
+  }
+
+  closeAnnotationImport(): void {
+    if (this.isApplyingAnnotations) return;
+    this.annotationImport = null;
+  }
+
+  /** Write the plans into the sources. Each source is marked changed, so the next push sends it. */
+  async confirmAnnotationImport(): Promise<void> {
+    if (!this.annotationImport || !this.user || this.isApplyingAnnotations) return;
+    this.isApplyingAnnotations = true;
+    let applied = 0;
+    try {
+      for (const plan of this.annotationPlansWithChanges) {
+        const local = this.sources.find(s => s.id === plan.sourceId);
+        if (!local) continue;
+        const res = await firstValueFrom(this.api.updateSource(this.user.token, applyPlan(local, plan)));
+        if (res.kind === 'Ok') applied++;
+        else this.toastr.error(`${plan.label} could not be saved.`);
+      }
+      if (applied) this.toastr.success(`Annotations added to ${applied} manuscript${applied === 1 ? '' : 's'}.`);
+    } finally {
+      this.isApplyingAnnotations = false;
+      this.annotationImport = null;
+      this.updateList();
+      this.cdRef.markForCheck();
     }
   }
 
@@ -627,8 +700,8 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
    * `export_monodi` directory, a single source, or one document.
    *
    * For each *source* every unknown field is preserved verbatim in
-   * `source.custom` so nothing is silently dropped (the long `beschreibung`
-   * markdown lives there, for example). The `manifest` field, if any, is
+   * `source.custom` so nothing is silently dropped (the long `description`
+   * markdown lives there, for example; the older key `beschreibung` is renamed). The `manifest` field, if any, is
    * mapped to `iiifManifestUrl`. Likewise document `additionalData` becomes
    * `document.custom`, with any unrecognized top-level keys merged in.
    */
@@ -656,7 +729,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
    *
    * Unknown top-level keys are preserved verbatim in `source.custom` /
    * `document.custom` so nothing in the meta.json is silently dropped (the
-   * long `beschreibung` markdown lives there, for example). `manifest` maps
+   * long `description` markdown lives there, for example; the older key `beschreibung` is renamed). `manifest` maps
    * to `Source.iiifManifestUrl`; `additionalData` maps to `Document.custom`.
    */
   async importZip(event: any) {
@@ -794,6 +867,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           if (v === null || v === undefined) continue;
           custom[k] = typeof v === 'string' ? v : JSON.stringify(v);
         }
+        // earlier exports call the Markdown description `beschreibung`; it is kept as `description`
+        if (custom['beschreibung'] !== undefined) {
+          if (!custom[SOURCE_DESCRIPTION_KEY]) custom[SOURCE_DESCRIPTION_KEY] = custom['beschreibung'];
+          delete custom['beschreibung'];
+        }
 
         const next: Source = {
           id:                    sourceId,
@@ -849,6 +927,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         details: '',
       });
 
+      const importSettings = await localforage.getItem<any>('monodi_settings');
       for (let i = 0; i < docMetas.length; i++) {
         if (this.importProgress.cancelled) return;
         const { meta, sourceId, docId, dataPath } = docMetas[i];
@@ -898,6 +977,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           //   1. NotesStore.set(...)
           //   2. documents.push(...) / documents[idx] = ...
           let notesPersisted = false;
+          if (docData && docData.kind === 'RootContainer' && importPlaceholderCommentsEnabled(importSettings)) {
+            normalizeDocumentComments(docData);
+            placeholderCommentsToSyllables(docData, placeholderConfigFromSettings(importSettings));
+          }
           try {
             await NotesStore.set(docId, docData);
             notesPersisted = true;
@@ -1051,7 +1134,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
   }
 
-  async openExportDialog(mode: 'zip' | 'html') {
+  async openExportDialog(mode: 'zip' | 'html' | 'pdf') {
     this.exportMode = mode;
     this.selectedSourcesForExport = [];
     this.selectedDocsForExport = [];
@@ -1086,8 +1169,12 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
   onExportSelectionChange(selection: { selectedSources: Source[], selectedDocs: any[] }) {
-    this.selectedSourcesForExport = selection.selectedSources;
-    this.selectedDocsForExport = selection.selectedDocs;
+    // The selector reports its first selection while the dialog is still being checked; apply it right after
+    // (changing the Export button's state in the middle of the check raises NG0100).
+    Promise.resolve().then(() => {
+      this.selectedSourcesForExport = selection.selectedSources;
+      this.selectedDocsForExport = selection.selectedDocs;
+    });
   }
 
   get hasSelectedItems(): boolean {
@@ -1099,6 +1186,12 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     try {
       if (this.exportMode === 'zip') {
         await this.generateZipWorkspace();
+      } else if (this.exportMode === 'pdf') {
+        // hand the selection over to the print dialog (options, order, page format)
+        const docs = [...this.selectedDocsForExport]
+          .sort((a: any, b: any) => (a.dokumenten_id || '').localeCompare(b.dokumenten_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+        this.closeExportDialog();
+        this.pdfDialog.open({ docs, title: '' });
       } else {
         await this.generateHtmlEdition();
       }
@@ -1114,6 +1207,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const totalSources = this.selectedSourcesForExport.length;
       let i = 0;
       
+      const zipSettings = await localforage.getItem<any>('monodi_settings');
       for (const s of this.selectedSourcesForExport) {
         if (!s.id) continue;
         i++;
@@ -1137,7 +1231,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           manifest: s.iiifManifestUrl || s.custom?.manifest || '',
           foliooffset: s.custom?.foliooffset || '',
           publish: s.custom?.publish || 'all',
-          beschreibung: s.custom?.beschreibung || ''
+          description: sourceDescription(s)
         };
         
         zip.file(`${s.id}/meta.json`, JSON.stringify(mappedSource, null, 2));
@@ -1184,14 +1278,18 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
               doc1.textinitium = (mappedDoc.textinitium || d.id) + ' (Voice 1)';
               doc2.textinitium = (mappedDoc.textinitium || d.id) + ' (Voice 2)';
               zip.file(`${s.id}/${d.id}-v1/meta.json`, JSON.stringify(doc1, null, 2));
-              zip.file(`${s.id}/${d.id}-v1/data.json`, JSON.stringify(split.v1, null, 2));
+              const part = (r: RootContainer) => this.exportPlaceholderNotes ? syllableCommentsToPlaceholders(r, placeholderConfigFromSettings(zipSettings)) : r;
+              zip.file(`${s.id}/${d.id}-v1/data.json`, JSON.stringify(part(split.v1), null, 2));
               zip.file(`${s.id}/${d.id}-v2/meta.json`, JSON.stringify(doc2, null, 2));
-              zip.file(`${s.id}/${d.id}-v2/data.json`, JSON.stringify(split.v2, null, 2));
+              zip.file(`${s.id}/${d.id}-v2/data.json`, JSON.stringify(part(split.v2), null, 2));
             } else {
               if (this.exportBackwardsCompatMode === 'consecutive_lines') {
                 notes = convertToBackwardsCompatibleConsecutiveLines(notes as RootContainer);
               } else if (this.exportBackwardsCompatMode === 'comment') {
                 notes = convertToBackwardsCompatibleComment(notes as RootContainer);
+              }
+              if (this.exportPlaceholderNotes && notes && (notes as any).kind === 'RootContainer') {
+                notes = syllableCommentsToPlaceholders(notes as RootContainer, placeholderConfigFromSettings(zipSettings));
               }
               zip.file(`${s.id}/${d.id}/meta.json`, JSON.stringify(mappedDoc, null, 2));
               zip.file(`${s.id}/${d.id}/data.json`, JSON.stringify(notes, null, 2));
@@ -1292,7 +1390,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       try {
         if (this.user) {
           const settingsRes = await firstValueFrom(this.api.getSettings(this.user.token));
-          if (settingsRes.kind === 'SettingsRetrieved') settings = settingsRes.settings;
+          if (settingsRes.kind === 'SettingsRetrieved') {
+            settings = settingsRes.settings;
+            this.focusSvc.notationColor = sanitizeNotationColor(settings?.notationColor);
+            this.focusSvc.clefDisplayMode = sanitizeClefDisplayMode(settings?.clefDisplayMode);
+          }
         }
       } catch (e) {
         console.warn("Could not fetch settings for HTML export", e);

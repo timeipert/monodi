@@ -6,6 +6,17 @@
 
 import * as VM from './types/model';
 
+/**
+ * Bumped when what one `AnalyzedPattern` stands for changes, so results cached
+ * by an older version (the pattern stats) are recomputed instead of reused.
+ *
+ *  1  one pattern per ligature group (`grouped`)
+ *  2  one pattern per neume (`NonSpaced`: everything written without a gap),
+ *     as in the Neumen-Editor and the Python pipeline: `[*u]dd` is one pattern
+ *  3  user-defined note flags are appended to a note's suffix (`*uV`)
+ */
+export const ANALYZER_VERSION = 3;
+
 export interface AnalyzedPattern {
   patternId: string;
   sourceId: string;
@@ -14,6 +25,7 @@ export interface AnalyzedPattern {
   line: string;
   syllable: string;
   notesCount: number;
+  /** uuid of the neume's first note: a neume has none of its own. This is what `AnnotationItem.uuid` points at. */
   uuid: string;
 }
 
@@ -30,7 +42,7 @@ function getDirection(p1: number, p2: number): string {
   return 'e';
 }
 
-function getSuffix(noteType: VM.NoteType, isLiquescent: boolean): string {
+function getSuffix(noteType: VM.NoteType, isLiquescent: boolean, flags?: string[]): string {
   let s = '';
   if (noteType === VM.NoteType.Oriscus)      s += 'O';
   else if (noteType === VM.NoteType.Quilisma)    s += 'Q';
@@ -39,31 +51,35 @@ function getSuffix(noteType: VM.NoteType, isLiquescent: boolean): string {
   else if (noteType === VM.NoteType.Descending)  s += 'LD';
   else if (noteType === VM.NoteType.Liquescent)  s += 'L';
   if (isLiquescent && !s.includes('L')) s += 'L';
+  if (flags && flags.length > 0) s += flags.join('');
   return s;
 }
 
+/** The pattern code of one whole neume (everything written without a gap), e.g. `[*u]dd`. */
 export function extractPattern(nonSpaced: VM.NonSpaced): string {
   if (!nonSpaced || !nonSpaced.nonSpaced || nonSpaced.nonSpaced.length === 0) return '';
 
   const parts: string[] = [];
   let prevLastNote: VM.Note | null = null;
   let prevLastPitch = 0;
+  let first = true;
 
   for (let i = 0; i < nonSpaced.nonSpaced.length; i++) {
     const group = nonSpaced.nonSpaced[i].grouped;
-    if (group.length === 0) continue;
+    if (!group || group.length === 0) continue;
 
     const isGroup = group.length > 1;
 
-    if (i === 0) {
+    if (first) {
+      first = false;
       if (isGroup) parts.push('[');
-      parts.push('*' + getSuffix(group[0].noteType, group[0].liquescent));
+      parts.push('*' + getSuffix(group[0].noteType, group[0].liquescent, group[0].flags));
     } else {
       if (isGroup) parts.push('[');
       if (prevLastNote !== null) {
         const currentPitch = pitchToMidi(group[0].base, group[0].octave);
         const linkDir = getDirection(prevLastPitch, currentPitch);
-        parts.push(linkDir + getSuffix(group[0].noteType, group[0].liquescent));
+        parts.push(linkDir + getSuffix(group[0].noteType, group[0].liquescent, group[0].flags));
       }
     }
 
@@ -72,7 +88,7 @@ export function extractPattern(nonSpaced: VM.NonSpaced): string {
         const p1 = pitchToMidi(group[k].base, group[k].octave);
         const p2 = pitchToMidi(group[k + 1].base, group[k + 1].octave);
         const d = getDirection(p1, p2);
-        parts.push(d + getSuffix(group[k + 1].noteType, group[k + 1].liquescent));
+        parts.push(d + getSuffix(group[k + 1].noteType, group[k + 1].liquescent, group[k + 1].flags));
       }
     }
 
@@ -83,6 +99,40 @@ export function extractPattern(nonSpaced: VM.NonSpaced): string {
   }
 
   return parts.join('');
+}
+
+/** One note of a neume with the step that leads to it (`*` for the first note, else u/d/e). */
+export interface NeumeNote {
+  note: VM.Note;
+  /** Index of the ligature group the note belongs to. */
+  group: number;
+  step: '*' | 'u' | 'd' | 'e';
+  /** Note-shape and flag suffix as written in the pattern code (`O`, `LA`, `V`, ...). */
+  suffix: string;
+}
+
+/** The notes of a neume in order, each with its step; same steps as `extractPattern`, minus the brackets. */
+export function describeNeume(nonSpaced: VM.NonSpaced): NeumeNote[] {
+  const out: NeumeNote[] = [];
+  let prev: VM.Note | null = null;
+  (nonSpaced?.nonSpaced ?? []).forEach((g, gi) => {
+    for (const note of g.grouped ?? []) {
+      const step = prev ? getDirection(pitchToMidi(prev.base, prev.octave), pitchToMidi(note.base, note.octave)) : '*';
+      out.push({ note, group: gi, step: step as NeumeNote['step'], suffix: getSuffix(note.noteType, note.liquescent, note.flags) });
+      prev = note;
+    }
+  });
+  return out;
+}
+
+/** The uuid of a neume's first note ('' if none has one). */
+export function firstNoteUuid(nonSpaced: VM.NonSpaced): string {
+  for (const g of nonSpaced?.nonSpaced ?? []) {
+    for (const n of g.grouped ?? []) {
+      if (n.uuid) return n.uuid;
+    }
+  }
+  return '';
 }
 
 export function extractFolioFromString(text: string): string | null {
@@ -169,34 +219,23 @@ export function analyzeDocument(
 
       if (node.notes && node.notes.spaced) {
         for (const spacedItem of node.notes.spaced) {
-          if (spacedItem.nonSpaced) {
-            for (let idx = 0; idx < spacedItem.nonSpaced.length; idx++) {
-              const ns = spacedItem.nonSpaced[idx];
-              const patternStr = extractPattern({ nonSpaced: [ns] } as VM.NonSpaced);
+          // One pattern per neume (`spacedItem`), however many ligature groups it holds.
+          if (spacedItem.nonSpaced && spacedItem.nonSpaced.length > 0) {
+            let noteCount = 0;
+            for (const g of spacedItem.nonSpaced) noteCount += g.grouped ? g.grouped.length : 0;
 
-              let firstNoteUuid = 'unknown-uuid';
-              let noteCount = 0;
-              if (ns.grouped && ns.grouped.length > 0) {
-                for (const g of ns.grouped) {
-                  if (g.uuid && firstNoteUuid === 'unknown-uuid') {
-                    firstNoteUuid = g.uuid;
-                  }
-                  noteCount++;
-                }
-              }
-
-              if (patternStr && noteCount > 0) {
-                results.push({
-                  patternId: patternStr,
-                  sourceId,
-                  documentId,
-                  folio: currentFolio,
-                  line: String(currentLineCounter),
-                  syllable: currentSyllableText,
-                  notesCount: noteCount,
-                  uuid: firstNoteUuid
-                });
-              }
+            const patternStr = extractPattern(spacedItem);
+            if (patternStr && noteCount > 0) {
+              results.push({
+                patternId: patternStr,
+                sourceId,
+                documentId,
+                folio: currentFolio,
+                line: String(currentLineCounter),
+                syllable: currentSyllableText,
+                notesCount: noteCount,
+                uuid: firstNoteUuid(spacedItem) || 'unknown-uuid'
+              });
             }
           }
         }

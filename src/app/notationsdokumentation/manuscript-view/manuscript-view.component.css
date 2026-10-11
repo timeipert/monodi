@@ -1,0 +1,23 @@
+.mv-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, 0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.mv-dialog { background: #fff; border-radius: 12px; width: min(1040px, 100%); max-height: calc(100vh - 2rem); display: flex; flex-direction: column; overflow: hidden; }
+.mv-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.9rem 1.25rem; border-bottom: 1px solid #e2e8f0; }
+.mv-body { padding: 1.1rem 1.25rem 1.4rem; overflow-y: auto; }
+.mv-pattern code { font-size: 0.95rem; }
+.mv-section { margin: 1.1rem 0 0.5rem; font-weight: 700; }
+.mv-section:first-child { margin-top: 0; }
+.mv-hit { margin: 0 0 1rem; }
+.mv-hit figcaption { margin-bottom: 0.4rem; }
+.mv-closeup { margin-top: 0.6rem; max-width: 420px; }
+
+/* The picture always fills its frame, so the outlines laid over the frame are laid over the picture:
+   the server may send an image smaller than the frame. */
+.mv-crop { position: relative; display: block; width: 100%; line-height: 0; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; background: #f8fafc; }
+.mv-img { display: block; width: 100%; height: auto; }
+.mv-bg { width: 100%; background-repeat: no-repeat; }
+.mv-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.mv-poly { fill: rgba(37, 99, 235, 0.06); stroke: rgba(37, 99, 235, 0.45); stroke-width: 1; }
+.mv-poly.mv-strong { fill: rgba(220, 38, 38, 0.14); stroke: #dc2626; stroke-width: 2; }
+
+.mv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.8rem; }
+.mv-example { margin: 0; }
+.mv-example figcaption { margin-top: 0.3rem; line-height: 1.25; }

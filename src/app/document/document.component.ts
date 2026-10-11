@@ -1,6 +1,6 @@
 import { FocusService } from '../focus.service';
-import { registerEmbeddedFont, embeddedFamily } from '../pdf-font';
-import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
+import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
+import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
@@ -10,25 +10,30 @@ import { ToolsService } from '../tools.service';
 import { ToastrService } from 'ngx-toastr';
 import { Subscription, combineLatest } from 'rxjs';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
+import { FlagPatternsDialogComponent } from '../notes/flag-patterns-dialog.component';
 import { parsers } from '../types/parser';
 import * as VM from '../types/model';
-import * as S from '../sselect/sselect.component';
 import { UndoService } from '../undoService';
 import { CommentComponent } from '../comment/comment.component';
 import { commentColor } from '../comment/comment-colors';
 import { getCategoryDetails } from '../comment/comment-categories';
 import { getInterventionLabel, INTERVENTIONS } from '../comment/intervention-vocabulary';
 import { DragStateService } from '../dragger/drag-state.service';
-import { NavigationService } from '../notationsdokumentation/navigation.service';
 import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
+import { ManuscriptViewService } from '../manuscript-view.service';
 import { MeiExportService } from '../mei-export.service';
 import { SearchExecService } from '../search/search-exec.service';
 import { VolpianoService } from '../volpiano.service';
 
-import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
-import autoTable from 'jspdf-autotable';
+import { sanitizeClefDisplayMode } from '../clef-policy';
+import { sanitizeNotationColor } from '../notation-color';
+import { commentLemma, commentType } from '../comment-lemma';
+import { metadataFieldLabel, metadataFieldValue, headlineText, inlineMetadataItems } from '../document-metadata';
+import { maxNoteBottomOf, minNoteYOf, requiredPadBottom, requiredPadTop } from '../notes/Drawables';
+import { PdfExportService, PdfDocJob } from '../pdf-export.service';
+import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
@@ -46,9 +51,20 @@ export class DocumentComponent implements OnInit {
   private setFirstSyllable(): void {
     const sylls = this.cont ? VM.getSyllables(this.cont) : [];
     this.focusService.firstSyllableUuid = sylls.length > 0 ? sylls[0].uuid : null;
+    let minY = Infinity, maxY = -Infinity;
+    for (const sy of sylls) {
+      for (const sd of [sy.notes, ...((sy as any).additionalMelodies || [])]) {
+        minY = Math.min(minY, minNoteYOf(sd));
+        maxY = Math.max(maxY, maxNoteBottomOf(sd));
+      }
+    }
+    this.focusService.docPadTop = Number.isFinite(minY) ? requiredPadTop(minY) : 0;
+    this.focusService.docPadBottom = Number.isFinite(maxY) ? requiredPadBottom(maxY) : 0;
   }
 
   getCategoryDetails = getCategoryDetails;
+  private pdfExport = inject(PdfExportService);
+  private pdfDialog = inject(PdfDialogLauncher);
   getInterventionLabel = getInterventionLabel;
   getInterventionIcon(key: string): string {
     const found = INTERVENTIONS.find(i => i.key === key);
@@ -310,6 +326,10 @@ export class DocumentComponent implements OnInit {
   textImportErrors: Array<string> = [];
   settings: ProjectSettings | null = null;
   sourceData: Source | null = null;
+
+  /** Lends "Show in manuscript" (right-click a neume) the source and transcription shown here. */
+  private manuscriptView = inject(ManuscriptViewService);
+  private manuscriptViewContext = { getSource: () => this.sourceData, getRoot: () => this.cont };
   viewMode: 'transcription' | 'split' | 'iiif' = 'transcription';
   get splitScreen(): boolean { return this.viewMode === 'split'; }
   splitLeftWidth = 45;
@@ -366,6 +386,8 @@ export class DocumentComponent implements OnInit {
 
   showPdfExportDialog = false;
   printIncludeMetadata = true;
+  printTitlePage = true;
+  printApparatus = true;
   isPrinting = false;
 
   showSecondVoiceImportDialog = false;
@@ -387,7 +409,6 @@ export class DocumentComponent implements OnInit {
     private location: Location,
     private toolService: ToolsService,
     public dragState: DragStateService,
-    private navService: NavigationService,
     private meiExport: MeiExportService,
     private volpiano: VolpianoService,
     private pageTitle: PageTitleService, public focusService: FocusService,
@@ -690,6 +711,10 @@ export class DocumentComponent implements OnInit {
       }
       return;
     }
+    if (e.kind === 'FlagPatternsRequested') {
+      this.openFlagPatterns(e.pattern);
+      return;
+    }
     if (e.kind === 'OpenCommentModalRequested') {
       this.openComment(e.comment);
       return;
@@ -880,8 +905,19 @@ export class DocumentComponent implements OnInit {
     event.preventDefault();
   }
 
+  /** Opens the print dialog for this document (as it is now, unsaved changes included). */
   openPdfExport() {
-    this.showPdfExportDialog = true;
+    if (!this.document || !this.cont) return;
+    const job: PdfDocJob = { document: this.document, cont: this.cont, source: this.sourceData, sigle: this.sourceSigle || '' };
+    this.pdfDialog.open({ jobs: [job] });
+  }
+
+  private rememberPdfExportOptions(): void {
+    try {
+      localStorage.setItem('monodi_pdf_export_options', JSON.stringify({
+        titlePage: this.printTitlePage, metadata: this.printIncludeMetadata, apparatus: this.printApparatus,
+      }));
+    } catch { /* storage unavailable */ }
   }
 
   // ── Citation suggestions ────────────────────────────────────────────────────
@@ -937,44 +973,11 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  getMetadataFieldLabel(key: string): string {
-    if (key === 'dokumenten_id') return 'ID';
-    if (key === 'textinitium') return 'Initium';
-    if (key === 'gattung1') return 'Genre 1';
-    if (key === 'gattung2') return 'Genre 2';
-    if (key === 'festtag') return 'Feast Day';
-    if (key === 'feier') return 'Feast';
-    const custom = this.settings?.customDocumentFields?.find(f => f.key === key);
-    return custom ? custom.label : key;
-  }
+  getMetadataFieldLabel(key: string): string { return metadataFieldLabel(key, this.settings); }
 
-  getMetadataFieldValue(key: string): string {
-    if (!this.document) return '';
-    if (key === 'dokumenten_id') return this.document.dokumenten_id || '';
-    if (key === 'textinitium') return this.document.textinitium || '';
-    if (key === 'gattung1') return this.document.gattung1 || '';
-    if (key === 'gattung2') return this.document.gattung2 || '';
-    if (key === 'festtag') return this.document.festtag || '';
-    if (key === 'feier') return this.document.feier || '';
-    return this.document.custom?.[key] || '';
-  }
+  getMetadataFieldValue(key: string): string { return metadataFieldValue(this.document, key); }
 
-  buildHeadlineText(fields: string[]): string {
-    if (!fields || fields.length === 0) return '';
-    const parts: string[] = [];
-    for (const f of fields) {
-      const val = this.getMetadataFieldValue(f);
-      if (val) {
-        if (f === 'dokumenten_id') {
-          parts.push(val);
-        } else {
-          const label = this.getMetadataFieldLabel(f);
-          parts.push(`${label}: ${val}`);
-        }
-      }
-    }
-    return parts.join('   •   ');
-  }
+  buildHeadlineText(fields: string[]): string { return headlineText(this.document, fields, this.settings); }
 
   get currentLevelNames(): any {
     if (!this.settings || !this.settings.genreLevelProfiles || !this.document) return null;
@@ -986,773 +989,40 @@ export class DocumentComponent implements OnInit {
     return profile ? profile.names : null;
   }
 
+  /** Counters of the last PDF export (read by the e2e checks). */
+  get lastPdfStats() { return this.pdfExport.lastStats; }
+
+  /** Prints this document through the shared exporter (see PdfExportService). */
   async confirmPdfExport() {
+    this.rememberPdfExportOptions();
     this.showPdfExportDialog = false;
+    if (!this.document || !this.cont) return;
     this.isPrinting = true;
-    
-    // Force readOnly to render clean text without boxes
-    const originalReadOnly = this.readOnly;
-    this.readOnly = true;
-
-    // Wait for Angular to re-render the DOM
-    setTimeout(async () => {
-      try {
-        const s: any = this.settings || {};
-        const doc = new jsPDF({ unit: 'pt', format: (s.pdfFormat || 'a4'), orientation: (s.pdfOrientation || 'portrait') });
-        const fontFamily = embeddedFamily(s.pdfFontFamily) || s.pdfFontFamily || 'times';
-        if (embeddedFamily(fontFamily)) {
-          await registerEmbeddedFont(doc, fontFamily);
-        }
-        const pdfMarginLeft = Number(s.pdfMarginLeft ?? 40);
-        const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
-        const pdfMarginTop = Number(s.pdfMarginTop ?? 40);
-        const pdfMarginBottom = Number(s.pdfMarginBottom ?? 40);
-        const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? 20);
-        const pdfBracketGap = Number(s.pdfBracketGap ?? 5);
-        const pdfBracketTick = Number(s.pdfBracketTick ?? 4);
-        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? 10);
-        const pdfTextBlockGap = Number(s.pdfTextBlockGap ?? 10);
-        
-        // Coerced layout parameters
-        const titleFontSize = Number(s.pdfTitleFontSize ?? 16);
-        const pdfTitleVerticalSpace = Number(s.pdfTitleVerticalSpace ?? 20);
-        const headerSource = s.pdfHeaderSource || 'textinitium';
-        const metaFontSize = Number(s.pdfMetadataFontSize ?? 9);
-        const pdfMetadataVerticalSpace = Number(s.pdfMetadataVerticalSpace ?? 15);
-        const pdfBracketThickness = Number(s.pdfBracketThickness ?? 1.2);
-        const pdfCommentTitleFontSize = Number(s.pdfCommentTitleFontSize ?? 8);
-        const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? 15);
-        const SCALE = Number(s.pdfScale ?? 0.40);
-        const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? 10);
-        const pdfFontSize = Number(s.pdfFontSize ?? 10);
-        const pdfSignaturSpace = Number(s.pdfSignaturSpace ?? 60);
-        const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? 10);
-        const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? 12);
-        const pdfCommentStaffScale = Number(s.pdfCommentStaffScale ?? s.pdfScale ?? 0.40);
-        const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? 9);
-        const pdfCommentTitleFontSizeActual = Number(s.pdfCommentTitleFontSize ?? 10);
-        const pdfCommentBlockGap = Number(s.pdfCommentBlockGap ?? 25);
-        const pdfShowPageNumbers = s.pdfShowPageNumbers === true || s.pdfShowPageNumbers === 'true';
-        const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? 8);
-        const pdfHeadlineFontSize = Number(s.pdfHeadlineFontSize ?? 8);
-        const pdfHeadlineMetadataFields = s.pdfHeadlineMetadataFields || [];
-
-        let cursorY = pdfMarginTop;
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const printWidth = pageWidth - pdfMarginLeft - pdfMarginRight;
-        const maxContentY = pageHeight - pdfMarginBottom;
-
-        const checkPageOverflow = (neededHeight: number) => {
-          if (cursorY + neededHeight > maxContentY) {
-            doc.addPage();
-            cursorY = pdfMarginTop;
-          }
-        };
-
-        // Title (wrapped to the printable width)
-        doc.setFontSize(titleFontSize);
-        doc.setFont(fontFamily, "bold");
-        const headerText = this.getMetadataFieldValue(headerSource) || (this.document?.textinitium || "New Document");
-        const titleLineH = titleFontSize * 1.15;
-        for (const line of doc.splitTextToSize(headerText, printWidth)) {
-          checkPageOverflow(titleLineH);
-          doc.text(line, pdfMarginLeft, cursorY);
-          cursorY += titleLineH;
-        }
-        cursorY += Math.max(0, pdfTitleVerticalSpace - titleLineH);
-        checkPageOverflow(0);
-
-        // Metadata inline, styled & dense
-        if (this.printIncludeMetadata && this.document) {
-          doc.setFontSize(metaFontSize);
-          
-          const items = this.getInlineMetadataItems();
-          let curX = pdfMarginLeft;
-          let curY = cursorY;
-          const rightEdge = pageWidth - pdfMarginRight;
-          const lineH = metaFontSize * 1.4;
-
-          // Draw text word by word, wrapping at the right margin (and across pages)
-          // so long values like the Comment break automatically.
-          // Tokenise into whitespace, Latin words, and individual CJK characters
-          // (CJK has no spaces, so it must be able to wrap mid-run).
-          const CJK = '\\u3000-\\u9fff\\u3400-\\u4dbf\\uf900-\\ufaff\\uff00-\\uffef';
-          const tokenRe = new RegExp(`[${CJK}]|\\s+|[^\\s${CJK}]+`, 'g');
-          const drawWords = (text: string, style: 'bold' | 'normal') => {
-            doc.setFont(fontFamily, style);
-            for (const w of (text.match(tokenRe) || [])) {
-              if (!w) continue;
-              const isSpace = /^\s+$/.test(w);
-              const ww = doc.getTextWidth(w);
-              if (!isSpace && curX + ww > rightEdge && curX > pdfMarginLeft) {
-                curX = pdfMarginLeft;
-                curY += lineH;
-                if (curY > maxContentY) { doc.addPage(); curY = pdfMarginTop; }
-              }
-              if (isSpace && curX === pdfMarginLeft) continue; // no leading space on a wrapped line
-              doc.text(w, curX, curY);
-              curX += ww;
-            }
-          };
-
-          for (let k = 0; k < items.length; k++) {
-            drawWords(items[k].label + ": ", 'bold');
-            drawWords(items[k].val, 'normal');
-            if (k < items.length - 1) drawWords("   •   ", 'normal');
-          }
-
-          cursorY = curY + pdfMetadataVerticalSpace;
-          checkPageOverflow(0);
-        }
-
-        // DOM Traversal for Structural Layout
-        doc.setFontSize(12);
-        
-        const drawActiveBracket = (startX: number, endX: number, bY: number, label: string) => {
-           doc.setLineWidth(pdfBracketThickness);
-           doc.setDrawColor(0, 0, 0);
-           doc.line(startX, bY - pdfBracketTick, startX, bY);
-           doc.line(startX, bY, endX, bY);
-           doc.line(endX, bY - pdfBracketTick, endX, bY);
-           
-           if (label) {
-               const cleanLabel = label.replace(/^\[|\]$/g, '');
-               doc.setFontSize(pdfCommentTitleFontSizeActual);
-               doc.setFont(fontFamily, "italic");
-               const txtX = startX + (endX - startX) / 2 - (doc.getTextWidth(cleanLabel) / 2);
-               doc.text(cleanLabel, txtX, bY + pdfBracketTick + 4);
-           }
-        };
-        
-        // Grab all app-containers in document order, only from the main document area
-        const containers = document.querySelectorAll('app-root-section .app-container');
-        
-        // Track active comments for drawing brackets
-        const activeBrackets: { [key: string]: { startX: number, startLineY: number, label: string } } = {};
-        const documentComments = this.cont?.comments || [];
-        
-        // Build a map of Syllable/LinePart UUID to all its nested commentable UUIDs (including notes)
-        const uuidMap: { [key: string]: string[] } = {};
-        if (this.cont) {
-            const allLineParts = VM.getAllLineParts(this.cont);
-            for (const lp of allLineParts) {
-                uuidMap[lp.uuid] = VM.getCommentableUUIDsOfLinePart(lp);
-            }
-        }
-        
-        // Track the current Signatures to print before the next Zeile
-        let currentSignatures: string[] = [];
-        let wasLastElementParatext = false;
-
-        for (let i = 0; i < containers.length; i++) {
-          const container = containers[i] as HTMLElement;
-          
-          // Calculate indentation based on left padding/margin of parent .child elements
-          let paddingLeft = 0;
-          let currentElement: HTMLElement | null = container;
-          while (currentElement) {
-              if (currentElement.classList && currentElement.classList.contains('child')) {
-                  paddingLeft += 20;
-              }
-              currentElement = currentElement.parentElement;
-          }
-          
-          // structural text xOffset
-          const xOffset = pdfMarginLeft + paddingLeft;
-
-          // Only look inside the immediate content-row, not inside nested .children
-          const firstDiv = container.children[0];
-          if (!firstDiv) continue;
-          
-          const contentRow = firstDiv.querySelector('.content-row') as HTMLElement;
-          if (!contentRow) continue;
-          
-          // 1. Check for Signatur
-          const formteilDivs = contentRow.querySelectorAll('.formteil-line > div');
-          for (let k = 0; k < formteilDivs.length; k++) {
-             const fDiv = formteilDivs[k] as HTMLElement;
-             if (fDiv.innerText && fDiv.innerText.indexOf("Signatur") !== -1) {
-                 const input = fDiv.querySelector('input');
-                 if (input && input.value.trim()) {
-                     currentSignatures.push(input.value.trim());
-                 }
-             }
-          }
-
-          // Add vertical space ONLY if this is a FormteilContainer (level section)
-          if (contentRow.classList.contains('formteil-section')) {
-            if (!wasLastElementParatext) {
-              checkPageOverflow(pdfVerticalSpace);
-              cursorY += pdfVerticalSpace;
-            }
-            wasLastElementParatext = false;
-          }
-          
-          // Check if this row is a Zeile (contains musical notes)
-          const parts = contentRow.querySelectorAll('app-notes, app-line-change, app-folio-change');
-          
-          if (parts.length > 0) {
-            wasLastElementParatext = false;
-            // Horizontal layout for notes and breaks
-            
-            const musicStartX = pdfMarginLeft + pdfSignaturSpace;
-            
-            let lineStartY = cursorY;
-            let cursorX = musicStartX;
-            let lineMaxHeight = 0;
-            let lineHasLyrics = false;
-            let lineHasBrackets = Object.keys(activeBrackets).length > 0;
-            
-            for (let j = 0; j < parts.length; j++) {
-              const part = parts[j] as HTMLElement;
-              const tagName = part.tagName.toLowerCase();
-              
-              if (tagName === 'app-line-change' || tagName === 'app-folio-change') {
-                // Manuscript line/folio breaks: a short vertical tick (or two, for a
-                // folio change) hanging just below the staff — matching the on-screen
-                // look. They must NOT wrap the PDF line; only ZeileContainer boundaries
-                // start a new staff line.
-                const isFolio = tagName === 'app-folio-change';
-                const gap = 3;
-                const mx = cursorX + gap;
-                const h = lineMaxHeight > 0 ? lineMaxHeight : 24;
-                // Staff geometry of the read-only note SVG (65 + padTop 10 + padBottom 16
-                // = 91 tall; the bottom staff line sits at 70/91).
-                const tickTop = cursorY + (70 / 91) * h;      // bottom staff line
-                const tickBottom = tickTop + (20 / 91) * h;   // hangs below
-                const tickGap = Math.max(2, h * 0.08);
-                doc.setLineWidth(Math.max(0.7, h * 0.035));
-                doc.setDrawColor(0, 0, 0);
-                doc.line(mx, tickTop, mx, tickBottom);
-                let rightEdge = mx;
-                if (isFolio) {
-                  doc.line(mx + tickGap, tickTop, mx + tickGap, tickBottom);
-                  rightEdge = mx + tickGap;
-                }
-                doc.setLineWidth(0.2);
-                if (isFolio) {
-                  const folioLabel = (part.textContent || '').trim();
-                  if (folioLabel) {
-                    doc.setFont(fontFamily, 'normal');
-                    doc.setFontSize(pdfFontSize * 0.85);
-                    doc.text(folioLabel, rightEdge + 3, tickBottom);
-                    rightEdge += 3 + doc.getTextWidth(folioLabel);
-                    doc.setFontSize(pdfFontSize);
-                  }
-                }
-                cursorX = rightEdge + gap + 2;
-                continue;
-              }
-              
-              const sec = part.querySelector('.section') as HTMLElement;
-              if (!sec) continue;
-              
-              const svgs = sec.querySelectorAll('svg');
-              const textEl = sec.querySelector('.syllableText:not(.dnone)') as HTMLElement;
-              
-              let maxRawWidth = 50;
-              let totalRawHeight = 0;
-              for (let v = 0; v < svgs.length; v++) {
-                 const s = svgs[v];
-                 let w = parseFloat(s.getAttribute('width') || '50');
-
-                 // Dynamic width check: inspect note image and slur path coordinates
-                 // to ensure we never truncate content if DOM attributes are too small or lag.
-                 const images = s.querySelectorAll('image');
-                 const paths = s.querySelectorAll('path');
-                 let maxContentRight = 0;
-
-                 images.forEach(img => {
-                   const x = parseFloat(img.getAttribute('x') || '0');
-                   const width = parseFloat(img.getAttribute('width') || '12');
-                   if (x + width > maxContentRight) {
-                     maxContentRight = x + width;
-                   }
-                 });
-
-                 paths.forEach(p => {
-                   const d = p.getAttribute('d') || '';
-                   const numbers = d.match(/-?[0-9.]+/g);
-                   if (numbers && numbers.length >= 7) {
-                     const startX = parseFloat(numbers[0]);
-                     const offsetVal = parseFloat(numbers[6]);
-                     const endX = startX + offsetVal;
-                     if (endX > maxContentRight) {
-                       maxContentRight = endX;
-                     }
-                   }
-                 });
-
-                 if (maxContentRight > 0) {
-                   // Find the inner layout translation amount (default 12)
-                   const gTranslate = s.querySelector('g[transform*="translate"]');
-                   let translateAmt = 12;
-                   if (gTranslate) {
-                     const transform = gTranslate.getAttribute('transform') || '';
-                     const match = transform.match(/translate\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)/);
-                     if (match) {
-                       translateAmt = parseFloat(match[1]);
-                     }
-                   }
-                   const contentWidth = maxContentRight + translateAmt + 8;
-                   if (contentWidth > w) {
-                     w = contentWidth;
-                   }
-                 }
-
-                 if (w > maxRawWidth) maxRawWidth = w;
-                 totalRawHeight += (s.getBoundingClientRect().height || 80);
-              }
-              if (svgs.length === 0) {
-                 totalRawHeight = 80;
-              }
-              
-              const svgWidth = maxRawWidth * SCALE;
-              const secHeight = totalRawHeight * SCALE;
-
-              let txt = "";
-              let textWidth = 0;
-              if (textEl) {
-                txt = textEl.innerText.trim();
-                if (txt && txt !== "X" && txt !== "..." && txt !== "<...>") {
-                  doc.setFontSize(pdfFontSize);
-                  doc.setFont(fontFamily, "normal");
-                  textWidth = doc.getTextWidth(txt);
-                  lineHasLyrics = true;
-                } else {
-                  txt = "";
-                }
-              }
-
-              // Calculate final section width
-              let finalSecWidth = Math.max(svgWidth, textWidth + extraSyllableSpacing);
-              
-              // Detect if this syllable is the last one on the current visual line,
-              // so we can extend staff lines to fill up to the right margin.
-              let isLastOnLine = (j === parts.length - 1);
-              if (!isLastOnLine && j + 1 < parts.length) {
-                const nextPart = parts[j + 1] as HTMLElement;
-                const nextTag = nextPart.tagName.toLowerCase();
-                // A following line/folio change is an inline marker, not a line end,
-                // so it must NOT stretch this syllable's staff to the margin.
-                if (nextTag === 'app-notes') {
-                  // Peek at the next syllable's width to see if it would trigger a wrap
-                  const nextSec = nextPart.querySelector('.section') as HTMLElement;
-                  if (nextSec) {
-                    const nextSvgEls = nextSec.querySelectorAll('svg');
-                    let nextRawW = 50;
-                    for (let v = 0; v < nextSvgEls.length; v++) {
-                        const w = parseFloat(nextSvgEls[v].getAttribute('width') || '50');
-                        if (w > nextRawW) nextRawW = w;
-                    }
-                    const nextSvgW = nextRawW * SCALE;
-                    const nextTextEl = nextSec.querySelector('.syllableText:not(.dnone)') as HTMLElement;
-                    let nextTxtW = 0;
-                    if (nextTextEl) {
-                      const nt = nextTextEl.innerText.trim();
-                      if (nt && nt !== 'X' && nt !== '...' && nt !== '<...>') {
-                        doc.setFontSize(pdfFontSize);
-                        doc.setFont(fontFamily, 'normal');
-                        nextTxtW = doc.getTextWidth(nt);
-                      }
-                    }
-                    const nextW = Math.max(nextSvgW, nextTxtW + extraSyllableSpacing);
-                    // After the current syllable, if next would overflow, current is last on line
-                    if (cursorX + finalSecWidth + nextW > pageWidth - pdfMarginRight) {
-                      isLastOnLine = true;
-                    }
-                  }
-                }
-              }
-              
-              // Staff lines end at the last note of the line (they are NOT stretched
-              // to the right page margin). `isLastOnLine` is kept for potential future
-              // use but intentionally no longer extends the width.
-              void isLastOnLine;
-
-              const partUuid = part.getAttribute('data-uuid');
-              const partUuids = partUuid ? (uuidMap[partUuid] || [partUuid]) : [];
-              
-              // 1. Check if any comments start here
-              if (partUuids.length > 0) {
-                  const startingComments = documentComments.filter((c: any) => partUuids.includes(c.startUUID));
-                  if (startingComments.length > 0) {
-                      lineHasBrackets = true;
-                      for (let ci = 0; ci < startingComments.length; ci++) {
-                          const c = startingComments[ci];
-                          const key = `${c.startUUID}_${c.endUUID}`;
-                          const idx = documentComments.indexOf(c) + 1;
-                          activeBrackets[key] = { startX: cursorX, startLineY: lineStartY, label: `[${idx}]` };
-                      }
-                  }
-              }
-              
-              // Print Signatur right-aligned before the first note of this line
-              if (j === 0 && currentSignatures.length > 0) {
-                  doc.setFontSize(pdfFontSize);
-                  doc.setFont(fontFamily, "normal");
-                  const sigText = currentSignatures.join(" ");
-                  const sigWidth = doc.getTextWidth(sigText);
-                  const sigX = musicStartX - sigWidth - 10;
-                  doc.text(sigText, sigX, cursorY + (secHeight / 2) + (pdfFontSize * 0.35));
-                  currentSignatures = [];
-              }
-              
-              // Wrap to next line if it exceeds page width
-              if (cursorX + finalSecWidth > pageWidth - pdfMarginRight) {
-                 const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
-                 for (const key in activeBrackets) {
-                     const b = activeBrackets[key];
-                     drawActiveBracket(b.startX, cursorX, bracketY, b.label);
-                 }
-                 
-                 let lineBottomY = lineStartY + lineMaxHeight;
-                 if (lineHasBrackets) {
-                     lineBottomY = bracketY + pdfBracketTick + 8;
-                 } else if (lineHasLyrics) {
-                     lineBottomY = lineStartY + lineMaxHeight + pdfSyllableTextOffset + pdfFontSize;
-                 }
-                 
-                 cursorY = lineBottomY + pdfStaffSpacing;
-                 checkPageOverflow(40);
-                 
-                 lineStartY = cursorY;
-                 cursorX = musicStartX + 30; // auto-wrap with indentation
-                 lineMaxHeight = 0;
-                 lineHasLyrics = false;
-                 lineHasBrackets = Object.keys(activeBrackets).length > 0;
-                 
-                 for (const key in activeBrackets) {
-                     const b = activeBrackets[key];
-                     b.startX = musicStartX + 30;
-                     b.startLineY = lineStartY;
-                 }
-              }
-              
-              lineMaxHeight = Math.max(lineMaxHeight, secHeight);
-              
-              // Draw SVGs
-              if (svgs.length > 0) {
-                let currentSvgY = cursorY;
-                for (let v = 0; v < svgs.length; v++) {
-                  const svg = svgs[v];
-                  const rawHeight = svg.getBoundingClientRect().height || 80;
-                  const svgSecHeight = rawHeight * SCALE;
-                  const originalViewBox = svg.getAttribute('viewBox');
-                  if (!originalViewBox) {
-                    const finalRawWidth = finalSecWidth / SCALE;
-                    svg.setAttribute('viewBox', `0 0 ${finalRawWidth} ${rawHeight}`);
-                  }
-                  
-                  await doc.svg(svg, { x: cursorX, y: currentSvgY, width: finalSecWidth, height: svgSecHeight });
-                  currentSvgY += svgSecHeight;
-                  
-                  if (!originalViewBox) {
-                    svg.removeAttribute('viewBox');
-                  }
-                }
-              }
-              
-              // Draw Syllable Text below the SVG
-              if (txt) {
-                doc.text(txt, cursorX, cursorY + secHeight + pdfSyllableTextOffset);
-              }
-              
-              // 2. Check if any comments end here
-              if (partUuids.length > 0) {
-                  const endingComments = documentComments.filter((c: any) => partUuids.includes(c.endUUID));
-                  if (endingComments.length > 0) {
-                      lineHasBrackets = true;
-                      for (let ci = 0; ci < endingComments.length; ci++) {
-                          const c = endingComments[ci];
-                          const key = `${c.startUUID}_${c.endUUID}`;
-                          if (activeBrackets[key]) {
-                              const b = activeBrackets[key];
-                              const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
-                              drawActiveBracket(b.startX, cursorX + finalSecWidth, bracketY, b.label);
-                              delete activeBrackets[key];
-                          }
-                      }
-                  }
-              }
-              
-              cursorX += finalSecWidth;
-            }
-            
-            // Close active brackets at the very end of the ZeileContainer
-            const bracketY = lineStartY + lineMaxHeight + (lineHasLyrics ? (pdfSyllableTextOffset + pdfFontSize + pdfBracketGap) : pdfBracketGap);
-            for (const key in activeBrackets) {
-                const b = activeBrackets[key];
-                drawActiveBracket(b.startX, cursorX, bracketY, b.label);
-                delete activeBrackets[key];
-            }
-            
-            let lineBottomY = lineStartY + lineMaxHeight;
-            if (lineHasBrackets) {
-                lineBottomY = bracketY + pdfBracketTick + 8;
-            } else if (lineHasLyrics) {
-                lineBottomY = lineStartY + lineMaxHeight + pdfSyllableTextOffset + pdfFontSize;
-            }
-            cursorY = lineBottomY + pdfStaffSpacing;
-            checkPageOverflow(0);
-            
-          } else {
-            // Normal Text / Paratext
-            const contentDiv = contentRow.querySelector('.after-dragger > div:not(.type-identifier)');
-            const textEl = contentDiv ? contentDiv.querySelector('textarea, span') : null;
-            
-            let txt = "";
-            if (textEl && textEl.tagName.toLowerCase() === 'textarea') {
-              txt = (textEl as HTMLTextAreaElement).value.trim();
-            } else if (textEl) {
-               txt = (textEl as HTMLElement).innerText.trim();
-            }
-            
-            if (txt) {
-              checkPageOverflow(pdfParatextFontSize * 2);
-              
-              doc.setFontSize(pdfParatextFontSize);
-              doc.setFont(fontFamily, "normal");
-              
-              const splitText = doc.splitTextToSize(txt, printWidth - paddingLeft);
-              doc.text(splitText, xOffset, cursorY);
-              cursorY += (splitText.length * (pdfParatextFontSize * 1.4)) + pdfParatextSpacing;
-              checkPageOverflow(0);
-              wasLastElementParatext = true;
-            }
-          }
-        }
-
-        // Render Comment Trees on the final page (Critical Apparatus)
-        const commentsArea = document.getElementById('pdf-comments-render-area');
-        const hasComments = (this.cont?.comments && this.cont.comments.length > 0) || this.cont?.globalComment;
-        if (commentsArea && hasComments) {
-            doc.addPage();
-            let cursorY = pdfMarginTop;
-            doc.setFontSize(titleFontSize);
-            doc.setFont(fontFamily, "bold");
-            doc.text("Critical Apparatus", pdfMarginLeft, cursorY);
-            cursorY += pdfTitleVerticalSpace;
-            checkPageOverflow(0);
-
-            const commentBlocks = commentsArea.querySelectorAll('.pdf-comment-block');
-            for (let i = 0; i < commentBlocks.length; i++) {
-                const block = commentBlocks[i] as HTMLElement;
-                const blockRect = block.getBoundingClientRect();
-                const blockWidth = blockRect.width > 0 ? blockRect.width : 1000;
-                const maxScale = pdfCommentStaffScale;
-                const SCALE_C = Math.min(maxScale, (pageWidth - pdfMarginLeft - pdfMarginRight) / blockWidth);
-                
-                let bHeight = blockRect.height * SCALE_C;
-                if (cursorY + bHeight > maxContentY) {
-                    doc.addPage();
-                    cursorY = pdfMarginTop;
-                }
-
-                // Draw each element relative to the block
-                const elementsToDraw = block.querySelectorAll('textarea, svg, .bracket, h4, span.text, .syllableText:not(.dnone), .app-index, .app-category, .app-witness-siglum');
-                for (let j = 0; j < elementsToDraw.length; j++) {
-                    const el = elementsToDraw[j] as HTMLElement;
-                    const elRect = el.getBoundingClientRect();
-                    
-                    const relX = elRect.left - blockRect.left;
-                    const relY = elRect.top - blockRect.top;
-                    
-                    const sRelX = relX * SCALE_C;
-                    const sRelY = relY * SCALE_C;
-                    const drawX = pdfMarginLeft + sRelX;
-                    const drawY = cursorY + sRelY;
-                    
-                    if (el.tagName.toLowerCase() === 'svg') {
-                        const rawWidth = parseFloat(el.getAttribute('width') || elRect.width.toString() || '50');
-                        const rawHeight = elRect.height > 0 ? elRect.height : 100;
-                        const svgWidth = rawWidth * SCALE_C;
-                        const svgHeight = rawHeight * SCALE_C;
-                        const originalViewBox = el.getAttribute('viewBox');
-                        if (!originalViewBox) {
-                            el.setAttribute('viewBox', `0 0 ${rawWidth} ${rawHeight}`);
-                        }
-                        await doc.svg(el as unknown as SVGElement, { x: drawX, y: drawY, width: svgWidth, height: svgHeight });
-                        if (!originalViewBox) {
-                            el.removeAttribute('viewBox');
-                        }
-                    } 
-                    else if (el.classList.contains('syllableText')) {
-                        const val = el.innerText.trim();
-                        if (val && val !== "X" && val !== "..." && val !== "<...>") {
-                            doc.setFontSize(pdfCommentFontSize);
-                            doc.setFont(fontFamily, "normal");
-                            doc.text(val, drawX, drawY + pdfCommentFontSize);
-                        }
-                    }
-                    else if (el.tagName.toLowerCase() === 'textarea' || el.tagName.toLowerCase() === 'span') {
-                        let val = "";
-                        if (el.tagName.toLowerCase() === 'textarea') {
-                            val = (el as HTMLTextAreaElement).value.trim();
-                        } else {
-                            val = el.innerText.trim();
-                        }
-                        if (val) {
-                            const commentLineHeight = pdfCommentFontSize * 1.4;
-                            const rightBoundary = pageWidth - pdfMarginRight;
-                            let curX = drawX;
-                            let textY = drawY + pdfCommentFontSize + 2;
-                            const tokens = val.split(/(\(\(.*?\)\)|\{\{.*?\}\}|\[\[.*?\]\])/g);
-                            
-                            // Word-wrap helper: splits text into words and wraps at rightBoundary
-                            const wrapAndDraw = (text: string, fontStyle: string, fontSize: number, isBoxed: boolean) => {
-                              doc.setFontSize(fontSize);
-                              doc.setFont(fontFamily, fontStyle);
-                              // Split on whitespace, keeping the spaces as tokens
-                              const words = text.split(/(\s+)/);
-                              for (const word of words) {
-                                if (!word) continue;
-                                const wordWidth = doc.getTextWidth(word);
-                                // Wrap if the word would overflow (but only if we've advanced past the left margin)
-                                if (curX + wordWidth > rightBoundary && curX > drawX + 1) {
-                                  curX = drawX;
-                                  textY += commentLineHeight;
-                                }
-                                doc.text(word, curX, textY);
-                                if (isBoxed) {
-                                  doc.setLineWidth(0.2);
-                                  doc.rect(curX - 1, textY - fontSize, wordWidth + 2, fontSize + 2);
-                                }
-                                curX += wordWidth;
-                              }
-                            };
-                            
-                            for (const token of tokens) {
-                                if (!token) continue;
-                                if (token.startsWith('((')) {
-                                    const t = token.replace(/\(\(|\)\)/g, '');
-                                    wrapAndDraw(t, 'normal', pdfCommentFontSize, false);
-                                } else if (token.startsWith('[[')) {
-                                    const t = token.replace(/\[\[|\]\]/g, '').toUpperCase();
-                                    wrapAndDraw(t, 'bold', pdfCommentFontSize - 1, false);
-                                } else if (token.startsWith('{{')) {
-                                    const t = token.replace(/\{\{|\}\}/g, '');
-                                    wrapAndDraw(t, 'normal', pdfCommentFontSize, true);
-                                } else {
-                                    wrapAndDraw(token, 'italic', pdfCommentFontSize, false);
-                                }
-                            }
-                        }
-                    }
-                    else if (el.tagName.toLowerCase() === 'h4' || el.classList.contains('app-index')) {
-                        const val = el.innerText.trim();
-                        doc.setFontSize(pdfCommentTitleFontSizeActual);
-                        doc.setFont(fontFamily, "bolditalic");
-                        doc.text(val, drawX, drawY + pdfCommentTitleFontSizeActual);
-                    }
-                    else if (el.classList.contains('app-category')) {
-                        const val = el.innerText.trim();
-                        doc.setFontSize(pdfCommentTitleFontSizeActual);
-                        doc.setFont(fontFamily, "italic");
-                        doc.text(val, drawX, drawY + pdfCommentTitleFontSizeActual);
-                    }
-                    else if (el.classList.contains('app-witness-siglum')) {
-                        const val = el.innerText.trim();
-                        doc.setFontSize(pdfCommentFontSize);
-                        doc.setFont(fontFamily, "bold");
-                        doc.text(val, drawX, drawY + pdfCommentFontSize);
-                    }
-                    else if (el.classList.contains('bracket')) {
-                        const bWidth = elRect.width * SCALE_C;
-                        const bHeight = elRect.height * SCALE_C;
-                        doc.setDrawColor(0,0,0);
-                        doc.setLineWidth(pdfBracketThickness);
-                        doc.line(drawX, drawY, drawX + bWidth, drawY); // top
-                        doc.line(drawX + bWidth, drawY, drawX + bWidth, drawY + bHeight); // right
-                        doc.line(drawX + bWidth, drawY + bHeight, drawX, drawY + bHeight); // bottom
-                    }
-                }
-                
-                cursorY += bHeight + pdfCommentBlockGap;
-            }
-        }
-
-        // Draw page numbers and running headlines on all pages
-        const totalPages = doc.getNumberOfPages();
-        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-          doc.setPage(pageNum);
-          
-          // Page Numbers
-          if (pdfShowPageNumbers) {
-            doc.setFontSize(pdfPageNumberFontSize);
-            doc.setFont(fontFamily, "normal");
-            doc.setTextColor(120, 120, 120);
-            const pageNumText = `Page ${pageNum} of ${totalPages}`;
-            const pageNumWidth = doc.getTextWidth(pageNumText);
-            const textY = pageHeight - (pdfMarginBottom / 2);
-            doc.text(pageNumText, pdfMarginLeft + printWidth / 2 - pageNumWidth / 2, textY);
-          }
-
-          // Running Headline on page 2+
-          if (pageNum > 1) {
-            const headlineText = this.buildHeadlineText(pdfHeadlineMetadataFields);
-            if (headlineText) {
-              const headlineFontSize = pdfHeadlineFontSize;
-              doc.setFontSize(pdfHeadlineFontSize);
-              doc.setFont(fontFamily, "italic");
-              doc.setTextColor(80, 80, 80);
-              
-              const splitHeadline = doc.splitTextToSize(headlineText, printWidth);
-              let headlineY = pdfMarginTop / 2;
-              
-              for (const line of splitHeadline) {
-                const lineX = pdfMarginLeft + printWidth / 2 - doc.getTextWidth(line) / 2;
-                doc.text(line, lineX, headlineY);
-                headlineY += headlineFontSize * 1.2;
-              }
-              
-              const lineUnderY = headlineY - (headlineFontSize * 1.2) + 6;
-              doc.setLineWidth(0.5);
-              doc.setDrawColor(200, 200, 200);
-              doc.line(pdfMarginLeft, lineUnderY, pageWidth - pdfMarginRight, lineUnderY);
-            }
-          }
-        }
-
-        doc.save(`Document_${this.document?.dokumenten_id || 'Export'}.pdf`);
-
-      } catch (err) {
-        console.error("PDF Generation failed:", err);
-        this.toastr.error("Failed to generate PDF.", "Error");
-      } finally {
-        this.isPrinting = false;
-        this.readOnly = originalReadOnly;
-      }
-    }, 200);
+    try {
+      const job: PdfDocJob = { document: this.document, cont: this.cont, source: this.sourceData, sigle: this.sourceSigle || '' };
+      await this.pdfExport.exportDocuments([job], {
+        settings: this.settings,
+        titlePage: this.printTitlePage,
+        includeMetadata: this.printIncludeMetadata,
+        apparatus: this.printApparatus,
+      });
+    } catch (err) {
+      console.error('PDF Generation failed:', err);
+      this.toastr.error('Failed to generate PDF.', 'Error');
+    } finally {
+      this.isPrinting = false;
+    }
   }
 
-  getInlineMetadataItems(): { label: string, val: string }[] {
-    const items: { label: string, val: string }[] = [];
-    if (!this.document) return items;
-    if (this.document.dokumenten_id) items.push({ label: 'ID', val: this.document.dokumenten_id });
-    if (this.document.textinitium) items.push({ label: 'Initium', val: this.document.textinitium });
-    const genres = [this.document.gattung1, this.document.gattung2].filter(x => x).join(' / ');
-    if (genres) items.push({ label: 'Genre', val: genres });
-    const feast = [this.document.festtag, this.document.feier ? `(${this.document.feier})` : ''].filter(x => x).join(' ');
-    if (feast) items.push({ label: 'Feast', val: feast });
-    if (this.document.foliostart || this.document.zeilenstart) {
-      items.push({ label: 'Folio/Line', val: `F: ${this.document.foliostart || ''}, L: ${this.document.zeilenstart || ''}` });
-    }
-    if (this.document.druckausgabe) items.push({ label: 'Edition', val: this.document.druckausgabe });
-    if (this.document.bibliographischerverweis) items.push({ label: 'Ref', val: this.document.bibliographischerverweis });
-    if (this.document.kommentar) items.push({ label: 'Comment', val: this.document.kommentar });
-    
-    if (this.settings?.customDocumentFields) {
-      for (const cf of this.settings.customDocumentFields) {
-        const val = this.document.custom?.[cf.key];
-        if (val) {
-          items.push({ label: cf.label, val });
-        }
-      }
-    }
-    return items;
+  /**
+   * The text a comment's brackets frame (the apparatus cites it instead of a number):
+   * the lyrics from the start to the end syllable, word-joined by dropping hyphens.
+   */
+  getCommentLemma(comment: VM.Comment): string {
+    return this.cont ? commentLemma(VM.getAllLineParts(this.cont), comment) : '';
   }
+
+  getInlineMetadataItems(): { label: string, val: string }[] { return inlineMetadataItems(this.document, this.settings); }
 
   recalcId(): void {
     if (this.sourceSigle && this.document) {
@@ -1796,6 +1066,7 @@ export class DocumentComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.manuscriptView.register(this.manuscriptViewContext);
     this.undoService.registerUnDo(this.getJsonString, this.undoChanges);
     this.undoService.registerAutosave(() => {
       this.save();
@@ -1806,6 +1077,8 @@ export class DocumentComponent implements OnInit {
         this.api.getSettings(this.user.token).subscribe(res => {
           if (res.kind === 'SettingsRetrieved') {
             this.settings = res.settings;
+            this.focusService.clefDisplayMode = sanitizeClefDisplayMode(res.settings?.clefDisplayMode);
+            this.focusService.notationColor = sanitizeNotationColor(res.settings?.notationColor);
           }
         });
       }
@@ -1890,83 +1163,80 @@ export class DocumentComponent implements OnInit {
           callback: () => { this.setViewMode('iiif'); },
           icon: 'image',
           title: 'Scan Only',
-          active: this.viewMode === 'iiif'
+          active: this.viewMode === 'iiif',
+          group: 'scan'
         },
         {
           callback: () => { this.setViewMode('split'); },
           icon: 'layout-split',
           title: 'Split View',
-          active: this.viewMode === 'split'
+          active: this.viewMode === 'split',
+          group: 'scan'
         },
         {
           callback: () => { this.setViewMode('transcription'); },
           icon: 'music-note-list',
           title: 'Transcription Only',
-          active: this.viewMode === 'transcription'
+          active: this.viewMode === 'transcription',
+          group: 'scan'
         }
       );
     }
 
-    // Standard buttons
+    // Few buttons, the rest in menus with text: search and the view toggle stay one click away,
+    // editing helpers, comments and everything that leaves the editor are grouped by what they do.
     tools.push(
-      {
-        callback: () => { this.upload(); },
-        icon: 'upload',
-        title: 'Upload Document'
-      },
-      {
-        callback: () => { this.openJsonExport(); },
-        icon: 'download',
-        title: 'Export Document'
-      },
-      {
-        callback: () => { this.openPdfExport(); },
-        icon: 'file-pdf',
-        title: 'Export as PDF'
-      },
-      {
-        callback: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); },
-        icon: 'mei',
-        title: 'Export MEI'
-      },
-      {
-        callback: () => { this.exportVolpiano(); },
-        icon: 'music-note-beamed',
-        title: 'Export Volpiano'
-      },
-      {
-        callback: () => { this.toggleReadOnly(); },
-        icon: 'eye',
-        title: 'Toggle Read-Only Mode'
-      },
-      {
-        callback: () => { this.modalService.open(this.textImportModal); },
-        icon: 'file-earmark-text',
-        title: 'Import Text'
-      },
-      {
-        callback: () => {
-          this.undoService.beforeChange();
-          if (this.cont) {
-            VM.fixSyllableDashes(this.cont);
-            this.save();
-            this.cont = { ...this.cont } as VM.RootContainer;
-          }
-          this.toastr.success("Syllable hyphens corrected.");
-        },
-        icon: 'type-strikethrough',
-        title: 'Fix Syllable Dashes'
-      },
       {
         callback: () => { this.toggleSearchReplace(); },
         icon: 'search',
         title: 'Search and Replace (Ctrl+H)',
-        active: this.isSearchReplaceOpen
+        active: this.isSearchReplaceOpen,
+        group: 'edit'
       },
       {
-        callback: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); },
+        icon: 'pencil-square',
+        label: 'Edit',
+        title: 'Editing helpers',
+        group: 'edit',
+        menu: [
+          { label: 'Flag neumes by pattern…', icon: 'bi-flag', action: () => this.openFlagPatterns() },
+          { label: 'Import text…', icon: 'bi-file-earmark-text', action: () => { this.modalService.open(this.textImportModal); } },
+          { label: 'Fix syllable hyphens', icon: 'bi-type-strikethrough', action: () => this.fixSyllableDashes() },
+        ]
+      },
+      {
         icon: 'chat-left-text',
-        title: 'Edit Global Comment'
+        label: 'Comments',
+        title: 'Comments',
+        group: 'edit',
+        menu: [
+          { label: 'Add comment (Ctrl+K)', icon: 'bi-chat-left-plus', action: () => this.startCommentCreation() },
+          { label: 'Show comment list', icon: 'bi-list-ul', action: () => this.setSidebarTab('comments') },
+          { label: 'Edit global comment…', icon: 'bi-chat-left-text', action: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); } },
+          { label: 'Comments on empty syllables', header: true, action: () => {} },
+          { label: 'Placeholder notes (F3, D6) → comment on the syllable', icon: 'bi-box-arrow-in-down', action: () => this.convertPlaceholderComments(true) },
+          { label: 'Comment on the syllable → placeholder note', icon: 'bi-box-arrow-up', action: () => this.convertPlaceholderComments(false) },
+        ]
+      },
+      {
+        callback: () => { this.toggleReadOnly(); },
+        icon: 'eye',
+        title: 'Toggle Read-Only Mode',
+        group: 'view'
+      },
+      {
+        icon: 'arrow-left-right',
+        label: 'File',
+        title: 'Import and export',
+        group: 'exchange',
+        menu: [
+          { label: 'Upload document (JSON)…', icon: 'bi-upload', action: () => this.upload() },
+          { label: 'Export', header: true, action: () => {} },
+          { label: 'Document (JSON)…', icon: 'bi-download', action: () => this.openJsonExport() },
+          { label: 'PDF…', icon: 'bi-file-pdf', action: () => this.openPdfExport() },
+          { label: 'MEI', icon: 'bi-file-earmark-code', action: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); } },
+          { label: 'Volpiano', icon: 'bi-music-note-beamed', action: () => this.exportVolpiano() },
+        ]
       }
     );
 
@@ -1976,6 +1246,31 @@ export class DocumentComponent implements OnInit {
       source: this,
       tools: tools
     });
+  }
+
+  fixSyllableDashes(): void {
+    this.undoService.beforeChange();
+    if (this.cont) {
+      VM.fixSyllableDashes(this.cont);
+      this.save();
+      this.cont = { ...this.cont } as VM.RootContainer;
+    }
+    this.toastr.success('Syllable hyphens corrected.');
+  }
+
+  /** "Flag neumes by pattern" dialog; the dialog edits this.cont in place, we refresh and save afterwards. */
+  openFlagPatterns(pattern: string = ''): void {
+    if (!this.cont) return;
+    const ref = this.modalService.open(FlagPatternsDialogComponent, { size: 'lg', centered: true, scrollable: true });
+    ref.componentInstance.root = this.cont;
+    ref.componentInstance.initialPattern = pattern;
+    ref.result.then((res: { notes: number; matches: number; key: string; action: 'add' | 'remove' }) => {
+      if (!res || res.notes === 0) return;
+      this.cont = JSON.parse(JSON.stringify(this.cont));
+      this.save();
+      this.cdr.detectChanges();
+      this.toastr.success(`${res.action === 'add' ? 'Set' : 'Removed'} flag ${res.key} on ${res.notes} note(s) in ${res.matches} neume(s).`);
+    }).catch(() => { /* dismissed */ });
   }
 
   goToSource(s_id: string) {
@@ -2156,7 +1451,38 @@ export class DocumentComponent implements OnInit {
     }
   }
 
+  /**
+   * Switches this document between the two ways of commenting on a syllable without notes:
+   * a comment on a placeholder note (old convention) or on the empty syllable itself.
+   */
+  convertPlaceholderComments(toSyllables: boolean): void {
+    if (!this.cont) return;
+    const cfg = placeholderConfigFromSettings(this.settings);
+    this.undoService.beforeChange(toSyllables ? 'Placeholder notes to syllable comments' : 'Syllable comments to placeholder notes');
+    // Work on a copy and swap it in: the note editors redraw on a new model object, not on a change inside the old one.
+    let out: VM.RootContainer = JSON.parse(JSON.stringify(this.cont));
+    let count: number;
+    if (toSyllables) {
+      count = placeholderCommentsToSyllables(out, cfg);
+    } else {
+      const before = this.cont.comments.map(c => c.startUUID + '|' + c.endUUID);
+      out = syllableCommentsToPlaceholders(out, cfg);
+      count = out.comments.filter((c, i) => c.startUUID + '|' + c.endUUID !== before[i]).length;
+    }
+    if (!count) {
+      this.toastr.info(toSyllables ? 'No comments on placeholder notes found.' : 'No comments on empty syllables found.');
+      return;
+    }
+    this.cont = out;
+    this.contJsonClone = JSON.stringify(this.cont);
+    this.save();
+    this.cdr.detectChanges();
+    this.toastr.success(`${count} comment(s) moved ${toSyllables ? 'onto the syllables' : 'onto placeholder notes'}.`);
+  }
+
   showJsonExportDialog = false;
+  /** Old versions: write a placeholder note under comments on syllables without notes. */
+  exportPlaceholderNotes = false;
   exportJsonMode: 'none' | 'comment' | 'consecutive_lines' | 'split_documents' = 'none';
 
   openJsonExport(): void {
@@ -2201,9 +1527,11 @@ export class DocumentComponent implements OnInit {
 
     if (compatMode === 'split_documents') {
       const split = VM.convertToBackwardsCompatibleSplitDocuments(this.cont, baseId);
-      this.triggerDownloadBlob(split.v1, split.filename1);
+      const cfg = placeholderConfigFromSettings(this.settings);
+      const part = (r: VM.RootContainer) => this.exportPlaceholderNotes ? syllableCommentsToPlaceholders(r, cfg) : r;
+      this.triggerDownloadBlob(part(split.v1), split.filename1);
       setTimeout(() => {
-        this.triggerDownloadBlob(split.v2, split.filename2);
+        this.triggerDownloadBlob(part(split.v2), split.filename2);
       }, 250);
       return;
     }
@@ -2215,6 +1543,7 @@ export class DocumentComponent implements OnInit {
       exportData = VM.convertToBackwardsCompatibleComment(this.cont);
     }
 
+    if (this.exportPlaceholderNotes) exportData = syllableCommentsToPlaceholders(exportData, placeholderConfigFromSettings(this.settings));
     this.triggerDownloadBlob(exportData, `${baseId}.json`);
   }
 
@@ -2237,7 +1566,6 @@ export class DocumentComponent implements OnInit {
   }
 
   handleFile(): void {
-    const that = this;
     const file = (document.getElementById("document-upload") as HTMLInputElement)!.files![0];
     const reader = new FileReader();
     reader.onload = (p: ProgressEvent) => {
@@ -2249,6 +1577,7 @@ export class DocumentComponent implements OnInit {
             case 'Failed': this.toastr.error("Invalid format", "Upload failed!"); break;
             case 'NotesRetrieved':
               this.cont = VM.normalizeDocumentComments(res.data);
+              if (importPlaceholderCommentsEnabled(this.settings)) placeholderCommentsToSyllables(this.cont, placeholderConfigFromSettings(this.settings));
               this.contJsonClone = JSON.stringify(this.cont);
               this.toastr.success("Upload successful!");
               this.checkSecondVoiceComments(this.cont);
@@ -2504,6 +1833,8 @@ export class DocumentComponent implements OnInit {
   }
 
   ngOnDestroy(): void {
+    this.manuscriptView.unregister(this.manuscriptViewContext);
+    this.manuscriptView.close();
     for (const s of this.subs) {
       s.unsubscribe();
     }
@@ -2762,12 +2093,7 @@ export class DocumentComponent implements OnInit {
     }
     return comment.startUUID === focusedNote || comment.endUUID === focusedNote;
   }
-  getCommentType(c: VM.Comment): string {
-    if (c.commentType) return c.commentType;
-    if (c.tree) return 'tree';
-    if (c.lines) return 'lines';
-    return 'text';
-  }
+  getCommentType(c: VM.Comment): string { return commentType(c); }
 
   getCommentPreview(comment: VM.Comment): string {
     if (!this.cont) return '';
