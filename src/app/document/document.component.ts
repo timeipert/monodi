@@ -8,7 +8,7 @@ import { APIService, Document, ProjectSettings, Source } from '../api.service';
 import { assertNever } from '../../utils';
 import { ToolsService } from '../tools.service';
 import { ToastrService } from 'ngx-toastr';
-import { Subscription, combineLatest } from 'rxjs';
+import { Subscription, combineLatest, finalize } from 'rxjs';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { FlagPatternsDialogComponent } from '../notes/flag-patterns-dialog.component';
 import { parsers } from '../types/parser';
@@ -1405,23 +1405,48 @@ export class DocumentComponent implements OnInit {
         return;
       }
       this.isSaving = true;
-      this.api.createDocument(this.user.token, { document: doc, notes: cont }).subscribe(res => {
-        this.isSaving = false;
-        switch (res.kind) {
-          case 'LoginRequired': this.userService.logout(); break;
-          case 'DocumentCreated': 
-            this.toastr.success("Saved successfully");
-            this.document!.id = res.id;
-            this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
-            break;
-          default: assertNever(res);
-        }
-        if (this.savePending) {
-          this.savePending = false;
-          this.save();
-        }
+      this.api.createDocument(this.user.token, { document: doc, notes: cont }).pipe(
+        finalize(() => this.saveFinished())
+      ).subscribe({
+        next: res => {
+          switch (res.kind) {
+            case 'LoginRequired': this.userService.logout(); break;
+            case 'DocumentCreated': 
+              this.toastr.success("Saved successfully");
+              this.document!.id = res.id;
+              this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
+              break;
+            default: assertNever(res);
+          }
+        },
+        error: e => this.saveFailed(e),
       });
     }
+  }
+
+  /**
+   * Runs after every save, whether it worked or not. Not clearing `isSaving` on a failed save (the storage is
+   * full, say) would leave it set for good: every later save would only be queued, never run, and the person
+   * would keep typing into a document that is no longer being saved.
+   */
+  private saveFinished(): void {
+    this.isSaving = false;
+    if (this.savePending) {
+      this.savePending = false;
+      this.save();
+    }
+  }
+
+  private lastSaveErrorToast = 0;
+
+  private saveFailed(error: unknown): void {
+    console.error('Saving the document failed', error);
+    // Autosave retries on every edit: tell the person once in a while, not with every keystroke.
+    if (Date.now() - this.lastSaveErrorToast < 10_000) return;
+    this.lastSaveErrorToast = Date.now();
+    this.toastr.error(
+      'The document could not be saved: ' + (error instanceof Error ? error.message : String(error)) +
+      '. Your changes are still here; export the document as JSON to keep them.', 'Save failed');
   }
 
   update(): void {
@@ -1431,22 +1456,22 @@ export class DocumentComponent implements OnInit {
         return;
       }
       this.isSaving = true;
-      this.api.updateDocument(this.user.token, { document: this.document, notes: this.cont }).subscribe(res => {
-        this.isSaving = false;
-        switch (res.kind) {
-          case 'LoginRequired': this.userService.logout(); break;
-          case 'Ok': 
-            // Removed toastr to prevent spamming on autosave
-            this.resetClones(); 
-            break;
-          case 'DocumentNotFound': this.toastr.error("It looks like this document was deleted in the meantime."); break;
-          case 'InsufficientPermissions': this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
-          default: assertNever(res);
-        }
-        if (this.savePending) {
-          this.savePending = false;
-          this.save();
-        }
+      this.api.updateDocument(this.user.token, { document: this.document, notes: this.cont }).pipe(
+        finalize(() => this.saveFinished())
+      ).subscribe({
+        next: res => {
+          switch (res.kind) {
+            case 'LoginRequired': this.userService.logout(); break;
+            case 'Ok': 
+              // Removed toastr to prevent spamming on autosave
+              this.resetClones(); 
+              break;
+            case 'DocumentNotFound': this.toastr.error("It looks like this document was deleted in the meantime."); break;
+            case 'InsufficientPermissions': this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
+            default: assertNever(res);
+          }
+        },
+        error: e => this.saveFailed(e),
       });
     }
   }

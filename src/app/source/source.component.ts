@@ -9,7 +9,7 @@ import { VolpianoService } from '../volpiano.service';
 import { ToastrService } from 'ngx-toastr';
 import { ToolsService } from '../tools.service';
 import { assertNever, compareNatural } from '../../utils';
-import { Subscription, combineLatest, firstValueFrom } from 'rxjs';
+import { Subscription, combineLatest, finalize, firstValueFrom } from 'rxjs';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
@@ -18,6 +18,14 @@ import { Header, BatchField } from '../smart-table/smart-table.component';
 import { NotesStore } from '../notes-store';
 import { ContainerKind, RootContainer } from '../types/model';
 import { sourceDescription, setSourceDescription } from '../source-description';
+
+/** A document's notes with what the notation analysis needs to know about it. */
+interface NotationInput {
+  root: RootContainer;
+  id: string;
+  quelle_id: string;
+  foliostart?: string;
+}
 
 export interface DocColDef {
   key: keyof Document | string;
@@ -269,17 +277,21 @@ export class SourceComponent implements OnInit {
   create(): void {
     if (this.user && this.source && !this.isSaving) {
       this.isSaving = true;
-      this.api.createSource(this.user.token, this.source).subscribe(res => {
-        this.isSaving = false;
-        switch (res.kind) {
-          case 'LoginRequired': this.userService.logout(); break;
-          case 'SourceCreated': 
-            this.toastr.success("Saved successfully.");
-            if (this.source) this.source.id = res.id;
-            this.location.replaceState('/source/' + res.id);
-            break;
-          default: assertNever(res);
-        }
+      this.api.createSource(this.user.token, this.source).pipe(
+        finalize(() => { this.isSaving = false; })
+      ).subscribe({
+        next: res => {
+          switch (res.kind) {
+            case 'LoginRequired': this.userService.logout(); break;
+            case 'SourceCreated': 
+              this.toastr.success("Saved successfully.");
+              if (this.source) this.source.id = res.id;
+              this.location.replaceState('/source/' + res.id);
+              break;
+            default: assertNever(res);
+          }
+        },
+        error: e => this.saveFailed(e),
       });
     }
   }
@@ -287,21 +299,39 @@ export class SourceComponent implements OnInit {
   update(): void {
     if (this.user && this.source && this.source.id && !this.isSaving) {
       this.isSaving = true;
-      this.api.updateSource(this.user.token, this.source).subscribe(res => {
-        this.isSaving = false;
-        switch (res.kind) {
-          case 'LoginRequired': this.userService.logout(); break;
-          case 'Ok':
-            // Removed toast to prevent spamming on autosave
-            if (this.source && this.source.quellensigle) {
-              this.updateQuellensigle(this.source.quellensigle);
-            }
-            break;
-          case 'SourceNotFound': this.toastr.error("It looks like this source was deleted in the meantime."); break;
-          default: assertNever(res);
-        }
+      this.api.updateSource(this.user.token, this.source).pipe(
+        finalize(() => { this.isSaving = false; })
+      ).subscribe({
+        next: res => {
+          switch (res.kind) {
+            case 'LoginRequired': this.userService.logout(); break;
+            case 'Ok':
+              // Removed toast to prevent spamming on autosave
+              if (this.source && this.source.quellensigle) {
+                this.updateQuellensigle(this.source.quellensigle);
+              }
+              break;
+            case 'SourceNotFound': this.toastr.error("It looks like this source was deleted in the meantime."); break;
+            default: assertNever(res);
+          }
+        },
+        error: e => this.saveFailed(e),
       });
     }
+  }
+
+  private lastSaveErrorToast = 0;
+
+  /**
+   * A failed save (the storage is full, say) must not leave `isSaving` set: every later save is ignored while it
+   * is, so the person would keep editing a source that is no longer being saved. `finalize` above clears it;
+   * this tells them, at most once in a while since autosave retries on every edit.
+   */
+  private saveFailed(error: unknown): void {
+    console.error('Saving the source failed', error);
+    if (Date.now() - this.lastSaveErrorToast < 10_000) return;
+    this.lastSaveErrorToast = Date.now();
+    this.toastr.error('The source could not be saved: ' + (error instanceof Error ? error.message : String(error)), 'Save failed');
   }
 
   deleteDocument(d: Document): void {
@@ -433,45 +463,62 @@ export class SourceComponent implements OnInit {
     this.allPatterns = [];
     this.sourceFolios = [];
     const sourceId = this.source.id;
+    const token = this.user.token;
 
-    this.api.listDocuments(this.user.token).subscribe(res => {
-      if (res.kind !== 'DocumentsRetrieved') return;
-      const docs = res.documents.filter(d => d.quelle_id === sourceId);
+    this.api.listDocuments(token).subscribe({
+      next: res => {
+        const docs = res.kind === 'DocumentsRetrieved' ? res.documents.filter(d => d.quelle_id === sourceId) : [];
+        if (docs.length === 0) {
+          this.finishNotation(sourceId, []);
+          return;
+        }
 
-      if (docs.length === 0) {
+        // In the order of the documents, not of whichever read finishes first.
+        const loaded: (NotationInput | undefined)[] = new Array(docs.length);
+        let remaining = docs.length;
+        docs.forEach((doc, i) => {
+          this.api.getDocumentNotes(token, doc.id).pipe(
+            // Whether it worked or not: one unreadable document must not keep the spinner going for good.
+            finalize(() => { if (--remaining === 0) this.finishNotation(sourceId, loaded.filter((d): d is NotationInput => !!d)); })
+          ).subscribe({
+            next: noteRes => {
+              if (noteRes.kind === 'NotesRetrieved') {
+                loaded[i] = { root: noteRes.data, id: doc.id, quelle_id: doc.quelle_id, foliostart: doc.foliostart };
+              }
+            },
+            error: e => console.warn('Could not read the notes of document', doc.id, e),
+          });
+        });
+      },
+      error: e => {
+        console.warn('Could not list the documents of source', sourceId, e);
+        this.finishNotation(sourceId, []);
+      },
+    });
+  }
+
+  /** Analyses what was loaded, after the spinner has had a chance to paint. */
+  private finishNotation(sourceId: string, docsData: NotationInput[]) {
+    setTimeout(() => {
+      if (this.source?.id !== sourceId) return;   // another source was opened meanwhile; its own load decides
+      try {
+        let patterns: AnalyzedPattern[] = [];
+        const folios = new Set<string>();
+        for (const d of docsData) {
+          patterns = patterns.concat(analyzeDocument(d.root, d.quelle_id || 'Unknown', d.id || 'Unknown'));
+          extractDocumentFolios(d.root, d.foliostart).forEach(f => folios.add(f));
+        }
+        this.allPatterns = patterns;
+        this.sourceFolios = Array.from(folios);
+      } catch (e) {
+        console.error('Analysing the notation failed', e);
+        this.toastr.error('The notation of this source could not be analysed.');
+      } finally {
         this.isLoadingNotation = false;
         this.notationLoaded = true;
-        return;
+        this.cdr.detectChanges();
       }
-
-      let loaded = 0;
-      const docsData: any[] = [];
-
-      for (const doc of docs) {
-        this.api.getDocumentNotes(this.user!.token, doc.id).subscribe(noteRes => {
-          if (noteRes.kind === 'NotesRetrieved') {
-            docsData.push({ root: noteRes.data, id: doc.id, quelle_id: doc.quelle_id });
-          }
-          loaded++;
-          if (loaded === docs.length) {
-            setTimeout(() => {
-              let patterns: AnalyzedPattern[] = [];
-              const folios = new Set<string>();
-              for (const d of docsData) {
-                patterns = patterns.concat(analyzeDocument(d.root, d.quelle_id || 'Unknown', d.id || 'Unknown'));
-                const docFolios = extractDocumentFolios(d.root, d.foliostart);
-                docFolios.forEach(f => folios.add(f));
-              }
-              this.allPatterns = patterns;
-              this.sourceFolios = Array.from(folios);
-              this.isLoadingNotation = false;
-              this.notationLoaded = true;
-              this.cdr.detectChanges();
-            }, 0);
-          }
-        });
-      }
-    });
+    }, 0);
   }
 
   addToSettingsCustom(category: string, value: string | undefined) {

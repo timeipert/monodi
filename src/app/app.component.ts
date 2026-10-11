@@ -215,6 +215,23 @@ export class AppComponent {
     return this.user?.user || '';
   }
 
+  /**
+   * Runs one step of a sync. `isSyncing` locks the Sync buttons while it runs: a step that throws (the network
+   * drops in the middle of a pull) must still release them, and say what happened, or they stay disabled until
+   * the page is reloaded and the person never learns why.
+   */
+  private async guardSync(step: string, run: () => Promise<void>): Promise<void> {
+    try {
+      await run();
+    } catch (e) {
+      console.error(`${step} failed`, e);
+      alert(`${step} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      this.isSyncing = false;
+      this.syncProgress = null;
+    }
+  }
+
   async openSyncDialog(action: 'pull' | 'push') {
     this.syncDialogAction = action;
     this.syncFilterText = '';
@@ -313,6 +330,10 @@ export class AppComponent {
 
   /** Pushes only the chosen manuscripts; everything else on GitHub is left as-is. */
   private async pushSelected(ids: Set<string>) {
+    await this.guardSync('Push', () => this.pushSelectedCore(ids));
+  }
+
+  private async pushSelectedCore(ids: Set<string>) {
     this.isSyncing = true;
     this.syncProgress = { phase: 'Preparing…', current: 0, total: 0 };
     const date = new Date().toLocaleString();
@@ -336,6 +357,10 @@ export class AppComponent {
    * manuscripts; all other local data is left untouched.
    */
   private async pullSelected(ids: Set<string>) {
+    await this.guardSync('Pull', () => this.pullSelectedCore(ids));
+  }
+
+  private async pullSelectedCore(ids: Set<string>) {
     this.isSyncing = true;
     this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
 
@@ -405,6 +430,10 @@ export class AppComponent {
    * footprint flat no matter how large the corpus is.
    */
   async sync(action: 'pull' | 'push') {
+    await this.guardSync('Sync', () => this.syncCore(action));
+  }
+
+  private async syncCore(action: 'pull' | 'push') {
     this.isSyncing = true;
     this.pendingAction = action;
     this.syncProgress = { phase: 'Connecting…', current: 0, total: 0 };
@@ -665,6 +694,10 @@ export class AppComponent {
    * memory-safe even when the whole corpus is in conflict.
    */
   async resolveConflicts() {
+    await this.guardSync('Applying your choices', () => this.resolveConflictsCore());
+  }
+
+  private async resolveConflictsCore() {
     this.showMergeDialog = false;
     this.isSyncing = true;
     this.syncProgress = { phase: 'Applying your choices…', current: 0, total: 0 };
@@ -751,6 +784,10 @@ export class AppComponent {
    * and reports the outcome.
    */
   async finishSync() {
+    await this.guardSync('Finishing the sync', () => this.finishSyncCore());
+  }
+
+  private async finishSyncCore() {
     this.isSyncing = true;
 
     let reload = true;

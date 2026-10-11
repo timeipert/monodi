@@ -1,6 +1,6 @@
 import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { convertToParamMap, ActivatedRoute } from '@angular/router';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 
@@ -82,5 +82,30 @@ describe('SourceComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  describe('saving', () => {
+    it('keeps saving after a save failed, and says so', () => {
+      const update = spyOn(mockAPIService, 'updateSource').and.returnValues(
+        throwError(() => new Error('The storage is full')) as any,
+        of({ kind: 'Ok' }) as any);
+      const toast = spyOn(mockToastrService, 'error');
+
+      component.update();                       // fails
+      expect(component.isSaving).toBeFalse();
+      expect(toast).toHaveBeenCalledTimes(1);
+      expect(String((toast.calls.mostRecent().args as unknown[])[0])).toContain('The storage is full');
+
+      component.update();                       // the next one must really run
+      expect(update).toHaveBeenCalledTimes(2);
+      expect(component.isSaving).toBeFalse();
+    });
+
+    it('does not tell the person again for every failed autosave in a row', () => {
+      spyOn(mockAPIService, 'updateSource').and.returnValue(throwError(() => new Error('full')) as any);
+      const toast = spyOn(mockToastrService, 'error');
+      component.update(); component.update(); component.update();
+      expect(toast).toHaveBeenCalledTimes(1);
+    });
   });
 });

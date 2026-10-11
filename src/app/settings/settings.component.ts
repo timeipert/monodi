@@ -663,8 +663,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.isGithubConnecting = true;
     this.github.connectWithApp(repo.owner, repo.name, this.selectedBranch);
     this.githubConfig = { ...this.github.config! };
-    const ok = await this.github.testConnection();
-    this.isGithubConnecting = false;
+    let ok = false;
+    try {
+      ok = await this.github.testConnection();
+    } finally {
+      this.isGithubConnecting = false;   // a failed test must not leave the button spinning
+    }
     if (ok) {
       this.toastr.success(`Connected to ${repo.fullName}. Use the Sync button in the top bar to push or pull.`);
     } else {
