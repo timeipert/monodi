@@ -152,33 +152,38 @@
 
       <!-- ── Gallery view ── -->
       @if (showGallery) {
-        <div class="iiif-gallery">
-          @for (g of galleryItems; track galleryTrackBy($index, g)) {
-            <div
-              class="gallery-item-card"
-              [class.gallery-active]="g.item.id === linkingItemId"
-              (click)="selectGalleryItem(g.item)">
-              <!-- Header -->
-              <div class="gallery-header">
-                <span class="gallery-pattern fw-bold">{{ g.item.pattern }}@if (g.item.variant) {
-                  <span> {{ g.item.variant }}</span>
-                }</span>
-              </div>
-              <!-- Cropped Image -->
-              <div class="gallery-crop"
-                [style.background-image]="'url(' + g.imageUrl + ')'"
-                [style.background-position]="(-g.rect.x) + 'px ' + (-g.rect.y) + 'px'"
-                [style.width.px]="g.rect.w"
-                [style.height.px]="g.rect.h">
-                <!-- Inline SVG for the bounding box -->
-                <svg [attr.width]="g.rect.w" [attr.height]="g.rect.h" style="position: absolute; top:0; left:0; pointer-events:none;">
-                  <polygon [attr.points]="translatePointsToCrop(g.item.points, g.rect, g.rawRect)"
-                    fill="rgba(13,110,253,0.15)" stroke="#0d6efd" stroke-width="2"
-                  vector-effect="non-scaling-stroke"></polygon>
+        <div class="gallery-grid">
+          @if (galleryItems.length === 0) {
+            <div class="text-muted text-center py-5 w-100">
+              No annotated items yet.
+            </div>
+          }
+          @for (g of galleryItems; track g.item.id) {
+            <div class="gallery-card" (click)="navigateToItem(g)"
+              [title]="(g.region?.name || '?') + ', p.' + (g.canvasIdx + 1)">
+
+              <!-- SVG cutout: the padded viewBox shows context, the polygon marks the exact annotation -->
+              <div class="gallery-cutout-wrap">
+                <svg class="gallery-crop"
+                  [attr.viewBox]="g.rect.x + ' ' + g.rect.y + ' ' + g.rect.w + ' ' + g.rect.h"
+                  preserveAspectRatio="xMidYMid meet">
+                  <image [attr.href]="g.imageUrl" x="0" y="0" width="100" height="100"
+                    preserveAspectRatio="none" referrerpolicy="no-referrer"></image>
+                  <!-- Region outline (context) -->
+                  @if (g.region) {
+                    <polygon [attr.points]="g.region.points"
+                      fill="none" stroke="#94a3b8" stroke-width="0.4"
+                      vector-effect="non-scaling-stroke" opacity="0.7"></polygon>
+                  }
+                  <!-- Item annotation highlight -->
+                  <polygon [attr.points]="g.item.points"
+                    fill="rgba(37,99,235,0.18)" stroke="#2563eb" stroke-width="0.5"
+                    vector-effect="non-scaling-stroke"></polygon>
                 </svg>
-                <!-- HTML label overlay — positioned at top-left of the annotation -->
+                <!-- HTML label overlay: top-left of the annotation -->
                 <div class="gallery-item-label">{{ itemDisplayId(g.item) }}</div>
               </div>
+
               <!-- Footer -->
               <div class="gallery-footer">
                 <span class="gallery-loc">{{ g.region?.name || '?' }}, p.{{ g.canvasIdx + 1 }}</span>
