@@ -53,6 +53,12 @@ export class ContextMenuService {
     this.stateSubject.next(this.currentState);
   }
 
+  /** Opens the menu at a fixed screen position (below a toolbar button), kept inside the window. */
+  openAt(x: number, y: number, items: ContextMenuItem[]) {
+    this.currentState = { isOpen: true, x: Math.max(4, Math.min(x, window.innerWidth - 340)), y, items };
+    this.stateSubject.next(this.currentState);
+  }
+
   close() {
     if (this.currentState.isOpen) {
       this.currentState.isOpen = false;

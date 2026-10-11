@@ -31,6 +31,8 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
         document.body.appendChild(host);
       }
     } catch { /* SSR / detached DOM: ignore */ }
+    for (const t of ContextMenuComponent.OUTSIDE_EVENTS) document.addEventListener(t, this.closeOutside, { capture: true, passive: true });
+    document.addEventListener('keydown', this.closeOnEscape, true);
     this.sub = this.contextMenuService.state$.subscribe(state => {
       this.state = state;
       this.expanded.clear();
@@ -66,6 +68,8 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.sub?.unsubscribe();
+    for (const t of ContextMenuComponent.OUTSIDE_EVENTS) document.removeEventListener(t, this.closeOutside, true);
+    document.removeEventListener('keydown', this.closeOnEscape, true);
     try {
       const host = this.el.nativeElement as HTMLElement;
       if (host.parentElement === document.body) {
@@ -74,13 +78,21 @@ export class ContextMenuComponent implements OnInit, OnDestroy {
     } catch { /* ignore */ }
   }
 
-  // Close when clicking anywhere outside
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent) {
-    if (this.state.isOpen) {
-      this.contextMenuService.close();
-    }
-  }
+  /**
+   * Closes the menu on any press, click, right-click or touch outside it, and on Escape. The listeners sit on the
+   * document in the capture phase: components that stop the event while it bubbles (notes, syllables, dialogs
+   * ...) can no longer keep a menu open. A right-click that opens the next menu closes the old one first.
+   */
+  private readonly closeOutside = (event: Event) => {
+    if (!this.state.isOpen) return;
+    const menu = this.el.nativeElement.querySelector('.custom-context-menu') as HTMLElement | null;
+    if (menu && event.target instanceof Node && menu.contains(event.target)) return;
+    this.contextMenuService.close();
+  };
+  private readonly closeOnEscape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && this.state.isOpen) this.contextMenuService.close();
+  };
+  private static readonly OUTSIDE_EVENTS = ['mousedown', 'click', 'contextmenu', 'touchstart', 'wheel'];
 
   // Close on scroll or resize
   @HostListener('window:scroll')
