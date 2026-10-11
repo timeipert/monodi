@@ -26,14 +26,50 @@ jobs:
       - name: Build production app
         run: npx ng build --configuration production
 
+      # The build does not check what templates use: a handler that was never written compiles fine.
+      - name: Check template members
+        run: node scripts/check-templates.mjs
+
       - name: Run unit tests
         run: npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox
+
+  # Opens every page in a real browser (headless Chrome, seeded workspace) and clicks through the rows that open
+  # sources and documents. Fails on console errors, change-detection warnings and settings tabs that render
+  # nothing: the kind of break that builds fine and passes every unit test but is dead on arrival.
+  # It needs the dev server (the Angular warnings it looks for only exist in development mode).
+  smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start the dev server
+        run: |
+          npx ng serve --port 4299 > ng-serve.log 2>&1 &
+          for i in $(seq 1 120); do
+            if curl -sf http://localhost:4299/ > /dev/null; then echo "dev server is up"; exit 0; fi
+            sleep 3
+          done
+          echo "dev server did not start"; cat ng-serve.log; exit 1
+
+      - name: Smoke test
+        run: node scripts/smoke-e2e.mjs
 
   # Build the Angular app and publish it to GitHub Pages (custom domain
   # monodi.app, preserved via src/CNAME which the build copies into docs/).
   # Requires repo Settings → Pages → Source = "GitHub Actions".
   deploy-pages:
-    needs: build-and-test
+    needs: [build-and-test, smoke-test]
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
