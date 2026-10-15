@@ -41,6 +41,8 @@ import f37 from './extreme/x17-signatures.json';
 import f38 from './extreme/x18-lonely-last-syllable.json';
 import f39 from './extreme/x19-folio-labels.json';
 import f40 from './extreme/x20-without-notes.json';
+import f41 from './extreme/x21-long-signatures.json';
+import f42 from './extreme/x22-text-trees.json';
 
 export const FIXTURES: { name: string; kind: 'real' | 'extreme'; doc: any }[] = [
   { name: "Aa_13__254326a3-ead7-4a1d-a49b-57e3b12e6f6a", kind: 'real' as const, doc: f0 as any },
@@ -84,4 +86,6 @@ export const FIXTURES: { name: string; kind: 'real' | 'extreme'; doc: any }[] = 
   { name: "x18-lonely-last-syllable", kind: 'extreme' as const, doc: f38 as any },
   { name: "x19-folio-labels", kind: 'extreme' as const, doc: f39 as any },
   { name: "x20-without-notes", kind: 'extreme' as const, doc: f40 as any },
+  { name: "x21-long-signatures", kind: 'extreme' as const, doc: f41 as any },
+  { name: "x22-text-trees", kind: 'extreme' as const, doc: f42 as any },
 ];

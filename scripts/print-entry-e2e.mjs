@@ -119,7 +119,7 @@ await scenario('document view dialog', async (page, problems, pdfText) => {
     const firstEditionPage = execFileSync(PDFTOTEXT, ['-f', '2', '-l', '2', file, '-']).toString();
     if (!(firstEditionPage.includes('Abb 7-12r-1') && firstEditionPage.includes('Aa 13-1r-1'))) problems.push('the second manuscript did not run on after the first (it still starts a new page)');
     if ((text.match(/Abb 7-12r-1/g) || []).length < 4) problems.push('the contents do not list the documents under the apparatus');
-  }, { pdfChapterNewPage: false, pdfChapterHeadings: false, pdfBookmarks: false, pdfContentsApparatus: 'documents' });
+  }, { pdfPartStyle: 'compact', pdfContentsEdition: 'documents', pdfChapterNewPage: false, pdfChapterHeadings: false, pdfBookmarks: false, pdfContentsApparatus: 'documents' });
   docs.splice(0, docs.length, ...keep);
 }
 

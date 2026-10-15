@@ -52,7 +52,9 @@ let resolveDl; const dl = new Promise((r) => (resolveDl = r));
 await capturePdfDownloads(page, (buf) => { writeFileSync(out, buf); resolveDl(); });
 try {
   step('seed'); await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });
-  await seedWorkspace(page, docs, {});
+  // the checks below are written for the compact style (no part pages), a contents list of every document and
+  // a heading with ID, incipit and genre
+  await seedWorkspace(page, docs, { pdfPartStyle: 'compact', pdfContentsEdition: 'documents', pdfDocHeadingFields: [{ key: 'dokumenten_id', style: 'bold' }, { key: 'textinitium', style: 'normal' }, { key: 'genre', style: 'grey' }] });
   step('open manuscript'); await page.goto(BASE + '/#/source/src1?tab=documents', { waitUntil: 'networkidle0' });
   await page.reload({ waitUntil: 'networkidle0' });
   step('find button'); const btn = await page.waitForSelector('button ::-p-text(Print manuscript)', { timeout: 30000 });

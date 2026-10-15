@@ -65,6 +65,18 @@ jobs:
       - name: Smoke test
         run: node scripts/smoke-e2e.mjs
 
+      # Prints all fixtures as one PDF and checks the page-break rules on where the export put things:
+      # no heading alone at the bottom of a page, no single system of a line left alone at a page edge.
+      - name: Print layout (page breaks)
+        run: node scripts/layout-e2e.mjs
+
+      # The cover page and the volumes (one PDF per manuscript / region ..., zipped) through the real print
+      # dialog; reads the PDFs back with poppler.
+      - name: Cover page and volumes
+        run: |
+          sudo apt-get install -y --no-install-recommends poppler-utils unzip
+          node scripts/cover-e2e.mjs
+
   # Build the Angular app and publish it to GitHub Pages (custom domain
   # monodi.app, preserved via src/CNAME which the build copies into docs/).
   # Requires repo Settings → Pages → Source = "GitHub Actions".

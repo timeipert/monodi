@@ -1,4 +1,4 @@
-import { commentLemma, commentStartIndex } from './comment-lemma';
+import { commentLemma, commentStartIndex, firstTreeText, plainMarkup, treeRepeatsLemma, treeStartsWithBracket } from './comment-lemma';
 import { BaseNote, NoteType, Syllable, SyllableType } from './types/model';
 
 const syl = (text: string, noteId: string): Syllable => ({
@@ -32,4 +32,42 @@ describe('commentLemma', () => {
     expect(commentStartIndex(parts, { startUUID: 'n1' })).toBe(0);
     expect(commentStartIndex(parts, { startUUID: 'unknown' })).toBe(Infinity);
   });
+
+  describe('a tree that repeats the lemma', () => {
+    const leaf = (content: any): any => ({ kind: 'CommentTreeLeaf', id: Math.random() + '', content });
+    const grid = (...rows: any[][]): any => ({ kind: 'CommentTreeGrid', id: 'g', items: rows });
+    const text = (t: string) => leaf({ kind: 'Text', content: t });
+    const tree = grid([text('((Gratuletur)) (wie ((CT X)))'), leaf({ kind: 'Bracket' }), text('((Gratultur)), aber Notation für 4 Silben.')]);
+
+    it('strips the markup', () => {
+      expect(plainMarkup('((Gratuletur)) (wie ((CT X))) [[Pa]] {{x}}')).toBe('Gratuletur (wie CT X) Pa x');
+    });
+
+    it('finds the first text cell, also in nested grids', () => {
+      expect(firstTreeText(tree)).toBe('((Gratuletur)) (wie ((CT X)))');
+      expect(firstTreeText(grid([grid([text('inner')])]))).toBe('inner');
+      expect(firstTreeText(grid([leaf({ kind: 'Bracket' })]))).toBe('');
+      expect(firstTreeText(undefined)).toBe('');
+    });
+
+    it('recognises the lemma at the start of the first cell (case, markup and punctuation ignored)', () => {
+      expect(treeRepeatsLemma(tree, 'Gratuletur')).toBeTrue();
+      expect(treeRepeatsLemma(tree, 'gratuletur,')).toBeTrue();
+      expect(treeRepeatsLemma(grid([text('Gratuletur')]), 'Gratuletur')).toBeTrue();
+    });
+
+    it('knows a tree that begins with its bracket', () => {
+      expect(treeStartsWithBracket(grid([leaf({ kind: 'Bracket' }), text('korrigiert aus ((uatum))')]))).toBeTrue();
+      expect(treeStartsWithBracket(tree)).toBeFalse();
+      expect(treeStartsWithBracket(undefined)).toBeFalse();
+    });
+
+    it('does not take a longer word, another word or an empty lemma for a repeat', () => {
+      expect(treeRepeatsLemma(grid([text('Gratuleturque (wie CT X)')]), 'Gratuletur')).toBeFalse();
+      expect(treeRepeatsLemma(grid([text('korrigiert aus uatum')]), 'uatis')).toBeFalse();
+      expect(treeRepeatsLemma(tree, '')).toBeFalse();
+      expect(treeRepeatsLemma(grid([leaf({ kind: 'Bracket' })]), 'Gratuletur')).toBeFalse();
+    });
+  });
 });
+

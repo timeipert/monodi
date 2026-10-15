@@ -12,6 +12,8 @@
     "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
     "test:pdf": "node scripts/pdf-e2e.mjs",
     "test:smoke": "node scripts/smoke-e2e.mjs",
+    "test:layout": "node scripts/layout-e2e.mjs",
+    "test:cover": "node scripts/cover-e2e.mjs",
     "check:templates": "node scripts/check-templates.mjs",
     "test:pdf-perf": "node scripts/pdf-perf.mjs",
     "fixtures": "node scripts/extract-fixtures.mjs && node scripts/make-extreme-fixtures.mjs && node scripts/gen-testdata-index.mjs",

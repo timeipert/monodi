@@ -1,4 +1,4 @@
-import { Comment, LinePart, getCommentableUUIDsOfLinePart } from './types/model';
+import { Comment, CommentTree, LinePart, getCommentableUUIDsOfLinePart } from './types/model';
 
 /**
  * The text a comment's brackets frame: the lyrics from the start to the end syllable,
@@ -37,4 +37,42 @@ export function commentType(c: Pick<Comment, 'commentType' | 'tree' | 'lines'>):
   if (c.tree) return 'tree';
   if (c.lines) return 'lines';
   return 'text';
+}
+
+/** The text of a comment without its markup: ((roman)), [[SIGLUM]] and {{boxed}} give their content. */
+export function plainMarkup(text: string): string {
+  return (text || '').replace(/\(\(|\)\)|\[\[|\]\]|\{\{|\}\}/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/** The first cell (top left) of a comment tree. */
+export function firstTreeLeaf(tree: CommentTree | undefined): CommentTree | undefined {
+  let t: CommentTree | undefined = tree;
+  while (t && t.kind === 'CommentTreeGrid') t = t.items?.[0]?.[0];
+  return t;
+}
+
+/** The text of the first cell of a comment tree; '' if that is not a text cell. */
+export function firstTreeText(tree: CommentTree | undefined): string {
+  const t = firstTreeLeaf(tree);
+  return t && t.kind === 'CommentTreeLeaf' && t.content.kind === 'Text' ? t.content.content : '';
+}
+
+/** Does the tree begin with its bracket ("lemma ] comment")? Then that bracket closes the lemma. */
+export function treeStartsWithBracket(tree: CommentTree | undefined): boolean {
+  const t = firstTreeLeaf(tree);
+  return !!t && t.kind === 'CommentTreeLeaf' && t.content.kind === 'Bracket';
+}
+
+/**
+ * Does a comment tree begin with the reading of the edition, which the apparatus already gives as
+ * the lemma? Then the printed form is "reading (note) ] variant" — the lemma stands once, not
+ * "reading] reading (note) ] variant". The comparison ignores case, markup and punctuation after the lemma.
+ */
+export function treeRepeatsLemma(tree: CommentTree | undefined, lemma: string): boolean {
+  const norm = (x: string) => plainMarkup(x).toLowerCase();
+  const l = norm(lemma).replace(/[\s.,;:]+$/, '');
+  const first = norm(firstTreeText(tree));
+  if (!l || !first.startsWith(l)) return false;
+  const next = first.charAt(l.length);
+  return next === '' || !/[\p{L}\p{N}]/u.test(next);   // a whole word, not the start of a longer one
 }
