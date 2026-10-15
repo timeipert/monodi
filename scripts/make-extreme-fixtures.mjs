@@ -251,4 +251,28 @@ save('x19-folio-labels', root([formteil([
   save('x22-text-trees', doc22);
 }
 
+// 23. Apparatus entries as imports leave them: placeholders ("#App", "#Lem") say nothing and are not printed;
+//     an entry that begins with notes carrying the lyric needs no lemma in front of it; the comment on the
+//     whole document is printed without a label of its own.
+{
+  const sy = ['do-', 'mi-', 'ne', 'Ie-', 'su', 'a-', 'men'].map((t) => syl(t, [randNeume(2, 3, 4)]));
+  const firstNote = (x) => x.notes.spaced[0].nonSpaced[0].grouped[0].uuid;
+  const lastNote = (x) => x.notes.spaced.at(-1).nonSpaced.at(-1).grouped.at(-1).uuid;
+  const leaf = (content) => ({ kind: 'CommentTreeLeaf', id: id(), content });
+  const text = (t) => leaf({ kind: 'Text', content: t });
+  const notesLeaf = (...ss) => leaf({ kind: 'Notes', content: zeile(ss.map((t) => syl(t, [randNeume(2, 3, 4)]))), context: false });
+  const grid = (...rows) => ({ kind: 'CommentTreeGrid', id: id(), items: rows });
+  const doc23 = root([formteil([para('IMPORTED APPARATUS'), zeile(sy)])]);
+  doc23.comments = [
+    { startUUID: firstNote(sy[0]), endUUID: lastNote(sy[2]), commentType: 'tree', text: '', tree: grid([notesLeaf('do-', 'mi-', 'ne'), leaf({ kind: 'Bracket' }), text('korrigiert zu'), notesLeaf('do-', 'mi-', 'ne')]) },
+    { startUUID: firstNote(sy[3]), endUUID: lastNote(sy[4]), commentType: 'tree', text: '#App', tree: text('#App') },
+    { startUUID: firstNote(sy[3]), endUUID: lastNote(sy[4]), commentType: 'text', text: '#Lem' },
+    { startUUID: firstNote(sy[5]), endUUID: lastNote(sy[6]), commentType: 'text', text: 'Lesart unsicher.' },
+    { startUUID: firstNote(sy[0]), endUUID: lastNote(sy[6]), commentType: 'tree', text: '', tree: grid([text('[[domine ... amen]]'), leaf({ kind: 'Bracket' }), text('über und unter dem Text weitere Verse.')]) },
+  ];
+  doc23.globalComment = grid([text('Eine Bemerkung zum ganzen Stück.')]);
+  doc23.children[0].data = [{ name: 'Signatur', data: 'B' }];   // the apparatus names the section once, in the margin
+  save('x23-imported-apparatus', doc23);
+}
+
 console.log('wrote extreme fixtures to', out);

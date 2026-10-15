@@ -7,7 +7,7 @@ import { PRINT_PDF_DEFAULTS, pdfPageFormat } from './pdf-defaults';
 import { layoutPdfLine } from './pdf-layout';
 import { sanitizeNotationColor } from './notation-color';
 import { ClefDisplayMode, sanitizeClefDisplayMode, shouldShowClef } from './clef-policy';
-import { commentLemma, commentStartIndex, commentType, treeRepeatsLemma, treeStartsWithBracket } from './comment-lemma';
+import { commentSignature, commentLemma, commentStartIndex, commentType, printableComments, treeRepeatsLemma, treeStartsWithBracket, treeStartsWithTextedNotes } from './comment-lemma';
 import { resolvePrintOptions } from './print/print-options';
 import { layoutSignature } from './print/signature';
 import { LeadItem, PageBox, atPageTop, needsBreak, systemsToKeep } from './print/keep';
@@ -723,7 +723,7 @@ export class PdfExportService {
         
             // Track active comments for drawing brackets
             const activeBrackets: { [key: string]: { startX: number, startLineY: number, label: string } } = {};
-            const documentComments = job.cont.comments || [];
+            const documentComments = printableComments(job.cont);
             const commentAnchors = new Set<string>(documentComments.flatMap((c: any) => [c.startUUID, c.endUUID]));
         
             // Build a map of Syllable/LinePart UUID to all its nested commentable UUIDs (including notes)
@@ -1203,7 +1203,7 @@ export class PdfExportService {
         // ── Critical apparatus of one document ──────────────────────────────────────────────
         const drawApparatusFor = async (job: PdfDocJob, ji: number) => {
           const jobParts = VM.getAllLineParts(job.cont);
-          const hasComments = (job.cont.comments && job.cont.comments.length > 0) || job.cont.globalComment;
+          const hasComments = printableComments(job.cont).length > 0 || job.cont.globalComment;
           if (!hasComments) return;
             if (!apparatusStarted) {
                 // the apparatus starts on a page of its own, after all editions
@@ -1288,7 +1288,7 @@ export class PdfExportService {
             };
             /** One entry of the apparatus: how high it is and how it is drawn. An entry is never split, and
              *  the headings queued in front of it are drawn with it (on a new page if they do not fit together). */
-            type Entry = { h: number; draw: () => void };
+            type Entry = { h: number; /** baseline of the entry's first line, from its top */ labelY: number; draw: () => void };
             const place = (e: Entry): void => {
               flushLead(e.h);
               if (!apEntryRecorded) { apEntryRecorded = true; stats.placement.apparatus.push({ job: ji, head: apHeadPage || doc.getNumberOfPages(), entry: doc.getNumberOfPages() }); }
@@ -1320,7 +1320,7 @@ export class PdfExportService {
                 // break into lines (words keep the style of their segment; glued words wrap together)
                 const lines = breakLines(segs, textColumnW, textKit);
                 const height = lines.length * lh;
-                return { h: height, draw: () => {
+                return { h: height, labelY: fs, draw: () => {
                 lines.forEach((line, li) => {
                     let cx = textX;
                     const by = cursorY + fs + li * lh;
@@ -1346,7 +1346,7 @@ export class PdfExportService {
               const l = commentLemma(jobParts, c);
               // as in the printed volume the reading stands once: when the tree's first cell gives it
               // ("reading (note) ] variant"), the lemma column is left out
-              if (c.tree && treeRepeatsLemma(c.tree, l)) return '';
+              if (c.tree && (treeRepeatsLemma(c.tree, l) || treeStartsWithTextedNotes(c.tree))) return '';
               // a tree that begins with its bracket ("uatis ] korrigiert aus uatum"): that bracket closes the lemma
               if (c.tree && treeStartsWithBracket(c.tree)) return l;
               return l ? l + ']' : '';
@@ -1365,9 +1365,9 @@ export class PdfExportService {
               // a long lemma stands above the body and wraps like text
               const lemmaLines = above ? breakLines([{ w: lemma, style: 'normal', size: pdfCommentFontSize }], textColumnW, textKit) : [];
               const aboveH = above ? lemmaLines.length * pdfCommentFontSize * 1.38 : 0;
-              return { h: aboveH + body.h, draw: () => {
+              const mid = body.anchor ?? pdfCommentFontSize * 0.7;
+              return { h: aboveH + body.h, labelY: above ? pdfCommentFontSize : mid + pdfCommentFontSize * 0.33, draw: () => {
               if (lemma) {
-                const mid = body.anchor ?? pdfCommentFontSize * 0.7;
                 if (above) drawLines(lemmaLines, textX, cursorY + pdfCommentFontSize, pdfCommentFontSize * 1.38, textKit);
                 else textKit.draw(lemma, textX, cursorY + mid + pdfCommentFontSize * 0.33, 'normal', pdfCommentFontSize);
               }
@@ -1405,28 +1405,32 @@ export class PdfExportService {
             };
 
             if (job.cont.globalComment) {
-              const box = layoutCommentTree(job.cont.globalComment, treeKit, textColumnW - 8);
-              const labelH = pdfCommentFontSize * 1.6;
-              // the label stays with its text
-              place({ h: labelH + box.h, draw: () => {
-                doc.setFont(fontFamily, 'normal');
-                doc.setFontSize(pdfCommentFontSize - 0.5);
-                doc.setTextColor(PDF_KEY_GREY - 40, PDF_KEY_GREY - 40, PDF_KEY_GREY - 40);
-                doc.text('GLOBAL COMMENT', textX, cursorY + pdfCommentFontSize, { charSpace: 0.7 });
-                doc.setTextColor(0, 0, 0);
-                cursorY += labelH;
-                box.draw(textX + 8, cursorY, box.h);
-                cursorY += box.h + pdfCommentBlockGap + 2;
-              } });
+              // The comment on the whole document, without a label of its own (the printed volume has none).
+              const box = layoutCommentTree(job.cont.globalComment, treeKit, textColumnW);
+              if (box.h > 0) place({ h: box.h, labelY: 0, draw: () => { box.draw(textX, cursorY, box.h); cursorY += box.h + pdfCommentBlockGap + 2; } });
             }
-            const ordered = (job.cont.comments || [])
+            const ordered = printableComments(job.cont)
               .map((c, i) => ({ c, i, pos: commentStartIndex(jobParts, c) }))
               .sort((x, y) => (x.pos - y.pos) || (x.i - y.i));
+            // As in the printed volume the signature of a section (A, B, 23, ...) stands in the margin in front of its first entry.
+            const drawSignature = (text: string, baseline: number): void => {
+              doc.setFont(fontFamily, 'normal');
+              const sig = layoutSignature(text, textX - pdfMarginLeft - 4, pdfFontSize, (t, sz) => { doc.setFontSize(sz); return doc.getTextWidth(t); });
+              doc.setFontSize(sig.size);
+              doc.setTextColor(0, 0, 0);
+              sig.lines.forEach((line, li) => doc.text(line, pdfMarginLeft, baseline - (sig.lines.length - 1 - li) * sig.size * 1.15));
+              doc.setFontSize(pdfFontSize);
+            };
+            let lastSignature = '';
             for (const { c } of ordered) {
               const type = commentType(c);
-              if (type === 'tree' && c.tree) place(structuredEntry(c, (w) => layoutCommentTree(c.tree!, treeKit, w)));
-              else if (type === 'lines' && c.lines) place(structuredEntry(c, (w) => linesBox(c, w)));
-              else place(textEntry(c));
+              const entry = type === 'tree' && c.tree ? structuredEntry(c, (w) => layoutCommentTree(c.tree!, treeKit, w))
+                : type === 'lines' && c.lines ? structuredEntry(c, (w) => linesBox(c, w))
+                : textEntry(c);
+              const signature = commentSignature(job.cont, c);
+              const label = signature && signature !== lastSignature ? signature : '';
+              lastSignature = signature;
+              place(label ? { ...entry, draw: () => { drawSignature(label, cursorY + entry.labelY); entry.draw(); } } : entry);
             }
             flushLead(0);   // headings of a document whose comments drew nothing
         };
@@ -1675,7 +1679,7 @@ export class PdfExportService {
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         // Volume style needs more than one part: the edition plus an apparatus or descriptions that exist.
         {
-          const hasApparatus = !!opts.apparatus && jobs.some((j) => (j.cont.comments && j.cont.comments.length > 0) || j.cont.globalComment);
+          const hasApparatus = !!opts.apparatus && jobs.some((j) => printableComments(j.cont).length > 0 || j.cont.globalComment);
           const hasDescriptions = !!opts.sourceDescriptions && jobs.some((j) => parseMarkdown(sourceDescription(j.source)).length > 0);
           multiPart = hasApparatus || hasDescriptions;
           volumeParts = partStyle === 'volume' && multiPart;

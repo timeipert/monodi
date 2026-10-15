@@ -99,6 +99,18 @@ function verify(name, mode, file, root, stats = {}) {
       if (w.x1 < pageW - 56.7 - 1.5) problems.push(`folio label ${lbl} is not flush right (ends at ${w.x1.toFixed(1)})`);
     }
   }
+  // the label "GLOBAL COMMENT" does not exist any more; placeholders of an import ("#App") are not printed
+  if (words.some((w) => w.t === 'GLOBAL' || /^#(App|Lem)$/i.test(w.t))) problems.push('"GLOBAL COMMENT" label or an empty "#App"/"#Lem" entry printed');
+  if (name.startsWith('x23') && !OPTIONS[mode].titlePage) {
+    const txt = execFileSync(PDFTOTEXT, ['-layout', file, '-']).toString().replace(/[ \t]+/g, ' ');
+    if (!/korrigiert zu/.test(txt) || !/amen\]/.test(txt) || !/Eine Bemerkung zum ganzen Stück/.test(txt)) problems.push('real apparatus content missing (korrigiert zu / amen] / the comment on the whole document)');
+    if (/Iesu\]|domine\]/.test(txt)) problems.push('a lemma stands before notation that already carries the lyric, or the entry of a placeholder was printed');
+    // a reading that the comment abbreviates ("domine ... amen") is not set twice
+    if (/domine Iesu amen\]/.test(txt) || !/weitere Verse/.test(txt)) problems.push('the lemma "domine Iesu amen]" is repeated by its abbreviation "domine ... amen", or the entry is missing');
+    // the section's signature stands in the margin of the edition and once in front of the first entry of the apparatus
+    const margin = words.filter((w) => w.t === 'B' && w.x0 < 90 && w.y0 > 40);
+    if (margin.length !== 2) problems.push(`signature "B" must stand once in the edition and once in the apparatus margin, found ${margin.length}`);
+  }
   // a text-only comment tree gives the reading once: "Gratuletur (wie CT X) ] …", not "Gratuletur] Gratuletur (wie CT X) ] …"
   if (name.startsWith('x22') && !OPTIONS[mode].titlePage) {
     const txt = execFileSync(PDFTOTEXT, ['-layout', file, '-']).toString().replace(/[ \t]+/g, ' ');

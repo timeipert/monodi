@@ -105,7 +105,8 @@ try {
   const subIds = docs.filter((d) => afterApp.some((w) => w.t === d.label.split(' ')[0] && lineOf(list, w).some((x) => x.t === d.label.split(' ')[1])));
   const wantIds = [docs[0], docs[1]]; // doc-3 has no comments
   if (subIds.map((d) => d.id).join() !== wantIds.map((d) => d.id).join()) problems.push(`apparatus sub-headings for ${subIds.map((d) => d.label).join(', ')}; expected ${wantIds.map((d) => d.label).join(', ')}`);
-  for (const w of ['Gratuletur]', 'Terribi]']) if (!text.includes(w)) problems.push(`apparatus lacks the lemma "${w}"`);
+  // "Gratuletur" stands once, as the first cell of its tree ("Gratuletur (wie CT X) ] …"), not as a lemma of its own
+  for (const w of ['Gratuletur (wie CT X)', 'Terribi]']) if (!text.includes(w)) problems.push(`apparatus lacks the lemma "${w}"`);
   console.log(problems.length ? 'FAIL ' : 'ok   ', `multi-document print (${pages} pages, ${titlePages} title page(s))`, problems.join('; '));
 } catch (e) {
   await page.screenshot({ path: join(outDir, 'multi-failure.png') }).catch(() => {});
