@@ -38,7 +38,7 @@ function expectedSyllables(root) {
     if (c.kind === 'ZeileContainer') adia = c.notation === 'adiastematic';
     if (c.kind === 'Syllable') {
       if (!adia) diastematic = true;
-      const t = String(c.text || '').replace(/[-–]+$/g, '').trim();
+      const t = String(c.text || '').replace(/[-–]+$/g, '').trim().toLowerCase();   // lyrics may be set in (small) capitals
       if (t && !/^(X|\.\.\.|<\.\.\.>)$/.test(t) && !t.includes(' ')) out.push(t);
     }
     (c.children || []).forEach((k) => walk(k, adia));
@@ -99,6 +99,26 @@ function verify(name, mode, file, root, stats = {}) {
       if (w.x1 < pageW - 56.7 - 1.5) problems.push(`folio label ${lbl} is not flush right (ends at ${w.x1.toFixed(1)})`);
     }
   }
+  // the label "GLOBAL COMMENT" does not exist any more; placeholders of an import ("#App") are not printed
+  if (words.some((w) => w.t === 'GLOBAL' || /^#(App|Lem)$/i.test(w.t))) problems.push('"GLOBAL COMMENT" label or an empty "#App"/"#Lem" entry printed');
+  if (name.startsWith('x23') && !OPTIONS[mode].titlePage) {
+    const txt = execFileSync(PDFTOTEXT, ['-layout', file, '-']).toString().replace(/[ \t]+/g, ' ');
+    if (!/korrigiert zu/.test(txt) || !/amen\]/.test(txt) || !/Eine Bemerkung zum ganzen Stück/.test(txt)) problems.push('real apparatus content missing (korrigiert zu / amen] / the comment on the whole document)');
+    if (/Iesu\]|domine\]/.test(txt)) problems.push('a lemma stands before notation that already carries the lyric, or the entry of a placeholder was printed');
+    // a reading that the comment abbreviates ("domine ... amen") is not set twice
+    if (/domine Iesu amen\]/.test(txt) || !/weitere Verse/.test(txt)) problems.push('the lemma "domine Iesu amen]" is repeated by its abbreviation "domine ... amen", or the entry is missing');
+    // the section's signature stands in the margin of the edition and once in front of the first entry of the apparatus
+    const margin = words.filter((w) => w.t === 'B' && w.x0 < 90 && w.y0 > 40);
+    if (margin.length !== 2) problems.push(`signature "B" must stand once in the edition and once in the apparatus margin, found ${margin.length}`);
+  }
+  // a text-only comment tree gives the reading once: "Gratuletur (wie CT X) ] …", not "Gratuletur] Gratuletur (wie CT X) ] …"
+  if (name.startsWith('x22') && !OPTIONS[mode].titlePage) {
+    const txt = execFileSync(PDFTOTEXT, ['-layout', file, '-']).toString().replace(/[ \t]+/g, ' ');
+    if (/Gratuletur\] ?Gratuletur/.test(txt)) problems.push('the lemma "Gratuletur]" is repeated by the first cell of its tree');
+    if (!/Gratuletur \(wie CT X\)/.test(txt)) problems.push('"Gratuletur (wie CT X)" missing in the apparatus');
+    if (!/uatis korrigiert aus/.test(txt)) problems.push('a tree that begins with its bracket: the lemma must not carry a second "]" of its own ("uatis ⌉ korrigiert aus")');
+    if (/exultet\] ?exultet/.test(txt) || !/exultet.*exsultet/.test(txt)) problems.push('multi-syllable lemma "exultet": repeated or missing');
+  }
   // signatures of sections stand in the margin, each at its own line (also when the line begins with a marker)
   if (name.startsWith('x17') && !OPTIONS[mode].titlePage) {
     const sigs = ['31', 'B', 'C'].map((t) => words.find((w) => w.page === 0 && w.t === t && w.x0 < 90 && w.y0 > 40));
@@ -118,7 +138,7 @@ function verify(name, mode, file, root, stats = {}) {
     w.line = lineNo;
   }
   const sorted = byBottom.sort((a, b) => a.line - b.line || a.x0 - b.x0);
-  const got = sorted.map((w) => w.t.replace(/[-–]+$/g, ''));
+  const got = sorted.map((w) => w.t.replace(/[-–]+$/g, '').toLowerCase());
   let gi = 0, missing = 0;
   for (const e of exp.syllables) {
     const k = got.indexOf(e, gi);
@@ -135,6 +155,9 @@ function verify(name, mode, file, root, stats = {}) {
   // right margin (skip stress cases that are wider than the page by design)
   if (!/long-syllable|one-syllable|300-notes/.test(name)) {
     // a lone last syllable may overshoot the margin by the widow slack (32 pt) instead of getting a system of its own
+    // nothing may stand left of the page edge zone either (long signatures are wrapped, not pushed out)
+    const outLeft = words.filter((w) => w.x0 < 27);
+    if (outLeft.length) problems.push(`${outLeft.length} words too close to the left page edge (e.g. "${outLeft[0].t}" at x=${outLeft[0].x0.toFixed(0)})`);
     const over = words.filter((w) => w.x1 > pageW - 56.7 + 33);
     if (over.length) problems.push(`${over.length} words beyond right margin (e.g. "${over[0].t}")`);
   }
@@ -179,7 +202,7 @@ for (const file of files) {
       let resolveDl; const dl = new Promise((r) => (resolveDl = r));
       await capturePdfDownloads(page, (buf) => { writeFileSync(out, buf); resolveDl(); });
       await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });
-      await seedWorkspace(page, [{ id, label: 'FIX-' + id.slice(0, 6), root, edition: '9' }], { clefDisplayMode: mode, pdfFormat: mode === 'every-line' ? 'cm' : 'a4', pdfOrientation: 'portrait' });
+      await seedWorkspace(page, [{ id, label: 'FIX-' + id.slice(0, 6), root, edition: '9' }], { pdfPartStyle: 'compact', clefDisplayMode: mode, pdfFormat: mode === 'every-line' ? 'cm' : 'a4', pdfOrientation: 'portrait' });
       await page.goto(BASE + `/#/document/src1/${id}`, { waitUntil: 'networkidle0' });
       await page.reload({ waitUntil: 'networkidle0' }); // APIService caches sources/documents at first read
       await page.waitForSelector('app-root-section', { timeout: 20000 });

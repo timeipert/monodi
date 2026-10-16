@@ -7,8 +7,10 @@ import { PRINT_PDF_DEFAULTS, pdfPageFormat } from './pdf-defaults';
 import { layoutPdfLine } from './pdf-layout';
 import { sanitizeNotationColor } from './notation-color';
 import { ClefDisplayMode, sanitizeClefDisplayMode, shouldShowClef } from './clef-policy';
-import { commentLemma, commentStartIndex, commentType } from './comment-lemma';
+import { commentSignature, commentLemma, commentStartIndex, commentType, printableComments, treeRepeatsLemma, treeStartsWithBracket, treeStartsWithTextedNotes } from './comment-lemma';
 import { resolvePrintOptions } from './print/print-options';
+import { layoutSignature } from './print/signature';
+import { LeadItem, PageBox, atPageTop, needsBreak, systemsToKeep } from './print/keep';
 import { chapterize } from './print/chapters';
 import { formatFolioLabel, sanitizeFolioPrefixMode, usesFolioPrefix } from './folio-label';
 import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFieldValue } from './document-metadata';
@@ -24,8 +26,15 @@ import { MdBlock, MdInline, parseMarkdown, safeHref } from './print/markdown';
 import { MdLine, layoutInlines, lineWidth } from './print/markdown-layout';
 import { LoadedImage, loadImage } from './print/image-loader';
 import { sourceDescription } from './source-description';
+import { TitleTemplate } from './print/title-page';
+import { drawCover } from './print/cover-draw';
+import { FieldJob, makeLookup } from './print/fields';
 
 /** Internal-unit width of an injected clef (same as NotesComponent.CLEF_WIDTH). */
+/** Grey level of the brackets in the apparatus. */
+const PDF_APPARATUS_BRACKET = 50;
+/** A signature set before the staff keeps at least this far from the page edge (pt). */
+const PDF_SIGNATURE_PAGE_EDGE = 28;
 const PDF_CLEF_WIDTH = 32;
 /** Distance between the two strokes of a folio-change marker (pt). */
 const PDF_MARKER_TICK_GAP = 2;
@@ -118,6 +127,12 @@ export interface PdfExportOptions {
   pageFormat?: string;
   /** Title of a multi-document print (title page). */
   title?: string;
+  /** A cover before everything else, set from a template with placeholders. `group`: what the volume is called when a print is split. */
+  cover?: { template: TitleTemplate; group?: string; groupField?: string };
+  /** The cover and the title page / contents count as pages: the edition begins at page 3, as in a printed volume. Default: the edition is numbered from 1. */
+  countFrontPages?: boolean;
+  /** 'save' (default) starts the download; 'blob' hands the PDF back in the stats (volumes that are zipped, the cover preview). */
+  output?: 'save' | 'blob';
   fileName?: string;
   onProgress?: (message: string, done: number, total: number) => void;
 }
@@ -134,13 +149,26 @@ export interface PdfExportStats {
   descriptionPage: number;
   /** Lines of the contents table: "ID | incipit | genre", page. */
   outline: { label: string; page: number; depth: number }[];
+  /** Pages in front of the edition: the cover and the title page / contents (the contents may take several). */
+  frontPages?: number;
+  /** The PDF itself when `output` was 'blob'. */
+  blob?: Blob;
   /** Where the time went (ms): render, measure, svg (drawing the notes), apparatus, save, total. */
   timings: { [phase: string]: number };
+  /** Where things landed (physical page numbers) — the tests check the page-break rules with it. */
+  placement: {
+    /** Per document: page of its first heading item and page of its first system. */
+    documents: { job: number; head: number; firstSystem: number }[];
+    /** Per line of notes (Zeile): the page of each of its systems. */
+    lines: { job: number; pages: number[]; /** page of the rubrics/headings queued in front of it (0 if none) */ leadPage: number }[];
+    /** Per document in the apparatus: page of its heading items and of its first entry. */
+    apparatus: { job: number; head: number; entry: number }[];
+  };
 }
 
 @Injectable({ providedIn: 'root' })
 export class PdfExportService {
-  lastStats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {} };
+  lastStats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {}, placement: { documents: [], lines: [], apparatus: [] } };
 
   constructor(private zone: NgZone) {}
 
@@ -271,12 +299,33 @@ export class PdfExportService {
     return this.zone.runOutsideAngular(() => this.exportInner(jobs, inZoneOpts));
   }
 
+  /** The jsPDF document in the page format and font of the settings. */
+  private async newDocument(opts: Pick<PdfExportOptions, 'settings' | 'pageFormat'>): Promise<{ doc: jsPDF; s: any; fontFamily: string }> {
+    const s: any = { ...(opts.settings || {}), ...(opts.pageFormat ? { pdfFormat: opts.pageFormat, pdfOrientation: 'portrait' } : {}) };
+    const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait'), compress: true });
+    const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
+    const fontFamily = embeddedFamily(fontSetting) || fontSetting;
+    if (embeddedFamily(fontFamily)) await registerEmbeddedFont(doc, fontFamily);
+    return { doc, s, fontFamily };
+  }
+
+  /** The cover alone as a one-page PDF: what the cover editor shows. Reports what does not fit and which placeholders are unknown. */
+  async renderCover(jobs: FieldJob[], opts: Pick<PdfExportOptions, 'settings' | 'pageFormat' | 'title' | 'cover'>): Promise<{ blob: Blob; overflow: boolean; unknown: string[] }> {
+    if (!opts.cover) throw new Error('No cover');
+    return this.zone.runOutsideAngular(async () => {
+      const { doc, fontFamily } = await this.newDocument(opts);
+      const lookup = makeLookup(jobs, opts.settings, opts.cover!.template.variables, { titel: opts.title, gruppe: opts.cover!.group, gruppenfeld: opts.cover!.groupField });
+      const layout = drawCover(doc, opts.cover!.template, lookup, fontFamily);
+      return { blob: doc.output('blob'), overflow: layout.overflow, unknown: layout.unknown };
+    });
+  }
+
   private async exportInner(jobsIn: PdfDocJob[], opts: PdfExportOptions): Promise<PdfExportStats> {
     if (!jobsIn.length) throw new Error('Nothing to print');
     // Documents of one manuscript belong together: each manuscript is a chapter (stable by first appearance).
     const chapterKeyOf = (j: PdfDocJob) => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
     const { items: jobs, chapterNo, chapterFirst, runningNo, count: chapterCount } = chapterize(jobsIn, chapterKeyOf);
-    const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {} };
+    const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {}, placement: { documents: [], lines: [], apparatus: [] } };
     const t0 = performance.now();
     /** Adds the time `fn` takes to the phase `name`. */
     const timedSync = <T>(name: string, fn: () => T): T => {
@@ -287,13 +336,7 @@ export class PdfExportService {
     const multi = jobs.length > 1;
 
     try {
-        const s: any = { ...(opts.settings || {}), ...(opts.pageFormat ? { pdfFormat: opts.pageFormat, pdfOrientation: 'portrait' } : {}) };
-        const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait'), compress: true });
-        const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
-        const fontFamily = embeddedFamily(fontSetting) || fontSetting;
-        if (embeddedFamily(fontFamily)) {
-          await registerEmbeddedFont(doc, fontFamily);
-        }
+        const { doc, s, fontFamily } = await this.newDocument(opts);
         const {
           pdfMarginLeft, pdfMarginRight, pdfMarginTop, pdfMarginBottom, SCALE, pdfStaffSpacing, pdfBracketGap, pdfSyllableTextOffset,
           extraSyllableSpacing, pdfContinuationIndent, pdfFontSize, pdfSignaturSpace, pdfVerticalSpace, widowSlack, hideBareStaff,
@@ -323,13 +366,15 @@ export class PdfExportService {
 
         const clefMode: ClefDisplayMode = sanitizeClefDisplayMode(s.clefDisplayMode);
         const useTitlePage = opts.titlePage;
-        let titlePageCount = 0;
-        if (useTitlePage) {
-          titlePageCount = 1;
-          doc.addPage();
-          cursorY = pdfMarginTop;
-        }
-        const editionPage = () => doc.getNumberOfPages() - titlePageCount;
+        // The cover (if any) is page 1, the title page / contents follow it; the edition starts behind them.
+        const coverPages = opts.cover ? 1 : 0;
+        let titlePageCount = coverPages + (useTitlePage ? 1 : 0);
+        for (let i = 0; i < titlePageCount; i++) doc.addPage();
+        cursorY = pdfMarginTop;
+        // Page numbers shown: the edition from 1, or — counting the front pages — behind them (fixed from the start; a
+        // contents table that grows into further pages cannot move what is already recorded).
+        const numberOffset = opts.countFrontPages ? titlePageCount : 0;
+        const editionPage = () => doc.getNumberOfPages() - titlePageCount + numberOffset;
         // The contents table may grow into further title pages at the end; they push every recorded page number on.
         const initialTitlePages = titlePageCount;
         const pageShift = () => titlePageCount - initialTitlePages;
@@ -400,6 +445,8 @@ export class PdfExportService {
         const crossRefs: { page: number; y: number; ji: number }[] = [];
         let multiPart = false;
         let suppressDocRule = false;
+        /** True while `dryRun` measures: code with side effects beyond drawing (cross references, outline entries) skips them. */
+        let dry = false;
         const drawBoldLines = (text: string, x: number, size: number, width: number, color = 0): void => {
           doc.setFont(fontFamily, 'bold');
           doc.setFontSize(size);
@@ -429,7 +476,7 @@ export class PdfExportService {
             }
             if (multiPart) {
               cursorY += 4;
-              crossRefs.push({ page: doc.getNumberOfPages(), y: cursorY + 7.5, ji });
+              if (!dry) crossRefs.push({ page: doc.getNumberOfPages(), y: cursorY + 7.5, ji });
               cursorY += 7.5 + 36;
             } else cursorY += 18;
             suppressDocRule = true;
@@ -513,13 +560,60 @@ export class PdfExportService {
           doc.setTextColor(0, 0, 0);
         };
 
+        // ── Keeping things together on a page ─────────────────────────────────────────────────
+        // Whatever stands in front of a system (gap, manuscript and document headings, metadata, rubrics)
+        // is not drawn at once but queued: only when the system that follows is known can it be decided
+        // whether everything fits on the page together — otherwise the page breaks before the heading,
+        // and a heading is never left alone at the bottom of a page.
+        const pageBox: PageBox = { top: pdfMarginTop, bottom: maxContentY };
+        const DRY_NOOPS = ['text', 'line', 'rect', 'roundedRect', 'lines', 'path', 'circle', 'ellipse', 'triangle', 'fill', 'stroke', 'fillEvenOdd', 'addImage', 'link', 'textWithLink'];
+        /** The height `draw` takes, measured by running it with the drawing calls switched off: nothing is drawn and the cursor stays. */
+        const dryRun = (draw: () => void): number => {
+          const d = doc as any;
+          const saved: Record<string, any> = {};
+          for (const m of [...DRY_NOOPS, 'addPage']) saved[m] = d[m];
+          const y0 = cursorY, rule0 = suppressDocRule;
+          let overflowed = false;
+          dry = true;
+          for (const m of DRY_NOOPS) d[m] = () => doc;
+          d.addPage = () => { overflowed = true; return doc; };
+          try {
+            draw();
+            return overflowed ? pageBox.bottom - pageBox.top : cursorY - y0;
+          } finally {
+            for (const m of Object.keys(saved)) { if (saved[m] === undefined) delete d[m]; else d[m] = saved[m]; }
+            dry = false; cursorY = y0; suppressDocRule = rule0;
+          }
+        };
+        const lead: LeadItem[] = [];
+        const defer = (h: number, draw: () => void, dropAtTop = false): void => { lead.push({ h, draw, dropAtTop }); };
+        /** Draws the queued items — after a page break if they do not fit together with `need` (what must follow them). */
+        const flushLead = (need: number, onStart?: () => void): void => {
+          const total = lead.reduce((a, it) => a + it.h, 0) + need;
+          if (needsBreak(cursorY, total, pageBox)) { doc.addPage(); cursorY = pdfMarginTop; }
+          onStart?.();
+          for (const it of lead) if (!(it.dropAtTop && atPageTop(cursorY, pageBox))) it.draw();
+          lead.length = 0;
+        };
+
         // ── Layout of one document (rendered in the host) ───────────────────────────────────
-        const layoutDocument = async (job: PdfDocJob, ji: number) => {
+        const layoutDocument = async (job: PdfDocJob, ji: number, gapBefore: number) => {
           const headerText = titleOf(job);
           const titleLineH = titleFontSize * 1.15;
+          // Where the document starts is known only after the keep-together decision (it may begin on a new page).
+          let started = false;
+          let headPage = 0;
+          let firstLineRecorded = false;
+          const onStart = () => { if (started) return; started = true; headPage = doc.getNumberOfPages(); docEntries.push({ job: ji, page: editionPage() }); docStart.push(headPage); };
+          const flush = (need: number) => flushLead(need, onStart);
+          if (gapBefore > 0) defer(gapBefore, () => { cursorY += gapBefore; }, true);
+          if (multi && chapterFirst[ji] && chapterHeadings) {
+            const drawChapter = () => drawChapterBlock(ji, textX, textColumnW, true);
+            defer(dryRun(drawChapter), drawChapter);
+          }
           // One document with a title page: the title stands there. Otherwise every document
           // gets its own heading (title, framed edition number, metadata line).
-          if (!(useTitlePage && !multi)) {
+          const drawHead = () => {
             doc.setFontSize(titleFontSize);
             doc.setFont(fontFamily, "normal");
             if (multi) {
@@ -601,7 +695,8 @@ export class PdfExportService {
               checkPageOverflow(0);
             }
 
-          }
+          };
+          if (!(useTitlePage && !multi)) defer(dryRun(drawHead), drawHead);
             // DOM Traversal for Structural Layout
             doc.setFontSize(12);
         
@@ -628,7 +723,7 @@ export class PdfExportService {
         
             // Track active comments for drawing brackets
             const activeBrackets: { [key: string]: { startX: number, startLineY: number, label: string } } = {};
-            const documentComments = job.cont.comments || [];
+            const documentComments = printableComments(job.cont);
             const commentAnchors = new Set<string>(documentComments.flatMap((c: any) => [c.startUUID, c.endUUID]));
         
             // Build a map of Syllable/LinePart UUID to all its nested commentable UUIDs (including notes)
@@ -652,10 +747,7 @@ export class PdfExportService {
               if (block.kind === 'formteil') {
                 // a section: its signature goes in front of its first line; space before it
                 if (block.signature) currentSignatures.push(block.signature);
-                if (!wasLastElementParatext) {
-                  checkPageOverflow(pdfVerticalSpace);
-                  cursorY += pdfVerticalSpace;
-                }
+                if (!wasLastElementParatext) defer(pdfVerticalSpace, () => { cursorY += pdfVerticalSpace; }, true);
                 wasLastElementParatext = false;
                 continue;
               }
@@ -663,8 +755,6 @@ export class PdfExportService {
               const parts = zeile ? printedParts(zeile) : [];
           
               if (zeile && parts.length > 0) {
-                const afterParatext = paratextPending;
-                paratextPending = false;
                 wasLastElementParatext = false;
                 // Horizontal layout for notes and breaks
             
@@ -746,13 +836,30 @@ export class PdfExportService {
                   const staffBottom = (80 - 10) * SCALE - sysTrims[si];
                   return Math.max(hBare - sysTrims[si], staffBottom + (hasTick ? pdfFontSize + 4 : 4));
                 });
+                // A system never starts so low that its lyrics would run into the bottom margin.
+                const systemNeed = (si: number) => (sysHeights[si] || 30) + pdfSyllableTextOffset + pdfFontSize * 0.5;
+                // Systems of one line stay together as far as typography asks (no single system alone
+                // at the bottom or the top of a page); the headings and rubrics queued in front come with the first.
+                const nSys = layout.systems.length;
+                const sysHasText = layout.systems.map((sys) => measured.slice(sys.first, sys.last + 1).some((mm) => !!mm.txt));
+                const systemAdvance = (si: number) => (sysHeights[si] || 30) + (sysHasText[si] ? pdfSyllableTextOffset + pdfFontSize : 8) + pdfStaffSpacing;
+                const groupNeed = (k: number) => {
+                  const last = Math.min(nSys, k + systemsToKeep(k, nSys)) - 1;
+                  let t = systemNeed(last);
+                  for (let q = k; q < last; q++) t += systemAdvance(q);
+                  return t;
+                };
+                const hadLead = lead.length > 0;
+                flush(groupNeed(0));
+                const leadPage = hadLead ? doc.getNumberOfPages() : 0;
+                lineStartY = cursorY;   // the queued items moved the cursor (or a page break did)
+                const afterParatext = paratextPending;
+                paratextPending = false;
                 // Like the printed edition: the first system follows its rubric closely.
                 if (afterParatext && lastParatextPage === doc.getNumberOfPages()) {
                   cursorY = Math.min(cursorY, lastParatextBaselineY + PDF_PARATEXT_BELOW);
                   lineStartY = cursorY;
                 }
-                // A system never starts so low that its lyrics would run into the bottom margin.
-                const systemNeed = (si: number) => (sysHeights[si] || 30) + pdfSyllableTextOffset + pdfFontSize * 0.5;
                 if (cursorY + systemNeed(0) > maxContentY && cursorY > pdfMarginTop + 1) {
                   doc.addPage();
                   cursorY = pdfMarginTop;
@@ -793,6 +900,7 @@ export class PdfExportService {
                   }
                 };
                 let curSystem = 0;
+                const sysPage: number[] = [];   // page of each system, for the placement stats
                 stats.systems += layout.systems.length;
                 stats.clefs += measured.filter((m) => m.hasClef).length + layout.placed.filter((pl) => pl.injectClef).length;
             
@@ -805,13 +913,20 @@ export class PdfExportService {
                   // Print Signatur right-aligned before the first part of this line — also when that part is a
                   // line/folio marker (which must not swallow the signature of its section)
                   if (j === 0 && currentSignatures.length > 0) {
-                      doc.setFontSize(pdfFontSize);
                       doc.setFont(fontFamily, "normal");
-                      const sigText = currentSignatures.join(" ");
-                      const sigWidth = doc.getTextWidth(sigText);
-                      const sigX = pdfMarginLeft + sigWidth + 6 <= musicStartX ? pdfMarginLeft : musicStartX - sigWidth - 6;
-                      // Print edition: the signature's baseline sits ~2.9 pt above the bottom staff line.
-                      doc.text(sigText, sigX, cursorY - trim + (80 - sysRawTops[pl.system]) * SCALE - 2.9);
+                      // A short signature stands at the left margin; a longer one is set right-aligned before the staff —
+                      // smaller or in several lines if it would run off the page (it may use the margin, but not the page edge).
+                      const sigRight = musicStartX - 6;
+                      const sig = layoutSignature(currentSignatures.join(" "), sigRight - PDF_SIGNATURE_PAGE_EDGE, pdfFontSize, (t, sz) => { doc.setFontSize(sz); return doc.getTextWidth(t); });
+                      doc.setFontSize(sig.size);
+                      // Print edition: the signature's baseline sits ~2.9 pt above the bottom staff line; further lines stand above it.
+                      const baseY = cursorY - trim + (80 - sysRawTops[pl.system]) * SCALE - 2.9;
+                      sig.lines.forEach((line, li) => {
+                        const w = doc.getTextWidth(line);
+                        const x = sig.lines.length === 1 && pdfMarginLeft + w + 6 <= musicStartX ? pdfMarginLeft : sigRight - w;
+                        doc.text(line, x, baseY - (sig.lines.length - 1 - li) * sig.size * 1.15);
+                      });
+                      doc.setFontSize(pdfFontSize);
                       currentSignatures = [];
                   }
 
@@ -900,7 +1015,7 @@ export class PdfExportService {
                      }
                  
                      cursorY = lineBottomY + pdfStaffSpacing;
-                     checkPageOverflow(systemNeed(pl.system));
+                          checkPageOverflow(groupNeed(pl.system));
                  
                      lineStartY = cursorY;
                      cursorX = pl.clefX;
@@ -918,6 +1033,7 @@ export class PdfExportService {
                   }
               
                   lineMaxHeight = Math.max(lineMaxHeight, sysHeights[pl.system] || secHeight);
+                  if (sysPage[pl.system] === undefined) sysPage[pl.system] = doc.getNumberOfPages();
                   ensureStaff(pl.system);
                   if (pl.injectClef && !isBare(j)) {
                     drawGClef(doc, pl.clefX, cursorY - trim + (40 - sysRawTops[pl.system]) * SCALE, SCALE, notationColor);
@@ -976,6 +1092,9 @@ export class PdfExportService {
                 }
                 cursorY = lineBottomY + pdfStaffSpacing;
                 checkPageOverflow(0);
+                stats.placement.lines.push({ job: ji, pages: sysPage.filter((q) => q !== undefined), leadPage });
+                const firstPage = sysPage.find((q) => q !== undefined);   // a line of markers only has no system
+                if (!firstLineRecorded && firstPage !== undefined) { firstLineRecorded = true; stats.placement.documents.push({ job: ji, head: headPage, firstSystem: firstPage }); }
             
               } else if (block.kind === 'paratext') {
                 // Rubric / paratext
@@ -986,31 +1105,23 @@ export class PdfExportService {
                   doc.setFont(fontFamily, "normal");
               
                   const splitText = doc.splitTextToSize(txt, Math.max(60, pageWidth - pdfMarginRight - textX));
-                  // Keep with next: a rubric (or a run of rubrics) must not be left alone at the
-                  // bottom of a page — the first system that follows has to fit with it.
-                  let followNeed = 0;
-                  for (let k = i + 1; k < Math.min(blocks.length, i + 8); k++) {
-                    const nb = blocks[k];
-                    if (nb.kind === 'zeile') { if (printedParts(nb.zeile).length) { followNeed += 55; break; } continue; }
-                    if (nb.kind === 'formteil') continue;
-                    followNeed += pdfParatextFontSize * 1.4 + pdfParatextSpacing; // another rubric in between
-                  }
                   const ownNeed = splitText.length * pdfParatextFontSize * 1.4 + pdfParatextSpacing;
-                  if (cursorY + ownNeed + followNeed > maxContentY && cursorY > pdfMarginTop + 1 && ownNeed + followNeed < maxContentY - pdfMarginTop) {
-                    doc.addPage();
-                    cursorY = pdfMarginTop;
-                  }
-                  checkPageOverflow(pdfParatextFontSize * 2);
-                  doc.text(splitText, textX, cursorY);
-                  lastParatextBaselineY = cursorY + (splitText.length - 1) * pdfParatextFontSize * doc.getLineHeightFactor();
-                  lastParatextPage = doc.getNumberOfPages();
-                  paratextPending = true;
-                  cursorY += (splitText.length * (pdfParatextFontSize * 1.4)) + pdfParatextSpacing;
-                  checkPageOverflow(0);
+                  // Queued: a rubric (or a run of rubrics) must not be left alone at the bottom of a page —
+                  // the first system that follows is placed with it.
+                  defer(ownNeed, () => {
+                    doc.setFontSize(pdfParatextFontSize);
+                    doc.setFont(fontFamily, "normal");
+                    doc.text(splitText, textX, cursorY);
+                    lastParatextBaselineY = cursorY + (splitText.length - 1) * pdfParatextFontSize * doc.getLineHeightFactor();
+                    lastParatextPage = doc.getNumberOfPages();
+                    paratextPending = true;
+                    cursorY += ownNeed;
+                  });
                   wasLastElementParatext = true;
                 }
               }
             }
+            flush(0);   // a document that ends with queued items (rubrics, a heading without lines)
 
         };
 
@@ -1092,7 +1203,7 @@ export class PdfExportService {
         // ── Critical apparatus of one document ──────────────────────────────────────────────
         const drawApparatusFor = async (job: PdfDocJob, ji: number) => {
           const jobParts = VM.getAllLineParts(job.cont);
-          const hasComments = (job.cont.comments && job.cont.comments.length > 0) || job.cont.globalComment;
+          const hasComments = printableComments(job.cont).length > 0 || job.cont.globalComment;
           if (!hasComments) return;
             if (!apparatusStarted) {
                 // the apparatus starts on a page of its own, after all editions
@@ -1102,44 +1213,50 @@ export class PdfExportService {
                 apparatusStarted = true;
                 if (volumeParts) drawPartPage('Critical Apparatus');
                 else cursorY = drawHeading('Critical Apparatus', textX, cursorY + 3, textColumnW, 10) + 2;
-            } else {
-                checkPageOverflow(60);
             }
             if (multi) {
                 // Hierarchy like the printed apparatus: the manuscript (chapter heading), below it
                 // each document — framed running number, ID, incipit, genre — and its entries.
+                // Queued: they are drawn together with the first entry that follows.
                 if (chapterFirst[ji] && chapterHeadings) {
-                    checkPageOverflow(80);
-                    cursorY += 10;
-                    if (chapterRows) apparatusOutline.push({ label: chapterLabelOf(ji), depth: 1, job: ji, page: editionPage() });
-                    drawChapterBlock(ji, textX, textColumnW, false);
+                    const drawChapter = () => {
+                        if (!dry) apHeadPage ||= doc.getNumberOfPages();
+                        cursorY += 10;
+                        if (chapterRows && !dry) apparatusOutline.push({ label: chapterLabelOf(ji), depth: 1, job: ji, page: editionPage() });
+                        drawChapterBlock(ji, textX, textColumnW, false);
+                    };
+                    defer(dryRun(drawChapter), drawChapter, true);
                 }
-                checkPageOverflow(46);
-                cursorY += 6;
                 const fsD = pdfCommentFontSize + 1;
-                drawBox(boxTextOf(ji), cursorY + fsD, fsD);
-                doc.setFontSize(fsD);
-                doc.setFont(fontFamily, 'bold');
-                doc.setTextColor(0, 0, 0);
-                const idText = job.document.dokumenten_id || '';
-                doc.text(idText, textX, cursorY + fsD);
-                let hx = textX + doc.getTextWidth(idText) + 8;
-                doc.setFont(fontFamily, 'italic');
-                const incipit = job.document.textinitium || '';
-                doc.text(incipit, hx, cursorY + fsD);
-                hx += doc.getTextWidth(incipit) + 8;
-                const gen = genreOf(job.document);
-                if (gen) {
-                    doc.setFont(fontFamily, 'normal');
-                    doc.setFontSize(pdfCommentFontSize);
-                    doc.setTextColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY);
-                    doc.text(gen, hx, cursorY + fsD);
+                defer(6 + fsD * 1.9 + 3, () => {
+                    cursorY += 6;
+                    apHeadPage ||= doc.getNumberOfPages();
+                    drawBox(boxTextOf(ji), cursorY + fsD, fsD);
+                    doc.setFontSize(fsD);
+                    doc.setFont(fontFamily, 'bold');
                     doc.setTextColor(0, 0, 0);
-                }
-                cursorY += fsD * 1.9 + 3;
-                apparatusOutline.push({ label: [idText, incipit].filter(Boolean).join(' '), depth: chapterRows ? 2 : 1, job: ji, page: editionPage() });
+                    const idText = job.document.dokumenten_id || '';
+                    doc.text(idText, textX, cursorY + fsD);
+                    let hx = textX + doc.getTextWidth(idText) + 8;
+                    doc.setFont(fontFamily, 'italic');
+                    const incipit = job.document.textinitium || '';
+                    doc.text(incipit, hx, cursorY + fsD);
+                    hx += doc.getTextWidth(incipit) + 8;
+                    const gen = genreOf(job.document);
+                    if (gen) {
+                        doc.setFont(fontFamily, 'normal');
+                        doc.setFontSize(pdfCommentFontSize);
+                        doc.setTextColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY);
+                        doc.text(gen, hx, cursorY + fsD);
+                        doc.setTextColor(0, 0, 0);
+                    }
+                    cursorY += fsD * 1.9 + 3;
+                    apparatusOutline.push({ label: [idText, incipit].filter(Boolean).join(' '), depth: chapterRows ? 2 : 1, job: ji, page: editionPage() });
+                }, true);
             }
-            apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });
+            let apHeadPage = 0;
+            let apEntryRecorded = false;
+            defer(0, () => { apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() }); });
 
             // Text measuring/drawing and the comment-tree layout, all straight from the model.
             const textKit: TextKit = {
@@ -1160,23 +1277,27 @@ export class PdfExportService {
               gapX: 6,
               gapY: 3,
               bracket: (x, y, h) => {
-                doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
-                doc.setLineWidth(PDF_CORNER_WIDTH);
+                // the bracket between a reading and its variant is dark in the printed volume (the grey corners belong to the edition)
+                doc.setDrawColor(PDF_APPARATUS_BRACKET, PDF_APPARATUS_BRACKET, PDF_APPARATUS_BRACKET);
+                doc.setLineWidth(0.55);
                 doc.line(x, y, x + 3, y);
                 doc.line(x + 3, y, x + 3, y + h);
                 doc.line(x + 3, y + h, x, y + h);
               },
               notes: (zeile, context, maxW) => inlineZeileBox(zeile, context, maxW),
             };
-            const placeBox = (box: Box, indent: number) => {
-              if (cursorY + box.h > maxContentY && cursorY > pdfMarginTop + 1) { doc.addPage(); cursorY = pdfMarginTop; }
-              box.draw(textX + indent, cursorY, box.h);
-              cursorY += box.h;
+            /** One entry of the apparatus: how high it is and how it is drawn. An entry is never split, and
+             *  the headings queued in front of it are drawn with it (on a new page if they do not fit together). */
+            type Entry = { h: number; /** baseline of the entry's first line, from its top */ labelY: number; draw: () => void };
+            const place = (e: Entry): void => {
+              flushLead(e.h);
+              if (!apEntryRecorded) { apEntryRecorded = true; stats.placement.apparatus.push({ job: ji, head: apHeadPage || doc.getNumberOfPages(), entry: doc.getNumberOfPages() }); }
+              e.draw();
             };
 
             // Plain-text comments are typeset directly: lemma, "]", then the comment with the
             // usual markup (plain = italic, ((quoted)) = roman, [[SIGLUM]] = bold small, {{boxed}}).
-            const drawTextEntry = (c: VM.Comment) => {
+            const textEntry = (c: VM.Comment): Entry => {
                 const fs = pdfCommentFontSize;
                 const lh = fs * 1.38;
                 type Seg = { w: string; style: 'normal' | 'italic' | 'bold'; size: number; grey?: boolean; boxed?: boolean; sep?: boolean };
@@ -1199,7 +1320,7 @@ export class PdfExportService {
                 // break into lines (words keep the style of their segment; glued words wrap together)
                 const lines = breakLines(segs, textColumnW, textKit);
                 const height = lines.length * lh;
-                if (cursorY + height > maxContentY && cursorY > pdfMarginTop + 1) { doc.addPage(); cursorY = pdfMarginTop; }
+                return { h: height, labelY: fs, draw: () => {
                 lines.forEach((line, li) => {
                     let cx = textX;
                     const by = cursorY + fs + li * lh;
@@ -1214,20 +1335,29 @@ export class PdfExportService {
                 });
                 doc.setTextColor(0, 0, 0);
                 cursorY += height + pdfCommentBlockGap;
+                } };
             };
 
 
             // An entry whose body is a comment tree or a set of lines: like the printed apparatus the
             // lemma stands in a narrow left column, level with the staff, and the body to its right.
             const LEMMA_COL_MAX = lemmaColumnMax;
-            const lemmaOf = (c: VM.Comment) => { const l = commentLemma(jobParts, c); return l ? l + ']' : ''; };
+            const lemmaOf = (c: VM.Comment) => {
+              const l = commentLemma(jobParts, c);
+              // as in the printed volume the reading stands once: when the tree's first cell gives it
+              // ("reading (note) ] variant"), the lemma column is left out
+              if (c.tree && (treeRepeatsLemma(c.tree, l) || treeStartsWithTextedNotes(c.tree))) return '';
+              // a tree that begins with its bracket ("uatis ] korrigiert aus uatum"): that bracket closes the lemma
+              if (c.tree && treeStartsWithBracket(c.tree)) return l;
+              return l ? l + ']' : '';
+            };
             const lemmaColW = (c: VM.Comment): number => {
               const t = lemmaOf(c);
               if (!t) return 0;
               const w = textKit.width(t, 'normal', pdfCommentFontSize) + 8;
               return w <= LEMMA_COL_MAX ? Math.max(w, 26) : 0;   // longer: above the body
             };
-            const drawStructuredEntry = (c: VM.Comment, makeBody: (maxW: number) => Box) => {
+            const structuredEntry = (c: VM.Comment, makeBody: (maxW: number) => Box): Entry => {
               const colW = lemmaColW(c);
               const lemma = lemmaOf(c);
               const body = makeBody(textColumnW - colW - 4);
@@ -1235,14 +1365,15 @@ export class PdfExportService {
               // a long lemma stands above the body and wraps like text
               const lemmaLines = above ? breakLines([{ w: lemma, style: 'normal', size: pdfCommentFontSize }], textColumnW, textKit) : [];
               const aboveH = above ? lemmaLines.length * pdfCommentFontSize * 1.38 : 0;
-              if (cursorY + body.h + aboveH > maxContentY && cursorY > pdfMarginTop + 1) { doc.addPage(); cursorY = pdfMarginTop; }
+              const mid = body.anchor ?? pdfCommentFontSize * 0.7;
+              return { h: aboveH + body.h, labelY: above ? pdfCommentFontSize : mid + pdfCommentFontSize * 0.33, draw: () => {
               if (lemma) {
-                const mid = body.anchor ?? pdfCommentFontSize * 0.7;
                 if (above) drawLines(lemmaLines, textX, cursorY + pdfCommentFontSize, pdfCommentFontSize * 1.38, textKit);
                 else textKit.draw(lemma, textX, cursorY + mid + pdfCommentFontSize * 0.33, 'normal', pdfCommentFontSize);
               }
               body.draw(textX + colW + (above ? 8 : 0), cursorY + aboveH, body.h);
               cursorY += aboveH + body.h + pdfCommentBlockGap - 1;
+              } };
             };
             const linesBox = (c: VM.Comment, maxW: number): Box => {
               // witness siglum in a left column, its notes / text to the right (as printed)
@@ -1274,25 +1405,34 @@ export class PdfExportService {
             };
 
             if (job.cont.globalComment) {
-              checkPageOverflow(30);
-              doc.setFont(fontFamily, 'normal');
-              doc.setFontSize(pdfCommentFontSize - 0.5);
-              doc.setTextColor(PDF_KEY_GREY - 40, PDF_KEY_GREY - 40, PDF_KEY_GREY - 40);
-              doc.text('GLOBAL COMMENT', textX, cursorY + pdfCommentFontSize, { charSpace: 0.7 });
-              doc.setTextColor(0, 0, 0);
-              cursorY += pdfCommentFontSize * 1.6;
-              placeBox(layoutCommentTree(job.cont.globalComment, treeKit, textColumnW - 8), 8);
-              cursorY += pdfCommentBlockGap + 2;
+              // The comment on the whole document, without a label of its own (the printed volume has none).
+              const box = layoutCommentTree(job.cont.globalComment, treeKit, textColumnW);
+              if (box.h > 0) place({ h: box.h, labelY: 0, draw: () => { box.draw(textX, cursorY, box.h); cursorY += box.h + pdfCommentBlockGap + 2; } });
             }
-            const ordered = (job.cont.comments || [])
+            const ordered = printableComments(job.cont)
               .map((c, i) => ({ c, i, pos: commentStartIndex(jobParts, c) }))
               .sort((x, y) => (x.pos - y.pos) || (x.i - y.i));
+            // As in the printed volume the signature of a section (A, B, 23, ...) stands in the margin in front of its first entry.
+            const drawSignature = (text: string, baseline: number): void => {
+              doc.setFont(fontFamily, 'normal');
+              const sig = layoutSignature(text, textX - pdfMarginLeft - 4, pdfFontSize, (t, sz) => { doc.setFontSize(sz); return doc.getTextWidth(t); });
+              doc.setFontSize(sig.size);
+              doc.setTextColor(0, 0, 0);
+              sig.lines.forEach((line, li) => doc.text(line, pdfMarginLeft, baseline - (sig.lines.length - 1 - li) * sig.size * 1.15));
+              doc.setFontSize(pdfFontSize);
+            };
+            let lastSignature = '';
             for (const { c } of ordered) {
               const type = commentType(c);
-              if (type === 'tree' && c.tree) drawStructuredEntry(c, (w) => layoutCommentTree(c.tree!, treeKit, w));
-              else if (type === 'lines' && c.lines) drawStructuredEntry(c, (w) => linesBox(c, w));
-              else drawTextEntry(c);
+              const entry = type === 'tree' && c.tree ? structuredEntry(c, (w) => layoutCommentTree(c.tree!, treeKit, w))
+                : type === 'lines' && c.lines ? structuredEntry(c, (w) => linesBox(c, w))
+                : textEntry(c);
+              const signature = commentSignature(job.cont, c);
+              const label = signature && signature !== lastSignature ? signature : '';
+              lastSignature = signature;
+              place(label ? { ...entry, draw: () => { drawSignature(label, cursorY + entry.labelY); entry.draw(); } } : entry);
             }
+            flushLead(0);   // headings of a document whose comments drew nothing
         };
 
         // ── Source descriptions (Markdown), appended after the editions and the apparatus ────
@@ -1539,7 +1679,7 @@ export class PdfExportService {
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         // Volume style needs more than one part: the edition plus an apparatus or descriptions that exist.
         {
-          const hasApparatus = !!opts.apparatus && jobs.some((j) => (j.cont.comments && j.cont.comments.length > 0) || j.cont.globalComment);
+          const hasApparatus = !!opts.apparatus && jobs.some((j) => printableComments(j.cont).length > 0 || j.cont.globalComment);
           const hasDescriptions = !!opts.sourceDescriptions && jobs.some((j) => parseMarkdown(sourceDescription(j.source)).length > 0);
           multiPart = hasApparatus || hasDescriptions;
           volumeParts = partStyle === 'volume' && multiPart;
@@ -1547,22 +1687,17 @@ export class PdfExportService {
         }
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
+          let gap = 0;
           if (multi && chapterFirst[ji] && chapterNewPage) {
             // a manuscript starts a new page with its chapter heading
             if (ji > 0) { doc.addPage(); cursorY = pdfMarginTop; }
           } else if (ji > 0) {
             if (opts.newPagePerDocument) { doc.addPage(); cursorY = pdfMarginTop; }
-            else {
-              // the next document follows with a gap; heading, metadata and the first system
-              // must fit with it, otherwise it starts the next page
-              cursorY += pdfVerticalSpace * 2 + 6;
-              if (cursorY + 120 > maxContentY) { doc.addPage(); cursorY = pdfMarginTop; }
-            }
+            // otherwise the next document follows with a gap (left out at the top of a page); its headings,
+            // metadata and first system are kept together by `layoutDocument`
+            else gap = pdfVerticalSpace * 2 + 6;
           }
-          docEntries.push({ job: ji, page: editionPage() });
-          docStart.push(doc.getNumberOfPages());
-          if (multi && chapterFirst[ji] && chapterHeadings) drawChapterBlock(ji, textX, textColumnW, true);
-          await layoutDocument(jobs[ji], ji);
+          await layoutDocument(jobs[ji], ji, gap);
         }
         if (opts.apparatus) {
           for (let ji = 0; ji < jobs.length; ji++) {
@@ -1580,6 +1715,10 @@ export class PdfExportService {
 
         // ── Title page: title, source and — for one document — its metadata table, for several
         //    documents the contents table (ID, incipit, genre, page) ─────────────────────────────
+        if (opts.cover) {
+          doc.setPage(1);
+          drawCover(doc, opts.cover.template, makeLookup(jobs, opts.settings, opts.cover.template.variables, { titel: opts.title, gruppe: opts.cover.group, gruppenfeld: opts.cover.groupField }), fontFamily);
+        }
         if (useTitlePage) {
           const cx = pageWidth / 2;
           const keyX = cx - 9;
@@ -1592,10 +1731,10 @@ export class PdfExportService {
             doc.setPage(target);
             return pdfMarginTop + 10;
           };
-          doc.setPage(1);
+          doc.setPage(coverPages + 1);
           // Several documents: no automatic title block — only a title of one's own, if one was given
-          // (the contents then start at the top of the page).
-          const ownTitle = multi ? (opts.title || '').trim() : '';
+          // (the contents then start at the top of the page). The cover carries the title already.
+          const ownTitle = multi && !opts.cover ? (opts.title || '').trim() : '';
           let y = multi && !ownTitle ? pdfMarginTop + 10 : Math.max(pdfMarginTop + 30, pageHeight * 0.17);
           doc.setTextColor(0, 0, 0);
           doc.setFont(fontFamily, 'normal');
@@ -1688,7 +1827,8 @@ export class PdfExportService {
               }
               if (r.chapter) y += lineH * 0.5;
               const ix = textX + r.indent;
-              if (y + lineH > maxContentY) y = startNewTitlePage();
+              // a part or manuscript row (plain) is never the last row of a page: its first row comes with it
+              if (y + lineH * (r.plain ? 2 : 1) > maxContentY) y = startNewTitlePage();
               doc.setFont(fontFamily, r.chapter ? 'bold' : 'normal');
               doc.setFontSize(pdfFontSize);
               doc.setTextColor(0, 0, 0);
@@ -1770,8 +1910,9 @@ export class PdfExportService {
           doc.setTextColor(0, 0, 0);
           if (pageNum <= titlePageCount) continue;          // title page(s): no running head, no number
           if (partPages.has(pageNum - pageShift())) continue;             // part pages: only the name and the rule
-          const shownPage = pageNum - titlePageCount;       // the edition is numbered from 1
-          const shownTotal = totalPages - titlePageCount;
+          const editionNo = pageNum - titlePageCount;       // position inside the edition
+          const shownPage = editionNo + numberOffset;
+          const shownTotal = totalPages - titlePageCount + numberOffset;
 
           if (printStyle) {
             const headY = Math.max(14, pdfMarginTop - 22);
@@ -1804,7 +1945,7 @@ export class PdfExportService {
           }
 
           // Classic running headline from the edition's second page
-          if (shownPage > 1) {
+          if (editionNo > 1) {
             const headlineText = buildHeadline(jobs[ownerOf(pageNum)].document, pdfHeadlineMetadataFields, opts.settings);
             if (headlineText) {
               const headlineFontSize = pdfHeadlineFontSize;
@@ -1836,14 +1977,16 @@ export class PdfExportService {
           const parents: any[] = [null];
           for (const o of stats.outline) {
             const depth = Math.min(Math.max(o.depth, 0), parents.length - 1);
-            const node = outlineApi.add(parents[depth], o.label || '–', { pageNumber: Math.max(1, o.page + titlePageCount) });
+            const node = outlineApi.add(parents[depth], o.label || '–', { pageNumber: Math.max(1, o.page - numberOffset + titlePageCount) });
             parents[depth + 1] = node;
             parents.length = depth + 2;
           }
         }
         stats.pages = doc.getNumberOfPages();
+        stats.frontPages = titlePageCount;
         const tSave = performance.now();
-        doc.save(opts.fileName || (multi ? 'Documents.pdf' : 'Document_' + (jobs[0].document.dokumenten_id || 'Export') + '.pdf'));
+        if (opts.output === 'blob') stats.blob = doc.output('blob');
+        else doc.save(opts.fileName || (multi ? 'Documents.pdf' : 'Document_' + (jobs[0].document.dokumenten_id || 'Export') + '.pdf'));
         stats.timings['save'] = performance.now() - tSave;
         stats.timings['total'] = performance.now() - t0;
         console.debug('[pdf-export]', JSON.stringify({ documents: jobs.length, pages: stats.pages, ms: Object.fromEntries(Object.entries(stats.timings).map(([k, v]) => [k, Math.round(v)])) }));

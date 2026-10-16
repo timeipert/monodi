@@ -223,4 +223,56 @@ save('x19-folio-labels', root([formteil([
   ])]));
 }
 
+// 21. Signatures of every length: a letter, a number with letters, a sentence, one very long word and
+//     nonsense — none may run off the page or into the music.
+{
+  const sigs = ['A', '2a b', 'Fragment', 'Duplikat-Datei, zu löschen', 'Pneumatologie-und-andere-sehr-lange-Wörter-ohne-Trennstelle', '2D^CM', '[mel. Überlieferung aus anderer Hand]'];
+  const sec = (sig, k) => ({ uuid: id(), kind: 'FormteilContainer', data: [{ name: 'Signatur', data: sig }], children: [
+    zeile(Array.from({ length: 5 + (k % 3) }, (_, i) => syl(sylText(i + k), [randNeume(3, 3, 4)]))),
+  ] });
+  save('x21-long-signatures', root(sigs.map(sec)));
+}
+
+// 22. Comment trees with text only: the lemma (the edition's reading) must stand once — "Gratuletur (wie CT X) ] Gratultur …" —
+//     and where the tree does not begin with it, the lemma stays: "uatis ] korrigiert aus uatum".
+{
+  const sy = ['Gratuletur', 'omnis', 'caro', 'uatis', 'et', 'ex-', 'ul-', 'tet'].map((t) => syl(t, [randNeume(2, 3, 4)]));
+  const firstNote = (x) => x.notes.spaced[0].nonSpaced[0].grouped[0].uuid;
+  const lastNote = (x) => x.notes.spaced.at(-1).nonSpaced.at(-1).grouped.at(-1).uuid;
+  const leaf = (content) => ({ kind: 'CommentTreeLeaf', id: id(), content });
+  const text = (t) => leaf({ kind: 'Text', content: t });
+  const grid = (...rows) => ({ kind: 'CommentTreeGrid', id: id(), items: rows });
+  const doc22 = root([formteil([para('TEXT TREES'), zeile(sy)])]);
+  doc22.comments = [
+    { startUUID: firstNote(sy[0]), endUUID: lastNote(sy[0]), commentType: 'tree', text: '', tree: grid([text('((Gratuletur)) (wie ((CT X)))'), leaf({ kind: 'Bracket' }), text('((Gratultur)), aber Notation für 4 Silben.')]) },
+    { startUUID: firstNote(sy[3]), endUUID: lastNote(sy[3]), commentType: 'tree', text: '', tree: grid([leaf({ kind: 'Bracket' }), text('korrigiert aus ((uatum))')]) },
+    { startUUID: firstNote(sy[5]), endUUID: lastNote(sy[7]), commentType: 'tree', text: '', tree: grid([text('exultet'), leaf({ kind: 'Bracket' }), text('((exsultet)) (wie ((CT III)))')]) },
+  ];
+  save('x22-text-trees', doc22);
+}
+
+// 23. Apparatus entries as imports leave them: placeholders ("#App", "#Lem") say nothing and are not printed;
+//     an entry that begins with notes carrying the lyric needs no lemma in front of it; the comment on the
+//     whole document is printed without a label of its own.
+{
+  const sy = ['do-', 'mi-', 'ne', 'Ie-', 'su', 'a-', 'men'].map((t) => syl(t, [randNeume(2, 3, 4)]));
+  const firstNote = (x) => x.notes.spaced[0].nonSpaced[0].grouped[0].uuid;
+  const lastNote = (x) => x.notes.spaced.at(-1).nonSpaced.at(-1).grouped.at(-1).uuid;
+  const leaf = (content) => ({ kind: 'CommentTreeLeaf', id: id(), content });
+  const text = (t) => leaf({ kind: 'Text', content: t });
+  const notesLeaf = (...ss) => leaf({ kind: 'Notes', content: zeile(ss.map((t) => syl(t, [randNeume(2, 3, 4)]))), context: false });
+  const grid = (...rows) => ({ kind: 'CommentTreeGrid', id: id(), items: rows });
+  const doc23 = root([formteil([para('IMPORTED APPARATUS'), zeile(sy)])]);
+  doc23.comments = [
+    { startUUID: firstNote(sy[0]), endUUID: lastNote(sy[2]), commentType: 'tree', text: '', tree: grid([notesLeaf('do-', 'mi-', 'ne'), leaf({ kind: 'Bracket' }), text('korrigiert zu'), notesLeaf('do-', 'mi-', 'ne')]) },
+    { startUUID: firstNote(sy[3]), endUUID: lastNote(sy[4]), commentType: 'tree', text: '#App', tree: text('#App') },
+    { startUUID: firstNote(sy[3]), endUUID: lastNote(sy[4]), commentType: 'text', text: '#Lem' },
+    { startUUID: firstNote(sy[5]), endUUID: lastNote(sy[6]), commentType: 'text', text: 'Lesart unsicher.' },
+    { startUUID: firstNote(sy[0]), endUUID: lastNote(sy[6]), commentType: 'tree', text: '', tree: grid([text('[[domine ... amen]]'), leaf({ kind: 'Bracket' }), text('über und unter dem Text weitere Verse.')]) },
+  ];
+  doc23.globalComment = grid([text('Eine Bemerkung zum ganzen Stück.')]);
+  doc23.children[0].data = [{ name: 'Signatur', data: 'B' }];   // the apparatus names the section once, in the margin
+  save('x23-imported-apparatus', doc23);
+}
+
 console.log('wrote extreme fixtures to', out);

@@ -52,7 +52,9 @@ let resolveDl; const dl = new Promise((r) => (resolveDl = r));
 await capturePdfDownloads(page, (buf) => { writeFileSync(out, buf); resolveDl(); });
 try {
   step('seed'); await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });
-  await seedWorkspace(page, docs, {});
+  // the checks below are written for the compact style (no part pages), a contents list of every document and
+  // a heading with ID, incipit and genre
+  await seedWorkspace(page, docs, { pdfPartStyle: 'compact', pdfContentsEdition: 'documents', pdfDocHeadingFields: [{ key: 'dokumenten_id', style: 'bold' }, { key: 'textinitium', style: 'normal' }, { key: 'genre', style: 'grey' }] });
   step('open manuscript'); await page.goto(BASE + '/#/source/src1?tab=documents', { waitUntil: 'networkidle0' });
   await page.reload({ waitUntil: 'networkidle0' });
   step('find button'); const btn = await page.waitForSelector('button ::-p-text(Print manuscript)', { timeout: 30000 });
@@ -103,7 +105,8 @@ try {
   const subIds = docs.filter((d) => afterApp.some((w) => w.t === d.label.split(' ')[0] && lineOf(list, w).some((x) => x.t === d.label.split(' ')[1])));
   const wantIds = [docs[0], docs[1]]; // doc-3 has no comments
   if (subIds.map((d) => d.id).join() !== wantIds.map((d) => d.id).join()) problems.push(`apparatus sub-headings for ${subIds.map((d) => d.label).join(', ')}; expected ${wantIds.map((d) => d.label).join(', ')}`);
-  for (const w of ['Gratuletur]', 'Terribi]']) if (!text.includes(w)) problems.push(`apparatus lacks the lemma "${w}"`);
+  // "Gratuletur" stands once, as the first cell of its tree ("Gratuletur (wie CT X) ] …"), not as a lemma of its own
+  for (const w of ['Gratuletur (wie CT X)', 'Terribi]']) if (!text.includes(w)) problems.push(`apparatus lacks the lemma "${w}"`);
   console.log(problems.length ? 'FAIL ' : 'ok   ', `multi-document print (${pages} pages, ${titlePages} title page(s))`, problems.join('; '));
 } catch (e) {
   await page.screenshot({ path: join(outDir, 'multi-failure.png') }).catch(() => {});

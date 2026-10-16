@@ -1,4 +1,4 @@
-import { Comment, LinePart, getCommentableUUIDsOfLinePart } from './types/model';
+import { Comment, CommentTree, FormteilDataName, LinePart, RootContainer, getCommentableUUIDsOfLinePart } from './types/model';
 
 /**
  * The text a comment's brackets frame: the lyrics from the start to the end syllable,
@@ -9,6 +9,27 @@ import { Comment, LinePart, getCommentableUUIDsOfLinePart } from './types/model'
 export function commentStartIndex(parts: LinePart[], comment: Pick<Comment, 'startUUID'>): number {
   const i = parts.findIndex((lp) => getCommentableUUIDsOfLinePart(lp).includes(comment.startUUID));
   return i < 0 ? Infinity : i;
+}
+
+/**
+ * The signature (A, B, 23, ...) of the section the comment starts in: the printed apparatus sets it
+ * in the margin in front of the first entry of each section. '' where the section has none or the start is unknown.
+ */
+export function commentSignature(root: RootContainer, comment: Pick<Comment, 'startUUID'>): string {
+  const visit = (c: any, sig: string): string | undefined => {
+    if (!c || typeof c !== 'object') return undefined;
+    if (c.kind === 'FormteilContainer') sig = ((c.data || []).find((d: any) => d.name === FormteilDataName.Signatur)?.data || '').trim();
+    if (c.kind === 'ZeileContainer') {
+      for (const lp of c.children || []) if (getCommentableUUIDsOfLinePart(lp as LinePart).includes(comment.startUUID)) return sig;
+      return undefined;
+    }
+    for (const ch of c.children || []) {
+      const r = visit(ch, sig);
+      if (r !== undefined) return r;
+    }
+    return undefined;
+  };
+  return visit(root, '') || '';
 }
 
 export function commentLemma(parts: LinePart[], comment: Pick<Comment, 'startUUID' | 'endUUID'>): string {
@@ -37,4 +58,91 @@ export function commentType(c: Pick<Comment, 'commentType' | 'tree' | 'lines'>):
   if (c.tree) return 'tree';
   if (c.lines) return 'lines';
   return 'text';
+}
+
+/** The text of a comment without its markup: ((roman)), [[SIGLUM]] and {{boxed}} give their content. */
+export function plainMarkup(text: string): string {
+  return (text || '').replace(/\(\(|\)\)|\[\[|\]\]|\{\{|\}\}/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/** The first cell (top left) of a comment tree. */
+export function firstTreeLeaf(tree: CommentTree | undefined): CommentTree | undefined {
+  let t: CommentTree | undefined = tree;
+  while (t && t.kind === 'CommentTreeGrid') t = t.items?.[0]?.[0];
+  return t;
+}
+
+/** The text of the first cell of a comment tree; '' if that is not a text cell. */
+export function firstTreeText(tree: CommentTree | undefined): string {
+  const t = firstTreeLeaf(tree);
+  return t && t.kind === 'CommentTreeLeaf' && t.content.kind === 'Text' ? t.content.content : '';
+}
+
+/** Does the tree begin with its bracket ("lemma ] comment")? Then that bracket closes the lemma. */
+export function treeStartsWithBracket(tree: CommentTree | undefined): boolean {
+  const t = firstTreeLeaf(tree);
+  return !!t && t.kind === 'CommentTreeLeaf' && t.content.kind === 'Bracket';
+}
+
+/**
+ * Does a comment tree begin with the reading of the edition, which the apparatus already gives as
+ * the lemma? Then the printed form is "reading (note) ] variant" — the lemma stands once, not
+ * "reading] reading (note) ] variant". The comparison ignores case, markup, punctuation after the lemma and the
+ * u/v and i/j spelling of the manuscript ("Resvrrexi" in the edition, "Resurrexi" in the comment) and a gap
+ * ("Eructauit ... regi") that abbreviates a longer reading.
+ */
+export function treeRepeatsLemma(tree: CommentTree | undefined, lemma: string): boolean {
+  const norm = (x: string) => plainMarkup(x).toLowerCase().replace(/v/g, 'u').replace(/j/g, 'i');
+  const l = norm(lemma).replace(/[\s.,;:]+$/, '');
+  const first = norm(firstTreeText(tree));
+  if (!l) return false;
+  // a long reading is abbreviated in the comment: "Eructauit <...> regi" stands for "Eructauit cor meum ... regi"
+  const gap = first.match(/^(.*?)\s*(?:<\.\.\.>|\.\.\.|\u2026)\s*(.*)$/);
+  if (gap && gap[1] && gap[2]) {
+    const tail = gap[2].replace(/[\s.,;:]+$/, '');
+    return l.length > gap[1].length + tail.length && l.startsWith(gap[1]) && l.endsWith(tail);
+  }
+  if (!first.startsWith(l)) return false;
+  const next = first.charAt(l.length);
+  return next === '' || !/[\p{L}\p{N}]/u.test(next);   // a whole word, not the start of a longer one
+}
+
+/**
+ * Does the tree begin with a line of notes that carries the lyric? Then the notation, with its text
+ * underneath, already shows what the entry is about: as in the printed volume no lemma is set in front
+ * of it ("[notes] ] korrigiert zu [notes]", not "in] [notes] ] korrigiert zu [notes]").
+ */
+export function treeStartsWithTextedNotes(tree: CommentTree | undefined): boolean {
+  const t = firstTreeLeaf(tree);
+  if (!t || t.kind !== 'CommentTreeLeaf' || t.content.kind !== 'Notes') return false;
+  const parts: any[] = (t.content.content as any)?.children || [];
+  return parts.some((p) => p.kind === 'Syllable' && String(p.text || '').trim() !== '' && !/^(X|\.\.\.|<\.\.\.>)$/.test(String(p.text).trim()));
+}
+
+/** What the import leaves as the whole content of an apparatus entry that has none: "#App", "#Lem", "#App 2". */
+const PLACEHOLDER = /^#\s*(app|lem)\s*\d*$/i;
+
+/** An entry that consists of such a placeholder only says nothing and is left out of the print. */
+export function isPlaceholderComment(c: Partial<Pick<Comment, 'commentType' | 'tree' | 'lines'>> & Pick<Comment, 'text'>): boolean {
+  const type = commentType(c);
+  if (type === 'lines') return false;
+  if (type === 'text') return PLACEHOLDER.test(plainMarkup(c.text));
+  const texts: string[] = [];
+  let content = true;
+  const walk = (t: CommentTree | undefined): void => {
+    if (!t) return;
+    if (t.kind === 'CommentTreeGrid') t.items.forEach((row) => row.forEach(walk));
+    else if (t.kind === 'CommentTreeLeaf') {
+      if (t.content.kind === 'Text') texts.push(plainMarkup(t.content.content));
+      else if (t.content.kind === 'Notes') content = false;      // a bracket is only a bracket
+    }
+  };
+  walk(c.tree);
+  const nonEmpty = texts.filter(Boolean);
+  return content && nonEmpty.length > 0 && nonEmpty.every((x) => PLACEHOLDER.test(x));
+}
+
+/** The comments of a document that are printed (placeholders left out). */
+export function printableComments(root: Pick<RootContainer, 'comments'> | null | undefined): Comment[] {
+  return ((root?.comments || []) as Comment[]).filter((c) => !isPlaceholderComment(c));
 }
