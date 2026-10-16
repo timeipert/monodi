@@ -105,5 +105,55 @@ describe('APIService', () => {
       const listed = (await firstValueFrom(service.listSources(TOKEN))) as any;
       expect(listed.sources.map((s: Source) => s.id)).toEqual(['s1', 's2']);
     });
+
+    describe('metadata edits in bulk', () => {
+      const storedDocs = async () => (await localforage.getItem<Document[]>('monodi_documents')) || [];
+
+      it('changes the patched fields in one write and leaves the rest of the documents and the notes alone', async () => {
+        await seed([source('s1')], [doc('A'), doc('B'), doc('C')]);
+        const write = spyOn(localforage, 'setItem').and.callThrough();
+        const res = (await firstValueFrom(service.updateDocumentsMetadata(TOKEN, [
+          { id: 'A', fields: { textinitium: 'new A', 'custom.x': '1' } },
+          { id: 'C', fields: { gattung1: 'Antiphon' } },
+        ]))) as any;
+        expect(res).toEqual({ kind: 'MetadataUpdated', updated: 2, missing: 0, rejectedFields: 0 });
+        const docs = await storedDocs();
+        expect(docs.map(d => d.textinitium)).toEqual(['new A', 'B', 'C']);
+        expect(docs[0].custom).toEqual({ x: '1' });
+        expect(docs[2].gattung1).toBe('Antiphon');
+        const docWrites = write.calls.allArgs().filter(a => a[0] === 'monodi_documents');
+        expect(docWrites.length).toBe(1);
+        expect(write.calls.allArgs().some(a => String(a[0]).startsWith('monodi_notes'))).toBeFalse();
+      });
+
+      it('does not let an edit change the id or the source of a document', async () => {
+        await seed([source('s1')], [doc('A')]);
+        const res = (await firstValueFrom(service.updateDocumentsMetadata(TOKEN, [{ id: 'A', fields: { id: 'hijack', quelle_id: 's2', kommentar: 'ok' } }]))) as any;
+        expect(res.rejectedFields).toBe(2);
+        const [d] = await storedDocs();
+        expect(d.id).toBe('A');
+        expect(d.quelle_id).toBe('s1');
+        expect(d.kommentar).toBe('ok');
+      });
+
+      it('writes nothing when no value differs, and reports edits for documents that are gone', async () => {
+        await seed([source('s1')], [doc('A')]);
+        const write = spyOn(localforage, 'setItem').and.callThrough();
+        const res = (await firstValueFrom(service.updateDocumentsMetadata(TOKEN, [{ id: 'A', fields: { textinitium: 'A' } }, { id: 'zzz', fields: { kommentar: 'x' } }]))) as any;
+        expect(res.updated).toBe(0);
+        expect(res.missing).toBe(1);
+        expect(write.calls.allArgs().some(a => a[0] === 'monodi_documents')).toBeFalse();
+      });
+
+      it('updates sources the same way', async () => {
+        await seed([source('s1', 'Old'), source('s2')], []);
+        const res = (await firstValueFrom(service.updateSourcesMetadata(TOKEN, [{ id: 's1', fields: { quellensigle: 'New', datierung: '12th c.' } }]))) as any;
+        expect(res.updated).toBe(1);
+        const stored = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+        expect(stored[0].quellensigle).toBe('New');
+        expect(stored[0].datierung).toBe('12th c.');
+        expect(stored[1].quellensigle).toBe('s2');
+      });
+    });
   });
 });

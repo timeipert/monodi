@@ -22,12 +22,17 @@ describe('MetadataGridComponent', () => {
   let component: MetadataGridComponent;
   let documents: Document[];
   let deleteDocuments: jasmine.Spy;
+  let updateDocumentsMetadata: jasmine.Spy;
 
   async function create(deleteResult: () => Observable<unknown> = () => of({ kind: 'UploadFinished', errors: [] })) {
     deleteDocuments = jasmine.createSpy('deleteDocuments').and.callFake((_t: string, data: string) => {
       const gone = new Set(JSON.parse(data) as string[]);
       documents = documents.filter((d) => !gone.has(d.id));
       return deleteResult();
+    });
+    updateDocumentsMetadata = jasmine.createSpy('updateDocumentsMetadata').and.callFake((_t: string, patches: { id: string; fields: Record<string, string> }[]) => {
+      documents = documents.map((d) => { const p = patches.find((x) => x.id === d.id); return p ? { ...d, ...p.fields } : d; });
+      return of({ kind: 'MetadataUpdated', updated: patches.length, missing: 0, rejectedFields: 0 });
     });
     await TestBed.configureTestingModule({
       declarations: [MetadataGridComponent],
@@ -40,6 +45,8 @@ describe('MetadataGridComponent', () => {
             listDocuments: () => of({ kind: 'DocumentsRetrieved', documents }),
             getSettings: () => of({ kind: 'SettingsRetrieved', settings: {} }),
             deleteDocuments,
+            updateDocumentsMetadata,
+            updateSourcesMetadata: () => of({ kind: 'MetadataUpdated', updated: 0, missing: 0, rejectedFields: 0 }),
             deleteSources: () => of({ kind: 'UploadFinished', errors: [] }),
           },
         },
@@ -132,5 +139,61 @@ describe('MetadataGridComponent', () => {
     await component.confirmDelete();
     expect(component.deleteBusy).toBeFalse();
     expect(component.showDelete).toBeTrue();
+  });
+
+  describe('editing', () => {
+    it('collects edits, sends them in one call on save and shows the stored result afterwards', async () => {
+      await create();
+      const view = component.view!;
+      view.selectCell(0, 2);                          // Text Initium of the first row (default sort: by Document ID)
+      component.startEdit(0, 2, 'Edited');
+      component.commitEdit();
+      view.selectCell(1, 2);
+      component.startEdit(1, 2, 'Edited 2');
+      component.commitEdit();
+      expect(component.totalDirty).toBe(2);
+      expect(component.hasChanges()).toBeTrue();
+      expect(updateDocumentsMetadata).not.toHaveBeenCalled();     // nothing is written before Save
+
+      await component.save();
+
+      expect(updateDocumentsMetadata).toHaveBeenCalledTimes(1);
+      const patches = updateDocumentsMetadata.calls.mostRecent().args[1] as { id: string; fields: Record<string, string> }[];
+      expect(patches.length).toBe(2);
+      expect(patches.every((p) => Object.keys(p.fields).join() === 'textinitium')).toBeTrue();
+      expect(component.hasChanges()).toBeFalse();
+      expect(component.view!.cellValue(0, 2)).toBe('Edited');      // rebuilt from what is stored
+    });
+
+    it('keeps the edits when saving fails, and the save button works again', async () => {
+      await create();
+      spyOn(console, 'warn');
+      component.startEdit(0, 2, 'Edited');
+      component.commitEdit();
+      updateDocumentsMetadata.and.returnValue(throwError(() => new Error('quota')));
+      await component.save();
+      expect(component.saveBusy).toBeFalse();
+      expect(component.hasChanges()).toBeTrue();
+    });
+
+    it('refuses to delete while there are unsaved edits (the tables would be rebuilt and the edits lost)', async () => {
+      await create();
+      component.startEdit(0, 2, 'Edited');
+      component.commitEdit();
+      component.view!.toggleAll();
+      component.askDelete();
+      expect(component.showDelete).toBeFalse();
+    });
+
+    it('does not open an editor in a read-only column, and refuses an empty value in a required one', async () => {
+      await create();
+      component.startEdit(0, 1, 'x');                 // Source
+      expect(component.editing).toBeNull();
+      const id = component.view!.cellValue(0, 0);
+      component.startEdit(0, 0, '');
+      component.commitEdit();
+      expect(component.view!.cellValue(0, 0)).toBe(id);
+      expect(component.hasChanges()).toBeFalse();
+    });
   });
 });

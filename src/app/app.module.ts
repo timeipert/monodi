@@ -109,6 +109,7 @@ import { MetadataGridComponent } from './metadata-grid/metadata-grid.component';
             }, {
                 path: 'metadata',
                 component: MetadataGridComponent,
+                canDeactivate: [ConfirmDeactivateGuard],
             }, {
                 path: 'stats',
                 loadChildren: () => import('./stats/stats.module').then(m => m.StatsModule),

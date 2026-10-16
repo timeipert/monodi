@@ -1,3 +1,4 @@
+import { MetadataPatch, applyMetadataPatches, DOCUMENT_METADATA_FIELDS, SOURCE_METADATA_FIELDS } from './metadata-patch';
 import { ClefDisplayMode, sanitizeClefDisplayMode } from './clef-policy';
 import type { HeadingField } from './print/doc-heading';
 import { FolioPrefixMode, sanitizeFolioPrefixMode } from './folio-label';
@@ -182,6 +183,41 @@ export class APIService {
         return { kind: "Ok" as const };
       }
       return { kind: "SourceNotFound" as const };
+    }));
+  }
+
+  /**
+   * Metadata edits of many sources at once (the metadata grid): one read, one write of the list, one push-cache
+   * update, however many edits there are. `updateSource` per source would write the whole list each time.
+   */
+  public updateSourcesMetadata(token: string, patches: MetadataPatch[]): Observable<LoginRequired | MetadataUpdated> {
+    return from(this.serialized(async () => {
+      const sources = await this.getSources();
+      const res = applyMetadataPatches(sources, patches, SOURCE_METADATA_FIELDS);
+      if (res.changedIds.length > 0) {
+        await this.saveSources(res.items);
+        await PushCache.markDirty(res.changedIds);
+      }
+      return { kind: "MetadataUpdated" as const, updated: res.changedIds.length, missing: res.missingIds.length, rejectedFields: res.rejectedFields };
+    }));
+  }
+
+  /**
+   * Metadata edits of many documents at once. Touches neither the notes (the transcription) nor the documents that
+   * have no edit; marks only the sources that own a changed document for the next push.
+   */
+  public updateDocumentsMetadata(token: string, patches: MetadataPatch[]): Observable<LoginRequired | MetadataUpdated> {
+    return from(this.serialized(async () => {
+      const documents = await this.getDocuments();
+      const res = applyMetadataPatches(documents, patches, DOCUMENT_METADATA_FIELDS);
+      if (res.changedIds.length > 0) {
+        await this.saveDocuments(res.items);
+        const changed = new Set(res.changedIds);
+        const owners = new Set<string>();
+        for (const d of res.items) if (changed.has(d.id)) owners.add(d.quelle_id || ORPHAN_BUNDLE_ID);
+        await PushCache.markDirty(Array.from(owners));
+      }
+      return { kind: "MetadataUpdated" as const, updated: res.changedIds.length, missing: res.missingIds.length, rejectedFields: res.rejectedFields };
     }));
   }
 
@@ -752,6 +788,16 @@ export interface UserInfosRetrieved {
 
 export interface TriedToRemoveSelf {
   "kind": "TriedToRemoveSelf";
+}
+
+export interface MetadataUpdated {
+  "kind": "MetadataUpdated";
+  /** Items that really changed. */
+  "updated": number;
+  /** Edits for items that no longer exist. */
+  "missing": number;
+  /** Fields refused because they are not metadata fields. */
+  "rejectedFields": number;
 }
 
 export interface SourcesRetrieved {
