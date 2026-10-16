@@ -43,6 +43,7 @@ import { ImportExportComponent } from './import-export/import-export.component';
 import { SelectionDashboardComponent } from './search/selection-dashboard/selection-dashboard.component';
 import { ChartBarsComponent } from './search/charts/chart-bars.component';
 import { ChartScatterComponent } from './search/charts/chart-scatter.component';
+import { MetadataGridComponent } from './metadata-grid/metadata-grid.component';
 
 @NgModule({ declarations: [
         AppComponent,
@@ -68,7 +69,8 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
         ImportExportComponent,
         SelectionDashboardComponent,
         ChartBarsComponent,
-        ChartScatterComponent
+        ChartScatterComponent,
+        MetadataGridComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
@@ -104,6 +106,9 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
             }, {
                 path: 'search',
                 component: SearchComponent,
+            }, {
+                path: 'metadata',
+                component: MetadataGridComponent,
             }, {
                 path: 'stats',
                 loadChildren: () => import('./stats/stats.module').then(m => m.StatsModule),

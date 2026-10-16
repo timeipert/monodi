@@ -1,0 +1,164 @@
+<div class="mg-page container-fluid">
+  <div class="mg-top d-flex flex-wrap align-items-center gap-3">
+    <h4 class="mb-0 fw-bold">Metadata</h4>
+    <ul class="nav nav-pills mg-tabs">
+      <li class="nav-item">
+        <button type="button" class="nav-link" [class.active]="active === 'documents'" (click)="setActive('documents')" data-testid="mg-tab-documents">
+          Documents @if (views.documents) { <span class="badge text-bg-light ms-1">{{ views.documents.rowCount }}</span> }
+        </button>
+      </li>
+      <li class="nav-item">
+        <button type="button" class="nav-link" [class.active]="active === 'sources'" (click)="setActive('sources')" data-testid="mg-tab-sources">
+          Sources @if (views.sources) { <span class="badge text-bg-light ms-1">{{ views.sources.rowCount }}</span> }
+        </button>
+      </li>
+    </ul>
+  </div>
+
+  @if (loading) {
+    <div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>Loading …</div>
+  } @else if (loadError) {
+    <div class="alert alert-danger mt-3">{{ loadError }} <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="load()">Try again</button></div>
+  } @else if (view) {
+    <!-- Filters -->
+    <div class="mg-filters" data-testid="mg-filters">
+      @for (f of view.filters; track f.id) {
+        <div class="mg-filter d-flex flex-wrap align-items-center gap-2">
+          <select class="form-select form-select-sm mg-col" [(ngModel)]="f.column" (ngModelChange)="filtersChanged()" aria-label="Column">
+            <option [value]="anyColumn">Any column</option>
+            @for (c of view.columns; track c.key) {
+              <option [value]="c.key">{{ c.label }}</option>
+            }
+          </select>
+          <select class="form-select form-select-sm mg-op" [(ngModel)]="f.op" (ngModelChange)="filtersChanged()" aria-label="Condition">
+            @for (o of ops; track o.op) {
+              <option [value]="o.op">{{ o.label }}</option>
+            }
+          </select>
+          @if (needsValue(f)) {
+            <input type="text" class="form-control form-control-sm mg-value" [class.is-invalid]="view.filterErrors.has(f.id)"
+              [(ngModel)]="f.value" (ngModelChange)="filtersChanged(false)" placeholder="value" aria-label="Value" />
+          }
+          <button type="button" class="btn btn-sm mg-case" [class.btn-secondary]="f.caseSensitive" [class.btn-outline-secondary]="!f.caseSensitive"
+            [attr.aria-pressed]="f.caseSensitive" title="Match case" (click)="f.caseSensitive = !f.caseSensitive; filtersChanged()">Aa</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" title="Remove this rule" aria-label="Remove rule" (click)="removeFilter(f)">
+            <i class="bi bi-x-lg"></i>
+          </button>
+          @if (view.filterErrors.get(f.id); as err) {
+            <span class="text-danger small">{{ err }}</span>
+          }
+        </div>
+      }
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-primary" (click)="addFilter()" data-testid="mg-add-filter">
+          <i class="bi bi-funnel me-1"></i>Add filter
+        </button>
+        <input type="search" class="form-control form-control-sm mg-quick" [(ngModel)]="view.quick" (ngModelChange)="filtersChanged(false)"
+          placeholder="Search all columns" aria-label="Search all columns" />
+        @if (view.activeFilterCount > 0) {
+          <button type="button" class="btn btn-sm btn-link" (click)="view.clearFilters()">Clear filters</button>
+        }
+      </div>
+    </div>
+
+    <!-- Status line and bulk actions -->
+    <div class="mg-status d-flex flex-wrap align-items-center gap-3">
+      <span data-testid="mg-count"><strong>{{ view.viewIdx.length }}</strong> of {{ view.rowCount }} {{ active }}</span>
+      <span class="text-muted" data-testid="mg-selected">{{ view.selectedCount }} selected</span>
+      @if (view.selectedCount > 0) {
+        <button type="button" class="btn btn-sm btn-link" (click)="view.clearSelection()">Clear selection</button>
+        <button type="button" class="btn btn-sm btn-danger ms-auto" (click)="askDelete()" data-testid="mg-delete">
+          <i class="bi bi-trash me-1"></i>Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}
+        </button>
+      }
+    </div>
+
+    <!-- Grid -->
+    <div class="mg-grid" data-testid="mg-grid">
+      <div class="mg-head-scroll" #headerScroller>
+        <div class="mg-head" [style.width.px]="view.totalWidth">
+          <div class="mg-lead">
+            <input type="checkbox" class="form-check-input" [checked]="view.allSelected" [indeterminate]="view.someSelected"
+              (change)="view.toggleAll()" aria-label="Select all matching rows" title="Select all matching rows" data-testid="mg-select-all" />
+          </div>
+          @for (c of view.columns; track c.key) {
+            <button type="button" class="mg-th" [style.width.px]="c.width" (click)="view.sortBy(c.key)" [title]="'Sort by ' + c.label">
+              <span class="mg-th-label">{{ c.label }}</span>
+              @if (view.sortKey === c.key) {
+                <i class="bi" [ngClass]="view.sortDescending ? 'bi-sort-down' : 'bi-sort-up'"></i>
+              }
+            </button>
+          }
+        </div>
+      </div>
+
+      <cdk-virtual-scroll-viewport [itemSize]="rowHeight" minBufferPx="320" maxBufferPx="640" class="mg-body">
+        <div *cdkVirtualFor="let r of view.viewIdx; let pos = index" class="mg-row" [class.selected]="view.selected.has(r)"
+          [style.width.px]="view.totalWidth" [style.height.px]="rowHeight">
+          <div class="mg-lead">
+            <input type="checkbox" class="form-check-input" [checked]="view.selected.has(r)" (click)="rowCheck(pos, $event)"
+              aria-label="Select row" />
+            <button type="button" class="btn btn-sm btn-link p-0 ms-2" title="Open" aria-label="Open" (click)="open(r)">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </button>
+          </div>
+          @for (c of view.columns; track c.key; let ci = $index) {
+            <div class="mg-cell" [style.width.px]="c.width" [title]="view.values[ci][r]">{{ view.values[ci][r] }}</div>
+          }
+        </div>
+      </cdk-virtual-scroll-viewport>
+
+      @if (view.rowCount === 0) {
+        <div class="mg-empty text-muted">No {{ active }} yet.</div>
+      } @else if (view.viewIdx.length === 0) {
+        <div class="mg-empty text-muted">No {{ active }} match these filters.</div>
+      }
+    </div>
+  }
+</div>
+
+<!-- Delete confirmation -->
+@if (showDelete && view) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.55);" data-testid="mg-delete-dialog"
+    (click)="closeDelete()">
+    <div class="modal-dialog modal-dialog-centered" (click)="$event.stopPropagation()">
+      <div class="modal-content shadow-lg border-0">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}?</h5>
+        </div>
+        <div class="modal-body">
+          @if (active === 'documents') {
+            <p class="mb-2">These documents and their transcriptions are removed from this workspace:</p>
+            <ul class="small mb-2">
+              @for (g of view.selectedByGroup().slice(0, 8); track g.group) {
+                <li><strong>{{ g.count }}</strong> in {{ g.group }}</li>
+              }
+              @if (view.selectedByGroup().length > 8) {
+                <li class="text-muted">… and {{ view.selectedByGroup().length - 8 }} more source(s)</li>
+              }
+            </ul>
+            <p class="small text-muted mb-2">For example: {{ view.selectedSample('dokumenten_id', 6).join(' · ') }}@if (view.selectedCount > 6) { … }</p>
+          } @else {
+            <p class="mb-2">These sources are removed:</p>
+            <p class="small text-muted mb-2">{{ view.selectedSample('quellensigle', 8).join(' · ') }}@if (view.selectedCount > 8) { … }</p>
+            @if (cascadingDocuments > 0) {
+              <div class="alert alert-danger py-2 small">Their <strong>{{ cascadingDocuments }}</strong> document(s) are deleted with them.</div>
+            }
+          }
+          <p class="mb-2 small"><strong>This cannot be undone.</strong>{{ ' ' }}@if (hasUnbackedChanges) {You have changes that are not in any backup yet.{{ ' ' }}}<a routerLink="/settings" [queryParams]="{ tab: 'workspace' }" (click)="closeDelete()">Export a backup first</a>.</p>
+          @if (requiredTyping; as needed) {
+            <label class="form-label small mb-1" for="mg-typed">Type <strong>{{ needed }}</strong> to confirm</label>
+            <input id="mg-typed" type="text" class="form-control form-control-sm" [(ngModel)]="typedCount" autocomplete="off"
+              (keydown.enter)="confirmDelete()" data-testid="mg-typed" />
+          }
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" [disabled]="deleteBusy" (click)="closeDelete()">Cancel</button>
+          <button type="button" class="btn btn-danger" [disabled]="!canConfirmDelete" (click)="confirmDelete()" data-testid="mg-confirm-delete">
+            @if (deleteBusy) { <span class="spinner-border spinner-border-sm me-1"></span>Deleting … } @else { Delete }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

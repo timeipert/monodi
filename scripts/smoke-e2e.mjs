@@ -24,7 +24,7 @@ const SETTINGS_TABS = ['metadata', 'containers', 'editor', 'shortcuts', 'pdf', '
 const ROUTES = [
   '/#/sources', '/#/source', '/#/source/src1', '/#/source/src1?tab=notation', '/#/source/src1?tab=description',
   '/#/document/src1/doc-1', '/#/document/src1/doc-2', '/#/document/src1',
-  '/#/search', '/#/stats', '/#/import-export', '/#/manual',
+  '/#/search', '/#/metadata', '/#/stats', '/#/import-export', '/#/manual',
   ...SETTINGS_TABS.map((t) => `/#/settings?tab=${t}`),
 ];
 
