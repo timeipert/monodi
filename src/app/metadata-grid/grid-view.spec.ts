@@ -220,3 +220,160 @@ describe('GridView at 20 000 rows', () => {
     expect(ms).toBeLessThan(1500);
   });
 });
+
+describe('GridView cell range', () => {
+  const rows: [string, string, string][] = [['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i'], ['j', 'k', 'l']];
+
+  it('selects a block with anchor and extension, and clamps to the table', () => {
+    const v = view(rows);
+    v.selectCell(1, 0);
+    v.selectCell(2, 1, true);
+    expect(v.range()).toEqual({ p0: 1, p1: 2, c0: 0, c1: 1 });
+    expect(v.rangeCellCount).toBe(4);
+    expect(v.inRange(2, 1)).toBeTrue();
+    expect(v.inRange(0, 0)).toBeFalse();
+    v.moveCursor(10, 10);
+    expect(v.anchor).toEqual({ pos: 3, ci: 2 });
+    v.moveCursor(-1, 0, true);
+    expect(v.range()).toEqual({ p0: 2, p1: 3, c0: 2, c1: 2 });
+  });
+
+  it('copies the block as rows of values, in the displayed (sorted) order', () => {
+    const v = view(rows, 'id');
+    v.sortBy('id');          // asc then desc
+    expect(ids(v)).toEqual(['j', 'g', 'd', 'a']);
+    v.selectCell(0, 0);
+    v.selectCell(1, 1, true);
+    expect(v.rangeValues()).toEqual([['j', 'k'], ['g', 'h']]);
+  });
+
+  it('a new filter or sort drops the cell selection (positions would point at other rows)', () => {
+    const v = view(rows);
+    v.selectCell(1, 1);
+    v.quick = 'x';
+    v.refresh();
+    expect(v.range()).toBeNull();
+  });
+});
+
+describe('GridView edits', () => {
+  const mk = () => new GridView(
+    [{ key: 'id', label: 'ID', width: 100, required: true }, { key: 'initium', label: 'Initium', width: 100 }, { key: 'count', label: 'N', width: 50, editable: false }],
+    [0, 1, 2, 3].map((i) => ({ id: 'r' + i, group: '', cells: ['id' + i, 'in' + i, String(i)] })),
+  );
+
+  it('writes cells as one undo step, tracks what differs from the loaded value, and undoes/redoes', () => {
+    const v = mk();
+    const res = v.setCells([{ row: 0, ci: 1, value: 'A' }, { row: 1, ci: 1, value: 'B' }]);
+    expect(res).toEqual({ applied: 2, rejected: 0, outside: 0 });
+    expect(v.dirtyCount).toBe(2);
+    expect(v.dirtyRowCount).toBe(2);
+    expect(v.isDirty(0, 1)).toBeTrue();
+    expect(v.values[1][0]).toBe('A');
+    v.undo();
+    expect(v.dirtyCount).toBe(0);
+    expect(v.values[1][0]).toBe('in0');
+    v.redo();
+    expect(v.dirtyCount).toBe(2);
+  });
+
+  it('typing the loaded value back is not an edit', () => {
+    const v = mk();
+    v.setCells([{ row: 2, ci: 1, value: 'x' }]);
+    v.setCells([{ row: 2, ci: 1, value: 'in2' }]);
+    expect(v.dirtyCount).toBe(0);
+    expect(v.changes()).toEqual([]);
+  });
+
+  it('refuses read-only columns and empty values in required columns, and skips unchanged cells', () => {
+    const v = mk();
+    const res = v.setCells([{ row: 0, ci: 2, value: '9' }, { row: 0, ci: 0, value: '  ' }, { row: 0, ci: 1, value: 'in0' }, { row: 99, ci: 1, value: 'z' }]);
+    expect(res).toEqual({ applied: 0, rejected: 2, outside: 1 });
+    expect(v.dirtyCount).toBe(0);
+    expect(v.canUndo).toBeFalse();
+  });
+
+  it('reports the edits per row with only the fields that changed', () => {
+    const v = mk();
+    v.setCells([{ row: 1, ci: 1, value: 'B' }, { row: 1, ci: 0, value: 'ID' }, { row: 3, ci: 1, value: 'D' }]);
+    expect(v.changes()).toEqual([{ id: 'r1', fields: { initium: 'B', id: 'ID' } }, { id: 'r3', fields: { initium: 'D' } }]);
+  });
+
+  it('filters and sorts see the edited values, but rows stay where they are until the next refresh', () => {
+    const v = mk();
+    v.addFilter({ column: 'initium', op: 'equals', value: 'in1' });
+    v.refresh();
+    expect(v.viewIdx).toEqual([1]);
+    v.setCells([{ row: 1, ci: 1, value: 'changed' }]);
+    expect(v.viewIdx).toEqual([1]);       // still shown, like a spreadsheet
+    v.refresh();
+    expect(v.viewIdx).toEqual([]);        // now filtered out by its new value
+    v.filters[0].value = 'changed';
+    v.refresh();
+    expect(v.viewIdx).toEqual([1]);
+  });
+
+  it('discard restores every loaded value', () => {
+    const v = mk();
+    v.setCells([{ row: 0, ci: 1, value: 'A' }, { row: 3, ci: 0, value: 'Z' }]);
+    v.discardEdits();
+    expect(v.values[1][0]).toBe('in0');
+    expect(v.values[0][3]).toBe('id3');
+    expect(v.dirtyCount).toBe(0);
+    expect(v.canUndo).toBeFalse();
+  });
+
+  it('paste: one value fills the whole range, a block goes in at the top-left and is clipped at the table end', () => {
+    const v = mk();
+    v.selectCell(0, 1);
+    v.selectCell(2, 1, true);
+    expect(v.pasteMatrix([['X']])).toEqual({ applied: 3, rejected: 0, outside: 0 });
+    expect(v.values[1].slice(0, 4)).toEqual(['X', 'X', 'X', 'in3']);
+
+    v.selectCell(3, 0);
+    const res = v.pasteMatrix([['a', 'b'], ['c', 'd']]);        // rows 3 and 4 (4 is outside), columns 0 and 1
+    expect(res.outside).toBe(2);
+    expect(v.values[0][3]).toBe('a');
+    expect(v.values[1][3]).toBe('b');
+    v.undo();
+    expect(v.values[0][3]).toBe('id3');   // the paste is one undo step
+    expect(v.values[1][0]).toBe('X');     // the fill before it is another
+  });
+
+  it('paste follows the displayed order, not the stored order', () => {
+    const v = mk();
+    v.sortBy('id'); v.sortBy('id');       // descending: r3, r2, r1, r0
+    v.selectCell(0, 1);
+    v.pasteMatrix([['first'], ['second']]);
+    expect(v.values[1][3]).toBe('first');
+    expect(v.values[1][2]).toBe('second');
+  });
+
+  it('delete empties the range but not required columns; fill down copies the top row', () => {
+    const v = mk();
+    v.selectCell(0, 0);
+    v.selectCell(1, 1, true);
+    const res = v.clearRange();
+    expect(res.rejected).toBe(2);         // the two ID cells
+    expect(v.values[1].slice(0, 2)).toEqual(['', '']);
+    v.undo();
+    v.setCells([{ row: 0, ci: 1, value: 'TOP' }]);
+    v.selectCell(0, 1);
+    v.selectCell(3, 1, true);
+    v.fillDown();
+    expect(v.values[1]).toEqual(['TOP', 'TOP', 'TOP', 'TOP']);
+  });
+
+  it('at 20 000 rows a paste of 20 000 cells and its undo take well under a second', () => {
+    const rows: GridRowInput[] = Array.from({ length: 20000 }, (_, i) => ({ id: 'd' + i, group: '', cells: ['x' + i, '', ''] }));
+    const v = new GridView(COLS, rows);
+    v.selectCell(0, 1);
+    v.selectCell(19999, 1, true);
+    const t0 = performance.now();
+    expect(v.fillRange('V').applied).toBe(20000);
+    expect(v.changes().length).toBe(20000);
+    v.undo();
+    expect(v.dirtyCount).toBe(0);
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
+});

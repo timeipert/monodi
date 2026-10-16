@@ -61,20 +61,46 @@
       </div>
     </div>
 
-    <!-- Status line and bulk actions -->
+    <!-- Status line, edits and bulk actions -->
     <div class="mg-status d-flex flex-wrap align-items-center gap-3">
       <span data-testid="mg-count"><strong>{{ view.viewIdx.length }}</strong> of {{ view.rowCount }} {{ active }}</span>
       <span class="text-muted" data-testid="mg-selected">{{ view.selectedCount }} selected</span>
+      @if (view.rangeCellCount > 1) {
+        <span class="text-muted" data-testid="mg-range">{{ view.rangeCellCount }} cells</span>
+      }
       @if (view.selectedCount > 0) {
         <button type="button" class="btn btn-sm btn-link" (click)="view.clearSelection()">Clear selection</button>
-        <button type="button" class="btn btn-sm btn-danger ms-auto" (click)="askDelete()" data-testid="mg-delete">
-          <i class="bi bi-trash me-1"></i>Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}
-        </button>
       }
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="!view.canUndo" (click)="undo()" title="Undo (Ctrl+Z)" aria-label="Undo" data-testid="mg-undo">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="!view.canRedo" (click)="redo()" title="Redo (Ctrl+Y)" aria-label="Redo">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        @if (totalDirty > 0) {
+          <span class="mg-dirty" data-testid="mg-dirty">{{ totalDirty }} unsaved {{ totalDirty === 1 ? 'change' : 'changes' }}</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="saveBusy" (click)="discard()" data-testid="mg-discard">Discard</button>
+          <button type="button" class="btn btn-sm btn-primary" [disabled]="saveBusy" (click)="save()" title="Save (Ctrl+S)" data-testid="mg-save">
+            @if (saveBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }Save
+          </button>
+        }
+        @if (view.selectedCount > 0) {
+          <button type="button" class="btn btn-sm btn-danger" [disabled]="totalDirty > 0" (click)="askDelete()" data-testid="mg-delete"
+            [title]="totalDirty > 0 ? 'Save or discard your edits first' : ''">
+            <i class="bi bi-trash me-1"></i>Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}
+          </button>
+        }
+      </span>
+    </div>
+    <div class="mg-hint text-muted">
+      Click a cell and type, or press Enter, to edit · Ctrl+C / Ctrl+V copy and paste cells (also from Excel) · Delete clears · Ctrl+D fills down ·
+      Ctrl+Enter in a cell fills the whole selection · Ctrl+Z undo · Ctrl+S saves
     </div>
 
     <!-- Grid -->
-    <div class="mg-grid" data-testid="mg-grid">
+    <div class="mg-grid" data-testid="mg-grid" #gridEl tabindex="0" (keydown)="onGridKey($event)"
+      (copy)="onCopy($event)" (cut)="onCut($event)" (paste)="onPaste($event)">
       <div class="mg-head-scroll" #headerScroller>
         <div class="mg-head" [style.width.px]="view.totalWidth">
           <div class="mg-lead">
@@ -92,7 +118,8 @@
         </div>
       </div>
 
-      <cdk-virtual-scroll-viewport [itemSize]="rowHeight" minBufferPx="320" maxBufferPx="640" class="mg-body">
+      <cdk-virtual-scroll-viewport [itemSize]="rowHeight" minBufferPx="320" maxBufferPx="640" class="mg-body"
+        (mousedown)="bodyMouseDown($event)" (dblclick)="bodyDoubleClick($event)">
         <div *cdkVirtualFor="let r of view.viewIdx; let pos = index" class="mg-row" [class.selected]="view.selected.has(r)"
           [style.width.px]="view.totalWidth" [style.height.px]="rowHeight">
           <div class="mg-lead">
@@ -103,10 +130,27 @@
             </button>
           </div>
           @for (c of view.columns; track c.key; let ci = $index) {
-            <div class="mg-cell" [style.width.px]="c.width" [title]="view.values[ci][r]">{{ view.values[ci][r] }}</div>
+            <div class="mg-cell" [style.width.px]="c.width" [attr.data-pos]="pos" [attr.data-ci]="ci"
+              [class.in-range]="view.inRange(pos, ci)" [class.active]="isActive(pos, ci)" [class.dirty]="view.isDirty(r, ci)"
+              [class.readonly]="c.editable === false" [title]="view.values[ci][r]">
+              @if (isEditingCell(pos, ci)) {
+                <input #cellInput type="text" class="mg-input" [(ngModel)]="editText" (keydown)="editKey($event)" (blur)="commitEdit()"
+                  [attr.list]="suggestions[active][c.key] ? 'mg-list-' + c.key : null" autocomplete="off" aria-label="Edit cell" data-testid="mg-input" />
+              } @else {
+                {{ view.values[ci][r] }}
+              }
+            </div>
           }
         </div>
       </cdk-virtual-scroll-viewport>
+
+      @for (key of suggestionColumns; track key) {
+        <datalist [id]="'mg-list-' + key">
+          @for (option of suggestions[active][key]; track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
+      }
 
       @if (view.rowCount === 0) {
         <div class="mg-empty text-muted">No {{ active }} yet.</div>

@@ -70,6 +70,10 @@ jobs:
       - name: Metadata grid (filter and bulk delete)
         run: node scripts/metadata-grid-e2e.mjs
 
+      # The grid as a spreadsheet: typing, ranges, fill, paste, undo, save (real keyboard and mouse events).
+      - name: Metadata grid (editing)
+        run: node scripts/metadata-edit-e2e.mjs
+
       # Prints all fixtures as one PDF and checks the page-break rules on where the export put things:
       # no heading alone at the bottom of a page, no single system of a line left alone at a page edge.
       - name: Print layout (page breaks)

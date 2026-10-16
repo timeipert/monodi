@@ -43,8 +43,8 @@ export function buildDocumentsView(documents: Document[], sources: Source[], set
   const sigla = new Map(sources.map((s) => [s.id ?? '', s.quellensigle || '']));
   const custom = settings?.customDocumentFields ?? [];
   const columns: GridColumn[] = [
-    ...DOCUMENT_COLUMNS.slice(0, 1).map(({ key, label, width }) => ({ key, label, width })),
-    { key: 'quelle', label: 'Source', width: 150 },
+    ...DOCUMENT_COLUMNS.slice(0, 1).map(({ key, label, width }) => ({ key, label, width, required: true })),
+    { key: 'quelle', label: 'Source', width: 150, editable: false },
     ...DOCUMENT_COLUMNS.slice(1).map(({ key, label, width }) => ({ key, label, width })),
     ...customColumns(custom),
   ];
@@ -70,8 +70,8 @@ export function buildSourcesView(sources: Source[], documents: Document[], setti
   const counts = new Map<string, number>();
   for (const d of documents) counts.set(d.quelle_id ?? '', (counts.get(d.quelle_id ?? '') ?? 0) + 1);
   const columns: GridColumn[] = [
-    ...SOURCE_COLUMNS.map(({ key, label, width }) => ({ key, label, width })),
-    { key: 'docCount', label: 'Documents', width: 110 },
+    ...SOURCE_COLUMNS.map(({ key, label, width }) => ({ key, label, width, required: key === 'quellensigle' })),
+    { key: 'docCount', label: 'Documents', width: 110, editable: false },
     ...customColumns(settings?.customSourceFields),
   ];
   const rows: GridRowInput[] = [];
