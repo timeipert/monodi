@@ -65,6 +65,11 @@ jobs:
       - name: Smoke test
         run: node scripts/smoke-e2e.mjs
 
+      # The metadata grid: filter "ID ends with GS" through the UI, select all matching rows, delete them through
+      # the confirmation dialog and check in IndexedDB that exactly those documents are gone.
+      - name: Metadata grid (filter and bulk delete)
+        run: node scripts/metadata-grid-e2e.mjs
+
       # Prints all fixtures as one PDF and checks the page-break rules on where the export put things:
       # no heading alone at the bottom of a page, no single system of a line left alone at a page edge.
       - name: Print layout (page breaks)
