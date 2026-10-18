@@ -7,7 +7,7 @@ import {
   RootContainer 
 } from './types/model';
 import {
-  importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders
+  applyPlaceholderImport, placeholderConfigFromSettings, syllableCommentsToPlaceholders
 } from './placeholder-comments';
 
 export interface WorkspaceImportResult {
@@ -102,7 +102,7 @@ export function parseWorkspaceImport(json: any): WorkspaceImportResult {
     for (const root of Object.values(notesDict)) {
       if (root && typeof root === 'object' && (root as any).kind === 'RootContainer') {
         normalizeDocumentComments(root as RootContainer);
-        if (importPlaceholderCommentsEnabled(json.settings)) placeholderCommentsToSyllables(root as RootContainer, placeholderConfigFromSettings(json.settings));
+        applyPlaceholderImport(root as RootContainer, json.settings);
       }
     }
   }

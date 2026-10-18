@@ -651,6 +651,11 @@
                           <label class="form-check-label small" for="importPlaceholderComments">On import, move comments on placeholder notes onto the (empty) syllables</label>
                           <div class="form-text small">Old convention: a comment on a lone placeholder note means “something was here, no longer legible”. The syllable stays, without notes; the comment is kept and printed.</div>
                         </div>
+                        <div class="form-check mt-2">
+                          <input class="form-check-input" type="checkbox" id="clearLonePlaceholders" [ngModel]="settings.clearLonePlaceholders !== false" (ngModelChange)="settings.clearLonePlaceholders = $event; onSettingsChange()">
+                          <label class="form-check-label small" for="clearLonePlaceholders">On import, remove lone placeholder notes from syllables, also without a comment</label>
+                          <div class="form-text small">A syllable whose only note is a placeholder (a lone D6 or F3 under a word) is emptied: the text stays, the note goes. Syllables that mix a placeholder pitch with real notes are left alone.</div>
+                        </div>
                         <div class="row g-2 mt-1">
                           <div class="col-md-6">
                             <label class="form-label small mb-0" for="placeholderNotes">Placeholder notes</label>

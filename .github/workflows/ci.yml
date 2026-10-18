@@ -86,6 +86,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends poppler-utils unzip
           node scripts/release-e2e.mjs
 
+      # Placeholder notes on ZIP import: a lone D6/F3 under a word is removed (setting respected), an F3 inside a
+      # real melody stays, a comment on a placeholder note moves onto its syllable.
+      - name: Placeholder notes (ZIP import)
+        run: node scripts/placeholder-import-e2e.mjs
+
       # The cover page and the volumes (one PDF per manuscript / region ..., zipped) through the real print
       # dialog; reads the PDFs back with poppler.
       - name: Cover page and volumes

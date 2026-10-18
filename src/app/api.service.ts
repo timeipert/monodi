@@ -694,6 +694,8 @@ export interface ProjectSettings {
   pdfDocHeadingSeparator?: string;
   /** Import: comments on placeholder notes (old convention) move onto the syllables. Default on. */
   importPlaceholderComments?: boolean;
+  /** Import: a syllable that holds nothing but placeholder notes loses them, comment or not. Default on. */
+  clearLonePlaceholders?: boolean;
   /** Notes that count as placeholders on import, e.g. "F3, D6". */
   placeholderNotes?: string;
   /** Note written for a commented syllable without notes when exporting for old versions, e.g. "F3". */
