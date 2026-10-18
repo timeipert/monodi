@@ -17,6 +17,11 @@ import {
  *   placeholder notes move to the syllables; the placeholders are removed.
  * - `syllableCommentsToPlaceholders` (export for old versions): the reverse; a syllable without
  *   notes that carries a comment gets one placeholder note, the comment moves onto it.
+ * - `clearLonePlaceholderSyllables` (import): a syllable that holds nothing but placeholder notes loses them even
+ *   when no comment sits on it. The OMMR4all-era data has such syllables (a lone D6 under a word that has no melody);
+ *   in print they would show as a single high or low note on ledger lines.
+ *
+ * `applyPlaceholderImport` runs both, each as far as the settings allow.
  */
 
 export interface PlaceholderPitch { base: BaseNote; octave: number; }
@@ -54,6 +59,7 @@ interface PlaceholderSettings {
   placeholderNotes?: string;
   placeholderExportNote?: string;
   importPlaceholderComments?: boolean;
+  clearLonePlaceholders?: boolean;
 }
 
 export function placeholderConfigFromSettings(s?: PlaceholderSettings | null): PlaceholderConfig {
@@ -68,6 +74,16 @@ export function placeholderConfigFromSettings(s?: PlaceholderSettings | null): P
 /** Opt-out: on unless the project settings switch it off. */
 export function importPlaceholderCommentsEnabled(s?: PlaceholderSettings | null): boolean {
   return s?.importPlaceholderComments !== false;
+}
+
+/** Opt-out: on unless the project settings switch it off. */
+export function clearLonePlaceholdersEnabled(s?: PlaceholderSettings | null): boolean {
+  return s?.clearLonePlaceholders !== false;
+}
+
+/** Whether an import has anything to do with placeholder notes at all. */
+export function placeholderImportEnabled(s?: PlaceholderSettings | null): boolean {
+  return importPlaceholderCommentsEnabled(s) || clearLonePlaceholdersEnabled(s);
 }
 
 export function isPlaceholderNote(n: Pick<Note, 'base' | 'octave'>, cfg: PlaceholderConfig): boolean {
@@ -115,6 +131,45 @@ export function placeholderCommentsToSyllables(root: RootContainer, cfg: Placeho
     if (s.additionalMelodies) s.additionalMelodies = s.additionalMelodies.map(emptySpaced);
   }
   return changed.size;
+}
+
+/**
+ * Import: a syllable that holds nothing but placeholder notes (in every voice) is emptied: it keeps its type and text,
+ * the notes go. A syllable that mixes a placeholder pitch with real notes is a real melody (F3 and D6 are the ends of the
+ * range and do occur) and is left alone. A comment that sits on a cleared note moves onto the syllable, so nothing
+ * dangles. Mutates; returns the number of syllables emptied. Run after `placeholderCommentsToSyllables`.
+ */
+export function clearLonePlaceholderSyllables(root: RootContainer, cfg: PlaceholderConfig = DEFAULT_PLACEHOLDER_CONFIG): number {
+  if (!root) return 0;
+  const owner = new Map<string, Syllable>();
+  const lone: Syllable[] = [];
+  for (const lp of getAllLineParts(root)) {
+    if (lp.kind !== LinePartKind.Syllable) continue;
+    const notes = syllableNotes(lp);
+    if (!notes.length || !notes.every((n) => isPlaceholderNote(n, cfg))) continue;
+    lone.push(lp);
+    notes.forEach((n) => owner.set(n.uuid, lp));
+  }
+  if (!lone.length) return 0;
+  for (const c of root.comments ?? []) {
+    for (const key of ['startUUID', 'endUUID'] as const) {
+      const s = owner.get(c[key]);
+      if (s) c[key] = s.uuid;
+    }
+  }
+  for (const s of lone) {
+    s.notes = emptySpaced();
+    if (s.additionalMelodies) s.additionalMelodies = s.additionalMelodies.map(emptySpaced);
+  }
+  return lone.length;
+}
+
+/** What an import does with placeholder notes, each part as far as the settings allow. Run after `normalizeDocumentComments`. */
+export function applyPlaceholderImport(root: RootContainer, settings?: PlaceholderSettings | null): { comments: number; cleared: number } {
+  const cfg = placeholderConfigFromSettings(settings);
+  const comments = importPlaceholderCommentsEnabled(settings) ? placeholderCommentsToSyllables(root, cfg) : 0;
+  const cleared = clearLonePlaceholdersEnabled(settings) ? clearLonePlaceholderSyllables(root, cfg) : 0;
+  return { comments, cleared };
 }
 
 /**

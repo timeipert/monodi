@@ -19,7 +19,7 @@ import { NotesStore } from '../notes-store';
 import { PushCache } from '../push-cache';
 import { WORKSPACE_SCHEMA_VERSION } from '../schema';
 import { buildWorkspaceExport, parseWorkspaceImport, BackwardsCompatMode } from '../workspace-io';
-import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
+import { applyPlaceholderImport, placeholderConfigFromSettings, placeholderImportEnabled, syllableCommentsToPlaceholders } from '../placeholder-comments';
 import { 
   convertToBackwardsCompatibleComment, 
   convertToBackwardsCompatibleConsecutiveLines, 
@@ -979,9 +979,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           //   1. NotesStore.set(...)
           //   2. documents.push(...) / documents[idx] = ...
           let notesPersisted = false;
-          if (docData && docData.kind === 'RootContainer' && importPlaceholderCommentsEnabled(importSettings)) {
+          if (docData && docData.kind === 'RootContainer' && placeholderImportEnabled(importSettings)) {
             normalizeDocumentComments(docData);
-            placeholderCommentsToSyllables(docData, placeholderConfigFromSettings(importSettings));
+            applyPlaceholderImport(docData, importSettings);
           }
           try {
             await NotesStore.set(docId, docData);

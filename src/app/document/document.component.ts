@@ -1,5 +1,5 @@
 import { FocusService } from '../focus.service';
-import { importPlaceholderCommentsEnabled, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
+import { applyPlaceholderImport, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
 import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, NgZone, inject } from '@angular/core';
 import { followDrag } from '../follow-drag';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -1594,7 +1594,7 @@ export class DocumentComponent implements OnInit {
             case 'Failed': this.toastr.error("Invalid format", "Upload failed!"); break;
             case 'NotesRetrieved':
               this.cont = VM.normalizeDocumentComments(res.data);
-              if (importPlaceholderCommentsEnabled(this.settings)) placeholderCommentsToSyllables(this.cont, placeholderConfigFromSettings(this.settings));
+              applyPlaceholderImport(this.cont, this.settings);
               this.contJsonClone = JSON.stringify(this.cont);
               this.toastr.success("Upload successful!");
               this.checkSecondVoiceComments(this.cont);
