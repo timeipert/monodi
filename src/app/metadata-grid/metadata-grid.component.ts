@@ -50,6 +50,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   loadError = '';
 
   showDelete = false;
+  showImport = false;
   deleteBusy = false;
   typedCount = '';
 

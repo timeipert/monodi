@@ -79,6 +79,13 @@ jobs:
       - name: Print layout (page breaks)
         run: node scripts/layout-e2e.mjs
 
+      # The release gate: the export list of Corpus Monodicum (.xlsx) is imported in the metadata grid, documents
+      # marked "dontpublish" are held back in the print dialog and are not in the PDF (read back with poppler).
+      - name: Release gate (export list and print)
+        run: |
+          sudo apt-get install -y --no-install-recommends poppler-utils unzip
+          node scripts/release-e2e.mjs
+
       # The cover page and the volumes (one PDF per manuscript / region ..., zipped) through the real print
       # dialog; reads the PDFs back with poppler.
       - name: Cover page and volumes

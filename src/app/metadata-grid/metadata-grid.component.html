@@ -13,7 +13,15 @@
         </button>
       </li>
     </ul>
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="totalDirty > 0" (click)="showImport = true" data-testid="mg-import-cm"
+      [title]="totalDirty > 0 ? 'Save or discard your edits first' : 'Mark documents that must not be printed, from the export list of Corpus Monodicum'">
+      <i class="bi bi-file-earmark-excel me-1"></i>Import export list (.xlsx)
+    </button>
   </div>
+
+  @if (showImport) {
+    <app-cm-import-dialog (closed)="showImport = false" (applied)="load()"></app-cm-import-dialog>
+  }
 
   @if (loading) {
     <div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>Loading …</div>

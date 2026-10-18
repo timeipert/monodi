@@ -44,6 +44,7 @@ import { SelectionDashboardComponent } from './search/selection-dashboard/select
 import { ChartBarsComponent } from './search/charts/chart-bars.component';
 import { ChartScatterComponent } from './search/charts/chart-scatter.component';
 import { MetadataGridComponent } from './metadata-grid/metadata-grid.component';
+import { CmImportDialogComponent } from './release/cm-import-dialog.component';
 
 @NgModule({ declarations: [
         AppComponent,
@@ -70,7 +71,8 @@ import { MetadataGridComponent } from './metadata-grid/metadata-grid.component';
         SelectionDashboardComponent,
         ChartBarsComponent,
         ChartScatterComponent,
-        MetadataGridComponent
+        MetadataGridComponent,
+        CmImportDialogComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
