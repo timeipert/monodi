@@ -12,6 +12,7 @@ import { safeStorage } from './safe-storage';
 import { downloadBlob } from './download';
 import { FieldDef, FieldJob, placeholderCatalog, splitFields, splitKey } from './print/fields';
 import { groupItems, volumeFileNames } from './print/groups';
+import { HOLD_REASON_LABEL, holdReasons, isPrintable } from './release/printable';
 import { MAX_BLOCKS, TITLE_PRESETS, TitleBlock, TitleTemplate, newBlock, sanitizeTitleTemplate } from './print/title-page';
 
 interface Entry { id: string; doc: Document | null; job: PdfDocJob | null; }
@@ -80,6 +81,27 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   </div>
                 }
               </div>
+              @if (heldTotal > 0) {
+                <div class="alert py-2 px-3 small" [class.alert-warning]="holdBack" [class.alert-danger]="!holdBack" data-testid="pdf-hold">
+                  <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="oHold" [(ngModel)]="holdBack" [disabled]="busy" (ngModelChange)="holdChanged()" data-testid="pdf-hold-switch">
+                    <label class="form-check-label fw-medium" for="oHold">Hold back documents that must not be printed ({{heldTotal}})</label>
+                  </div>
+                  @if (holdBack) {
+                    <details class="mt-1">
+                      <summary>Which and why</summary>
+                      <ul class="mb-0 ps-3" style="max-height: 120px; overflow: auto;">
+                        @for (h of held; track h.id) { <li>{{h.doc?.dokumenten_id}} <span class="text-muted">– {{reasonText(h)}}</span></li> }
+                      </ul>
+                    </details>
+                  } @else if (flaggedIn > 0) {
+                    <div class="mt-1"><strong>{{flaggedIn}}</strong> document{{flaggedIn === 1 ? '' : 's'}} marked "don't publish" will be printed.</div>
+                  }
+                </div>
+              }
+              @if (!entries.length && held.length) {
+                <div class="text-muted small mb-2" data-testid="pdf-all-held">All {{held.length}} documents are held back.</div>
+              }
               <ol class="list-unstyled mb-0 pdf-doc-list" style="max-height: 340px; overflow: auto;">
                 @for (e of entries; track e.id; let i = $index) {
                   <li class="d-flex align-items-start gap-2 py-1 border-bottom">
@@ -393,6 +415,13 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   @Output() closed = new EventEmitter<void>();
 
   entries: Entry[] = [];
+  /** Documents left out of the print because they must not be printed (see `holdReasons`). Not remembered between prints: it starts on. */
+  held: Entry[] = [];
+  holdBack = true;
+  /** Held back plus, while the switch is off, those in the list that would be held back: kept as fields, not recounted on every change detection. */
+  heldTotal = 0;
+  /** In the print list although marked "don't publish" (only possible with the switch off). */
+  flaggedIn = 0;
   o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
   fileBase = '';
   busy = false;
@@ -432,7 +461,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
 
   constructor(private api: APIService, private users: UserService, private pdf: PdfExportService, private sanitizer: DomSanitizer) {}
 
-  get multi(): boolean { return this.entries.length > 1; }
+  get multi(): boolean { return this.entries.length + this.held.length > 1; }
   get selectedGroupCount(): number { return this.groups.filter((g) => g.on).length; }
 
   genre(d: Document): string { return genreOf(d); }
@@ -461,7 +490,34 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
       }
       if (!this.fileName) this.fileBase = this.entries.length === 1 && this.entries[0].doc ? `Document_${this.entries[0].doc.dokumenten_id || 'Export'}` : 'Documents';
     }
+    this.applyHold();
     await this.loadSources();
+  }
+
+  // ── documents that must not be printed ──
+  reasonText(e: Entry): string { return holdReasons(e.doc).map((r) => HOLD_REASON_LABEL[r]).join(', '); }
+  holdChanged(): void {
+    this.applyHold();
+    this.recomputeGroups();
+    this.previewSoon();
+  }
+  /** With the switch on, the documents that must not be printed move from the list to `held`; with it off they come back (at the end). */
+  private applyHold(): void {
+    if (this.holdBack) {
+      const keep: Entry[] = [], out: Entry[] = [];
+      for (const e of this.entries) (e.doc && !isPrintable(e.doc) ? out : keep).push(e);
+      this.entries = keep;
+      this.held = [...this.held, ...out];
+    } else if (this.held.length) {
+      this.entries = [...this.entries, ...this.held];
+      this.held = [];
+    }
+    this.refreshHold();
+  }
+  private refreshHold(): void {
+    const loose = this.entries.filter((e) => e.doc && !isPrintable(e.doc));
+    this.heldTotal = this.held.length + loose.length;
+    this.flaggedIn = loose.filter((e) => holdReasons(e.doc).includes('dontpublish')).length;
   }
 
   ngOnDestroy(): void {
@@ -507,7 +563,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     [copy[i], copy[j]] = [copy[j], copy[i]];
     this.entries = copy;
   }
-  remove(i: number): void { this.entries = this.entries.filter((_, k) => k !== i); this.recomputeGroups(); this.previewSoon(); }
+  remove(i: number): void { this.entries = this.entries.filter((_, k) => k !== i); this.refreshHold(); this.recomputeGroups(); this.previewSoon(); }
   sortBy(kind: 'id' | 'incipit' | 'genre'): void {
     const key = (e: Entry) => kind === 'id' ? (e.doc?.dokumenten_id || '') : kind === 'incipit' ? (e.doc?.textinitium || '') : genreOf(e.doc);
     this.entries = [...this.entries].sort((a, b) => compareNatural(key(a), key(b)));
