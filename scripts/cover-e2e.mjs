@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { seedWorkspace } from './lib/e2e-common.mjs';
+import { seedWorkspace, openPrintDialog } from './lib/e2e-common.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -56,24 +56,7 @@ await page.evaluateOnNewDocument(() => {
 
 const clickText = async (sel, label) => { const el = await page.waitForSelector(`${sel} ::-p-text(${label})`, { timeout: 15000 }); await el.click(); };
 const openDialog = async () => {
-  await page.goto(BASE + '/#/search', { waitUntil: 'networkidle0' });
-  await page.waitForSelector('app-search', { timeout: 30000 });
-  // opened inside Angular's zone like a click would: the dialog's own clicks must trigger change detection
-  await page.evaluate((ids) => {
-    const c = window.ng.getComponent(document.querySelector('app-search'));
-    const seen = new Set();
-    const findZone = (o, depth) => {
-      if (!o || typeof o !== 'object' || seen.has(o) || depth > 3) return null;
-      seen.add(o);
-      if (typeof o.run === 'function' && typeof o.runOutsideAngular === 'function') return o;
-      for (const k of Object.keys(o)) { let v; try { v = o[k]; } catch { continue; } const z = findZone(v, depth + 1); if (z) return z; }
-      return null;
-    };
-    const zone = findZone(c, 0);
-    if (!zone) throw new Error('no NgZone found');
-    zone.run(() => c.pdfDialog.open({ ids, title: 'Cover test' }));
-  }, docs.map((d) => d.id));
-  await page.waitForSelector('app-pdf-export-dialog', { timeout: 10000 });
+  await openPrintDialog(page, BASE, docs.map((d) => d.id), 'Cover test');
   await page.waitForFunction((n) => (document.querySelector('app-pdf-export-dialog')?.querySelectorAll('ol li').length || 0) >= n, { timeout: 30000 }, docs.length);
 };
 const waitCaptured = async (n, ms = 120000) => { const t0 = Date.now(); while (captured.length < n) { if (Date.now() - t0 > ms) throw new Error('no download'); await new Promise((r) => setTimeout(r, 200)); } };

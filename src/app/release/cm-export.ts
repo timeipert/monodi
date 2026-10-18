@@ -18,7 +18,6 @@ const HEADERS = {
   dontpublish: 'dontpublish',
   dontpublishMetadata: 'pleasedontpublishmetadata',
   status: 'editionsstatus',
-  sigle: 'quellensigle',
 } as const;
 
 /** One row of the export, cleaned. */
@@ -31,7 +30,6 @@ export interface CmRecord {
   dontpublishMetadata: string;
   /** 'ediert' or 'none' as in the export, otherwise ''. */
   status: string;
-  sigle: string;
 }
 
 export interface OddCell {
@@ -84,7 +82,6 @@ export function parseCmExport(rows: string[][]): CmParse {
       dontpublish: flag(HEADERS.dontpublish, 'dontpublish'),
       dontpublishMetadata: flag(HEADERS.dontpublishMetadata, "please don't publish metadata"),
       status: status === 'ediert' || status === 'none' ? status : '',
-      sigle: at(row, HEADERS.sigle),
     });
   }
   return { records, odd };

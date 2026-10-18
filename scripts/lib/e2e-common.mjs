@@ -40,3 +40,27 @@ export async function capturePdfDownloads(page, onPdf) {
     };
   });
 }
+
+/**
+ * Opens the print dialog for these document ids through the search page, inside Angular's zone like a click would:
+ * the dialog's own clicks must trigger change detection (see the pitfalls note on dialogs opened from a test).
+ */
+export async function openPrintDialog(page, base, ids, title = 'e2e') {
+  await page.goto(base + '/#/search', { waitUntil: 'networkidle0' });
+  await page.waitForSelector('app-search', { timeout: 30000 });
+  await page.evaluate((ids, title) => {
+    const c = window.ng.getComponent(document.querySelector('app-search'));
+    const seen = new Set();
+    const findZone = (o, depth) => {
+      if (!o || typeof o !== 'object' || seen.has(o) || depth > 3) return null;
+      seen.add(o);
+      if (typeof o.run === 'function' && typeof o.runOutsideAngular === 'function') return o;
+      for (const k of Object.keys(o)) { let v; try { v = o[k]; } catch { continue; } const z = findZone(v, depth + 1); if (z) return z; }
+      return null;
+    };
+    const zone = findZone(c, 0);
+    if (!zone) throw new Error('no NgZone found');
+    zone.run(() => c.pdfDialog.open({ ids, title }));
+  }, ids, title);
+  await page.waitForSelector('app-pdf-export-dialog', { timeout: 20000 });
+}

@@ -15,7 +15,7 @@ const doc = (id: string, name: string, extra: Partial<Document> = {}): Document 
 describe('parseCmExport', () => {
   it('finds the columns by header, the first of a name wins, and ignores the repeats', () => {
     const { records } = parseCmExport([HEADER, row({ id: 'Aa 13-1', uuid: 'u1', status: 'ediert', dp: 'x', meta: 'x' })]);
-    expect(records).toEqual([{ row: 2, uuid: 'u1', dokumentenId: 'Aa 13-1', dontpublish: 'x', dontpublishMetadata: 'x', status: 'ediert', sigle: '' }]);
+    expect(records).toEqual([{ row: 2, uuid: 'u1', dokumentenId: 'Aa 13-1', dontpublish: 'x', dontpublishMetadata: 'x', status: 'ediert' }]);
   });
 
   it('skips rows without any id and takes only the status words it knows', () => {

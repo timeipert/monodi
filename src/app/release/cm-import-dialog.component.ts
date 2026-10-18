@@ -89,7 +89,6 @@ export class CmImportDialogComponent {
   odd: OddCell[] = [];
   /** The release columns are not among the custom fields yet. */
   needsFields = false;
-  private parsed: CmParse | null = null;
 
   constructor(private api: APIService, private users: UserService, private toastr: ToastrService, private cdr: ChangeDetectorRef) {}
 
@@ -114,7 +113,6 @@ export class CmImportDialogComponent {
       const token = (await firstValueFrom(this.users.user))?.token || '';
       const [docs, settings] = await Promise.all([firstValueFrom(this.api.listDocuments(token)), firstValueFrom(this.api.getSettings(token))]);
       if (docs.kind !== 'DocumentsRetrieved') throw new Error('The workspace could not be read.');
-      this.parsed = parsed;
       this.odd = parsed.odd;
       this.plan = planCmImport(parsed.records, docs.documents);
       this.needsFields = settings.kind === 'SettingsRetrieved' && withReleaseFields(settings.settings) !== null;
