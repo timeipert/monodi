@@ -53,14 +53,20 @@ export function canvasLabelOf(canvas: any): string {
  * Canonical form of a folio string for comparison:
  *   "fol. 1r", "f. 1r", "Bl. 1r", "folio 1r" → "1r"
  *   "1 recto" → "1r", "1 verso" → "1v"
+ *   "008r" → "8r" (some libraries pad their page labels), "20r [43]" → "20r"
  */
 export function normalizeFolio(raw: string): string {
-  return String(raw)
+  // a count behind the label ("20r [43]", the Berlin library's) is not part of the folio; a label that is
+  // only a bracket ("[1r]", an editorial folio) is kept
+  const text = String(raw);
+  const bare = text.replace(/\s*\[[^\]]*\]\s*$/, '');
+  return (/[a-z0-9]/i.test(bare) ? bare : text)
     .toLowerCase()
     .replace(/\b(fol|folio|bl|blatt|page|pg|leaf)\b\.?\s*/g, '')
     .replace(/\brecto\b/g, 'r')
     .replace(/\bverso\b/g, 'v')
-    .replace(/[^a-z0-9]/g, '');
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/^0+(?=\d)/, '');   // "008r" (DIAMM) is the folio "8r"
 }
 
 /** True when two folio strings name the same leaf side; a bare number counts as recto ("1" ~ "1r"). */

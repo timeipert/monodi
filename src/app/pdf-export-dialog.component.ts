@@ -24,6 +24,8 @@ interface DialogOptions {
   metadata: boolean;
   apparatus: boolean;
   sourceDescription: boolean;
+  notationDocumentation: boolean;
+  neumeTree: boolean;
   newPage: boolean;
   pageFormat: 'settings' | 'cm' | 'a4';
   boxLabel: PdfBoxLabel;
@@ -185,6 +187,18 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                 <label class="form-check-label fw-medium" for="oDesc">Source description</label>
                 <div class="form-text mt-0">{{ multi ? 'The Markdown description of each manuscript, after the apparatus.' : 'The Markdown description of the manuscript, after the apparatus.' }} Written on the manuscript's Description tab.</div>
               </div>
+              <div class="form-check form-switch mb-1 mt-2">
+                <input class="form-check-input" type="checkbox" id="oNot" [(ngModel)]="o.notationDocumentation" [disabled]="busy" (ngModelChange)="save()">
+                <label class="form-check-label fw-medium" for="oNot">Notation documentation</label>
+                <div class="form-text mt-0">The neume table of each manuscript with where its signs are seen, and strips of those lines from the manuscript images (needs the manifest; online), after the source descriptions. Which patterns it shows is set in Settings → Notation and per manuscript.</div>
+              </div>
+              @if (o.notationDocumentation) {
+                <div class="form-check form-switch mb-1 mt-2 ms-3">
+                  <input class="form-check-input" type="checkbox" id="oTree" [(ngModel)]="o.neumeTree" [disabled]="busy" (ngModelChange)="save()">
+                  <label class="form-check-label fw-medium" for="oTree">Neume tree</label>
+                  <div class="form-text mt-0">The patterns as a tree: by number of notes from left to right, each grown out of the shorter one it contains.</div>
+                </div>
+              }
               @if (multi) {
                 <div class="form-check form-switch mb-1 mt-2">
                   <input class="form-check-input" type="checkbox" id="oNew" [(ngModel)]="o.newPage" [disabled]="busy" (ngModelChange)="save()">
@@ -382,13 +396,19 @@ const COVER_KEY = 'monodi_pdf_cover_template';
           </div>
           }
 
-          @if (busy || error) {
+          @if (busy || error || warnings.length) {
             <div class="px-3 pb-3 pt-2">
               @if (busy) {
                 <div class="progress" style="height: 6px;"><div class="progress-bar" [style.width.%]="progress"></div></div>
                 <div class="small text-muted mt-1">{{status}}</div>
               }
               @if (error) { <div class="alert alert-danger small mb-0 mt-2">{{error}}</div> }
+              @if (warnings.length) {
+                <div class="alert alert-warning small mb-0 mt-2" id="pdfWarnings">
+                  <strong>The PDF was created, but:</strong>
+                  <ul class="mb-0 ps-3">@for (w of warnings; track w) { <li>{{w}}</li> }</ul>
+                </div>
+              }
             </div>
           }
         </div>
@@ -422,13 +442,15 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   heldTotal = 0;
   /** In the print list although marked "don't publish" (only possible with the switch off). */
   flaggedIn = 0;
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
   fileBase = '';
   busy = false;
   loadingMeta = false;
   progress = 0;
   status = '';
   error = '';
+  /** What the finished PDF lacks (strips without image …): the dialog stays open to say so. */
+  warnings: string[] = [];
 
   tab: 'print' | 'cover' | 'volumes' = 'print';
   settings: ProjectSettings | null = null;
@@ -729,8 +751,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
+      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
     const stored = safeStorage.getJson<Partial<DialogOptions> | null>(OPTIONS_KEY(multi), null);
     if (stored && typeof stored === 'object') this.o = { ...this.o, ...stored };
     if (this.o.boxLabel !== 'none') this.o.boxLabel = 'number';   // older versions stored other labels
@@ -744,6 +766,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   async run(): Promise<void> {
     this.busy = true;
     this.error = '';
+    this.warnings = [];
     this.save();
     try {
       const token = (await firstValueFrom(this.users.user))?.token || '';
@@ -793,6 +816,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           includeMetadata: this.o.metadata,
           apparatus: this.o.apparatus,
           sourceDescriptions: this.o.sourceDescription,
+          notationDocumentation: this.o.notationDocumentation,
+          neumeTree: this.o.neumeTree,
           newPagePerDocument: this.o.newPage,
           boxLabel: this.o.boxLabel,
           pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
@@ -807,6 +832,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           },
         });
         if (stats.blob) volumes.push({ name: names[gi], blob: stats.blob });
+        this.warnings.push(...(stats.notationProblems ?? []));
       }
       if (this.splitBy) {
         if (volumes.length === 1) downloadBlob(volumes[0].blob, volumes[0].name);
@@ -817,7 +843,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           downloadBlob(await zip.generateAsync({ type: 'blob' }), base + '.zip');
         }
       }
-      this.close();
+      if (!this.warnings.length) this.close();
     } catch (e: any) {
       console.error('PDF export failed', e);
       this.error = 'The PDF could not be created: ' + (e?.message || e);

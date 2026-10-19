@@ -1081,6 +1081,31 @@
               </div>
             }
             <!-- 5. Editor Settings Tab -->
+            <!-- Notation Set: the standard set of the notation documentation -->
+            @if (activeTab === 'notation') {
+              <div class="tab-pane fade show active">
+                <div class="settings-pane-head">
+                  <i class="bi bi-diagram-3"></i>
+                  <div>
+                    <div class="settings-pane-title">Notation Set</div>
+                    <div class="settings-pane-sub">Which neume patterns every manuscript's notation documentation shows, and in which order.</div>
+                  </div>
+                </div>
+                <div class="card shadow-sm border-light mb-4">
+                  <div class="card-header bg-light d-flex align-items-center">
+                    <i class="bi bi-diagram-3 fs-5 me-2"></i>
+                    <h6 class="mb-0 fw-semibold">Standard set</h6>
+                  </div>
+                  <div class="card-body bg-white">
+                    <p class="small text-muted">
+                      These patterns are in every manuscript's documentation (table, neume tree, PDF), also where nothing is marked yet.
+                      A manuscript can take patterns out and add others on its <em>Notation Documentation → Table &amp; Tree</em> tab; what it has snippets of is always shown.
+                    </p>
+                    <app-standard-set [setup]="notationSetup" (setupChange)="onNotationSetup($event)"></app-standard-set>
+                  </div>
+                </div>
+              </div>
+            }
             @if (activeTab === 'editor') {
               <div class="tab-pane fade show active">
                 <div class="settings-pane-head">

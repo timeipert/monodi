@@ -48,6 +48,18 @@ export function imageCropUrl(imageBase: string, r: Rect, maxW = 900, maxH = 360)
   return `${base}/pct:${num(r.x)},${num(r.y)},${num(r.w)},${num(r.h)}/!${maxW},${maxH}/0/default.jpg`;
 }
 
+/**
+ * The same crop, asked for by width only (`w,`): the form every IIIF server understands. The
+ * best-fit form `!w,h` is refused by some (level 1) servers. `pageW` is the page's width in
+ * pixels, when known, so that a small crop is not asked to be enlarged.
+ */
+export function imageCropUrlByWidth(imageBase: string, r: Rect, maxW = 900, pageW?: number): string {
+  const base = imageBase.replace(/\/+$/, '');
+  const natural = pageW && pageW > 0 ? Math.floor((r.w / 100) * pageW) : Infinity;
+  const w = Math.max(16, Math.min(maxW, natural));
+  return `${base}/pct:${num(r.x)},${num(r.y)},${num(r.w)},${num(r.h)}/${w},/0/default.jpg`;
+}
+
 /** A polygon given in page percent, re-expressed in percent of the crop (so it can be laid over it). */
 export function toCropSpace(points: string | undefined, crop: Rect): string {
   if (!points) return '';

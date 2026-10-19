@@ -24,6 +24,7 @@
 
 import * as VM from './types/model';
 import { Source } from './api.service';
+import { NOTATION_NOTES_KEY } from './notation-doc';
 
 export const EXCHANGE_FORMAT = 'cm-annotation-exchange';
 export const EXCHANGE_VERSION = 1;
@@ -35,6 +36,14 @@ export interface ExchangeSource {
   equivalents?: VM.EquivalentMetadata[];
   annotationRegions?: VM.AnnotationRegion[];
   annotationItems?: VM.AnnotationItem[];
+  /** Free text about the notation of the manuscript (the Neume Viewer's table notes), shown under the notation documentation. */
+  notationNotes?: string;
+  /**
+   * Pictures of line regions that have no IIIF page to be cut from (a documentation made from screenshots), by
+   * region id, as image data URLs. They are not part of the source: they are kept on this computer
+   * (`notation-strip-images.ts`), only to print the notation documentation.
+   */
+  regionImages?: { [regionId: string]: string };
 }
 
 export interface ExchangeFile {
@@ -43,6 +52,8 @@ export interface ExchangeFile {
   generator?: string;
   exportedAt?: string;
   sources: ExchangeSource[];
+  /** What the reader left out of the file and why, for the preview. */
+  warnings?: string[];
 }
 
 export interface MergeCounts {
@@ -55,6 +66,10 @@ export interface MergeCounts {
   /** Snippets in the file whose line region is nowhere (not in the file, not here). */
   itemsDropped: number;
   manifestSet: boolean;
+  /** The notation notes were taken from the file (the source had none). */
+  notesSet: boolean;
+  /** New line regions that come with a picture to be kept (see `ExchangeSource.regionImages`). */
+  picturesNew: number;
 }
 
 export interface MergePlan {
@@ -63,7 +78,9 @@ export interface MergePlan {
   label: string;
   counts: MergeCounts;
   /** The fields to write into the source; absent fields are not touched. */
-  result: Pick<Source, 'equivalents' | 'annotationRegions' | 'annotationItems' | 'iiifManifestUrl'>;
+  result: Pick<Source, 'equivalents' | 'annotationRegions' | 'annotationItems' | 'iiifManifestUrl' | 'custom'>;
+  /** Line pictures to keep next to the source, by region id; only for regions that exist after the merge. */
+  images?: { [regionId: string]: string };
 }
 
 /** Read an exchange file; throws a message a person can act on. */
@@ -115,7 +132,7 @@ function mergeRegion(local: VM.AnnotationRegion | undefined, incoming: VM.Annota
   return { region: base as VM.AnnotationRegion, changed };
 }
 
-const ITEM_FIELDS = ['regionId', 'pattern', 'points'] as const;
+const ITEM_FIELDS = ['regionId', 'pattern', 'points', 'sysId'] as const;
 
 function mergeItem(local: VM.AnnotationItem | undefined, incoming: VM.AnnotationItem): { item: VM.AnnotationItem; changed: boolean } {
   const base: any = local ? { ...local } : { id: text(incoming.id) };
@@ -144,7 +161,7 @@ function mergeItem(local: VM.AnnotationItem | undefined, incoming: VM.Annotation
 export function planMerge(local: Source, incoming: ExchangeSource): MergePlan {
   const counts: MergeCounts = {
     regionsNew: 0, regionsUpdated: 0, itemsNew: 0, itemsUpdated: 0,
-    equivalentsNew: 0, equivalentsUpdated: 0, itemsDropped: 0, manifestSet: false
+    equivalentsNew: 0, equivalentsUpdated: 0, itemsDropped: 0, manifestSet: false, notesSet: false, picturesNew: 0
   };
 
   // --- regions ---
@@ -202,11 +219,27 @@ export function planMerge(local: Source, incoming: ExchangeSource): MergePlan {
     result.iiifManifestUrl = local.iiifManifestUrl;
   }
 
+  // the notation notes are written by hand in the notation documentation: never replaced, only filled in
+  if (incoming.notationNotes && !text(local.custom?.[NOTATION_NOTES_KEY]).trim()) {
+    result.custom = { ...(local.custom ?? {}), [NOTATION_NOTES_KEY]: incoming.notationNotes };
+    counts.notesSet = true;
+  }
+
+  // pictures of lines that are here after the merge; a new region's picture is news
+  const images: { [regionId: string]: string } = {};
+  const newIds = new Set((incoming.annotationRegions ?? []).map(r => text(r.id)).filter(id => id && !(local.annotationRegions ?? []).some(l => text(l.id) === id)));
+  for (const [regionId, data] of Object.entries(incoming.regionImages ?? {})) {
+    if (!regionIndex.has(regionId) || !data) continue;
+    images[regionId] = data;
+    if (newIds.has(regionId)) counts.picturesNew++;
+  }
+
   return {
     sourceId: text(local.id),
     label: sigleOf(local as any) || text(local.id),
     counts,
-    result
+    result,
+    ...(Object.keys(images).length ? { images } : {})
   };
 }
 
@@ -221,7 +254,9 @@ export function describePlan(plan: MergePlan): string {
     c.itemsUpdated && `${n(c.itemsUpdated, 'snippet')} updated`,
     c.equivalentsNew && `${n(c.equivalentsNew, 'new table row')}`,
     c.equivalentsUpdated && `${n(c.equivalentsUpdated, 'table row')} updated`,
-    c.manifestSet && 'sets the manifest address'
+    c.picturesNew && `${n(c.picturesNew, 'line picture')} kept on this computer`,
+    c.manifestSet && 'sets the manifest address',
+    c.notesSet && 'adds the notation notes'
   ].filter(Boolean).join(', ');
 }
 
@@ -229,7 +264,7 @@ export function describePlan(plan: MergePlan): string {
 export function planChangesAnything(plan: MergePlan): boolean {
   const c = plan.counts;
   return !!(c.regionsNew || c.regionsUpdated || c.itemsNew || c.itemsUpdated
-    || c.equivalentsNew || c.equivalentsUpdated || c.manifestSet);
+    || c.equivalentsNew || c.equivalentsUpdated || c.manifestSet || c.notesSet);
 }
 
 /** Write a plan's result into a copy of the source. */
@@ -239,6 +274,7 @@ export function applyPlan(local: Source, plan: MergePlan): Source {
   out.annotationRegions = plan.result.annotationRegions;
   out.annotationItems = plan.result.annotationItems;
   if (plan.result.iiifManifestUrl) out.iiifManifestUrl = plan.result.iiifManifestUrl;
+  if (plan.result.custom) out.custom = plan.result.custom;
   return out;
 }
 
@@ -246,6 +282,8 @@ export interface ImportPreview {
   plans: MergePlan[];
   /** Sources in the file that match nothing here. */
   unmatched: string[];
+  /** What the reader left out of the file (see `ExchangeFile.warnings`). */
+  warnings: string[];
 }
 
 /** Plan a whole file against the local sources. */
@@ -260,5 +298,5 @@ export function planImport(file: ExchangeFile, locals: Source[]): ImportPreview 
     seen.add(text(local.id));
     plans.push(planMerge(local, incoming));
   }
-  return { plans, unmatched };
+  return { plans, unmatched, warnings: file.warnings ?? [] };
 }

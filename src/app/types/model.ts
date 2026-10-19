@@ -90,6 +90,12 @@ export interface AnnotationItem {
   variant?: string; // variant letter, e.g. "a", "b" — combined display is "Virga a"
   points: string;   // percentage-based polygon points
   uuid?: string;    // Reference to the NonSpaced UUID
+  /**
+   * The Neume Viewer's link to the transcription, `document|folio|line|syllable|notes`
+   * (e.g. `Aa 13-8-4|8r|6|et|D4-F4`). Kept as it came, so the syllable and the pitches
+   * of a snippet are known even where the transcription is not loaded.
+   */
+  sysId?: string;
 }
 
 export interface EquivalentMetadata {

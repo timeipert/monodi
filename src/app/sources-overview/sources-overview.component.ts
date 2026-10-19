@@ -31,7 +31,10 @@ import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
 import { FileSystemService } from '../file-system.service';
 import { SOURCE_DESCRIPTION_KEY, sourceDescription } from '../source-description';
-import { applyPlan, describePlan, ImportPreview, parseExchange, planChangesAnything, planImport } from '../annotation-exchange';
+import { applyPlan, describePlan, ImportPreview, planChangesAnything, planImport } from '../annotation-exchange';
+import { parseAnnotationFile } from '../cm-transkriptionseq-import';
+import { readAnnotationFiles } from '../neume-docs-import';
+import { saveStripImages } from '../notation-strip-images';
 import { safeStorage } from '../safe-storage';
 import { downloadBlob } from '../download';
 
@@ -480,13 +483,14 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   /** A file from the Neumen-Editor was chosen: read it and show what it would add, before anything changes. */
   async onAnnotationFilePicked(event: any): Promise<void> {
-    const file: File | undefined = event.target.files?.[0];
+    const files: File[] = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
     try {
-      const parsed = parseExchange(await file.text());
+      // one JSON file, a ZIP, or a documentation's files chosen together
+      const parsed = parseAnnotationFile(await readAnnotationFiles(files));
       const preview = planImport(parsed, this.sources);
-      this.annotationImport = { fileName: file.name, preview };
+      this.annotationImport = { fileName: files.length === 1 ? files[0].name : `${files.length} files`, preview };
       if (!preview.plans.length) {
         this.toastr.warning(preview.unmatched.length
           ? `None of the manuscripts in this file are here: ${preview.unmatched.slice(0, 3).join(', ')}.`
@@ -521,7 +525,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         if (!local) continue;
         const res = await firstValueFrom(this.api.updateSource(this.user.token, applyPlan(local, plan)));
         if (res.kind === 'Ok') applied++;
-        else this.toastr.error(`${plan.label} could not be saved.`);
+        else { this.toastr.error(`${plan.label} could not be saved.`); continue; }
+        if (plan.images) {
+          try { await saveStripImages(plan.sourceId, plan.images); }
+          catch { this.toastr.error(`The line pictures of ${plan.label} could not be kept; the notation documentation prints without them.`); }
+        }
       }
       if (applied) this.toastr.success(`Annotations added to ${applied} manuscript${applied === 1 ? '' : 's'}.`);
     } finally {

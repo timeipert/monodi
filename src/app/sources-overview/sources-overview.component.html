@@ -11,7 +11,7 @@
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
       <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
       <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
-      <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" style="display: none" accept=".json,application/json" />
+      <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" style="display: none" multiple accept=".json,application/json,.zip,.png,.jpg,.jpeg,.webp,.gif,.svg" />
       <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
         class="btn btn-sm btn-outline-secondary"
         title="Import, export, storage usage & cleanup in Settings → Workspace">
@@ -200,7 +200,7 @@
 }
 
 <!-- CSV export options dialog -->
-<!-- Annotations from the Neumen-Editor: what the file would add, per manuscript -->
+<!-- Annotations from the Neumen-Editor or the Neume Viewer: what the file would add, per manuscript -->
 @if (annotationImport) {
   <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
@@ -214,7 +214,7 @@
         <div class="modal-body pt-2">
           <p class="text-muted small mb-3">
             <strong>{{ annotationImport.fileName }}</strong> — line regions, snippets and neume table rows made in the
-            Neumen-Editor. Records are matched by id: what is new is added, and what the file also has is updated with
+            Neumen-Editor or the Neume Viewer (a backup or a manuscript export), or a documentation published by the Neumen-Editor. Records are matched by id: what is new is added, and what the file also has is updated with
             the editor's values. Your links to the transcription are kept, and nothing is deleted.
             Export a workspace backup first if you want to be able to go back.
           </p>
@@ -232,6 +232,11 @@
                 </li>
               }
             </ul>
+          }
+          @for (warning of annotationImport.preview.warnings; track $index) {
+            <p class="text-warning small mt-3 mb-0">
+              <i class="bi bi-exclamation-triangle me-1"></i>{{ warning }}
+            </p>
           }
           @if (annotationImport.preview.unmatched.length) {
             <p class="text-warning small mt-3 mb-0">

@@ -332,6 +332,12 @@
                   Select Patterns
                 </a>
               </li>
+              <li class="nav-item">
+                <a class="nav-link cursor-pointer" id="ntab-docs" [class.active]="activeNotationTab === 'docs'"
+                  (click)="setNotationTab('docs')">
+                  Table &amp; Tree
+                </a>
+              </li>
               @if (source.iiifManifestUrl) {
                 <li class="nav-item">
                   <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'annotate'"
@@ -366,6 +372,10 @@
                   </app-overview>
                 }
               </div>
+            }
+            <!-- Table & Tree Sub-tab: the documentation as printed, and the neume tree -->
+            @if (activeNotationTab === 'docs') {
+              <app-notation-docs-view [source]="source" [setup]="notationSetup" (sourceChanged)="save()"></app-notation-docs-view>
             }
             <!-- Annotate Scans Sub-tab -->
             @if (activeNotationTab === 'annotate' && source.iiifManifestUrl) {

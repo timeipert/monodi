@@ -22,6 +22,7 @@ import { buildWorkspaceExport } from '../workspace-io';
 
 import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from '../notes/editor-shortcuts.service';
 import { safeStorage } from '../safe-storage';
+import { NotationSetup, readSetup, settingsOf } from '../notation-set';
 
 export interface FieldDef { key: string, label: string, isCustom: boolean }
 
@@ -32,7 +33,7 @@ export interface FieldDef { key: string, label: string, isCustom: boolean }
     standalone: false
 })
 export class SettingsComponent implements OnInit, OnDestroy {
-  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' | 'workspace' | 'shortcuts' = 'metadata';
+  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' | 'workspace' | 'shortcuts' | 'notation' = 'metadata';
 
   shortcutsConfig: ShortcutConfig = { ...DEFAULT_SHORTCUTS };
 
@@ -49,6 +50,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         { id: 'containers', icon: 'bi-diagram-3',          label: 'Container Names' },
         { id: 'editor',     icon: 'bi-pencil-square',      label: 'Editor' },
         { id: 'shortcuts',  icon: 'bi-keyboard',           label: 'Shortcuts' },
+        { id: 'notation',   icon: 'bi-diagram-3',          label: 'Notation Set' },
       ]
     },
     {
@@ -139,6 +141,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   setStatusTextStyle(status: string, style: TextStyle): void {
     if (!this.settings) return;
     this.settings.pdfStatusTextStyle = { ...(this.settings.pdfStatusTextStyle || {}), [status]: style };
+    this.onSettingsChange();
+  }
+
+  /** The standard set of the notation documentation (a field, so that the editor does not get a new object on every pass). */
+  notationSetup: NotationSetup = readSetup(null);
+
+  onNotationSetup(setup: NotationSetup): void {
+    this.notationSetup = setup;
+    Object.assign(this.settings!, settingsOf(setup));
     this.onSettingsChange();
   }
 
@@ -285,7 +296,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     // Used by the Sources page gear button to land directly on Workspace.
     this.subs.push(this.route.queryParamMap.subscribe(params => {
       const tab = params.get('tab');
-      const allowed = ['metadata', 'github', 'pdf', 'containers', 'editor', 'mei', 'htmlExport', 'workspace', 'shortcuts'];
+      const allowed = ['metadata', 'github', 'pdf', 'containers', 'editor', 'mei', 'htmlExport', 'workspace', 'shortcuts', 'notation'];
       if (tab && allowed.includes(tab)) {
         this.activeTab = tab as any;
         if (tab === 'workspace') {
@@ -332,6 +343,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
             if (this.settings.pdfSynopsisShowFooter === undefined) this.settings.pdfSynopsisShowFooter = true;
             if (this.settings.pdfSynopsisShowFooterIds === undefined) this.settings.pdfSynopsisShowFooterIds = true;
             if (this.settings.pdfSynopsisShowDate === undefined) this.settings.pdfSynopsisShowDate = true;
+            this.notationSetup = readSetup(this.settings);
           }
         });
       }

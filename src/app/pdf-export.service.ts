@@ -26,6 +26,11 @@ import { MdBlock, MdInline, parseMarkdown, safeHref } from './print/markdown';
 import { MdLine, layoutInlines, lineWidth } from './print/markdown-layout';
 import { LoadedImage, loadImage } from './print/image-loader';
 import { sourceDescription } from './source-description';
+import { buildNotationDoc, NotationDoc, notationNotes } from './notation-doc';
+import { readSetup } from './notation-set';
+import { drawEquivalents, drawNeumeTree, drawNotes, drawStrips, drawSubheading, NOTATION_TEXT, NotationHost } from './print/notation-doc-draw';
+import { loadStripPictures } from './print/notation-doc-images';
+import { loadStripImages } from './notation-strip-images';
 import { TitleTemplate } from './print/title-page';
 import { drawCover } from './print/cover-draw';
 import { FieldJob, makeLookup } from './print/fields';
@@ -117,6 +122,10 @@ export interface PdfExportOptions {
   apparatus: boolean;
   /** The sources' Markdown descriptions, appended after the editions and the apparatus. */
   sourceDescriptions?: boolean;
+  /** The notation documentation of each manuscript (neume table with its signs, strips of the lines they stand in), after the source descriptions. */
+  notationDocumentation?: boolean;
+  /** The neume tree of each manuscript in the notation documentation (needs `notationDocumentation`). */
+  neumeTree?: boolean;
   /** Several documents: the contents table on the title page (needs a title page). Default: yes. */
   contents?: boolean;
   /** Several documents: every document starts on a new page. Default: no — they run on in one flow. */
@@ -147,6 +156,10 @@ export interface PdfExportStats {
   apparatusPage: number;
   /** Page of the source descriptions, 0 if there are none. */
   descriptionPage: number;
+  /** Page of the notation documentation, 0 if there is none. */
+  notationPage?: number;
+  /** What could not be shown in it (strips without an image, …). */
+  notationProblems?: string[];
   /** Lines of the contents table: "ID | incipit | genre", page. */
   outline: { label: string; page: number; depth: number }[];
   /** Pages in front of the edition: the cover and the title page / contents (the contents may take several). */
@@ -1676,12 +1689,73 @@ export class PdfExportService {
           });
         };
 
+        // ── Notation documentation: per manuscript the neume table and strips of the lines its signs stand in ──
+        let notationStarted = false;
+        let notationPage = 0;
+        const notationOutline: { label: string; job: number; page: number }[] = [];
+        const notationProblems: string[] = [];
+        const notationSetup = readSetup(opts.settings);
+        const notationDocOf = (job: PdfDocJob): NotationDoc => buildNotationDoc(job.source || {}, notationSetup);
+        const hasNotation = (nd: NotationDoc) => nd.rows.length > 0 || nd.strips.length > 0;
+        const drawNotations = async (): Promise<void> => {
+          const withDoc: { job: number; nd: NotationDoc }[] = [];
+          const seen = new Set<string>();
+          jobs.forEach((job, ji) => {
+            const key = chapterKeyOf(job);
+            if (seen.has(key)) return;
+            seen.add(key);
+            const nd = notationDocOf(job);
+            if (hasNotation(nd)) withDoc.push({ job: ji, nd });
+          });
+          if (!withDoc.length) return;
+          doc.addPage();
+          cursorY = pdfMarginTop;
+          notationPage = editionPage();
+          notationStarted = true;
+          if (volumeParts) drawPartPage(NOTATION_TEXT.part);
+          else cursorY = drawHeading(NOTATION_TEXT.part, textX, cursorY + 3, textColumnW, 10) + 2;
+          const host: NotationHost = {
+            doc, fontFamily, fs: pdfFontSize - 1, x: textX, width: textColumnW, top: pdfMarginTop, bottom: maxContentY,
+            newPage: () => { doc.addPage(); cursorY = pdfMarginTop; return pdfMarginTop; },
+          };
+          for (let k = 0; k < withDoc.length; k++) {
+            const { job: ji, nd } = withDoc[k];
+            const job = jobs[ji];
+            opts.onProgress?.('Notation ' + siglumOf(ji), k, withDoc.length);
+            // the images are fetched first; a manuscript starts on a page of its own, as in the printed volume
+            const { pictures, problems } = await loadStripPictures(nd.strips, (job.source as any)?.iiifManifestUrl,
+              (d, t) => opts.onProgress?.(`Notation ${siglumOf(ji)}: strip ${d} of ${t}`, k, withDoc.length),
+              await loadStripImages((job.source as any)?.id));
+            for (const p of problems) notationProblems.push(`${siglumOf(ji) || 'Manuscript'}: ${p}`);
+            if (k > 0) { doc.addPage(); cursorY = pdfMarginTop; }
+            if (multi) {
+              cursorY += 10;
+              notationOutline.push({ label: chapterLabelOf(ji), job: ji, page: editionPage() });
+              drawChapterBlock(ji, textX, textColumnW, false);
+            }
+            apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });   // the running head names this manuscript
+            cursorY += 4;
+            if (nd.rows.length) {
+              cursorY = drawSubheading(host, NOTATION_TEXT.equivalents, cursorY);
+              cursorY = drawEquivalents(host, nd, cursorY);
+            }
+            cursorY = drawNotes(host, nd, notationNotes(job.source), cursorY);
+            if (opts.neumeTree && nd.rows.length) {
+              cursorY = drawNeumeTree(host, nd.rows.map(r => r.pattern), cursorY + 16, NOTATION_TEXT.tree);
+            }
+            if (nd.strips.length) {
+              cursorY = drawStrips(host, nd.strips, pictures, cursorY + 16, NOTATION_TEXT.inventory);
+            }
+          }
+        };
+
         // ── Render, lay out, then the apparatus ─────────────────────────────────────────────
         // Volume style needs more than one part: the edition plus an apparatus or descriptions that exist.
         {
           const hasApparatus = !!opts.apparatus && jobs.some((j) => printableComments(j.cont).length > 0 || j.cont.globalComment);
           const hasDescriptions = !!opts.sourceDescriptions && jobs.some((j) => parseMarkdown(sourceDescription(j.source)).length > 0);
-          multiPart = hasApparatus || hasDescriptions;
+          const hasNotationDocs = !!opts.notationDocumentation && jobs.some((j) => hasNotation(notationDocOf(j)));
+          multiPart = hasApparatus || hasDescriptions || hasNotationDocs;
           volumeParts = partStyle === 'volume' && multiPart;
           if (volumeParts) drawPartPage('Edition');
         }
@@ -1709,9 +1783,15 @@ export class PdfExportService {
           opts.onProgress?.('Source description', jobs.length, jobs.length);
           await drawDescriptions();
         }
+        if (opts.notationDocumentation) {
+          opts.onProgress?.('Notation documentation', jobs.length, jobs.length);
+          await drawNotations();
+        }
         stats.documents = docEntries.map((e) => ({ id: jobs[e.job].document.dokumenten_id || '', page: e.page }));
         stats.apparatusPage = apparatusStarted ? apparatusPage : 0;
         stats.descriptionPage = descriptionStarted ? descriptionPage : 0;
+        stats.notationPage = notationStarted ? notationPage : 0;
+        stats.notationProblems = notationProblems;
 
         // ── Title page: title, source and — for one document — its metadata table, for several
         //    documents the contents table (ID, incipit, genre, page) ─────────────────────────────
@@ -1808,6 +1888,10 @@ export class PdfExportService {
               rows.push({ id: '', incipit: descriptionTitle, genre: '', page: descriptionPage, plain: true, chapter: true, indent: 0, depth: 0 });
               if (chapterRows) for (const d of descriptionOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
             }
+            if (notationStarted) {
+              rows.push({ id: '', incipit: NOTATION_TEXT.part, genre: '', page: notationPage, plain: true, chapter: true, indent: 0, depth: 0 });
+              if (chapterRows) for (const d of notationOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
+            }
             if (y + 40 > maxContentY) y = startNewTitlePage();
             y = drawHeading('Contents', textX, y, textColumnW, 10) + 6;
             doc.setFont(fontFamily, 'normal');
@@ -1886,9 +1970,11 @@ export class PdfExportService {
           const firstOf = (list: { job: number; page: number }[]) => list.find((x) => chapterKeyOf(jobs[x.job]) === chapterKeyOf(jobs[ref.ji]))?.page;
           const parts: string[] = [];
           const descPage = firstOf(descriptionOutline);
+          const notPage = firstOf(notationOutline);
           const edPage = firstOf(docEntries.map((e) => ({ job: e.job, page: e.page })));
           const appPage = firstOf(apparatusOutline.filter((o) => o.depth === 1 || !chapterRows));
           if (descPage) parts.push('Source Description: p. ' + descPage);
+          if (notPage) parts.push('Notation Documentation: p. ' + notPage);
           if (edPage) parts.push('Edition: p. ' + edPage);
           if (appPage) parts.push('Critical Apparatus: p. ' + appPage);
           if (parts.length < 2) continue;

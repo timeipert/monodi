@@ -1,5 +1,5 @@
 import {
-  backfillRegionPages, canvasIdOf, canvasImageIdOf, canvasLabelOf, folioMatches, pageImageOf, pageLabelOf, regionCanvasIndex, regionOnCanvas, stampRegionPage
+  backfillRegionPages, canvasIdOf, canvasImageIdOf, canvasLabelOf, folioMatches, normalizeFolio, pageImageOf, pageLabelOf, regionCanvasIndex, regionOnCanvas, stampRegionPage
 } from './region-page';
 
 // v2-shaped canvases (@id, string label) and v3-shaped (id, language-map label)
@@ -39,6 +39,25 @@ describe('region-page', () => {
     expect(regionCanvasIndex({ folio: '99', imageId: 'https://img.z/iiif/b/' }, v2WithImages)).toBe(1);
     expect(regionCanvasIndex({ folio: '0', canvasId: 'https://z/c/0', imageId: 'https://img.z/iiif/b' }, v2WithImages)).toBe(0); // canvas id first
     expect(regionCanvasIndex({ folio: 'x', imageId: 'https://img.z/iiif/zzz', folioLabel: 'b' }, v2WithImages)).toBe(1); // falls on to the label
+  });
+
+  it('ignores the zeros a library pads its page labels with (DIAMM: 008r)', () => {
+    expect(normalizeFolio('008r')).toBe('8r');
+    expect(folioMatches('8r', '008r')).toBeTrue();
+    expect(folioMatches('108v', '108v')).toBeTrue();
+    expect(normalizeFolio('0')).toBe('0');
+    const diamm = [{ '@id': 'c/7', label: '007v' }, { '@id': 'c/8', label: '008r' }];
+    expect(regionCanvasIndex({ folio: '', folioLabel: '8r' }, diamm)).toBe(1);
+    expect(regionCanvasIndex({ folio: '', folioLabel: '8' }, diamm)).toBe(1);   // a recto without its r
+  });
+
+  it('ignores the count behind a label (Berlin: 20r [43])', () => {
+    expect(normalizeFolio('20r [43]')).toBe('20r');
+    expect(normalizeFolio('[1r]')).toBe('1r');            // an editorial folio in brackets is kept (as its letters)
+    expect(normalizeFolio('-  [2]')).toBe('2');           // nothing but a count: the count is all there is
+    const berlin = [{ '@id': 'c/0', label: '20r [43]' }, { '@id': 'c/1', label: '20v [44]' }];
+    expect(regionCanvasIndex({ folio: '', folioLabel: '20' }, berlin)).toBe(0);
+    expect(regionCanvasIndex({ folio: '', folioLabel: '20v' }, berlin)).toBe(1);
   });
 
   it('matches folios loosely', () => {

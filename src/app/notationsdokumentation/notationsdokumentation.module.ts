@@ -9,6 +9,8 @@ import { SvgPatternComponent } from './svg-pattern/svg-pattern.component';
 import { NotationViewerComponent } from './notation-viewer/notation-viewer.component';
 import { AnnotationCutoutComponent } from './annotation-cutout/annotation-cutout.component';
 import { ManuscriptViewComponent } from './manuscript-view/manuscript-view.component';
+import { StandardSetComponent } from './standard-set/standard-set.component';
+import { NotationDocsViewComponent } from './notation-docs-view/notation-docs-view.component';
 
 
 @NgModule({
@@ -19,6 +21,8 @@ import { ManuscriptViewComponent } from './manuscript-view/manuscript-view.compo
     NotationViewerComponent,
     AnnotationCutoutComponent,
     ManuscriptViewComponent,
+    StandardSetComponent,
+    NotationDocsViewComponent,
   ],
   imports: [
     CommonModule,
@@ -31,6 +35,8 @@ import { ManuscriptViewComponent } from './manuscript-view/manuscript-view.compo
     NotationViewerComponent,
     SvgPatternComponent,
     ManuscriptViewComponent,
+    StandardSetComponent,
+    NotationDocsViewComponent,
   ]
 })
 export class NotationsdokumentationModule { }

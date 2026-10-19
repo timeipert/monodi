@@ -13,6 +13,7 @@ import { Subscription, combineLatest, finalize, firstValueFrom } from 'rxjs';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
+import { defaultSetup, NotationSetup, readSetup } from '../notation-set';
 import { PageTitleService } from '../page-title.service';
 import { Header, BatchField } from '../smart-table/smart-table.component';
 import { NotesStore } from '../notes-store';
@@ -63,6 +64,8 @@ export class SourceComponent implements OnInit {
   documents: Document[] = [];
   user: User | null = null;
   settings: ProjectSettings | null = null;
+  /** The workspace's standard set of the notation documentation (a field: the view must not get a new object on every pass). */
+  notationSetup: NotationSetup = defaultSetup();
   isSaving = false;
 
   // Volpiano import
@@ -74,7 +77,7 @@ export class SourceComponent implements OnInit {
 
   // Tab state
   activeTab: 'documents' | 'notation' | 'description' = 'documents';
-  activeNotationTab: 'select' | 'annotate' | 'view' = 'select';
+  activeNotationTab: 'select' | 'annotate' | 'view' | 'docs' = 'select';
 
   // Notation analysis
   allPatterns: AnalyzedPattern[] = [];
@@ -154,7 +157,7 @@ export class SourceComponent implements OnInit {
     const tab = q.get('tab');
     if (tab === 'documents' || tab === 'notation' || tab === 'description') this.activeTab = tab;
     const ntab = q.get('ntab');
-    if (ntab === 'select' || ntab === 'annotate' || ntab === 'view') this.activeNotationTab = ntab;
+    if (ntab === 'select' || ntab === 'annotate' || ntab === 'view' || ntab === 'docs') this.activeNotationTab = ntab;
 
     this.subs.push(combineLatest([this.userService.user, this.route.paramMap]).subscribe(([user, params]) => {
       this.user = user;
@@ -162,6 +165,7 @@ export class SourceComponent implements OnInit {
         this.api.getSettings(this.user.token).subscribe(res => {
           if (res.kind === 'SettingsRetrieved') {
             this.settings = res.settings;
+            this.notationSetup = readSetup(res.settings);
             this.cdr.markForCheck();
           }
         });
@@ -442,7 +446,7 @@ export class SourceComponent implements OnInit {
     }
   }
 
-  setNotationTab(tab: 'select' | 'annotate' | 'view') {
+  setNotationTab(tab: 'select' | 'annotate' | 'view' | 'docs') {
     this.activeNotationTab = tab;
     this.syncTabUrl();
   }

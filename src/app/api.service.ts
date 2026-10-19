@@ -601,6 +601,10 @@ export interface ProjectSettings {
   customDocumentFields?: { key: string, label: string }[];
   customLists?: { [key: string]: string[] };
   commentTemplates?: SavedCommentTemplate[];
+  /** The standard set of the notation documentation: patterns every manuscript shows, with the Reference ID they usually get (see notation-set.ts). */
+  notationStandard?: { pattern: string; refId: string }[];
+  /** How the rows of the notation documentation are ordered: by Reference ID, then as the neume table ('id', default), or only as the neume table ('neume'). */
+  notationOrder?: 'neume' | 'id';
   pdfScale?: number;
   /** Page format for PDF export: 'a5' | 'a4' | 'a3' | 'letter' | 'legal' | 'tabloid'. */
   pdfFormat?: string;
