@@ -147,18 +147,20 @@ describe('Push performance (repeat pushes and dirty tracking)', () => {
   it('marks manuscripts clean only after the push actually completes', async () => {
     await seedWorkspace(3);
 
-    // Always fails; pushDatabase's outer retry (3 attempts, real backoff
-    // delays) will exhaust and report failure — this test's job is to check
-    // that nothing got marked clean along the way, so the slower run time
-    // is expected and the timeout below is sized for it.
+    // Always fails; pushDatabase's outer retry (3 attempts) will exhaust and report failure — this test's job is
+    // to check that nothing got marked clean along the way. The waits between the attempts (5 s, 10 s in the app)
+    // are shrunk, the three attempts are all still made.
     const alwaysFailingOctokit = makeOctokitMock();
-    alwaysFailingOctokit.rest.repos.getBranch = async () => { throw Object.assign(new Error('down'), { status: 400 }); };
+    let attempts = 0;
+    alwaysFailingOctokit.rest.repos.getBranch = async () => { attempts++; throw Object.assign(new Error('down'), { status: 400 }); };
     (github as any).octokit = alwaysFailingOctokit;
+    github.retryWaitScale = 0.001;
 
     const ok = await github.pushDatabase(new LocalWorkspaceSource(), 'doomed push');
     expect(ok).toBeFalse();
+    expect(attempts).toBe(3);
     expect(await PushCache.getCleanIds()).toEqual(new Set());
-  }, 25000);
+  });
 
   it('a manuscript deleted locally is removed from the remote on the next push', async () => {
     await seedWorkspace(3);

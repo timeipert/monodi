@@ -6,8 +6,11 @@ on:
       - '**'
   pull_request:
 
+# The checks that do not depend on each other run side by side (build, unit tests, two groups of browser tests), and
+# on master the site is built while they run: the deploy at the end only publishes what is already built. A run costs
+# about as long as its slowest job instead of the sum of all of them.
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -30,14 +33,7 @@ jobs:
       - name: Check template members
         run: node scripts/check-templates.mjs
 
-      - name: Run unit tests
-        run: npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox
-
-  # Opens every page in a real browser (headless Chrome, seeded workspace) and clicks through the rows that open
-  # sources and documents. Fails on console errors, change-detection warnings and settings tabs that render
-  # nothing: the kind of break that builds fine and passes every unit test but is dead on arrival.
-  # It needs the dev server (the Angular warnings it looks for only exist in development mode).
-  smoke-test:
+  unit-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -52,6 +48,55 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run unit tests
+        run: npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox
+
+  # Real-browser tests against the dev server (headless Chrome, seeded workspace; the Angular warnings they look for
+  # only exist in development mode). Two groups, each with its own dev server, run at the same time.
+  e2e:
+    name: e2e (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Opens every page and every settings tab and clicks through the rows that open sources and documents. Fails
+          # on console errors, change-detection warnings and settings tabs that render nothing: the kind of break that
+          # builds fine and passes every unit test but is dead on arrival. Then the metadata grid: filter "ID ends with
+          # GS" through the UI, select all matching rows, delete them through the confirmation dialog and check in
+          # IndexedDB that exactly those documents are gone; and the grid as a spreadsheet (typing, ranges, fill, paste,
+          # undo, save with real keyboard and mouse events).
+          - name: pages and metadata grid
+            poppler: false
+            scripts: smoke-e2e metadata-grid-e2e metadata-edit-e2e
+          # Print: all fixtures as one PDF with the page-break rules checked (no heading alone at the bottom of a
+          # page, no single system of a line left alone at a page edge); the release gate (export list imported in the
+          # metadata grid, documents marked "dontpublish" held back in the print dialog and not in the PDF); placeholder
+          # notes on ZIP import (a lone D6/F3 under a word is removed, an F3 inside a real melody stays, a comment on a
+          # placeholder note moves onto its syllable); the cover page and the volumes (one PDF per manuscript / region
+          # ..., zipped) through the real print dialog; the notation documentation (a Neume Viewer file imported, its neume table and
+          # line strips printed, the IIIF server answered by the script). The PDFs are read back with poppler.
+          - name: print, release and import
+            poppler: true
+            scripts: layout-e2e release-e2e placeholder-import-e2e cover-e2e notation-doc-e2e neume-docs-e2e notation-set-e2e
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install poppler
+        if: matrix.poppler
+        run: sudo apt-get install -y --no-install-recommends poppler-utils unzip
 
       - name: Start the dev server
         run: |
@@ -62,59 +107,22 @@ jobs:
           done
           echo "dev server did not start"; cat ng-serve.log; exit 1
 
-      - name: Smoke test
-        run: node scripts/smoke-e2e.mjs
-
-      # The metadata grid: filter "ID ends with GS" through the UI, select all matching rows, delete them through
-      # the confirmation dialog and check in IndexedDB that exactly those documents are gone.
-      - name: Metadata grid (filter and bulk delete)
-        run: node scripts/metadata-grid-e2e.mjs
-
-      # The grid as a spreadsheet: typing, ranges, fill, paste, undo, save (real keyboard and mouse events).
-      - name: Metadata grid (editing)
-        run: node scripts/metadata-edit-e2e.mjs
-
-      # Prints all fixtures as one PDF and checks the page-break rules on where the export put things:
-      # no heading alone at the bottom of a page, no single system of a line left alone at a page edge.
-      - name: Print layout (page breaks)
-        run: node scripts/layout-e2e.mjs
-
-      # The release gate: the export list of Corpus Monodicum (.xlsx) is imported in the metadata grid, documents
-      # marked "dontpublish" are held back in the print dialog and are not in the PDF (read back with poppler).
-      - name: Release gate (export list and print)
+      # Every script runs even when an earlier one failed, so one run shows all that is broken.
+      - name: Run the browser tests
         run: |
-          sudo apt-get install -y --no-install-recommends poppler-utils unzip
-          node scripts/release-e2e.mjs
+          failed=0
+          for s in ${{ matrix.scripts }}; do
+            echo "=== $s"
+            node scripts/$s.mjs || { echo "FAILED: $s"; failed=1; }
+          done
+          exit $failed
 
-      # Placeholder notes on ZIP import: a lone D6/F3 under a word is removed (setting respected), an F3 inside a
-      # real melody stays, a comment on a placeholder note moves onto its syllable.
-      - name: Placeholder notes (ZIP import)
-        run: node scripts/placeholder-import-e2e.mjs
-
-      # The cover page and the volumes (one PDF per manuscript / region ..., zipped) through the real print
-      # dialog; reads the PDFs back with poppler.
-      - name: Cover page and volumes
-        run: |
-          sudo apt-get install -y --no-install-recommends poppler-utils unzip
-          node scripts/cover-e2e.mjs
-
-  # Build the Angular app and publish it to GitHub Pages (custom domain
-  # monodi.app, preserved via src/CNAME which the build copies into docs/).
-  # Requires repo Settings → Pages → Source = "GitHub Actions".
-  deploy-pages:
-    needs: [build-and-test, smoke-test]
+  # Master only: the site is built while the tests run, so the deploy below has nothing left to build.
+  # `npm run build` = ng build --configuration production --base-href ./
+  # Emits into docs/ and copies src/CNAME → docs/CNAME (custom domain monodi.app).
+  build-site:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout repository
@@ -129,8 +137,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # `npm run build` = ng build --configuration production --base-href ./
-      # Emits into docs/ and copies src/CNAME → docs/CNAME (custom domain).
       # Repository variables (Settings → Secrets and variables → Actions →
       # Variables). They are baked in at build time, so changing them needs a
       # new run. The client SECRET is never used here; it lives in the proxy.
@@ -149,13 +155,31 @@ jobs:
       - name: Disable Jekyll processing
         run: touch docs/.nojekyll
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
+
+  # Publish to GitHub Pages once everything passed.
+  # Requires repo Settings → Pages → Source = "GitHub Actions".
+  deploy-pages:
+    needs: [build, unit-tests, e2e, build-site]
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
       - name: Deploy to GitHub Pages
         id: deployment

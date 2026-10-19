@@ -226,6 +226,8 @@ function mergeBundleIntoDb(bundle: Bundle, db: Db): void {
 export class GithubService {
   private octokit: Octokit | null = null;
   public config: GithubConfig | null = null;
+  /** Multiplies the waits between the outer pull/push attempts (5 s, 10 s ...). Tests shrink it; the app leaves it at 1. */
+  public retryWaitScale = 1;
 
   constructor(private toastr: ToastrService, private session: GithubSessionService) {
     this.loadConfig();
@@ -539,7 +541,7 @@ export class GithubService {
         }
         const waitMs = 4000 * attempt;
         if (onProgress) onProgress({ phase: `Connection issue — retrying whole pull in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${maxAttempts})…`, current: 0, total: 0 });
-        await new Promise(res => setTimeout(res, waitMs));
+        await new Promise(res => setTimeout(res, waitMs * this.retryWaitScale));
       }
     }
     return null;
@@ -648,7 +650,7 @@ export class GithubService {
         }
         const waitMs = 5000 * attempt;
         if (onProgress) onProgress({ phase: `Connection issue — retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${maxAttempts})…`, current: 0, total: 0 });
-        await new Promise(res => setTimeout(res, waitMs));
+        await new Promise(res => setTimeout(res, waitMs * this.retryWaitScale));
       }
     }
     return false;
