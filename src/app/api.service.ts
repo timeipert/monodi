@@ -599,6 +599,8 @@ export interface ProjectSettings {
   feier: string[];
   customSourceFields?: { key: string, label: string }[];
   customDocumentFields?: { key: string, label: string }[];
+  /** How documents can refer to each other and the suffix of the related document's number in the print (see relations/relations.ts). */
+  relationTypes?: { name: string; suffix: string }[];
   customLists?: { [key: string]: string[] };
   commentTemplates?: SavedCommentTemplate[];
   /** The standard set of the notation documentation: patterns every manuscript shows, with the Reference ID they usually get (see notation-set.ts). */

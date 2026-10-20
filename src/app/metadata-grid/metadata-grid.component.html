@@ -13,7 +13,11 @@
         </button>
       </li>
     </ul>
-    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="totalDirty > 0" (click)="showImport = true" data-testid="mg-import-cm"
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="totalDirty > 0" (click)="showRelations = true" data-testid="mg-relations"
+      [title]="totalDirty > 0 ? 'Save or discard your edits first' : 'Relations between documents (a trope and its primary chant) and units (a play) with a check of the data'">
+      <i class="bi bi-diagram-3 me-1"></i>Relations and units
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="totalDirty > 0" (click)="showImport = true" data-testid="mg-import-cm"
       [title]="totalDirty > 0 ? 'Save or discard your edits first' : 'Mark documents that must not be printed, from the export list of Corpus Monodicum'">
       <i class="bi bi-file-earmark-excel me-1"></i>Import export list (.xlsx)
     </button>
@@ -21,6 +25,10 @@
 
   @if (showImport) {
     <app-cm-import-dialog (closed)="showImport = false" (applied)="load()"></app-cm-import-dialog>
+  }
+
+  @if (showRelations) {
+    <app-relations-dialog (closed)="showRelations = false" (applied)="load()" (show)="findDocument($event)"></app-relations-dialog>
   }
 
   @if (loading) {
