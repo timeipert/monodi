@@ -601,6 +601,8 @@ export interface ProjectSettings {
   customDocumentFields?: { key: string, label: string }[];
   /** How documents can refer to each other and the suffix of the related document's number in the print (see relations/relations.ts). */
   relationTypes?: { name: string; suffix: string }[];
+  /** Volume rules of the print: which volume a document belongs to, the first rule that fits wins (see print/volume-rules.ts). */
+  volumeRules?: { name: string; field: string; op: 'in' | 'set' | 'empty'; values: string[]; each?: boolean }[];
   customLists?: { [key: string]: string[] };
   commentTemplates?: SavedCommentTemplate[];
   /** The standard set of the notation documentation: patterns every manuscript shows, with the Reference ID they usually get (see notation-set.ts). */
