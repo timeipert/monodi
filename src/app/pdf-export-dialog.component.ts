@@ -10,7 +10,7 @@ import { genreOf } from './document-metadata';
 import { compareNatural } from '../utils';
 import { safeStorage } from './safe-storage';
 import { downloadBlob } from './download';
-import { FieldDef, FieldJob, placeholderCatalog, splitFields, splitKey } from './print/fields';
+import { FieldDef, FieldJob, placeholderCatalog, splitFields, splitKey, splitLabel as splitSpecLabel, splitSpec } from './print/fields';
 import { groupItems, volumeFileNames } from './print/groups';
 import { HOLD_REASON_LABEL, holdReasons, isPrintable } from './release/printable';
 import { MAX_BLOCKS, TITLE_PRESETS, TitleBlock, TitleTemplate, newBlock, sanitizeTitleTemplate } from './print/title-page';
@@ -230,9 +230,18 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   <option value="">Nothing — one PDF</option>
                   @for (f of splitOptions; track f.key) { <option [value]="f.key">{{f.label}}{{ f.scope === 'source' && f.key !== 'quelle-id' ? ' (manuscript)' : '' }}</option> }
                 </select>
+                @if (splitBy) {
+                  <label class="form-label small text-muted mt-2 mb-1" for="splitThen">and (optional)</label>
+                  <select id="splitThen" class="form-select form-select-sm" [(ngModel)]="splitThen" [disabled]="busy" (ngModelChange)="splitChanged()">
+                    <option value="">Nothing</option>
+                    @for (f of splitOptions; track f.key) { @if (f.key !== splitBy) { <option [value]="f.key">{{f.label}}{{ f.scope === 'source' && f.key !== 'quelle-id' ? ' (manuscript)' : '' }}</option> } }
+                  </select>
+                  <div class="form-text">With a second field every combination is a volume: genre &amp; place of origin gives "Tropes from Germany", "Tropes from France", "Sequences from Germany" ….</div>
+                }
                 @if (entries.length < 2) { <div class="form-text">Needs at least two documents.</div> }
                 @if (splitBy) {
-                  <div class="form-text">The placeholder <code>$gruppe$</code> stands for the value of the volume, <code>$gruppenfeld$</code> for the name of this field.</div>
+                  <div class="form-text">The placeholder <code>$gruppe$</code> stands for the value of the volume, <code>$gruppenfeld$</code> for the name of the field{{ splitThen ? 's' : '' }}.
+                    @if (splitThen) { <code>$gruppe1$</code> and <code>$gruppe2$</code> are the two values apart ("$gruppe1$ from $gruppe2$"). }</div>
                 }
               </div>
               @if (splitBy) {
@@ -469,6 +478,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private focused: { block: TitleBlock; el: HTMLTextAreaElement } | null = null;
   previewUrl: SafeResourceUrl | null = null;
   previewLabel = '';
+  private previewParts: string[] = [];
   previewOverflow = false;
   previewUnknown: string[] = [];
   previewError = '';
@@ -478,6 +488,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
 
   // ── volumes ──
   splitBy = '';
+  splitThen = '';
   splitOptions: FieldDef[] = [];
   groups: GroupRow[] = [];
 
@@ -593,6 +604,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
 
   // ── volumes ──
   splitChanged(): void {
+    if (!this.splitBy) this.splitThen = '';
+    if (this.splitThen === this.splitBy) this.splitThen = '';
     this.groups = [];
     this.recomputeGroups();
     this.previewSoon();
@@ -602,10 +615,14 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private recomputeGroups(): void {
     if (!this.splitBy) { this.groups = []; return; }
     const was = new Map(this.groups.map((g) => [g.key, g.on]));
-    this.groups = groupItems(this.entries.filter((e) => e.doc), (e) => splitKey(this.fieldJob(e), this.splitBy))
+    this.groups = groupItems(this.entries.filter((e) => e.doc), (e) => splitKey(this.fieldJob(e), this.splitSpec))
       .map((g) => ({ key: g.key, label: g.label || '(not set)', count: g.items.length, on: was.get(g.key) ?? true }));
   }
-  private splitLabel(): string { return this.splitOptions.find((f) => f.key === this.splitBy)?.label || ''; }
+  /** The fields of the split as one: "genre+herkunftsregion" when a second field is chosen. */
+  private get splitSpec(): string { return splitSpec(this.splitBy, this.splitThen); }
+  private splitLabel(): string { return this.splitBy ? splitSpecLabel(this.splitSpec, this.splitOptions) : ''; }
+  /** The value of each field for a volume made of `entries`, for the cover's `$gruppe1$`, `$gruppe2$`. */
+  private partsOf(entries: Entry[]): string[] { return entries.length ? splitKey(this.fieldJob(entries[0]), this.splitSpec).parts : []; }
 
   // ── cover template ──
   openCover(): void {
@@ -703,8 +720,9 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     const all = this.entries.filter((e) => e.doc);
     if (!this.splitBy) return all.map((e) => this.fieldJob(e));
     const on = new Set(this.groups.filter((g) => g.on).map((g) => g.key));
-    const first = groupItems(all, (e) => splitKey(this.fieldJob(e), this.splitBy)).find((g) => on.has(g.key)) ?? groupItems(all, (e) => splitKey(this.fieldJob(e), this.splitBy))[0];
+    const first = groupItems(all, (e) => splitKey(this.fieldJob(e), this.splitSpec)).find((g) => on.has(g.key)) ?? groupItems(all, (e) => splitKey(this.fieldJob(e), this.splitSpec))[0];
     this.previewLabel = first ? `Volume: ${first.label || '(not set)'}` : '';
+    this.previewParts = this.partsOf(first?.items ?? []);
     return (first?.items ?? []).map((e) => this.fieldJob(e));
   }
   private previewGroup(): string {
@@ -731,7 +749,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
         settings: this.settings,
         pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
         title: this.title.trim(),
-        cover: { template: this.cleanTemplate(), group: this.previewGroup(), groupField: this.splitLabel() },
+        cover: { template: this.cleanTemplate(), group: this.previewGroup(), groupField: this.splitLabel(), groupParts: this.splitBy ? this.previewParts : undefined },
       });
       if (seq !== this.previewSeq) return;                 // a newer preview is on its way
       this.dropPreview();
@@ -778,7 +796,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
       let plan: { label: string; entries: Entry[] }[] = [{ label: '', entries: live }];
       if (this.splitBy) {
         const on = new Set(this.groups.filter((g) => g.on).map((g) => g.key));
-        plan = groupItems(live, (e) => splitKey(this.fieldJob(e), this.splitBy)).filter((g) => on.has(g.key)).map((g) => ({ label: g.label, entries: g.items }));
+        plan = groupItems(live, (e) => splitKey(this.fieldJob(e), this.splitSpec)).filter((g) => on.has(g.key)).map((g) => ({ label: g.label, entries: g.items }));
         if (!plan.length) throw new Error('No volume is selected.');
       }
       const todo = plan.flatMap((p) => p.entries);
@@ -823,7 +841,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
           title: this.title.trim(),
           countFrontPages: this.o.countFront,
-          cover: template ? { template, group: p.label, groupField: this.splitBy ? this.splitLabel() : '' } : undefined,
+          cover: template ? { template, group: p.label, groupField: this.splitLabel(), groupParts: this.splitBy ? this.partsOf(p.entries) : undefined } : undefined,
           output: this.splitBy ? 'blob' : 'save',
           fileName: base + '.pdf',
           onProgress: (msg, done, total) => {

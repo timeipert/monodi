@@ -31,6 +31,7 @@ const DERIVED_FIELDS: [string, string][] = [
   ['quelle', 'Manuscript (town, library, shelfmark)'], ['genre', 'Genre (1 / 2)'], ['anzahl', 'Number of documents'],
   ['quellenanzahl', 'Number of manuscripts'], ['datum', 'Date of printing'], ['jahr', 'Year of printing'],
   ['titel', 'Title (from the print dialog)'], ['gruppe', 'Value of the volume'], ['gruppenfeld', 'Field the volumes are split by'],
+  ['gruppe1', 'Volume: value of the first field'], ['gruppe2', 'Volume: value of the second field (combined split)'],
 ];
 
 /** Other names for the same thing (also English ones, for other projects). */
@@ -62,17 +63,32 @@ export function sourceLine(job: FieldJob): string {
     .map((v: any) => (v || '').toString().trim()).filter(Boolean).join(', ');
 }
 
-/** Fields a print can be split by or filtered on: the manuscript, then every source and document field, custom ones last. */
+/**
+ * Fields that make no volume: they are (nearly) different for every document or for every manuscript, so a split by
+ * them gives one-document volumes (folio, line, reference) or says what "Manuscript" already says (sigle, shelfmark).
+ */
+const NOT_FOR_SPLITTING = new Set(['dokumenten_id', 'textinitium', 'kommentar', 'quellensigle', 'bibliothekssignatur', 'bibliographischerverweis', 'foliostart', 'zeilenstart']);
+
+/** Fields a print can be split by: what gives a document its context (manuscript, origin, genre, feast ...), custom ones last. */
 export function splitFields(settings: Partial<ProjectSettings> | null | undefined): FieldDef[] {
   const out: FieldDef[] = [{ key: 'quelle-id', label: 'Manuscript', scope: 'source' }];
-  for (const [key, label] of SOURCE_FIELDS) out.push({ key, label, scope: 'source' });
+  for (const [key, label] of SOURCE_FIELDS) if (!NOT_FOR_SPLITTING.has(key)) out.push({ key, label, scope: 'source' });
   for (const f of settings?.customSourceFields || []) out.push({ key: f.key, label: f.label || f.key, scope: 'source' });
   out.push({ key: 'genre', label: 'Genre', scope: 'document' });
-  for (const [key, label] of DOCUMENT_FIELDS) {
-    if (key !== 'dokumenten_id' && key !== 'textinitium' && key !== 'kommentar') out.push({ key, label, scope: 'document' });
-  }
+  for (const [key, label] of DOCUMENT_FIELDS) if (!NOT_FOR_SPLITTING.has(key)) out.push({ key, label, scope: 'document' });
   for (const f of settings?.customDocumentFields || []) out.push({ key: f.key, label: f.label || f.key, scope: 'document' });
   return out;
+}
+
+/** Joins two fields into one split ("genre+herkunftsregion"): a volume per combination. */
+export const SPLIT_JOIN = '+';
+export function splitSpec(first: string, then: string): string {
+  return first && then && then !== first ? first + SPLIT_JOIN + then : first;
+}
+
+/** What a split is called: "Genre & Region of origin". */
+export function splitLabel(spec: string, defs: FieldDef[]): string {
+  return spec.split(SPLIT_JOIN).map((k) => defs.find((f) => f.key === k)?.label || k).join(' & ');
 }
 
 /** All placeholders a text can use, with what they stand for (for the editor's list). */
@@ -87,8 +103,25 @@ export function placeholderCatalog(settings: Partial<ProjectSettings> | null | u
   return out;
 }
 
-/** The key (what makes two documents belong together) and the label (what the volume is called) of a document for a split field. */
-export function splitKey(job: FieldJob, field: string): { key: string; label: string } {
+/**
+ * The key (what makes two documents belong together), the label (what the volume is called) and the value of each
+ * field of the split (`parts`, for the cover) of a document. `field` may join two fields (see `splitSpec`): the volume is
+ * then one combination of both, e.g. one genre from one region.
+ */
+export function splitKey(job: FieldJob, field: string): { key: string; label: string; parts: string[] } {
+  const fields = field.split(SPLIT_JOIN);
+  const each = fields.map((f) => splitKeyOne(job, f));
+  if (each.length === 1) return { ...each[0], parts: [each[0].label] };
+  // a document without a value in any field is in the group without a value, as with one field
+  if (each.every((e) => e.key === '')) return { key: '', label: '', parts: each.map(() => '') };
+  return {
+    key: each.map((e) => e.key).join('\u0001'),
+    label: each.map((e) => e.label || '(not set)').join(' · '),
+    parts: each.map((e) => e.label),
+  };
+}
+
+function splitKeyOne(job: FieldJob, field: string): { key: string; label: string } {
   if (field === 'quelle-id') {
     const id = (job.source as any)?.id ?? job.sigle ?? '';
     return { key: String(id), label: fieldValue(job, 'quellensigle') || fieldValue(job, 'quelle') };
@@ -117,6 +150,8 @@ export interface LookupExtras {
   titel?: string;
   gruppe?: string;
   gruppenfeld?: string;
+  /** The value of each field of a combined split: `$gruppe1$`, `$gruppe2$`. */
+  gruppenteile?: string[];
   now?: Date;
 }
 
@@ -137,6 +172,8 @@ export function makeLookup(jobs: FieldJob[], settings: Partial<ProjectSettings> 
     titel: (extras.titel || '').trim(),
     gruppe: (extras.gruppe || '').trim(),
     gruppenfeld: (extras.gruppenfeld || '').trim(),
+    gruppe1: (extras.gruppenteile?.[0] ?? extras.gruppe ?? '').trim(),
+    gruppe2: (extras.gruppenteile?.[1] || '').trim(),
   };
   return (name: string) => {
     const key = ALIASES[name] ?? name;
