@@ -12,6 +12,7 @@ import { safeStorage } from './safe-storage';
 import { downloadBlob } from './download';
 import { FieldDef, FieldJob, fieldValue, placeholderCatalog, splitFields, splitKey, splitLabel as splitSpecLabel, splitSpec } from './print/fields';
 import { groupItems, volumeFileNames } from './print/groups';
+import { checkPrintSet } from './relations/relations';
 import { RULES_SPLIT, RULE_OPS, VolumeRule, groupByRules, parseRuleValues, usableRules } from './print/volume-rules';
 import { HOLD_REASON_LABEL, holdReasons, isPrintable } from './release/printable';
 import { MAX_BLOCKS, TITLE_PRESETS, TitleBlock, TitleTemplate, newBlock, sanitizeTitleTemplate } from './print/title-page';
@@ -30,6 +31,8 @@ interface DialogOptions {
   notationDocumentation: boolean;
   neumeTree: boolean;
   newPage: boolean;
+  /** Units stand together, a related document behind its trope. */
+  arrangeRelated: boolean;
   pageFormat: 'settings' | 'cm' | 'a4';
   boxLabel: PdfBoxLabel;
   /** A cover page from the cover template. */
@@ -102,6 +105,14 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   } @else if (flaggedIn > 0) {
                     <div class="mt-1"><strong>{{flaggedIn}}</strong> document{{flaggedIn === 1 ? '' : 's'}} marked "don't publish" will be printed.</div>
                   }
+                </div>
+              }
+              @if (printWarnings.length) {
+                <div class="alert alert-warning py-2 px-3 small" data-testid="pdf-unit-warnings">
+                  <div class="fw-medium"><i class="bi bi-exclamation-triangle me-1"></i>Documents that belong together are not all printed</div>
+                  <ul class="mb-0 ps-3" style="max-height: 120px; overflow: auto;">
+                    @for (w of printWarnings; track w) { <li>{{w}}</li> }
+                  </ul>
                 </div>
               }
               @if (!entries.length && held.length) {
@@ -207,6 +218,11 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   <input class="form-check-input" type="checkbox" id="oNew" [(ngModel)]="o.newPage" [disabled]="busy" (ngModelChange)="save()">
                   <label class="form-check-label fw-medium" for="oNew">Every document on a new page</label>
                   <div class="form-text mt-0">Off: documents run on, each begins with a heading line (compact, like the printed edition).</div>
+                </div>
+                <div class="form-check form-switch mb-1 mt-2">
+                  <input class="form-check-input" type="checkbox" id="oArrange" [(ngModel)]="o.arrangeRelated" [disabled]="busy" (ngModelChange)="save()" data-testid="pdf-arrange">
+                  <label class="form-check-label fw-medium" for="oArrange">Keep units and related documents together</label>
+                  <div class="form-text mt-0">A unit (a play) stands as one block in the order of its positions. A document that a trope names as its related document (its primary chant) stands directly behind it and is numbered like it: 1, 1P.</div>
                 </div>
               }
               <label class="form-label small text-muted mb-1 mt-3" for="pdfFile">File name</label>
@@ -493,12 +509,16 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   entries: Entry[] = [];
   /** Documents left out of the print because they must not be printed (see `holdReasons`). Not remembered between prints: it starts on. */
   held: Entry[] = [];
+  /** Every document of the workspace, to see which units and related documents the print breaks apart. */
+  private allDocs: Document[] = [];
+  /** What the print does to units and relations: gaps from held-back or missing documents. */
+  printWarnings: string[] = [];
   holdBack = true;
   /** Held back plus, while the switch is off, those in the list that would be held back: kept as fields, not recounted on every change detection. */
   heldTotal = 0;
   /** In the print list although marked "don't publish" (only possible with the switch off). */
   flaggedIn = 0;
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
   fileBase = '';
   busy = false;
   loadingMeta = false;
@@ -604,6 +624,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     const loose = this.entries.filter((e) => e.doc && !isPrintable(e.doc));
     this.heldTotal = this.held.length + loose.length;
     this.flaggedIn = loose.filter((e) => holdReasons(e.doc).includes('dontpublish')).length;
+    this.printWarnings = checkPrintSet(this.allDocs, new Set(this.entries.map((e) => e.id)), new Set(this.held.map((e) => e.id)));
   }
 
   ngOnDestroy(): void {
@@ -617,6 +638,9 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
       const token = (await firstValueFrom(this.users.user))?.token || '';
       const sr: any = await firstValueFrom(this.api.getSettings(token));
       this.settings = sr.kind === 'SettingsRetrieved' ? sr.settings : null;
+      const all: any = await firstValueFrom(this.api.listDocuments(token));
+      this.allDocs = all.kind === 'DocumentsRetrieved' ? all.documents : [];
+      this.refreshHold();
       for (const e of this.entries) {
         if (e.job) this.sources.set(e.doc!.quelle_id, { source: e.job.source, sigle: e.job.sigle });
       }
@@ -890,8 +914,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
+      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
     const stored = safeStorage.getJson<Partial<DialogOptions> | null>(OPTIONS_KEY(multi), null);
     if (stored && typeof stored === 'object') this.o = { ...this.o, ...stored };
     if (this.o.boxLabel !== 'none') this.o.boxLabel = 'number';   // older versions stored other labels
@@ -958,6 +982,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           notationDocumentation: this.o.notationDocumentation,
           neumeTree: this.o.neumeTree,
           newPagePerDocument: this.o.newPage,
+          arrangeRelated: this.o.arrangeRelated,
           boxLabel: this.o.boxLabel,
           pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
           title: this.title.trim(),

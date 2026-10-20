@@ -11,6 +11,7 @@ import { commentSignature, commentLemma, commentStartIndex, commentType, printab
 import { resolvePrintOptions } from './print/print-options';
 import { layoutSignature } from './print/signature';
 import { LeadItem, PageBox, atPageTop, needsBreak, systemsToKeep } from './print/keep';
+import { arrangeChapter } from './print/arrange';
 import { chapterize } from './print/chapters';
 import { formatFolioLabel, sanitizeFolioPrefixMode, usesFolioPrefix } from './folio-label';
 import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFieldValue } from './document-metadata';
@@ -132,6 +133,8 @@ export interface PdfExportOptions {
   newPagePerDocument?: boolean;
   /** The framed running number in the left margin (default: shown). */
   boxLabel?: PdfBoxLabel;
+  /** Documents that belong together stand together: a unit as one block, a related document (the primary chant of a trope) behind its trope, numbered 1P. Default: yes. */
+  arrangeRelated?: boolean;
   /** Override of the configured page format ('a4', 'cm' = 21 x 27 cm, ...). */
   pageFormat?: string;
   /** Title of a multi-document print (title page). */
@@ -337,7 +340,10 @@ export class PdfExportService {
     if (!jobsIn.length) throw new Error('Nothing to print');
     // Documents of one manuscript belong together: each manuscript is a chapter (stable by first appearance).
     const chapterKeyOf = (j: PdfDocJob) => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
-    const { items: jobs, chapterNo, chapterFirst, runningNo, count: chapterCount } = chapterize(jobsIn, chapterKeyOf);
+    const { items: jobs, chapterNo, chapterFirst, labels, count: chapterCount } = chapterize(
+      jobsIn, chapterKeyOf,
+      opts.arrangeRelated === false ? undefined : (items) => arrangeChapter(items, (j) => j.document, opts.settings),
+    );
     const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {}, placement: { documents: [], lines: [], apparatus: [] } };
     const t0 = performance.now();
     /** Adds the time `fn` takes to the phase `name`. */
@@ -405,7 +411,7 @@ export class PdfExportService {
         };
         // Chapters: every manuscript has its own chapter (heading, running head, contents entry);
         // inside it the documents are numbered 1, 2, 3 … in the frame before each document.
-        const boxTexts = runningNo.map(String);
+        const boxTexts = labels;
         // Folio labels: a manuscript whose labels say "f." somewhere is foliated — all of its labels get it
         const folioMode = sanitizeFolioPrefixMode(s.pdfFolioPrefix);
         const foliated = new Map<string, boolean>();

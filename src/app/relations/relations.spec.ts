@@ -1,5 +1,5 @@
 import type { Document } from '../api.service';
-import { checkRelations, DEFAULT_RELATION_TYPES, FindingKind, RELATION_FIELDS, relationTypes, withRelationFields } from './relations';
+import { checkPrintSet, checkRelations, DEFAULT_RELATION_TYPES, FindingKind, RELATION_FIELDS, relationTypes, withRelationFields } from './relations';
 
 function doc(id: string, quelle: string, custom: Record<string, string> = {}): Document {
   return { id: 'u-' + id + quelle, dokumenten_id: id, quelle_id: quelle, custom } as unknown as Document;
@@ -83,5 +83,38 @@ describe('relations: check of units', () => {
 
   it('counts the units', () => {
     expect(checkRelations([play('P1'), play('P2'), doc('X', 'S', { unit_id: 'other' })], {}).units).toBe(2);
+  });
+});
+
+describe('relations: what a print breaks apart', () => {
+  const ids = (...x: string[]) => new Set(x.map((i) => 'u-' + i + 'A'));
+  const play = (id: string) => doc(id, 'A', { unit_id: 'play-1' });
+
+  it('says nothing when the whole unit and every related document is printed', () => {
+    const all = [play('P1'), play('P2'), doc('T1', 'A', { relation_target: 'AN1' }), doc('AN1', 'A')];
+    expect(checkPrintSet(all, ids('P1', 'P2', 'T1', 'AN1'), ids())).toEqual([]);
+  });
+
+  it('warns about a unit with a document held back, and about one that is not in the print', () => {
+    const all = [play('P1'), play('P2'), play('P3')];
+    const held = checkPrintSet(all, ids('P1', 'P2'), ids('P3'));
+    expect(held.length).toBe(1);
+    expect(held[0]).toContain('held back');
+    expect(held[0]).toContain('P3');
+    const left = checkPrintSet(all, ids('P1'), ids());
+    expect(left.length).toBe(1);
+    expect(left[0]).toContain('not in this print');
+    expect(left[0]).toContain('P2, P3');
+  });
+
+  it('is silent about a unit of which nothing is printed', () => {
+    expect(checkPrintSet([play('P1'), play('P2')], ids(), ids('P1', 'P2'))).toEqual([]);
+  });
+
+  it('warns when the related document of a printed trope is held back or left out, but not when only the antiphon is printed', () => {
+    const all = [doc('T1', 'A', { relation_target: 'AN1' }), doc('AN1', 'A')];
+    expect(checkPrintSet(all, ids('T1'), ids('AN1'))[0]).toContain('held back');
+    expect(checkPrintSet(all, ids('T1'), ids())[0]).toContain('not in this print');
+    expect(checkPrintSet(all, ids('AN1'), ids('T1'))).toEqual([]);
   });
 });

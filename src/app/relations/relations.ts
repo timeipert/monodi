@@ -162,3 +162,38 @@ export function checkRelations(documents: readonly Document[], settings: { relat
 
   return { findings, relations, units: units.size };
 }
+
+/** What is wrong with a print that holds back some documents or leaves some out, as far as units and relations go. */
+export function checkPrintSet(all: readonly Document[], printed: ReadonlySet<string>, held: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  const names = (docs: Document[]) => {
+    const n = docs.map((d) => d.dokumenten_id || d.id || '?');
+    return n.length > 5 ? n.slice(0, 5).join(', ') + ', …' : n.join(', ');
+  };
+  const units = new Map<string, Document[]>();
+  const byId = new Map<string, Document[]>();
+  for (const d of all) {
+    const unit = text(d, UNIT_ID_KEY);
+    if (unit) (units.get(unit) ?? units.set(unit, []).get(unit)!).push(d);
+    const id = (d.dokumenten_id ?? '').trim();
+    if (id) (byId.get(id) ?? byId.set(id, []).get(id)!).push(d);
+  }
+  for (const [unit, members] of units) {
+    if (!members.some((m) => printed.has(m.id ?? ''))) continue;
+    const heldBack = members.filter((m) => held.has(m.id ?? ''));
+    const left = members.filter((m) => !printed.has(m.id ?? '') && !held.has(m.id ?? ''));
+    if (heldBack.length) out.push(`Unit "${unit}" is printed with gaps: ${heldBack.length} of ${members.length} documents are held back (${names(heldBack)}).`);
+    if (left.length) out.push(`Unit "${unit}" is printed with gaps: ${left.length} of ${members.length} documents are not in this print (${names(left)}).`);
+  }
+  for (const d of all) {
+    if (!printed.has(d.id ?? '')) continue;
+    const target = text(d, RELATION_TARGET_KEY);
+    if (!target) continue;
+    const found = (byId.get(target) ?? []).filter((c) => c.quelle_id === d.quelle_id);
+    if (found.length !== 1) continue;
+    const rel = found[0];
+    if (held.has(rel.id ?? '')) out.push(`"${d.dokumenten_id}" refers to "${target}", which is held back.`);
+    else if (!printed.has(rel.id ?? '')) out.push(`"${d.dokumenten_id}" refers to "${target}", which is not in this print.`);
+  }
+  return out;
+}
