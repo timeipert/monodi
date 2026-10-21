@@ -51,6 +51,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
 
   showDelete = false;
   showImport = false;
+  showRelations = false;
   deleteBusy = false;
   typedCount = '';
 
@@ -209,6 +210,16 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   }
 
   // --- filters ---
+
+  /** Shows one document of the relations check: its ID in the search of the documents table. */
+  findDocument(dokumentenId: string): void {
+    this.showRelations = false;
+    this.setActive('documents');
+    const v = this.view;
+    if (!v) return;
+    v.quick = dokumentenId;
+    v.refresh();
+  }
 
   addFilter(): void {
     this.view?.addFilter();

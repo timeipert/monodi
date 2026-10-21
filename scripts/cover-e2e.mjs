@@ -107,6 +107,18 @@ try {
 
   // ── volumes: one PDF per region of origin ──
   await clickText('app-pdf-export-dialog .nav-link', 'Volumes');
+  // only fields that give a volume context are offered: no folio, line, shelfmark ...
+  const offered = await page.$$eval('app-pdf-export-dialog #splitBy option', (os) => os.map((o) => o.value));
+  expect(offered.includes('genre') && offered.includes('herkunftsregion') && offered.includes('quelle-id'), `split offers genre, region, manuscript: ${offered}`);
+  expect(!offered.some((k) => ['foliostart', 'zeilenstart', 'bibliothekssignatur', 'bibliographischerverweis'].includes(k)), `split does not offer folio, line, shelfmark, reference: ${offered}`);
+  // genre & region of origin: one volume per combination, the cover knows both values apart
+  await page.select('app-pdf-export-dialog #splitBy', 'genre');
+  await page.waitForSelector('app-pdf-export-dialog #splitThen', { timeout: 10000 });
+  await page.select('app-pdf-export-dialog #splitThen', 'herkunftsregion');
+  await page.waitForFunction(() => document.querySelectorAll('app-pdf-export-dialog li.list-group-item').length === 2, { timeout: 10000 });
+  const combos = await page.$$eval('app-pdf-export-dialog li.list-group-item label', (ls) => ls.map((l) => l.textContent.trim()).sort());
+  expect(JSON.stringify(combos) === JSON.stringify(['Antiphon · Niederlande', 'Antiphon · Rheinland']), `genre & region make one volume per combination: ${combos}`);
+  await page.select('app-pdf-export-dialog #splitThen', '');
   await page.select('app-pdf-export-dialog #splitBy', 'herkunftsregion');
   await page.waitForFunction(() => document.querySelectorAll('app-pdf-export-dialog li.list-group-item').length === 2, { timeout: 10000 });
   captured.length = 0;

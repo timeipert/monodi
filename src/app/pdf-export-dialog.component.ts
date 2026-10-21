@@ -10,13 +10,17 @@ import { genreOf } from './document-metadata';
 import { compareNatural } from '../utils';
 import { safeStorage } from './safe-storage';
 import { downloadBlob } from './download';
-import { FieldDef, FieldJob, placeholderCatalog, splitFields, splitKey } from './print/fields';
+import { FieldDef, FieldJob, fieldValue, placeholderCatalog, splitFields, splitKey, splitLabel as splitSpecLabel, splitSpec } from './print/fields';
 import { groupItems, volumeFileNames } from './print/groups';
+import { checkPrintSet } from './relations/relations';
+import { RULES_SPLIT, RULE_OPS, VolumeRule, groupByRules, parseRuleValues, usableRules } from './print/volume-rules';
 import { HOLD_REASON_LABEL, holdReasons, isPrintable } from './release/printable';
 import { MAX_BLOCKS, TITLE_PRESETS, TitleBlock, TitleTemplate, newBlock, sanitizeTitleTemplate } from './print/title-page';
 
 interface Entry { id: string; doc: Document | null; job: PdfDocJob | null; }
 interface GroupRow { key: string; label: string; count: number; on: boolean; }
+/** A volume rule as it is edited: the values as one text, and the values the selection has in the field as a hint. */
+interface RuleRow { name: string; field: string; op: VolumeRule['op']; valuesText: string; each: boolean; hint: string; }
 
 interface DialogOptions {
   titlePage: boolean;
@@ -27,6 +31,8 @@ interface DialogOptions {
   notationDocumentation: boolean;
   neumeTree: boolean;
   newPage: boolean;
+  /** Units stand together, a related document behind its trope. */
+  arrangeRelated: boolean;
   pageFormat: 'settings' | 'cm' | 'a4';
   boxLabel: PdfBoxLabel;
   /** A cover page from the cover template. */
@@ -99,6 +105,14 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   } @else if (flaggedIn > 0) {
                     <div class="mt-1"><strong>{{flaggedIn}}</strong> document{{flaggedIn === 1 ? '' : 's'}} marked "don't publish" will be printed.</div>
                   }
+                </div>
+              }
+              @if (printWarnings.length) {
+                <div class="alert alert-warning py-2 px-3 small" data-testid="pdf-unit-warnings">
+                  <div class="fw-medium"><i class="bi bi-exclamation-triangle me-1"></i>Documents that belong together are not all printed</div>
+                  <ul class="mb-0 ps-3" style="max-height: 120px; overflow: auto;">
+                    @for (w of printWarnings; track w) { <li>{{w}}</li> }
+                  </ul>
                 </div>
               }
               @if (!entries.length && held.length) {
@@ -205,6 +219,11 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   <label class="form-check-label fw-medium" for="oNew">Every document on a new page</label>
                   <div class="form-text mt-0">Off: documents run on, each begins with a heading line (compact, like the printed edition).</div>
                 </div>
+                <div class="form-check form-switch mb-1 mt-2">
+                  <input class="form-check-input" type="checkbox" id="oArrange" [(ngModel)]="o.arrangeRelated" [disabled]="busy" (ngModelChange)="save()" data-testid="pdf-arrange">
+                  <label class="form-check-label fw-medium" for="oArrange">Keep units and related documents together</label>
+                  <div class="form-text mt-0">A unit (a play) stands as one block in the order of its positions. A document that a trope names as its related document (its primary chant) stands directly behind it and is numbered like it: 1, 1P.</div>
+                </div>
               }
               <label class="form-label small text-muted mb-1 mt-3" for="pdfFile">File name</label>
               <div class="input-group input-group-sm">
@@ -229,12 +248,65 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                 <select id="splitBy" class="form-select form-select-sm" [(ngModel)]="splitBy" [disabled]="busy || entries.length < 2" (ngModelChange)="splitChanged()">
                   <option value="">Nothing — one PDF</option>
                   @for (f of splitOptions; track f.key) { <option [value]="f.key">{{f.label}}{{ f.scope === 'source' && f.key !== 'quelle-id' ? ' (manuscript)' : '' }}</option> }
+                  <option [value]="rulesSplit">Volume rules (several values in one volume) …</option>
                 </select>
+                @if (splitBy && splitBy !== rulesSplit) {
+                  <label class="form-label small text-muted mt-2 mb-1" for="splitThen">and (optional)</label>
+                  <select id="splitThen" class="form-select form-select-sm" [(ngModel)]="splitThen" [disabled]="busy" (ngModelChange)="splitChanged()">
+                    <option value="">Nothing</option>
+                    @for (f of splitOptions; track f.key) { @if (f.key !== splitBy) { <option [value]="f.key">{{f.label}}{{ f.scope === 'source' && f.key !== 'quelle-id' ? ' (manuscript)' : '' }}</option> } }
+                  </select>
+                  <div class="form-text">With a second field every combination is a volume: genre &amp; place of origin gives "Tropes from Germany", "Tropes from France", "Sequences from Germany" ….</div>
+                }
                 @if (entries.length < 2) { <div class="form-text">Needs at least two documents.</div> }
                 @if (splitBy) {
-                  <div class="form-text">The placeholder <code>$gruppe$</code> stands for the value of the volume, <code>$gruppenfeld$</code> for the name of this field.</div>
+                  <div class="form-text">The placeholder <code>$gruppe$</code> stands for the {{ splitBy === rulesSplit ? 'name' : 'value' }} of the volume, <code>$gruppenfeld$</code> for the name of {{ splitBy === rulesSplit ? 'the split' : (splitThen ? 'the fields' : 'this field') }}.
+                    @if (splitThen) { <code>$gruppe1$</code> and <code>$gruppe2$</code> are the two values apart ("$gruppe1$ from $gruppe2$"). }</div>
                 }
               </div>
+              @if (splitBy === rulesSplit) {
+                <div class="col-12" data-testid="vr-editor">
+                  <div class="small text-muted mb-2">
+                    The first rule that fits a document decides its volume, so put the rule for a play (<em>Unit ID has a value</em>) before the rules for genres.
+                    Documents that no rule fits come last. The volumes are printed in the order of the rules.
+                  </div>
+                  @for (r of ruleRows; track r; let i = $index) {
+                    <div class="d-flex flex-wrap align-items-start gap-2 mb-2 border rounded p-2" [attr.data-testid]="'vr-rule-' + i">
+                      <span class="badge text-bg-secondary mt-1">{{i + 1}}</span>
+                      <input type="text" class="form-control form-control-sm" style="width: 12rem" [(ngModel)]="r.name" (ngModelChange)="rulesChanged()" placeholder="Name of the volume" aria-label="Name of the volume" data-testid="vr-name">
+                      <select class="form-select form-select-sm" style="width: 11rem" [(ngModel)]="r.field" (ngModelChange)="rulesChanged()" aria-label="Field" data-testid="vr-field">
+                        @for (f of splitOptions; track f.key) { <option [value]="f.key">{{f.label}}</option> }
+                      </select>
+                      <select class="form-select form-select-sm" style="width: 9rem" [(ngModel)]="r.op" (ngModelChange)="rulesChanged()" aria-label="Condition" data-testid="vr-op">
+                        @for (o of ruleOps; track o.op) { <option [value]="o.op">{{o.label}}</option> }
+                      </select>
+                      @if (r.op === 'in') {
+                        <div style="flex: 1; min-width: 14rem">
+                          <input type="text" class="form-control form-control-sm" [(ngModel)]="r.valuesText" (ngModelChange)="rulesChanged()" placeholder="Kyrie, Gloria, Sanctus, Agnus" aria-label="Values" data-testid="vr-values">
+                          @if (r.hint) { <div class="form-text mt-0">In this selection: {{r.hint}}</div> }
+                        </div>
+                      }
+                      @if (r.op !== 'empty') {
+                        <div class="form-check mt-1">
+                          <input class="form-check-input" type="checkbox" [id]="'vr-each-' + i" [(ngModel)]="r.each" (ngModelChange)="rulesChanged()" data-testid="vr-each">
+                          <label class="form-check-label" [for]="'vr-each-' + i">one volume per value</label>
+                        </div>
+                      }
+                      <div class="btn-group btn-group-sm ms-auto">
+                        <button type="button" class="btn btn-outline-secondary" title="Earlier" aria-label="Move up" [disabled]="i === 0" (click)="moveRule(i, -1)"><i class="bi bi-arrow-up"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" title="Later" aria-label="Move down" [disabled]="i === ruleRows.length - 1" (click)="moveRule(i, 1)"><i class="bi bi-arrow-down"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" title="Remove" aria-label="Remove rule" (click)="removeRule(i)"><i class="bi bi-x-lg"></i></button>
+                      </div>
+                    </div>
+                  }
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="addRule()" data-testid="vr-add"><i class="bi bi-plus-lg me-1"></i>Add a rule</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="!rulesDirty || rulesSaving" (click)="saveRules()" data-testid="vr-save">Keep the rules for this project</button>
+                    @if (!rulesDirty && ruleRows.length) { <span class="small text-success"><i class="bi bi-check-lg"></i> kept</span> }
+                    @if (rulesError) { <span class="small text-danger">{{rulesError}}</span> }
+                  </div>
+                </div>
+              }
               @if (splitBy) {
                 <div class="col-md-7">
                   <div class="d-flex align-items-center justify-content-between mb-1">
@@ -437,12 +509,16 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   entries: Entry[] = [];
   /** Documents left out of the print because they must not be printed (see `holdReasons`). Not remembered between prints: it starts on. */
   held: Entry[] = [];
+  /** Every document of the workspace, to see which units and related documents the print breaks apart. */
+  private allDocs: Document[] = [];
+  /** What the print does to units and relations: gaps from held-back or missing documents. */
+  printWarnings: string[] = [];
   holdBack = true;
   /** Held back plus, while the switch is off, those in the list that would be held back: kept as fields, not recounted on every change detection. */
   heldTotal = 0;
   /** In the print list although marked "don't publish" (only possible with the switch off). */
   flaggedIn = 0;
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
   fileBase = '';
   busy = false;
   loadingMeta = false;
@@ -469,6 +545,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private focused: { block: TitleBlock; el: HTMLTextAreaElement } | null = null;
   previewUrl: SafeResourceUrl | null = null;
   previewLabel = '';
+  private previewParts: string[] = [];
   previewOverflow = false;
   previewUnknown: string[] = [];
   previewError = '';
@@ -478,6 +555,13 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
 
   // ── volumes ──
   splitBy = '';
+  splitThen = '';
+  readonly rulesSplit = RULES_SPLIT;
+  readonly ruleOps = RULE_OPS;
+  ruleRows: RuleRow[] = [];
+  rulesDirty = false;
+  rulesSaving = false;
+  rulesError = '';
   splitOptions: FieldDef[] = [];
   groups: GroupRow[] = [];
 
@@ -540,6 +624,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     const loose = this.entries.filter((e) => e.doc && !isPrintable(e.doc));
     this.heldTotal = this.held.length + loose.length;
     this.flaggedIn = loose.filter((e) => holdReasons(e.doc).includes('dontpublish')).length;
+    this.printWarnings = checkPrintSet(this.allDocs, new Set(this.entries.map((e) => e.id)), new Set(this.held.map((e) => e.id)));
   }
 
   ngOnDestroy(): void {
@@ -553,6 +638,9 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
       const token = (await firstValueFrom(this.users.user))?.token || '';
       const sr: any = await firstValueFrom(this.api.getSettings(token));
       this.settings = sr.kind === 'SettingsRetrieved' ? sr.settings : null;
+      const all: any = await firstValueFrom(this.api.listDocuments(token));
+      this.allDocs = all.kind === 'DocumentsRetrieved' ? all.documents : [];
+      this.refreshHold();
       for (const e of this.entries) {
         if (e.job) this.sources.set(e.doc!.quelle_id, { source: e.job.source, sigle: e.job.sigle });
       }
@@ -567,6 +655,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
       console.warn('Sources for the print dialog could not be read', e);
     }
     this.splitOptions = splitFields(this.settings);
+    this.ruleRows = (this.settings?.volumeRules ?? []).map((r) => ({ name: r.name, field: r.field, op: r.op, valuesText: (r.values ?? []).join(', '), each: !!r.each, hint: '' }));
     this.refreshCatalog();
     this.recomputeGroups();
     this.previewSoon();
@@ -593,6 +682,9 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
 
   // ── volumes ──
   splitChanged(): void {
+    if (!this.splitBy || this.splitBy === RULES_SPLIT) this.splitThen = '';
+    if (this.splitThen === this.splitBy) this.splitThen = '';
+    if (this.splitBy === RULES_SPLIT && !this.ruleRows.length) this.ruleRows = [{ name: '', field: 'genre', op: 'in', valuesText: '', each: false, hint: '' }];
     this.groups = [];
     this.recomputeGroups();
     this.previewSoon();
@@ -601,11 +693,80 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   /** The groups of the documents now in the list; groups that were switched off stay off. */
   private recomputeGroups(): void {
     if (!this.splitBy) { this.groups = []; return; }
+    if (this.splitBy === RULES_SPLIT) this.refreshRuleHints();
     const was = new Map(this.groups.map((g) => [g.key, g.on]));
-    this.groups = groupItems(this.entries.filter((e) => e.doc), (e) => splitKey(this.fieldJob(e), this.splitBy))
+    this.groups = this.groupsOf(this.entries.filter((e) => e.doc))
       .map((g) => ({ key: g.key, label: g.label || '(not set)', count: g.items.length, on: was.get(g.key) ?? true }));
   }
-  private splitLabel(): string { return this.splitOptions.find((f) => f.key === this.splitBy)?.label || ''; }
+  /** The fields of the split as one: "genre+herkunftsregion" when a second field is chosen. */
+  private get splitSpec(): string { return splitSpec(this.splitBy, this.splitThen); }
+  private splitLabel(): string { return !this.splitBy ? '' : this.splitBy === RULES_SPLIT ? 'Volume rules' : splitSpecLabel(this.splitSpec, this.splitOptions); }
+  /** The value of each field for a volume made of `entries`, for the cover's `$gruppe1$`, `$gruppe2$`; with rules the volume's name stands for both. */
+  private partsOf(entries: Entry[]): string[] { return entries.length && this.splitBy !== RULES_SPLIT ? splitKey(this.fieldJob(entries[0]), this.splitSpec).parts : []; }
+  /** The volumes of `entries`: by the rules, or by the value of the chosen field. */
+  private groupsOf(entries: Entry[]) {
+    return this.splitBy === RULES_SPLIT
+      ? groupByRules(entries, (e) => this.fieldJob(e), this.currentRules())
+      : groupItems(entries, (e) => splitKey(this.fieldJob(e), this.splitSpec));
+  }
+
+  // ── volume rules ──
+  private currentRules(): VolumeRule[] {
+    return usableRules(this.ruleRows.map((r) => ({ name: r.name, field: r.field, op: r.op, values: parseRuleValues(r.valuesText), each: r.each })));
+  }
+  addRule(): void {
+    const last = this.ruleRows[this.ruleRows.length - 1];
+    this.ruleRows = [...this.ruleRows, { name: '', field: last?.field || 'genre', op: 'in', valuesText: '', each: false, hint: '' }];
+    this.rulesChanged();
+  }
+  removeRule(i: number): void { this.ruleRows = this.ruleRows.filter((_, k) => k !== i); this.rulesChanged(); }
+  moveRule(i: number, d: number): void {
+    const j = i + d;
+    if (j < 0 || j >= this.ruleRows.length) return;
+    const copy = [...this.ruleRows];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+    this.ruleRows = copy;
+    this.rulesChanged();
+  }
+  rulesChanged(): void { this.rulesDirty = true; this.rulesError = ''; this.recomputeGroups(); this.previewSoon(); }
+  /** The values the documents of the list have in the field of a rule, with how many: what to type into "is one of". */
+  private refreshRuleHints(): void {
+    const docs = this.entries.filter((e) => e.doc);
+    const cache = new Map<string, string>();
+    for (const r of this.ruleRows) {
+      if (r.op !== 'in') { r.hint = ''; continue; }
+      if (!cache.has(r.field)) {
+        const counts = new Map<string, number>();
+        for (const e of docs) {
+          const j = this.fieldJob(e);
+          const vals = r.field === 'genre' ? [fieldValue(j, 'gattung1'), fieldValue(j, 'gattung2')] : [fieldValue(j, r.field === 'quelle-id' ? 'quellensigle' : r.field)];
+          for (const v of vals) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+        }
+        const all = [...counts].sort((a, b) => compareNatural(a[0], b[0])).map(([v, n]) => `${v} (${n})`);
+        cache.set(r.field, all.length > 14 ? all.slice(0, 14).join(', ') + ', …' : all.join(', '));
+      }
+      r.hint = cache.get(r.field)!;
+    }
+  }
+  async saveRules(): Promise<void> {
+    if (this.rulesSaving) return;
+    this.rulesSaving = true;
+    this.rulesError = '';
+    try {
+      const token = (await firstValueFrom(this.users.user))?.token || '';
+      const res: any = await firstValueFrom(this.api.getSettings(token));
+      if (res.kind !== 'SettingsRetrieved') throw new Error('The settings could not be read.');
+      const volumeRules = this.currentRules();
+      await firstValueFrom(this.api.updateSettings(token, { ...res.settings, volumeRules }));
+      this.settings = { ...res.settings, volumeRules };
+      this.rulesDirty = false;
+    } catch (e: any) {
+      console.error('Saving the volume rules failed', e);
+      this.rulesError = 'Not saved: ' + (e?.message || e);
+    } finally {
+      this.rulesSaving = false;
+    }
+  }
 
   // ── cover template ──
   openCover(): void {
@@ -703,8 +864,10 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     const all = this.entries.filter((e) => e.doc);
     if (!this.splitBy) return all.map((e) => this.fieldJob(e));
     const on = new Set(this.groups.filter((g) => g.on).map((g) => g.key));
-    const first = groupItems(all, (e) => splitKey(this.fieldJob(e), this.splitBy)).find((g) => on.has(g.key)) ?? groupItems(all, (e) => splitKey(this.fieldJob(e), this.splitBy))[0];
+    const volumes = this.groupsOf(all);
+    const first = volumes.find((g) => on.has(g.key)) ?? volumes[0];
     this.previewLabel = first ? `Volume: ${first.label || '(not set)'}` : '';
+    this.previewParts = this.partsOf(first?.items ?? []);
     return (first?.items ?? []).map((e) => this.fieldJob(e));
   }
   private previewGroup(): string {
@@ -731,7 +894,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
         settings: this.settings,
         pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
         title: this.title.trim(),
-        cover: { template: this.cleanTemplate(), group: this.previewGroup(), groupField: this.splitLabel() },
+        cover: { template: this.cleanTemplate(), group: this.previewGroup(), groupField: this.splitLabel(), groupParts: this.splitBy ? this.previewParts : undefined },
       });
       if (seq !== this.previewSeq) return;                 // a newer preview is on its way
       this.dropPreview();
@@ -751,8 +914,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
+      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
     const stored = safeStorage.getJson<Partial<DialogOptions> | null>(OPTIONS_KEY(multi), null);
     if (stored && typeof stored === 'object') this.o = { ...this.o, ...stored };
     if (this.o.boxLabel !== 'none') this.o.boxLabel = 'number';   // older versions stored other labels
@@ -778,7 +941,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
       let plan: { label: string; entries: Entry[] }[] = [{ label: '', entries: live }];
       if (this.splitBy) {
         const on = new Set(this.groups.filter((g) => g.on).map((g) => g.key));
-        plan = groupItems(live, (e) => splitKey(this.fieldJob(e), this.splitBy)).filter((g) => on.has(g.key)).map((g) => ({ label: g.label, entries: g.items }));
+        plan = this.groupsOf(live).filter((g) => on.has(g.key)).map((g) => ({ label: g.label, entries: g.items }));
         if (!plan.length) throw new Error('No volume is selected.');
       }
       const todo = plan.flatMap((p) => p.entries);
@@ -819,11 +982,12 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           notationDocumentation: this.o.notationDocumentation,
           neumeTree: this.o.neumeTree,
           newPagePerDocument: this.o.newPage,
+          arrangeRelated: this.o.arrangeRelated,
           boxLabel: this.o.boxLabel,
           pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
           title: this.title.trim(),
           countFrontPages: this.o.countFront,
-          cover: template ? { template, group: p.label, groupField: this.splitBy ? this.splitLabel() : '' } : undefined,
+          cover: template ? { template, group: p.label, groupField: this.splitLabel(), groupParts: this.splitBy ? this.partsOf(p.entries) : undefined } : undefined,
           output: this.splitBy ? 'blob' : 'save',
           fileName: base + '.pdf',
           onProgress: (msg, done, total) => {

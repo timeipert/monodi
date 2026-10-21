@@ -1,4 +1,4 @@
-import { FieldJob, distinctValues, fieldValue, joinValues, makeLookup, sourceLine, splitFields, splitKey } from './fields';
+import { FieldJob, distinctValues, fieldValue, joinValues, makeLookup, sourceLine, splitFields, splitKey, splitLabel, splitSpec } from './fields';
 
 function job(o: { id?: string; sigle?: string; ort?: string; bib?: string; sig?: string; region?: string; g1?: string; g2?: string; custom?: any; srcCustom?: any }): FieldJob {
   return {
@@ -30,9 +30,9 @@ describe('print fields', () => {
   });
 
   it('splits by manuscript with the sigle as the label, by other fields with their value', () => {
-    expect(splitKey(aachen, 'quelle-id')).toEqual({ key: 'a', label: 'Aa 13' });
-    expect(splitKey(utrecht, 'herkunftsregion')).toEqual({ key: 'Niederlande', label: 'Niederlande' });
-    expect(splitKey(job({}), 'herkunftsregion')).toEqual({ key: '', label: '' });
+    expect(splitKey(aachen, 'quelle-id')).toEqual({ key: 'a', label: 'Aa 13', parts: ['Aa 13'] });
+    expect(splitKey(utrecht, 'herkunftsregion')).toEqual({ key: 'Niederlande', label: 'Niederlande', parts: ['Niederlande'] });
+    expect(splitKey(job({}), 'herkunftsregion')).toEqual({ key: '', label: '', parts: [''] });
   });
 
   it('offers the custom fields of the project for splitting', () => {
@@ -40,6 +40,39 @@ describe('print fields', () => {
     expect(f.map((x) => x.key)).toContain('band');
     expect(f.map((x) => x.key)).toContain('bearbeiter');
     expect(f[0].key).toBe('quelle-id');
+  });
+
+  it('offers only fields that give a volume context, not folio, line, shelfmark or reference', () => {
+    const keys = splitFields({} as any).map((x) => x.key);
+    for (const k of ['foliostart', 'zeilenstart', 'bibliothekssignatur', 'quellensigle', 'bibliographischerverweis', 'dokumenten_id', 'textinitium', 'kommentar']) expect(keys).not.toContain(k);
+    for (const k of ['quelle-id', 'genre', 'gattung1', 'herkunftsregion', 'herkunftsort', 'bibliotheksort', 'ordenstradition', 'quellentyp', 'feier', 'druckausgabe']) expect(keys).toContain(k);
+  });
+
+  it('splits by two fields: one volume per combination, e.g. genre and region of origin', () => {
+    const spec = splitSpec('gattung1', 'herkunftsregion');
+    expect(spec).toBe('gattung1+herkunftsregion');
+    const a = splitKey(aachen, spec);
+    expect(a.label).toBe('Antiphon · Rheinland');
+    expect(a.parts).toEqual(['Antiphon', 'Rheinland']);
+    // same genre, other region: another volume
+    expect(splitKey(job({ g1: 'Antiphon', region: 'Niederlande' }), spec).key).not.toBe(a.key);
+    // same combination: the same volume
+    expect(splitKey(aachen2, spec).key).toBe(a.key);
+    // one field missing is marked, both missing is the group without a value
+    expect(splitKey(job({ g1: 'Antiphon' }), spec).label).toBe('Antiphon · (not set)');
+    expect(splitKey(job({}), spec).key).toBe('');
+  });
+
+  it('a second field equal to the first, or none, is a split by one field', () => {
+    expect(splitSpec('genre', '')).toBe('genre');
+    expect(splitSpec('genre', 'genre')).toBe('genre');
+    expect(splitSpec('', 'genre')).toBe('');
+  });
+
+  it('names a split after its fields', () => {
+    const defs = splitFields({} as any);
+    expect(splitLabel('genre+herkunftsregion', defs)).toBe('Genre & Region of origin');
+    expect(splitLabel('herkunftsregion', defs)).toBe('Region of origin');
   });
 
   it('lists different values once, in order, and cuts long lists', () => {
@@ -78,6 +111,16 @@ describe('print placeholder lookup', () => {
     expect(l('count')).toBe('1');
     expect(l('bearbeiter')).toBe('N. N.');
     expect(l('region')).toBe('Niederlande');
+  });
+
+  it('gives the values of a combined split apart as gruppe1 and gruppe2', () => {
+    const l = makeLookup([aachen], settings, [], { now, gruppe: 'Antiphon · Rheinland', gruppenteile: ['Antiphon', 'Rheinland'] });
+    expect(l('gruppe1')).toBe('Antiphon');
+    expect(l('gruppe2')).toBe('Rheinland');
+    // a split by one field: gruppe1 is the value, gruppe2 is empty
+    const one = makeLookup([aachen], settings, [], { now, gruppe: 'Rheinland' });
+    expect(one('gruppe1')).toBe('Rheinland');
+    expect(one('gruppe2')).toBe('');
   });
 
   it('own variables fill in, but a field of the data wins', () => {
