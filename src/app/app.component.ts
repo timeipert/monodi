@@ -12,6 +12,7 @@ import * as _ from 'lodash';
 import { NotesStore } from './notes-store';
 import { LocalWorkspaceSource } from './workspace-source';
 import { PushCache } from './push-cache';
+import { inSyncManuscripts } from './sync-guards';
 
 /** One manuscript's worth of merge conflicts, grouped for the merge dialog. */
 interface ConflictGroup {
@@ -470,8 +471,14 @@ export class AppComponent {
     };
 
     const visitedIds = new Set<string>();
+    const remoteDocumentIds = new Map<string, Set<string>>();
+    // Manuscripts deleted locally (or merged into another one) and not pushed yet: the remote still has them, but
+    // they must not come back, and what is on the remote for them says nothing about the local state.
+    const pendingDeletions = await PushCache.getPendingDeletions();
     const onBundle = async (id: string, bundle: any) => {
+      if (pendingDeletions.has(id)) return;
       visitedIds.add(id);
+      remoteDocumentIds.set(id, new Set((bundle.documents || []).map((d: any) => d?.id).filter(Boolean)));
       if (bundle.source?.id) sourceMetaById.set(id, describeSource(bundle.source));
       let manuscriptHasConflict = false;
 
@@ -548,7 +555,8 @@ export class AppComponent {
     // Manuscripts the walk confirmed match the remote (no conflict) need no
     // push to reflect that — mark them clean so the next push skips them
     // instead of re-reading and re-hashing all their notes for nothing.
-    const confirmedClean = Array.from(visitedIds).filter(id => !this.conflictedManuscriptIds.has(id));
+    // A manuscript with documents the remote lacks is not in sync, however alike the rest is.
+    const confirmedClean = inSyncManuscripts(visitedIds, this.conflictedManuscriptIds, localDocs, remoteDocumentIds);
     await PushCache.markClean(confirmedClean);
 
     // --- global settings (small, compared inline) ---

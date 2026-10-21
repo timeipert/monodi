@@ -14,6 +14,7 @@ describe('PushCache', () => {
     // Reset the in-memory caches so tests don't leak into each other.
     (PushCache as any).cleanIds = null;
     (PushCache as any).deletedIds = null;
+    (PushCache as any).deletedAfter = null;
   });
 
   it('starts with nothing clean', async () => {
@@ -65,12 +66,25 @@ describe('PushCache', () => {
     expect(await PushCache.getPendingDeletions()).toEqual(new Set(['a', 'c']));
   });
 
+  it('remembers which manuscript a deletion waits for, and forgets it with the deletion', async () => {
+    await PushCache.markDeleted(['b'], 'a');
+    await PushCache.markDeleted(['c']);
+    expect(await PushCache.getPendingDeletions()).toEqual(new Set(['b', 'c']));
+    expect(await PushCache.getDeletionOrder()).toEqual(new Map([['b', 'a']]));
+    (PushCache as any).deletedAfter = null;     // "reload"
+    expect(await PushCache.getDeletionOrder()).toEqual(new Map([['b', 'a']]));
+    await PushCache.clearDeleted(['b']);
+    expect(await PushCache.getDeletionOrder()).toEqual(new Map());
+  });
+
   it('invalidateAll clears both clean and pending-deletion state', async () => {
     await PushCache.markClean(['a', 'b']);
     await PushCache.markDeleted(['c']);
+    await PushCache.markDeleted(['d'], 'a');
     await PushCache.invalidateAll();
     expect(await PushCache.getCleanIds()).toEqual(new Set());
     expect(await PushCache.getPendingDeletions()).toEqual(new Set());
+    expect(await PushCache.getDeletionOrder()).toEqual(new Map());
   });
 
   it('getCleanIds returns a copy, not the live set', async () => {
