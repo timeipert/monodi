@@ -47,6 +47,10 @@
     </div>
   }
 
+  @if (showSigleDialog && source?.id) {
+    <app-sigle-dialog [sourceId]="source!.id!" [sigle]="source!.quellensigle" (closed)="showSigleDialog = false" (changed)="sigleChanged($event)"></app-sigle-dialog>
+  }
+
   @if (source) {
     <div class="source-layout">
       <!-- ── Sticky header bar ──────────────────────────────────────────────── -->
@@ -96,8 +100,12 @@
               <div class="input-group input-group-sm">
                 <input id="quellensigle-input" class="form-control form-control-sm"
                   [ngStyle]="!source.id ? {'border': '2px solid #0d6efd', 'box-shadow': '0 0 0 0.25rem rgba(13, 110, 253, 0.25)'} : {}"
-                  list="list-quellensigle" [(ngModel)]="source.quellensigle" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
-                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellensigle', source.quellensigle)" title="Add to list"><i class="bi bi-plus"></i></button>
+                  list="list-quellensigle" [(ngModel)]="source.quellensigle" [readonly]="!!source.id" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
+                @if (source.id) {
+                  <button class="btn btn-outline-secondary btn-sm" type="button" (click)="showSigleDialog = true" title="Rename, or merge into the source that has that siglum" data-testid="sigle-open"><i class="bi bi-pencil"></i></button>
+                } @else {
+                  <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellensigle', source.quellensigle)" title="Add to list"><i class="bi bi-plus"></i></button>
+                }
               </div>
               @if (!source.id) {
                 <div class="form-text">How the manuscript is cited, in search results and in print.</div>

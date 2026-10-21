@@ -19,6 +19,7 @@ import { BackupReminderService } from './backup-reminder.service';
 import { PushCache } from './push-cache';
 import { ORPHAN_BUNDLE_ID } from './workspace-source';
 import { repairStoredSources } from './source-repair';
+import { SigleData, SiglePlan, SigleRequest, planSigleChange, relabelSigle, siglumRenames } from './source-sigle';
 
 @Injectable({
   providedIn: 'root'
@@ -197,8 +198,64 @@ export class APIService {
       if (res.changedIds.length > 0) {
         await this.saveSources(res.items);
         await PushCache.markDirty(res.changedIds);
+        await this.followSigleRenames(siglumRenames(sources, res.items));
       }
       return { kind: "MetadataUpdated" as const, updated: res.changedIds.length, missing: res.missingIds.length, rejectedFields: res.rejectedFields };
+    }));
+  }
+
+  /**
+   * A siglum edited in place (the metadata grid) must be followed by the places in the settings that repeat it, like a
+   * rename through `changeSigle`. Several renames at once that swap or chain sigla cannot be followed one after the other
+   * without turning one into the other: those are left alone.
+   */
+  private async followSigleRenames(renames: { from: string; to: string }[]): Promise<void> {
+    if (renames.length === 0) return;
+    const key = (t: string) => t.trim().toLowerCase();
+    if (renames.some((r) => renames.some((q) => q !== r && key(q.from) === key(r.to)))) return;
+    let settings = await localforage.getItem<Partial<ProjectSettings>>('monodi_settings');
+    let changed = false;
+    for (const r of renames) {
+      const res = relabelSigle(settings, r.from, r.to, 'from');
+      if (res.settings !== settings) { settings = res.settings; changed = true; }
+    }
+    if (changed) await localforage.setItem('monodi_settings', settings);
+  }
+
+  private async sigleData(): Promise<SigleData> {
+    return {
+      sources: await this.getSources(),
+      documents: await this.getDocuments(),
+      settings: await localforage.getItem<Partial<ProjectSettings>>('monodi_settings'),
+    };
+  }
+
+  /** What `changeSigle` would do, without doing it: the numbers and conflicts the person confirms. */
+  public previewSigleChange(token: string, request: SigleRequest): Observable<LoginRequired | SigleChangePlanned> {
+    return from((async () => {
+      const { plan } = planSigleChange(await this.sigleData(), request);
+      return { kind: "SigleChangePlanned" as const, plan };
+    })());
+  }
+
+  /**
+   * Renames the siglum of a source, or merges it into the source that already has that siglum (see source-sigle.ts).
+   * Plans again on the data as it is now, so what is written is what the plan says, not what the page once showed.
+   *
+   * The order of the writes leaves a consistent state whenever it is cut off: the push cache first (an extra upload is
+   * harmless, a missing one is not), then the documents, the sources, the settings. The files of an absorbed source
+   * are marked for deletion *after* the one that took over (`PushCache.markDeleted`): the push uploads that one first.
+   */
+  public changeSigle(token: string, request: SigleRequest): Observable<LoginRequired | SigleChanged | SigleChangeRefused> {
+    return from(this.serialized(async () => {
+      const { plan, outcome } = planSigleChange(await this.sigleData(), request);
+      if (!outcome) return { kind: "SigleChangeRefused" as const, plan };
+      await PushCache.markDirty(outcome.dirtyIds);
+      if (outcome.deletedId) await PushCache.markDeleted(outcome.deletedId, outcome.dirtyIds[0]);
+      if (outcome.documents) await this.saveDocuments(outcome.documents);
+      await this.saveSources(outcome.sources);
+      if (outcome.settings) await localforage.setItem('monodi_settings', outcome.settings);
+      return { kind: "SigleChanged" as const, plan };
     }));
   }
 
@@ -822,6 +879,22 @@ export interface SourceNotFound {
 export interface SourceRetrieved {
   "kind": "SourceRetrieved";
   "source": Source;
+}
+
+export interface SigleChangePlanned {
+  "kind": "SigleChangePlanned";
+  "plan": SiglePlan;
+}
+
+export interface SigleChanged {
+  "kind": "SigleChanged";
+  "plan": SiglePlan;
+}
+
+/** The change cannot be made; `plan.problems` says why (or, with none, there was nothing to change). */
+export interface SigleChangeRefused {
+  "kind": "SigleChangeRefused";
+  "plan": SiglePlan;
 }
 
 export interface SigleRetrieved {

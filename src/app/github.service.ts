@@ -829,7 +829,12 @@ export class GithubService {
         // files from the remote too. Independent of `only` — a deletion is
         // an explicit action that should eventually reach GitHub regardless
         // of what else is currently selected for push.
-        const pendingDeletedIds = await PushCache.getPendingDeletions();
+        const allPendingDeletedIds = await PushCache.getPendingDeletions();
+        // Some deletions have to wait: the files of a source that was merged into another one go only once the other one
+        // has its documents on GitHub (this push uploads it, or it is up to date already). A push of a selection that
+        // leaves it out must not delete them yet, or the documents would be nowhere on GitHub for the time being.
+        const heldBackDeletions = await this.deletionsToWaitFor(allPendingDeletedIds, source, scannedIds);
+        const pendingDeletedIds = new Set([...allPendingDeletedIds].filter((id) => !heldBackDeletions.has(id)));
         for (const delId of pendingDeletedIds) {
           for (const path of remoteShaByPath.keys()) {
             if (path === `manuscripts/${delId}.json` || path.startsWith(`manuscripts/${delId}/`)) {
@@ -1017,6 +1022,30 @@ export class GithubService {
           phase: 'Done', current: pending.length, total: pending.length,
           bytesDone, bytesTotal, skipped
         });
+  }
+
+  /**
+   * The pending deletions that this push must leave for a later one (see `PushCache.markDeleted`): the manuscript still
+   * exists locally, or the manuscript it was merged into is neither part of this push nor up to date on GitHub.
+   * `scannedIds` are the manuscripts this push has uploaded by the time deletions go out.
+   */
+  private async deletionsToWaitFor(pending: Set<string>, source: ManuscriptSource, scannedIds: Set<string>): Promise<Set<string>> {
+    const held = new Set<string>();
+    if (pending.size === 0) return held;
+    const after = await PushCache.getDeletionOrder();
+    if (after.size === 0) return held;
+    const clean = await PushCache.getCleanIds();
+    const existsLocally = async (id: string) => {
+      const meta = await source.loadMeta(id);
+      return !!meta.source || meta.documents.length > 0;
+    };
+    for (const id of pending) {
+      const target = after.get(id);
+      if (!target) continue;
+      if (await existsLocally(id)) { held.add(id); continue; }
+      if (!scannedIds.has(target) && !clean.has(target) && await existsLocally(target)) held.add(id);
+    }
+    return held;
   }
 
   /**
