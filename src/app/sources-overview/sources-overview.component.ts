@@ -30,6 +30,7 @@ import {
 import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
 import { FileSystemService } from '../file-system.service';
+import { nestedZipPath } from './nested-zip';
 import { SOURCE_DESCRIPTION_KEY, sourceDescription } from '../source-description';
 import { applyPlan, describePlan, ImportPreview, planChangesAnything, planImport } from '../annotation-exchange';
 import { parseAnnotationFile } from '../cm-transkriptionseq-import';
@@ -758,8 +759,15 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       if (this.importProgress.cancelled) return;
 
       this.updateProgress({ message: 'Opening ZIP archive…' });
-      const zip = await JSZip.loadAsync(arrayBuffer);
+      let zip = await JSZip.loadAsync(arrayBuffer);
       if (this.importProgress.cancelled) return;
+      // an export that was zipped once more holds only the real archive: open that one
+      const inner = nestedZipPath(Object.keys(zip.files));
+      if (inner) {
+        this.updateProgress({ message: 'The file holds another ZIP — opening that one…' });
+        zip = await JSZip.loadAsync(await zip.files[inner].async('arraybuffer'));
+        if (this.importProgress.cancelled) return;
+      }
 
       // -----------------------------------------------------------------
       // 2. Collect every meta.json in the archive (ignoring macOS noise).
