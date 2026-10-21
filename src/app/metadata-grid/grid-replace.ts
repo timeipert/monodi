@@ -2,11 +2,12 @@ import { CellChange, GridView } from './grid-view';
 
 /**
  * Finds text inside cells and replaces it, in place (the rest of a cell's text stays): plain text or a pattern, case
- * sensitive or not, whole words only. The area is either the cells currently selected in the grid, or one or more
- * columns over the rows shown now or all of them. Nothing is written here: the plan says what would change, and the
- * caller puts it into the grid as edits (one undo step, saved like any other edit).
+ * sensitive or not, whole words only. Several rules can run in one go, each on the result of the one before it (find
+ * "Ton", replace "Note"; find "alt", replace "neu" — both in the same pass, one undo step). The area is either the
+ * cells currently selected in the grid, or one or more columns over the rows shown now or all of them. Nothing is
+ * written here: the plan says what would change, and the caller puts it into the grid as edits.
  */
-export interface ReplaceSpec {
+export interface ReplaceRule {
   find: string;
   replaceWith: string;
   /** `find` is a regular expression (groups can be used in `replaceWith` as $1, $2 …); otherwise plain text. */
@@ -14,6 +15,13 @@ export interface ReplaceSpec {
   caseSensitive: boolean;
   /** `find` must stand on its own, not as part of a longer word ("Ton" does not match inside "Tonart"). */
   wholeWord: boolean;
+}
+
+export const EMPTY_RULE: ReplaceRule = { find: '', replaceWith: '', regex: false, caseSensitive: false, wholeWord: false };
+
+export interface ReplaceSpec {
+  /** Run in order, each on the result of the one before. A row with nothing to find is ignored (room to type one more). */
+  rules: ReplaceRule[];
   /** Column keys to search, when `selectionOnly` is false. */
   columns: string[];
   /** The rows that pass the filters now, or every row; ignored when `selectionOnly` is true. */
@@ -22,21 +30,19 @@ export interface ReplaceSpec {
   selectionOnly: boolean;
 }
 
-export const EMPTY_REPLACE: ReplaceSpec = {
-  find: '', replaceWith: '', regex: false, caseSensitive: false, wholeWord: false, columns: [], rows: 'shown', selectionOnly: false,
-};
+export const EMPTY_REPLACE: ReplaceSpec = { rules: [{ ...EMPTY_RULE }], columns: [], rows: 'shown', selectionOnly: false };
 
 export interface ReplacePlan {
   changes: CellChange[];
   /** Cells looked at. */
   cells: number;
-  /** Cells that contain the text and get a new value (= changes.length). */
+  /** Cells that match at least one rule and get a new value (= changes.length). */
   changed: number;
-  /** Cells that contain the text, but the result is the same text (replacing "a" with "a"). */
+  /** Cells that match a rule, but the result (after every rule ran) is the same text. */
   same: number;
-  /** How many times the text was found, across every cell. */
+  /** How many times any rule's text was found, across every cell and every rule. */
   occurrences: number;
-  /** Why there is no plan: nothing to find, no column or cell chosen, a pattern that does not compile. */
+  /** Why there is no plan: nothing to find anywhere, no column or cell chosen, a row's pattern that does not compile. */
   problem: string;
   samples: { column: string; before: string; after: string }[];
 }
@@ -48,15 +54,15 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * The pattern that looks for `spec.find`, or the problem when it does not compile. Exported for its own tests; most
+ * The pattern that looks for `rule.find`, or the problem when it does not compile. Exported for its own tests; most
  * callers go through `planReplace`.
  */
-export function buildFindRegExp(spec: Pick<ReplaceSpec, 'find' | 'regex' | 'caseSensitive' | 'wholeWord'>): RegExp | Error {
-  if (!spec.find) return new Error('Enter the text to find.');
-  let core = spec.regex ? spec.find : escapeRegExp(spec.find);
-  let flags = 'g' + (spec.caseSensitive ? '' : 'i');
+export function buildFindRegExp(rule: Pick<ReplaceRule, 'find' | 'regex' | 'caseSensitive' | 'wholeWord'>): RegExp | Error {
+  if (!rule.find) return new Error('Enter the text to find.');
+  let core = rule.regex ? rule.find : escapeRegExp(rule.find);
+  let flags = 'g' + (rule.caseSensitive ? '' : 'i');
   // a word boundary that also works for letters outside a-z (ä, é …), unlike \b
-  if (spec.wholeWord) { core = `(?<![\\p{L}\\p{N}_])(?:${core})(?![\\p{L}\\p{N}_])`; flags += 'u'; }
+  if (rule.wholeWord) { core = `(?<![\\p{L}\\p{N}_])(?:${core})(?![\\p{L}\\p{N}_])`; flags += 'u'; }
   try {
     return new RegExp(core, flags);
   } catch (e: any) {
@@ -64,10 +70,24 @@ export function buildFindRegExp(spec: Pick<ReplaceSpec, 'find' | 'regex' | 'case
   }
 }
 
+/** The rows that have something to find, each compiled in order; the row number (1-based) names which one failed. */
+function activeRules(rules: readonly ReplaceRule[]): { rules: { re: RegExp; replaceWith: string }[] } | { problem: string } {
+  const used = rules.map((r, i) => ({ r, i })).filter(({ r }) => r.find.trim() !== '');
+  if (!used.length) return { problem: 'Enter the text to find, in at least one row.' };
+  const out: { re: RegExp; replaceWith: string }[] = [];
+  for (const { r, i } of used) {
+    const re = buildFindRegExp(r);
+    if (re instanceof Error) return { problem: `Row ${i + 1}: ${re.message}` };
+    out.push({ re, replaceWith: r.replaceWith });
+  }
+  return { rules: out };
+}
+
 export function planReplace(view: GridView, spec: ReplaceSpec): ReplacePlan {
   const plan: ReplacePlan = { changes: [], cells: 0, changed: 0, same: 0, occurrences: 0, problem: '', samples: [] };
-  const re = buildFindRegExp(spec);
-  if (re instanceof Error) { plan.problem = re.message; return plan; }
+  const ar = activeRules(spec.rules);
+  if ('problem' in ar) { plan.problem = ar.problem; return plan; }
+  const rules = ar.rules;
 
   const cells: { row: number; ci: number }[] = [];
   if (spec.selectionOnly) {
@@ -91,10 +111,16 @@ export function planReplace(view: GridView, spec: ReplaceSpec): ReplacePlan {
   for (const { row, ci } of cells) {
     const text = view.values[ci][row];
     if (!text) continue;
-    const found = text.match(re);
-    if (!found) continue;
-    plan.occurrences += found.length;
-    const next = text.replace(re, spec.replaceWith);
+    let next = text;
+    let matchedAny = false;
+    for (const rule of rules) {
+      const found = next.match(rule.re);
+      if (!found) continue;
+      matchedAny = true;
+      plan.occurrences += found.length;
+      next = next.replace(rule.re, rule.replaceWith);
+    }
+    if (!matchedAny) continue;
     if (next === text) { plan.same++; continue; }
     plan.changes.push({ row, ci, value: next });
     if (plan.samples.length < SAMPLES) plan.samples.push({ column: view.columns[ci].label, before: text, after: next });
