@@ -102,7 +102,7 @@ try {
   await page.waitForFunction(() => !document.querySelector('[data-testid=relations-group-type-unknown]'), { timeout: 10000 })
     .catch(() => problems.push('after saving the type "Verse" V1 must no longer be reported'));
   const types = (await idb('monodi_settings')).relationTypes;
-  expect(JSON.stringify(types) === JSON.stringify([{ name: 'Primary chant', suffix: 'P' }, { name: 'Verse', suffix: 'V' }]), 'the types are stored: ' + JSON.stringify(types));
+  expect(JSON.stringify(types) === JSON.stringify([{ name: 'Primary chant', suffix: 'P', heading: 'Primary chants' }, { name: 'Verse', suffix: 'V' }]), 'the types are stored: ' + JSON.stringify(types));
 
   // ── a click finds the document in the table ──
   await page.click('[data-testid=relations-group-target-missing] li a');

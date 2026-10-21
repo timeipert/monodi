@@ -14,12 +14,18 @@ export interface Chapters<T> {
   runningNo: number[];
   /** What the frame and the contents show for each item: its running number, or what `arrange` says ("3P"). */
   labels: string[];
+  /** The heading of a section that begins at an item, else null (only `arrange` makes sections). */
+  sections: (string | null)[];
+  /** Lines "2P siehe 1P" after an item (only `arrange` makes them). */
+  see: { label: string; to: string }[][];
+  /** The key of the chapter of each item. */
+  keys: string[];
   /** Number of chapters. */
   count: number;
 }
 
 /** Puts the items of one chapter in their final order and says what each is numbered. */
-export type ArrangeChapter<T> = (items: T[]) => { items: T[]; labels: string[] };
+export type ArrangeChapter<T> = (items: T[]) => { items: T[]; labels: string[]; sections?: (string | null)[]; see?: { label: string; to: string }[][] };
 
 export function chapterize<T>(input: readonly T[], keyOf: (item: T) => string, arrange?: ArrangeChapter<T>): Chapters<T> {
   const order: string[] = [];
@@ -32,6 +38,8 @@ export function chapterize<T>(input: readonly T[], keyOf: (item: T) => string, a
   const sorted = [...input].sort((a, b) => order.indexOf(keys.get(a)!) - order.indexOf(keys.get(b)!));
   let items = sorted;
   let arrangedLabels: string[] | null = null;
+  const arrangedSections: (string | null)[] = [];
+  const arrangedSee: { label: string; to: string }[][] = [];
   if (arrange) {
     items = [];
     arrangedLabels = [];
@@ -41,6 +49,8 @@ export function chapterize<T>(input: readonly T[], keyOf: (item: T) => string, a
       const part = arrange(sorted.slice(from, to));
       items.push(...part.items);
       arrangedLabels.push(...part.labels);
+      arrangedSections.push(...(part.sections ?? part.items.map(() => null)));
+      arrangedSee.push(...(part.see ?? part.items.map(() => [])));
       from = to;
     }
   }
@@ -55,5 +65,10 @@ export function chapterize<T>(input: readonly T[], keyOf: (item: T) => string, a
     chapterNo.push(count);
     runningNo.push(first ? 1 : runningNo[i - 1] + 1);
   });
-  return { items, chapterNo, chapterFirst, runningNo, labels: arrangedLabels ?? runningNo.map(String), count };
+  return {
+    items, chapterNo, chapterFirst, runningNo, labels: arrangedLabels ?? runningNo.map(String), count,
+    sections: arrangedLabels ? arrangedSections : items.map(() => null),
+    see: arrangedLabels ? arrangedSee : items.map(() => []),
+    keys: items.map((it) => keys.get(it)!),
+  };
 }

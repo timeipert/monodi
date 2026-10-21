@@ -33,6 +33,8 @@ interface DialogOptions {
   newPage: boolean;
   /** Units stand together, a related document behind its trope. */
   arrangeRelated: boolean;
+  /** Related documents directly behind their trope instead of in a section behind the others. */
+  relatedBehind: boolean;
   pageFormat: 'settings' | 'cm' | 'a4';
   boxLabel: PdfBoxLabel;
   /** A cover page from the cover template. */
@@ -222,8 +224,14 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                 <div class="form-check form-switch mb-1 mt-2">
                   <input class="form-check-input" type="checkbox" id="oArrange" [(ngModel)]="o.arrangeRelated" [disabled]="busy" (ngModelChange)="save()" data-testid="pdf-arrange">
                   <label class="form-check-label fw-medium" for="oArrange">Keep units and related documents together</label>
-                  <div class="form-text mt-0">A unit (a play) stands as one block in the order of its positions. A document that a trope names as its related document (its primary chant) stands directly behind it and is numbered like it: 1, 1P.</div>
+                  <div class="form-text mt-0">A unit (a play) is a chapter of its own, in the order of its positions. What a trope names as its related document (its primary chant) is numbered like it: 1, 1P, and stands in a section behind the others, as in the printed volume.</div>
                 </div>
+                @if (o.arrangeRelated) {
+                  <div class="form-check form-switch mb-1 mt-2 ms-4">
+                    <input class="form-check-input" type="checkbox" id="oBehind" [(ngModel)]="o.relatedBehind" [disabled]="busy" (ngModelChange)="save()" data-testid="pdf-behind">
+                    <label class="form-check-label fw-medium" for="oBehind">Directly behind their trope</label>
+                  </div>
+                }
               }
               <label class="form-label small text-muted mb-1 mt-3" for="pdfFile">File name</label>
               <div class="input-group input-group-sm">
@@ -518,7 +526,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   heldTotal = 0;
   /** In the print list although marked "don't publish" (only possible with the switch off). */
   flaggedIn = 0;
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
   fileBase = '';
   busy = false;
   loadingMeta = false;
@@ -914,8 +922,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
+      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
     const stored = safeStorage.getJson<Partial<DialogOptions> | null>(OPTIONS_KEY(multi), null);
     if (stored && typeof stored === 'object') this.o = { ...this.o, ...stored };
     if (this.o.boxLabel !== 'none') this.o.boxLabel = 'number';   // older versions stored other labels
@@ -983,6 +991,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           neumeTree: this.o.neumeTree,
           newPagePerDocument: this.o.newPage,
           arrangeRelated: this.o.arrangeRelated,
+          relatedAt: this.o.relatedBehind ? 'behind' : 'block',
           boxLabel: this.o.boxLabel,
           pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
           title: this.title.trim(),
