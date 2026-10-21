@@ -37,9 +37,11 @@ import * as localforage from 'localforage';
 export class PushCache {
   private static readonly CLEAN_KEY = 'monodi_push_clean_manuscripts';
   private static readonly DELETED_KEY = 'monodi_push_pending_deletions';
+  private static readonly DELETED_AFTER_KEY = 'monodi_push_deletions_after';
 
   private static cleanIds: Set<string> | null = null;
   private static deletedIds: Set<string> | null = null;
+  private static deletedAfter: Map<string, string> | null = null;
 
   private static async loadClean(): Promise<Set<string>> {
     if (!this.cleanIds) {
@@ -55,6 +57,20 @@ export class PushCache {
       this.deletedIds = new Set(arr || []);
     }
     return this.deletedIds;
+  }
+
+  private static async loadDeletedAfter(): Promise<Map<string, string>> {
+    if (!this.deletedAfter) {
+      const obj = await localforage.getItem<{ [id: string]: string }>(this.DELETED_AFTER_KEY);
+      this.deletedAfter = new Map(Object.entries(obj || {}));
+    }
+    return this.deletedAfter;
+  }
+
+  private static persistDeletedAfter(): Promise<any> {
+    const obj: { [id: string]: string } = {};
+    this.deletedAfter!.forEach((after, id) => { obj[id] = after; });
+    return localforage.setItem(this.DELETED_AFTER_KEY, obj);
   }
 
   private static persistClean(): Promise<any> {
@@ -84,26 +100,44 @@ export class PushCache {
     await this.persistClean();
   }
 
-  /** Call when a manuscript is deleted locally, so a future push removes it remotely too. */
-  static async markDeleted(ids: string | (string | null | undefined)[] | null | undefined): Promise<void> {
+  /**
+   * Call when a manuscript is deleted locally, so a future push removes it remotely too.
+   *
+   * `after` names the manuscript that took over its documents (a merge of two sources): the files of the deleted one go
+   * only in a push that has uploaded `after` (or finds it uploaded already). A push of some other selection must not
+   * delete the one before the other one has its documents on GitHub.
+   */
+  static async markDeleted(ids: string | (string | null | undefined)[] | null | undefined, after?: string): Promise<void> {
     const list = (Array.isArray(ids) ? ids : [ids]).filter((x): x is string => !!x);
     if (list.length === 0) return;
     const clean = await this.loadClean();
     const deleted = await this.loadDeleted();
+    const order = after ? await this.loadDeletedAfter() : null;
     let cleanChanged = false;
     for (const id of list) {
       if (clean.delete(id)) cleanChanged = true;
       deleted.add(id);
+      if (after) order!.set(id, after);
     }
-    await Promise.all([cleanChanged ? this.persistClean() : Promise.resolve(), this.persistDeleted()]);
+    await Promise.all([cleanChanged ? this.persistClean() : Promise.resolve(), this.persistDeleted(), after ? this.persistDeletedAfter() : Promise.resolve()]);
   }
 
   /** Call once a push has confirmed these deletions were applied remotely. */
   static async clearDeleted(ids: Iterable<string>): Promise<void> {
     const set = await this.loadDeleted();
-    let changed = false;
-    for (const id of ids) { if (set.delete(id)) changed = true; }
+    const order = await this.loadDeletedAfter();
+    let changed = false, orderChanged = false;
+    for (const id of ids) {
+      if (set.delete(id)) changed = true;
+      if (order.delete(id)) orderChanged = true;
+    }
     if (changed) await this.persistDeleted();
+    if (orderChanged) await this.persistDeletedAfter();
+  }
+
+  /** Pending deletions that wait for another manuscript to be uploaded first: id → that manuscript (see `markDeleted`). */
+  static async getDeletionOrder(): Promise<Map<string, string>> {
+    return new Map(await this.loadDeletedAfter());
   }
 
   /**
@@ -115,7 +149,8 @@ export class PushCache {
   static async invalidateAll(): Promise<void> {
     this.cleanIds = new Set();
     this.deletedIds = new Set();
-    await Promise.all([this.persistClean(), this.persistDeleted()]);
+    this.deletedAfter = new Map();
+    await Promise.all([this.persistClean(), this.persistDeleted(), this.persistDeletedAfter()]);
   }
 
   static async getCleanIds(): Promise<Set<string>> {

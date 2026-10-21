@@ -100,6 +100,7 @@ export class SourceComponent implements OnInit {
 
   showDocColPicker = false;
   showMetadataPanel = false;
+  showSigleDialog = false;
   /** New source: the optional metadata fields stay folded away until asked for. */
   showMoreMeta = false;
   documentsLoaded = false;
@@ -235,6 +236,13 @@ export class SourceComponent implements OnInit {
         },
       ]
     });
+  }
+
+  /** The siglum was renamed, or this source merged into another: show the source that stays. */
+  sigleChanged(keepId: string): void {
+    this.showSigleDialog = false;
+    if (this.source?.id === keepId) this.retrieveForId(keepId);
+    else this.router.navigate(['/source', keepId]);
   }
 
   retrieveForId(id: string): void {
