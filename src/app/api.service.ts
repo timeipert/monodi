@@ -600,7 +600,7 @@ export interface ProjectSettings {
   customSourceFields?: { key: string, label: string }[];
   customDocumentFields?: { key: string, label: string }[];
   /** How documents can refer to each other and the suffix of the related document's number in the print (see relations/relations.ts). */
-  relationTypes?: { name: string; suffix: string }[];
+  relationTypes?: { name: string; suffix: string; heading?: string }[];
   /** Volume rules of the print: which volume a document belongs to, the first rule that fits wins (see print/volume-rules.ts). */
   volumeRules?: { name: string; field: string; op: 'in' | 'set' | 'empty'; values: string[]; each?: boolean }[];
   customLists?: { [key: string]: string[] };

@@ -46,11 +46,12 @@ const SHOWN = 12;
             }
 
             <h6 class="mt-4">Relation types</h6>
-            <p class="text-muted mb-2">The name goes into <em>Relation type</em>. The suffix is set behind the number of the related document in the print: the antiphon of trope 1 is 1P.</p>
+            <p class="text-muted mb-2">The name goes into <em>Relation type</em>. The suffix is set behind the number of the related document in the print: the antiphon of trope 1 is 1P. The related documents stand in a section behind the others, under the section title.</p>
             @for (t of types; track $index) {
               <div class="d-flex gap-2 mb-1 align-items-center">
                 <input type="text" class="form-control form-control-sm" style="max-width: 16rem" [(ngModel)]="t.name" (ngModelChange)="typesDirty = true" placeholder="Name, e.g. Primary chant" aria-label="Relation type name" data-testid="relations-type-name" />
                 <input type="text" class="form-control form-control-sm" style="max-width: 5rem" [(ngModel)]="t.suffix" (ngModelChange)="typesDirty = true" placeholder="P" aria-label="Suffix" data-testid="relations-type-suffix" />
+                <input type="text" class="form-control form-control-sm" style="max-width: 12rem" [(ngModel)]="t.heading" (ngModelChange)="typesDirty = true" placeholder="Section title" aria-label="Section title" data-testid="relations-type-heading" />
                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-label="Remove type" [disabled]="types.length < 2" (click)="removeType($index)"><i class="bi bi-x-lg"></i></button>
               </div>
             }
@@ -151,7 +152,7 @@ export class RelationsDialogComponent implements OnInit {
     this.groups = [...by.values()].sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity));
   }
 
-  addType(): void { this.types = [...this.types, { name: '', suffix: '' }]; this.typesDirty = true; }
+  addType(): void { this.types = [...this.types, { name: '', suffix: '', heading: '' }]; this.typesDirty = true; }
   removeType(i: number): void { this.types = this.types.filter((_, k) => k !== i); this.typesDirty = true; }
 
   async addFields(): Promise<void> {
@@ -164,7 +165,7 @@ export class RelationsDialogComponent implements OnInit {
   }
 
   async saveTypes(): Promise<void> {
-    const clean = this.types.map((t) => ({ name: t.name.trim(), suffix: t.suffix.trim() })).filter((t) => t.name);
+    const clean = this.types.map((t) => ({ name: t.name.trim(), suffix: t.suffix.trim(), ...((t.heading ?? '').trim() ? { heading: t.heading!.trim() } : {}) })).filter((t) => t.name);
     if (!clean.length) { this.error = 'There must be at least one relation type.'; return; }
     const names = clean.map((t) => t.name.toLowerCase());
     if (new Set(names).size !== names.length) { this.error = 'Two relation types have the same name.'; return; }

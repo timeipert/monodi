@@ -11,7 +11,7 @@ import { commentSignature, commentLemma, commentStartIndex, commentType, printab
 import { resolvePrintOptions } from './print/print-options';
 import { layoutSignature } from './print/signature';
 import { LeadItem, PageBox, atPageTop, needsBreak, systemsToKeep } from './print/keep';
-import { arrangeChapter } from './print/arrange';
+import { UNIT_CHAPTER, SeeNote, arrangeChapter, chapterKeyFn } from './print/arrange';
 import { chapterize } from './print/chapters';
 import { formatFolioLabel, sanitizeFolioPrefixMode, usesFolioPrefix } from './folio-label';
 import { genreOf, headlineText as buildHeadline, inlineMetadataItems, metadataFieldValue } from './document-metadata';
@@ -135,6 +135,8 @@ export interface PdfExportOptions {
   boxLabel?: PdfBoxLabel;
   /** Documents that belong together stand together: a unit as one block, a related document (the primary chant of a trope) behind its trope, numbered 1P. Default: yes. */
   arrangeRelated?: boolean;
+  /** Where a related document stands: 'block' (default) in a section behind the others, as the printed volume sets it, or 'behind' directly behind its trope. */
+  relatedAt?: 'block' | 'behind';
   /** Override of the configured page format ('a4', 'cm' = 21 x 27 cm, ...). */
   pageFormat?: string;
   /** Title of a multi-document print (title page). */
@@ -340,9 +342,12 @@ export class PdfExportService {
     if (!jobsIn.length) throw new Error('Nothing to print');
     // Documents of one manuscript belong together: each manuscript is a chapter (stable by first appearance).
     const chapterKeyOf = (j: PdfDocJob) => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
-    const { items: jobs, chapterNo, chapterFirst, labels, count: chapterCount } = chapterize(
-      jobsIn, chapterKeyOf,
-      opts.arrangeRelated === false ? undefined : (items) => arrangeChapter(items, (j) => j.document, opts.settings),
+    // A unit (a play) is a chapter of its own, as a manuscript is; the descriptions, notation and folio labels below still go by manuscript.
+    const arranging = opts.arrangeRelated !== false;
+    const { items: jobs, chapterNo, chapterFirst, labels, sections, see, keys: chapterKeys, count: chapterCount } = chapterize(
+      jobsIn,
+      arranging ? chapterKeyFn(jobsIn, (j) => j.document, chapterKeyOf) : chapterKeyOf,
+      arranging ? (items) => arrangeChapter(items, (j) => j.document, opts.settings, opts.relatedAt ?? 'block') : undefined,
     );
     const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {}, placement: { documents: [], lines: [], apparatus: [] } };
     const t0 = performance.now();
@@ -425,9 +430,8 @@ export class PdfExportService {
         const boxTextOf = (ji: number) => (showBox ? boxTexts[ji] : '');
         /** Draws the frame and its text inside the left margin: the text shrinks, then is cut off,
          *  before it could reach the heading. */
-        const drawBox = (label: string, baseline: number, fs: number) => {
-          if (!label) return;
-          const maxW = textX - pdfMarginLeft - 5;
+        const drawBoxAt = (label: string, x: number, baseline: number, fs: number, maxW = Infinity): number => {
+          if (!label) return 0;
           let size = fs;
           doc.setFont(fontFamily, 'normal');
           doc.setFontSize(size);
@@ -439,8 +443,37 @@ export class PdfExportService {
           doc.setLineWidth(0.5);
           doc.setDrawColor(0, 0, 0);
           doc.setTextColor(0, 0, 0);
-          doc.rect(pdfMarginLeft, baseline - fs * 0.82 - 2, w, fs + 4);
-          doc.text(text, pdfMarginLeft + 3.5, baseline);
+          doc.rect(x, baseline - fs * 0.82 - 2, w, fs + 4);
+          doc.text(text, x + 3.5, baseline);
+          return w;
+        };
+        const drawBox = (label: string, baseline: number, fs: number) => { drawBoxAt(label, pdfMarginLeft, baseline, fs, textX - pdfMarginLeft - 5); };
+        /** "2P siehe 1P": a related document that another one already shows, as the printed volume points to it — two frames and one word. */
+        const drawSeeLine = (note: SeeNote): void => {
+          const fs = pdfFontSize + 1;
+          cursorY += pdfVerticalSpace + 6;
+          const baseline = cursorY + fs;
+          let x = pdfMarginLeft + drawBoxAt(note.label, pdfMarginLeft, baseline, fs) + 4;
+          doc.setFont(fontFamily, 'normal');
+          doc.setFontSize(fs);
+          doc.setTextColor(0, 0, 0);
+          doc.text('siehe', x, baseline);
+          x += doc.getTextWidth('siehe') + 4;
+          drawBoxAt(note.to, x, baseline, fs);
+          doc.setFont(fontFamily, 'normal');
+          doc.setTextColor(0, 0, 0);
+          cursorY = baseline + fs * 0.5 + 6;
+        };
+        /** The title of the section of related documents ("Primary chants"): plain text at the text edge, no rule — the next heading follows without one. */
+        const drawSectionTitle = (title: string): void => {
+          const fs = pdfFontSize + 3;
+          doc.setFont(fontFamily, 'normal');
+          doc.setFontSize(fs);
+          doc.setTextColor(0, 0, 0);
+          cursorY += fs;
+          doc.text(title, textX, cursorY);
+          cursorY += fs * 1.6;
+          suppressDocRule = true;
         };
         const headOf = (ji: number): string => {
           const j = jobs[ji];
@@ -450,6 +483,7 @@ export class PdfExportService {
             || buildHeadline(j.document, pdfHeadlineMetadataFields, opts.settings) || (j.document.dokumenten_id || '');
         };
         const placeOf = (ji: number): string => {
+          if (chapterKeys[ji].startsWith(UNIT_CHAPTER)) return chapterKeys[ji].slice(UNIT_CHAPTER.length);   // the chapter of a play is named by the play
           const src: any = jobs[ji].source || {};
           return (src.bibliotheksort || src.herkunftsort || '').toString().trim();
         };
@@ -629,6 +663,11 @@ export class PdfExportService {
           if (multi && chapterFirst[ji] && chapterHeadings) {
             const drawChapter = () => drawChapterBlock(ji, textX, textColumnW, true);
             defer(dryRun(drawChapter), drawChapter);
+          }
+          if (multi && showBox && sections[ji]) {
+            const title = sections[ji]!;
+            const drawSection = () => drawSectionTitle(title);
+            defer(dryRun(drawSection), drawSection);
           }
           // One document with a title page: the title stands there. Otherwise every document
           // gets its own heading (title, framed edition number, metadata line).
@@ -1778,6 +1817,14 @@ export class PdfExportService {
             else gap = pdfVerticalSpace * 2 + 6;
           }
           await layoutDocument(jobs[ji], ji, gap);
+          if (multi && showBox) {
+            // related documents that another document already shows: a line that points to it, in its place
+            for (const note of see[ji]) {
+              const draw = () => drawSeeLine(note);
+              defer(dryRun(draw), draw);
+              flushLead(0);
+            }
+          }
         }
         if (opts.apparatus) {
           for (let ji = 0; ji < jobs.length; ji++) {

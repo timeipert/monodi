@@ -24,9 +24,14 @@ export const RELATION_FIELDS: { key: string; label: string }[] = [
  * What a relation is called and the suffix the related document's number gets in the print ("1" → "1P").
  * `relation_type` holds the name; a document with a related document but no type has the first type of the list.
  */
-export interface RelationType { name: string; suffix: string }
+export interface RelationType {
+  name: string;
+  suffix: string;
+  /** The title of the section in which the related documents stand in a print ("Primary chants"); the name when empty. */
+  heading?: string;
+}
 
-export const DEFAULT_RELATION_TYPES: RelationType[] = [{ name: 'Primary chant', suffix: 'P' }];
+export const DEFAULT_RELATION_TYPES: RelationType[] = [{ name: 'Primary chant', suffix: 'P', heading: 'Primary chants' }];
 
 export function relationTypes(settings: { relationTypes?: RelationType[] } | null | undefined): RelationType[] {
   const own = (settings?.relationTypes ?? []).filter((t) => t && (t.name ?? '').trim());

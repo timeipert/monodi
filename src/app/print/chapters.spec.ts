@@ -27,7 +27,7 @@ describe('chapterize', () => {
   });
 
   it('handles an empty list and does not change the input', () => {
-    expect(chapterize([], byMs)).toEqual({ items: [], chapterNo: [], chapterFirst: [], runningNo: [], labels: [], count: 0 });
+    expect(chapterize([], byMs)).toEqual({ items: [], chapterNo: [], chapterFirst: [], runningNo: [], labels: [], sections: [], see: [], keys: [], count: 0 });
     const input = [doc('B', 'b'), doc('A', 'a'), doc('B', 'b2')];
     chapterize(input, byMs);
     expect(input.map((d) => d.id)).toEqual(['b', 'a', 'b2']);
@@ -46,5 +46,17 @@ describe('chapterize', () => {
     expect(c.labels).toEqual(['1x', '2x', '1x']);
     expect(c.runningNo).toEqual([1, 2, 1]);
     expect(c.chapterFirst).toEqual([true, false, true]);
+  });
+
+  it('carries the sections and notes of an arrangement and the key of every chapter', () => {
+    const c = chapterize([doc('A', 'a1'), doc('B', 'b1'), doc('A', 'a2')], byMs, (items) => ({
+      items, labels: items.map((_, i) => String(i + 1)), sections: items.map((_, i) => (i === 1 ? 'Section' : null)), see: items.map((_, i) => (i === 0 ? [{ label: '2P', to: '1P' }] : [])),
+    }));
+    expect(c.sections).toEqual([null, 'Section', null]);
+    expect(c.see).toEqual([[{ label: '2P', to: '1P' }], [], [{ label: '2P', to: '1P' }]]);
+    expect(c.keys).toEqual(['A', 'A', 'B']);
+    const plain = chapterize([doc('A', 'a1')], byMs);
+    expect(plain.sections).toEqual([null]);
+    expect(plain.see).toEqual([[]]);
   });
 });

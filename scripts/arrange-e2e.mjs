@@ -1,7 +1,10 @@
 // Units and related documents in the print, end to end through the real print dialog:
-//  - a unit (play) stands as one block at the place of its first document, in the order of its positions
-//  - the antiphon that a trope names as its related document stands directly behind it and is numbered 1P
-//  - the documents that follow are numbered on, as before
+// As in the printed volume:
+//  - a unit (play) is a chapter of its own, its documents in the order of their positions
+//  - the antiphon that a trope names as its related document is numbered like it, 1P, and stands in a section
+//    "Primary chants" behind the other documents of the manuscript
+//  - a second trope that names the same antiphon is followed by nothing but a line "4P siehe 1P" in that section
+//  - on request the antiphon stands directly behind its trope instead
 //  - with the switch off the print keeps the order of the list and numbers 1, 2, 3 …
 //  - a document of a unit that is held back (don't publish) is named in a warning: the unit would be printed with gaps
 // Needs a dev server (npm start, port 4299) or pass --url, and poppler (pdftotext). Fresh headless-Chrome profile.
@@ -23,13 +26,14 @@ const PDFTOTEXT = existsSync('/opt/homebrew/bin/pdftotext') ? '/opt/homebrew/bin
 const dir = join(here, '../src/app/testdata');
 const roots = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'manifest.json').sort().slice(0, 4).map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')));
 // the order of the list; T-1 names AN-1 as its primary chant; P-1..P-3 are a play, P-3 is held back
-const LABELS = ['T-1', 'X-1', 'P-2', 'AN-1', 'X-2', 'P-1', 'P-3'];
+const LABELS = ['T-1', 'X-1', 'P-2', 'AN-1', 'X-2', 'P-1', 'P-3', 'T-2'];
 const docs = LABELS.map((label, i) => ({ id: `d${i}`, label, incipit: `Incipit ${label}`, genre1: 'Antiphon', sigle: 'Aa 13', root: roots[i % roots.length] }));
 const custom = {
   d0: { relation_target: 'AN-1' },
   d2: { unit_id: 'play-1', unit_position: '2' },
   d5: { unit_id: 'play-1', unit_position: '1' },
   d6: { unit_id: 'play-1', unit_position: '3', dontpublish: 'x' },
+  d7: { relation_target: 'AN-1' },   // a second trope that names the same antiphon
 };
 
 const problems = [];
@@ -45,20 +49,23 @@ const pdfs = [];
 await capturePdfDownloads(page, (buf) => pdfs.push(buf));
 const tmp = mkdtempSync(join(tmpdir(), 'monodi-arrange-'));
 
-/** "number id" of every document heading in the PDF, in the order they are printed. */
-const headings = (buf, name) => {
+const textOf = (buf, name) => {
   const file = join(tmp, name);
   writeFileSync(file, buf);
-  const text = execFileSync(PDFTOTEXT, ['-layout', file, '-']).toString();
+  return execFileSync(PDFTOTEXT, ['-layout', file, '-']).toString();
+};
+/** "number id" of every document heading in the PDF, in the order they are printed. */
+const headings = (text) => {
   // the apparatus names the documents again behind the edition: only the first heading of each counts
   const seen = new Set();
-  return [...text.matchAll(/^\s*(\d+P*)\s+(T-1|X-1|X-2|AN-1|P-1|P-2|P-3)\b/gm)].filter((m) => !seen.has(m[2]) && seen.add(m[2])).map((m) => `${m[1]} ${m[2]}`);
+  return [...text.matchAll(/^\s*(\d+P*)\s+(T-1|T-2|X-1|X-2|AN-1|P-1|P-2|P-3)\b/gm)].filter((m) => !seen.has(m[2]) && seen.add(m[2])).map((m) => `${m[1]} ${m[2]}`);
 };
-const makePdf = async (switchOff) => {
+const makePdf = async (switchOff, behind = false) => {
   await openPrintDialog(page, BASE, docs.map((d) => d.id), 'Arrange test');
   await page.waitForSelector('#oArrange', { timeout: 20000 });
   const on = await page.$eval('#oArrange', (e) => e.checked);
   if (on === switchOff) await page.click('#oArrange');
+  if (behind) await page.click('#oBehind');
   const before = pdfs.length;
   await page.click('app-pdf-export-dialog .btn-danger.px-4');
   const t0 = Date.now();
@@ -90,19 +97,31 @@ try {
   await page.evaluate(() => [...document.querySelectorAll('app-pdf-export-dialog button')].find((b) => b.textContent.trim() === 'Cancel').click());
   await page.waitForFunction(() => !document.querySelector('app-pdf-export-dialog'), { timeout: 5000 });
 
-  // ── on: a play as a block, the antiphon behind its trope as 1P ──
-  const arranged = headings(await makePdf(false), 'arranged.pdf');
-  expect(arranged.join(' | ') === '1 T-1 | 1P AN-1 | 2 X-1 | 3 P-1 | 4 P-2 | 5 X-2',
-    'arranged: trope, its antiphon as 1P, then the play in order of its positions (P-3 is held back): ' + arranged.join(' | '));
+  // ── as in the printed volume: tropes, then the section of primary chants; the play is a chapter of its own ──
+  const volume = textOf(await makePdf(false), 'volume.pdf');
+  const arranged = headings(volume);
+  expect(arranged.join(' | ') === '1 T-1 | 2 X-1 | 3 X-2 | 4 T-2 | 1P AN-1 | 1 P-1 | 2 P-2',
+    'tropes first, the primary chant as 1P in its section, the play as a chapter in the order of its positions (P-3 is held back): ' + arranged.join(' | '));
+  expect(/Primary chants/.test(volume), 'the section of the primary chants has its title');
+  expect(/4P\s+siehe\s+1P/.test(volume), 'the second trope that names the antiphon is followed by the line "4P siehe 1P": ' + volume.split('\n').filter((l) => /siehe/.test(l)).join(' / '));
+  expect(volume.indexOf('Primary chants') > volume.indexOf('X-2') && volume.indexOf('Primary chants') < volume.indexOf('AN-1'), 'the section stands behind the other documents of the manuscript and before the primary chant');
+  expect(/\bplay-1\b/.test(volume.slice(0, volume.indexOf('P-1'))), 'the play is named in the heading of its chapter');
+
+  // ── on request: directly behind the trope ──
+  const behindText = textOf(await makePdf(false, true), 'behind.pdf');
+  const behind = headings(behindText);
+  expect(behind.join(' | ') === '1 T-1 | 1P AN-1 | 2 X-1 | 3 X-2 | 4 T-2 | 1 P-1 | 2 P-2', 'directly behind the trope: ' + behind.join(' | '));
+  expect(!/Primary chants/.test(behindText), 'there is no section when the primary chant stands behind its trope');
+  expect(/4P\s+siehe\s+1P/.test(behindText), 'the second trope points to the antiphon there as well');
 
   // ── off: the order of the list, numbered 1, 2, 3 ──
-  const plain = headings(await makePdf(true), 'plain.pdf');
-  expect(plain.join(' | ') === '1 T-1 | 2 X-1 | 3 P-2 | 4 AN-1 | 5 X-2 | 6 P-1', 'with the switch off the list order and plain numbers stay: ' + plain.join(' | '));
+  const plain = headings(textOf(await makePdf(true), 'plain.pdf'));
+  expect(plain.join(' | ') === '1 T-1 | 2 X-1 | 3 P-2 | 4 AN-1 | 5 X-2 | 6 P-1 | 7 T-2', 'with the switch off the list order and plain numbers stay: ' + plain.join(' | '));
 } catch (e) {
   problems.push(String(e).split('\n')[0]);
 }
 
 await browser.close();
 for (const p of problems) console.log('FAIL', p);
-if (!problems.length) console.log('ok   units and related documents in the print (order, 1P, warning for gaps)');
+if (!problems.length) console.log('ok   units and related documents in the print (play chapters, section of primary chants, siehe line, warning for gaps)');
 process.exit(problems.length ? 1 : 0);
