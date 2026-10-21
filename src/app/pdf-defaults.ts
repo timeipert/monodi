@@ -23,8 +23,14 @@ export const PRINT_PDF_DEFAULTS = {
   pdfCommentBlockGap: 4,
   pdfHeadlineFontSize: 9,
   pdfPageNumberFontSize: 9,
+  /**
+   * Margins of a recto page, as in the printed volume (measured on its running head): 2 cm on the spine side, 2.5 cm
+   * outside. With `pdfMirrorMargins` the left margin is the inner one and a verso page is set the other way round.
+   */
   pdfMarginLeft: 56.7,
-  pdfMarginRight: 56.7,
+  pdfMarginRight: 70.9,
+  /** Facing pages like a printed volume: odd PDF pages are rectos, even pages are versos with inner and outer margin exchanged. */
+  pdfMirrorMargins: true,
   pdfMarginTop: 70,
   pdfMarginBottom: 56.7,
   pdfSignaturSpace: 27,

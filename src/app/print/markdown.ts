@@ -4,10 +4,11 @@
  * lists (nested by indentation), block quotes, fenced code, horizontal rules, pipe tables, images
  * (`![caption](url)`; also by reference, `![caption][img-1]` with `[img-1]: data:image/…` at the end,
  * which is how the editor embeds uploaded pictures), and the inline forms **bold**, *italic*,
- * `code` and [links](url). Anything else stays plain text.
+ * `code` and [links](url), plus `<sc>small capitals</sc>`, `<sup>raised</sup>` and `<br>` (a line break, also inside table cells).
+ * Anything else stays plain text.
  */
 export interface MdImage { src: string; alt: string; title?: string }
-export interface MdInline { t: string; bold?: boolean; italic?: boolean; code?: boolean; href?: string; img?: MdImage }
+export interface MdInline { t: string; bold?: boolean; italic?: boolean; /** Small capitals: `<sc>…</sc>`; the PDF can also set bold text in running text this way (names of authors). */ sc?: boolean; /** Raised and smaller: `<sup>2</sup>` (the 2nd edition, 13th century …). */ sup?: boolean; code?: boolean; href?: string; img?: MdImage }
 export type MdAlign = 'left' | 'center' | 'right' | null;
 type Refs = Map<string, { src: string; title?: string }>;
 
@@ -50,7 +51,7 @@ function destination(raw: string): { url: string; title?: string } | null {
 
 export function parseInline(src: string, refs?: Refs): MdInline[] {
   const out: MdInline[] = [];
-  const walk = (s: string, st: { bold?: boolean; italic?: boolean; href?: string }): void => {
+  const walk = (s: string, st: { bold?: boolean; italic?: boolean; sc?: boolean; sup?: boolean; href?: string }): void => {
     let buf = '';
     const flush = () => { if (buf) { out.push({ t: buf, ...st }); buf = ''; } };
     let i = 0;
@@ -58,6 +59,16 @@ export function parseInline(src: string, refs?: Refs): MdInline[] {
       const c = s[i];
       if (c === '\\' && i + 1 < s.length && ESCAPABLE.test(s[i + 1])) { buf += s[i + 1]; i += 2; continue; }
       if (c === '\\' && s[i + 1] === '\n') { flush(); out.push({ t: '\n' }); i += 2; continue; }
+      if (c === '<') {
+        const br = /^<br\s*\/?>/i.exec(s.slice(i, i + 8));
+        if (br) { flush(); out.push({ t: '\n' }); i += br[0].length; continue; }
+        const tag = /^<(sc|sup)>/i.exec(s.slice(i, i + 5));
+        if (tag) {
+          const name = tag[1].toLowerCase();
+          const close = s.toLowerCase().indexOf(`</${name}>`, i + tag[0].length);
+          if (close > i + tag[0].length) { flush(); walk(s.slice(i + tag[0].length, close), { ...st, [name]: true }); i = close + name.length + 3; continue; }
+        }
+      }
       if (c === '`') {
         const j = s.indexOf('`', i + 1);
         if (j > i + 1) { flush(); out.push({ t: s.slice(i + 1, j), ...st, code: true }); i = j + 1; continue; }
@@ -318,6 +329,8 @@ function inlinesHtml(ins: MdInline[]): string {
     if (x.img) return esc(x.img.alt);
     if (x.t === '\n' && !x.bold && !x.italic && !x.code) return '<br>';
     let h = esc(x.t);
+    if (x.sc) h = '<span class="md-sc">' + h + '</span>';
+    if (x.sup) h = '<sup>' + h + '</sup>';
     if (x.code) h = '<code>' + h + '</code>';
     if (x.italic) h = '<em>' + h + '</em>';
     if (x.bold) h = '<strong>' + h + '</strong>';

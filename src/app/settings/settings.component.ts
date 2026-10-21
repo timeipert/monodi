@@ -508,6 +508,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.onSettingsChange();
   }
 
+  /** The heading of the printed Corpus Monodicum volume: the reference only ("Nat III intr 25 A 31 B …"). */
+  usePrintedVolumeHeading(): void {
+    if (!this.settings) return;
+    this.settings.pdfDocHeadingFields = [{ key: 'bibliographischerverweis', style: 'normal' }];
+    this.onSettingsChange();
+  }
+
   resetHeadingFields(): void {
     if (!this.settings) return;
     delete this.settings.pdfDocHeadingFields;

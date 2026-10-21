@@ -626,6 +626,8 @@ export interface ProjectSettings {
   htmlExportFooterHtml?: string;
   undoHistorySize?: number;
   pdfMarginLeft?: number;
+  /** Facing pages: the left margin is the inner one (spine), the right the outer; verso pages are set the other way round. */
+  pdfMirrorMargins?: boolean;
   pdfSignaturSpace?: number;
   pdfFontSize?: number;
   pdfTitleFontSize?: number;
@@ -678,6 +680,10 @@ export interface ProjectSettings {
   /** Transitions between Edition, Critical Apparatus and Source Descriptions: 'volume' = a page of its own with a rule (as in the printed volume, no running head), 'compact' = just a heading where the part begins. */
   pdfPartStyle?: 'volume' | 'compact';
   pdfContentsApparatus?: 'chapters' | 'documents' | 'none';
+  /** Source descriptions: bold text inside a paragraph or list is set in small capitals, as the printed volume does for the authors of references (default on). */
+  pdfBoldAsSmallCaps?: boolean;
+  /** Source descriptions: words are hyphenated with the German patterns (default on). */
+  pdfHyphenate?: boolean;
   pdfBookmarks?: boolean;
   /** Frame the edition number (document field "Print Edition") in the margin next to the title. */
   pdfShowEditionBox?: boolean;

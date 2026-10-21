@@ -13,6 +13,25 @@ export interface TextKit {
   rect(x: number, y: number, w: number, h: number): void;
 }
 
+/**
+ * References to other documents of the print: inside a quote `((Aa 13-8-4))` an ID that belongs to a document of the print
+ * becomes its framed number, as in the printed volume ("wie [4P]"). `refs` maps a document ID to the label of its frame;
+ * IDs of documents that are not in the print stay as written.
+ */
+export function linkReferences(text: string, refs: ReadonlyMap<string, string> | undefined): string {
+  if (!refs || !refs.size || !text.includes('((')) return text;
+  const ids = [...refs.keys()].filter(Boolean).sort((a, b) => b.length - a.length).map((id) => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!ids.length) return text;
+  const re = new RegExp(`(?<![\\w-])(?:${ids.join('|')})(?![\\w-])`, 'g');
+  return text.replace(/\(\(.*?\)\)/g, (token) => {
+    const inner = token.slice(2, -2);
+    let hit = false;
+    const out = inner.replace(re, (id) => { hit = true; return `))\u0001{{${refs.get(id)}}}\u0001((`; });
+    if (!hit) return token;
+    return ('((' + out + '))').replace(/\(\(\s*\)\)/g, '').replace(/\u0001/g, '');
+  });
+}
+
 export function markupSegments(text: string, fs: number): Seg[] {
   const segs: Seg[] = [];
   for (const token of (text || '').split(/(\(\(.*?\)\)|\{\{.*?\}\}|\[\[.*?\]\])/g)) {

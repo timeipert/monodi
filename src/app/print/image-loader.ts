@@ -66,13 +66,7 @@ export async function toGreyLevels(img: LoadedImage, clip = 0.005): Promise<Load
       d[i] = g;
       hist[g]++;
     }
-    const percentile = (q: number): number => {
-      let acc = 0;
-      for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * q) return v; }
-      return 255;
-    };
-    const median = percentile(0.5);
-    const negative = percentile(0.95) - median > (median - percentile(0.05)) * NEGATIVE_TAIL;
+    const negative = isNegativeHistogram(hist, total);
     let acc = 0;
     const level = (v: number) => (negative ? 255 - v : v);
     const h2 = new Uint32Array(256);
@@ -96,3 +90,39 @@ export async function toGreyLevels(img: LoadedImage, clip = 0.005): Promise<Load
 
 /** The light tail of a negative is this much longer than its dark tail. */
 const NEGATIVE_TAIL = 1.3;
+
+/** Whether grey levels (a 256-step histogram of `total` pixels) are those of a negative: light ink on a dark ground. */
+export function isNegativeHistogram(hist: ArrayLike<number>, total: number): boolean {
+  const percentile = (q: number): number => {
+    let acc = 0;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * q) return v; }
+    return 255;
+  };
+  const median = percentile(0.5);
+  return percentile(0.95) - median > (median - percentile(0.05)) * NEGATIVE_TAIL;
+}
+
+/**
+ * Whether the picture at `src` is a negative scan (see `toGreyLevels`); null if it cannot be read here
+ * (a server that does not let other websites read its images). Browser only.
+ */
+export async function looksNegative(src: string): Promise<boolean | null> {
+  const img = await loadImage(src, 600);
+  if (!img) return null;
+  try {
+    const el = new Image();
+    el.src = img.data;
+    await new Promise<void>((res, rej) => { el.onload = () => res(); el.onerror = () => rej(new Error('decode')); });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.w;
+    canvas.height = img.h;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(el, 0, 0, img.w, img.h);
+    const d = ctx.getImageData(0, 0, img.w, img.h).data;
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < d.length; i += 4) hist[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++;
+    return isNegativeHistogram(hist, d.length / 4);
+  } catch {
+    return null;
+  }
+}
