@@ -348,7 +348,7 @@ export class PdfExportService {
     const arranging = opts.arrangeRelated !== false;
     const { items: jobs, chapterNo, chapterFirst, labels, sections, see, keys: chapterKeys, count: chapterCount } = chapterize(
       jobsIn,
-      arranging ? chapterKeyFn(jobsIn, (j) => j.document, chapterKeyOf) : chapterKeyOf,
+      arranging ? chapterKeyFn(jobsIn, (j) => j.document, chapterKeyOf, opts.settings) : chapterKeyOf,
       arranging ? (items) => arrangeChapter(items, (j) => j.document, opts.settings, opts.relatedAt ?? 'block') : undefined,
     );
     const stats: PdfExportStats = { clefs: 0, systems: 0, pages: 0, documents: [], apparatusPage: 0, descriptionPage: 0, outline: [], timings: {}, placement: { documents: [], lines: [], apparatus: [] } };

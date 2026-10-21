@@ -742,6 +742,8 @@ export interface ProjectSettings {
   pdfPartStyle?: 'volume' | 'compact';
   pdfContentsApparatus?: 'chapters' | 'documents' | 'none';
   /** Source descriptions: bold text inside a paragraph or list is set in small capitals, as the printed volume does for the authors of references (default on). */
+  /** Which document field plays each part of relations and units for the print (default: the built-in `relation_target` … fields). */
+  relationFields?: { target?: string; type?: string; unitId?: string; unitType?: string; unitPosition?: string };
   pdfBoldAsSmallCaps?: boolean;
   /** Source descriptions: words are hyphenated with the German patterns (default on). */
   pdfHyphenate?: boolean;

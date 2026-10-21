@@ -15,6 +15,7 @@ const MAX = Number(opt('--max', '14'));
 const NOTATION = flag('--notation');
 const ALSO = opt('--also', '').split(',').map((x) => x.trim()).filter(Boolean);
 const PRINT_HEADING = flag('--print-heading');
+const REL_FIELD = opt('--relation-field', '');
 
 const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
 const page = await browser.newPage();
@@ -49,13 +50,13 @@ const picked = docs.filter((d) => d.gattung1 === GENRE).sort((a, b) => folioNum(
 picked.push(...docs.filter((d) => ALSO.includes(d.dokumenten_id) && !picked.includes(d)));
 console.log('printing', picked.map((d) => d.dokumenten_id).join(', '));
 
-if (PRINT_HEADING) {
+if (PRINT_HEADING || REL_FIELD) {
   // the heading of the printed volume: the reference only
-  await page.evaluate(async () => {
+  await page.evaluate(async (PRINT_HEADING, REL_FIELD) => {
     const db = await new Promise((res, rej) => { const r = indexedDB.open('monodi-light'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-    await new Promise((res, rej) => { const tx = db.transaction('monodi_data', 'readwrite'); tx.objectStore('monodi_data').put({ pdfDocHeadingFields: [{ key: 'bibliographischerverweis', style: 'normal' }], pdfShowPageNumbers: true }, 'monodi_settings'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    await new Promise((res, rej) => { const tx = db.transaction('monodi_data', 'readwrite'); tx.objectStore('monodi_data').put({ ...(PRINT_HEADING ? { pdfDocHeadingFields: [{ key: 'bibliographischerverweis', style: 'normal' }] } : {}), ...(REL_FIELD ? { relationFields: { target: REL_FIELD } } : {}), pdfShowPageNumbers: true }, 'monodi_settings'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
     db.close();
-  });
+  }, PRINT_HEADING, REL_FIELD);
 }
 await page.reload({ waitUntil: 'networkidle0' });
 await openPrintDialog(page, BASE, picked.map((d) => d.id));

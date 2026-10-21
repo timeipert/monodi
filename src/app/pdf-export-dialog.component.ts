@@ -635,7 +635,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     const loose = this.entries.filter((e) => e.doc && !isPrintable(e.doc));
     this.heldTotal = this.held.length + loose.length;
     this.flaggedIn = loose.filter((e) => holdReasons(e.doc).includes('dontpublish')).length;
-    this.printWarnings = checkPrintSet(this.allDocs, new Set(this.entries.map((e) => e.id)), new Set(this.held.map((e) => e.id)));
+    this.printWarnings = checkPrintSet(this.allDocs, new Set(this.entries.map((e) => e.id)), new Set(this.held.map((e) => e.id)), this.settings);
   }
 
   ngOnDestroy(): void {
