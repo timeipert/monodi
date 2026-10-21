@@ -15,6 +15,7 @@
     "test:layout": "node scripts/layout-e2e.mjs",
     "test:cover": "node scripts/cover-e2e.mjs && node scripts/volume-rules-e2e.mjs && node scripts/arrange-e2e.mjs",
     "test:description": "node scripts/description-e2e.mjs",
+    "test:fields": "node scripts/fields-e2e.mjs",
     "test:notation": "node scripts/notation-doc-e2e.mjs && node scripts/neume-docs-e2e.mjs && node scripts/notation-set-e2e.mjs && node scripts/notation-links-e2e.mjs",
     "test:metadata": "node scripts/metadata-grid-e2e.mjs && node scripts/metadata-edit-e2e.mjs && node scripts/relations-e2e.mjs",
     "check:templates": "node scripts/check-templates.mjs",

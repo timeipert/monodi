@@ -13,7 +13,11 @@
         </button>
       </li>
     </ul>
-    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="totalDirty > 0" (click)="showRelations = true" data-testid="mg-relations"
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="!view" (click)="commitEdit(); showFill = true" data-testid="mg-fill"
+      title="Fill a column from another one, with a change of the text if you like (a play name into Unit ID)">
+      <i class="bi bi-arrow-right-square me-1"></i>Fill a column
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="totalDirty > 0" (click)="showRelations = true" data-testid="mg-relations"
       [title]="totalDirty > 0 ? 'Save or discard your edits first' : 'Relations between documents (a trope and its primary chant) and units (a play) with a check of the data'">
       <i class="bi bi-diagram-3 me-1"></i>Relations and units
     </button>
@@ -27,6 +31,10 @@
     <app-cm-import-dialog (closed)="showImport = false" (applied)="load()"></app-cm-import-dialog>
   }
 
+  @if (showFill && view) {
+    <app-fill-column-dialog [view]="view" (closed)="showFill = false" (applied)="applyFill($event)"></app-fill-column-dialog>
+  }
+
   @if (showRelations) {
     <app-relations-dialog (closed)="showRelations = false" (applied)="load()" (show)="findDocument($event)"></app-relations-dialog>
   }
@@ -36,6 +44,18 @@
   } @else if (loadError) {
     <div class="alert alert-danger mt-3">{{ loadError }} <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="load()">Try again</button></div>
   } @else if (view) {
+    @if (unregistered[active].length) {
+      <div class="alert alert-info py-2 d-flex flex-wrap align-items-center gap-2 mt-2 mb-0" data-testid="mg-unlisted">
+        <span>
+          <i class="bi bi-info-circle me-1"></i>
+          {{ unregistered[active].length }} {{ unregistered[active].length === 1 ? 'field' : 'fields' }} in your {{ active }} {{ unregistered[active].length === 1 ? 'is' : 'are' }} not shown in this table:
+          @for (f of unregistered[active].slice(0, 6); track f.key) { <strong>{{ f.key }}</strong> ({{ f.filled }}){{ $last ? '' : ', ' }} }
+          @if (unregistered[active].length > 6) { … }
+        </span>
+        <button type="button" class="btn btn-sm btn-outline-primary ms-auto" [disabled]="listBusy || totalDirty > 0" (click)="listUnregistered()" data-testid="mg-list-fields"
+          [title]="totalDirty > 0 ? 'Save or discard your edits first' : 'Show them as columns here, in the document form and in the print'">Show them</button>
+      </div>
+    }
     <!-- Filters -->
     <div class="mg-filters" data-testid="mg-filters">
       @for (f of view.filters; track f.id) {

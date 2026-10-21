@@ -11,8 +11,9 @@ import { PageTitleService } from '../page-title.service';
 import { safeStorage } from '../safe-storage';
 import { User, UserService } from '../user.service';
 import { ANY_COLUMN, FILTER_OPS, GridFilter, opNeedsValue } from './grid-filter';
-import { GridKind, buildDocumentsView, buildSourcesView, documentCountOfSources } from './grid-data';
+import { GridKind, UnregisteredField, buildDocumentsView, buildSourcesView, documentCountOfSources, unregisteredFields, withListedFields } from './grid-data';
 import { parseTsv, toTsv } from './grid-clipboard';
+import { FillPlan } from './grid-fill';
 import { EditResult, GridView } from './grid-view';
 
 const TAB_KEY = 'monodi_metadata_tab';
@@ -52,6 +53,10 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   showDelete = false;
   showImport = false;
   showRelations = false;
+  showFill = false;
+  /** Custom values in the data that no field of the settings lists, per table. */
+  unregistered: Record<GridKind, UnregisteredField[]> = { documents: [], sources: [] };
+  listBusy = false;
   deleteBusy = false;
   typedCount = '';
 
@@ -173,6 +178,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
         const old = this.views[kind];
         if (old) next[kind].adopt(old);
       }
+      this.unregistered = { documents: unregisteredFields('documents', this.documents, this.settings), sources: unregisteredFields('sources', this.sources, this.settings) };
       this.editing = null;
       this.views = next;
       this.suggestions = {
@@ -516,6 +522,39 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
     if (res.rejected > 0) parts.push(`${res.rejected} cell(s) not changed (read-only column, or empty where a value is required)`);
     if (res.outside > 0) parts.push(`${res.outside} cell(s) were outside the table`);
     if (parts.length) this.toastr.warning(`${verb} ${res.applied} cell(s); ${parts.join('; ')}.`);
+  }
+
+  /** Lists the custom values the data carries (an import brought them) as fields: from now on the table, the form and the print show them. */
+  async listUnregistered(): Promise<void> {
+    const kind = this.active;
+    const keys = this.unregistered[kind].map((f) => f.key);
+    if (!this.user || !keys.length || this.listBusy || this.totalDirty > 0) return;
+    this.listBusy = true;
+    try {
+      const token = this.user.token;
+      const res = await firstValueFrom(this.api.getSettings(token));
+      if (res.kind !== 'SettingsRetrieved') throw new Error('The settings could not be read.');
+      const next = withListedFields(res.settings, kind, keys);
+      if (next) await firstValueFrom(this.api.updateSettings(token, next));
+      this.toastr.success(`${keys.length} field(s) are shown in the table now.`);
+      await this.load();
+    } catch (e: any) {
+      console.error('Listing the fields failed', e);
+      this.toastr.error('The fields could not be listed: ' + (e?.message || e));
+    } finally {
+      this.listBusy = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /** The plan of the "Fill a column" dialog goes into the table as edits: one undo step, saved like the others. */
+  applyFill(plan: FillPlan): void {
+    const view = this.view;
+    this.showFill = false;
+    if (!view) return;
+    const res = view.setCells(plan.changes);
+    this.report(res, 'Filled');
+    this.cdr.markForCheck();
   }
 
   undo(): void {

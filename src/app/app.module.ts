@@ -46,6 +46,7 @@ import { ChartScatterComponent } from './search/charts/chart-scatter.component';
 import { MetadataGridComponent } from './metadata-grid/metadata-grid.component';
 import { CmImportDialogComponent } from './release/cm-import-dialog.component';
 import { RelationsDialogComponent } from './relations/relations-dialog.component';
+import { FillColumnDialogComponent } from './metadata-grid/fill-column-dialog.component';
 import { SigleDialogComponent } from './source/sigle-dialog.component';
 
 @NgModule({ declarations: [
@@ -76,6 +77,7 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         MetadataGridComponent,
         CmImportDialogComponent,
         RelationsDialogComponent,
+        FillColumnDialogComponent,
         SigleDialogComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
