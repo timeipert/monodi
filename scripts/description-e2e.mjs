@@ -104,6 +104,30 @@ if (got) {
   }
   expect(recto > 0 && verso > 0, `the description should run over a recto and a verso page (${recto}, ${verso})`);
 }
+
+// ── the same print in German, with one word changed: the fixed words follow the language and the project's own wording ──
+got = false;
+await page.evaluate(async () => {
+  const db = await new Promise((res, rej) => { const r = indexedDB.open('monodi-light'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  await new Promise((res, rej) => { const tx = db.transaction('monodi_data', 'readwrite'); tx.objectStore('monodi_data').put({ pdfShowPageNumbers: true, pdfLanguage: 'de', pdfLabels: { description: 'Die Handschrift' } }, 'monodi_settings'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  db.close();
+});
+await page.reload({ waitUntil: 'networkidle0' });
+await openPrintDialog(page, BASE, docs.map((d) => d.id));
+await new Promise((r) => setTimeout(r, 800));
+await page.evaluate(() => { const c = document.querySelector('#oDesc'); if (c && !c.checked) c.click(); });
+await page.evaluate(() => { const b = [...document.querySelectorAll('app-pdf-export-dialog button')].find((x) => /Create PDF/.test(x.innerText)); b.click(); });
+await page.waitForFunction(() => !document.querySelector('app-pdf-export-dialog') || document.querySelector('.alert-danger'), { timeout: 120000 });
+await new Promise((r) => setTimeout(r, 1500));
+expect(got, 'no German PDF arrived');
+if (got) {
+  const de = execFileSync(bin('pdftotext'), ['-layout', file, '-']).toString();
+  expect(/Inhaltsverzeichnis/i.test(de) && !/\bContents\b/i.test(de), 'the contents are called Inhaltsverzeichnis');
+  expect(/Kritischer Apparat|Die Handschrift/.test(de), 'the parts have German names');
+  expect(/Die Handschrift/.test(de) && !/Source Description/.test(de), 'a single word of the language can be changed: "Die Handschrift"');
+  expect(/Die Handschrift: S\. \d+/.test(de), 'the reference under the heading uses the word and "S.": ' + (de.match(/[^\n]*: S\. \d+[^\n]*/) || [''])[0]);
+  expect(!/Edition: (p|S)\./.test(de), 'the edition is not named in the references of its own heading');
+}
 await browser.close();
 if (problems.length) { console.error('FAILED:\n' + problems.join('\n')); process.exit(1); }
 console.log('ok    source descriptions as in the printed volume');

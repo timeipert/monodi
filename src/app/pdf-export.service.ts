@@ -27,11 +27,12 @@ import { FontStyle, TextKit, breakLines, drawLines, linesWidth, linkReferences }
 import { MdBlock, MdInline, parseMarkdown, safeHref } from './print/markdown';
 import { MdLine, SUP_RISE, SUP_SIZE, layoutInlines, lineWidth } from './print/markdown-layout';
 import { hyphenateWord, loadHyphenation } from './print/hyphenate';
+import { printLabels } from './print/labels';
 import { LoadedImage, loadImage } from './print/image-loader';
 import { sourceDescription } from './source-description';
 import { buildNotationDoc, NotationDoc, notationNotes } from './notation-doc';
 import { readSetup } from './notation-set';
-import { drawEquivalents, drawNeumeTree, drawNotes, drawStrips, drawSubheading, NOTATION_TEXT, NotationHost } from './print/notation-doc-draw';
+import { drawEquivalents, drawNeumeTree, drawNotes, drawStrips, drawSubheading, NotationHost } from './print/notation-doc-draw';
 import { loadStripPictures } from './print/notation-doc-images';
 import { loadStripImages } from './notation-strip-images';
 import { TitleTemplate } from './print/title-page';
@@ -376,6 +377,7 @@ export class PdfExportService {
         const textX = pdfMarginLeft + pdfSignaturSpace + PDF_TEXT_INSET;
         const notationColor = hexToRgb(sanitizeNotationColor(s.notationColor));
 
+        const L = printLabels(s);
         let cursorY = pdfMarginTop;
         const pageHeight = doc.internal.pageSize.getHeight();
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -479,6 +481,8 @@ export class PdfExportService {
           cursorY = baseline + fs * 0.5 + 6;
         };
         /** The title of the section of related documents ("Primary chants"): plain text at the text edge, no rule — the next heading follows without one. */
+        /** Where the section of related documents ("Primary chants") starts in each chapter, for the references under the manuscript's heading. */
+        const sectionPages = new Map<string, { title: string; page: number }>();
         const drawSectionTitle = (title: string): void => {
           const fs = pdfFontSize + 3;
           doc.setFont(fontFamily, 'normal');
@@ -686,7 +690,7 @@ export class PdfExportService {
           }
           if (multi && showBox && sections[ji]) {
             const title = sections[ji]!;
-            const drawSection = () => drawSectionTitle(title);
+            const drawSection = () => { if (!dry && !sectionPages.has(chapterKeyOf(jobs[ji]))) sectionPages.set(chapterKeyOf(jobs[ji]), { title, page: editionPage() }); drawSectionTitle(title); };
             defer(dryRun(drawSection), drawSection);
           }
           // One document with a title page: the title stands there. Otherwise every document
@@ -1304,9 +1308,9 @@ export class PdfExportService {
                 cursorY = pdfMarginTop;
                 apparatusPage = editionPage();
                 apparatusStarted = true;
-                markPart('Critical Apparatus');
-                if (volumeParts) drawPartPage('Critical Apparatus');
-                else cursorY = drawHeading('Critical Apparatus', textX, cursorY + 3, textColumnW, 10) + 2;
+                markPart(L.apparatus);
+                if (volumeParts) drawPartPage(L.apparatus);
+                else cursorY = drawHeading(L.apparatus, textX, cursorY + 3, textColumnW, 10) + 2;
             }
             if (multi) {
                 // Hierarchy like the printed apparatus: the manuscript (chapter heading), below it
@@ -1526,7 +1530,7 @@ export class PdfExportService {
         // ── Source descriptions (Markdown), appended after the editions and the apparatus ────
         let descriptionStarted = false;
         let descriptionPage = 0;
-        let descriptionTitle = 'Source Description';
+        let descriptionTitle = L.description;
         const descriptionOutline: { label: string; job: number; page: number }[] = [];
         const mdMeasure = (t: string, st: FontStyle, size: number, sc?: boolean): number => {
           doc.setFont(fontFamily, st);
@@ -1895,7 +1899,7 @@ export class PdfExportService {
           for (const w of withText) imageSources(w.blocks, srcs);
           await Promise.all([...srcs].map(async (src) => { mdImages.set(src, await loadImage(src)); }));
           if (hyphenate) await loadHyphenation();
-          descriptionTitle = withText.length > 1 ? 'Source Descriptions' : 'Source Description';
+          descriptionTitle = withText.length > 1 ? L.descriptions : L.description;
           doc.addPage();
           cursorY = pdfMarginTop;
           descriptionPage = editionPage();
@@ -1941,11 +1945,11 @@ export class PdfExportService {
           cursorY = pdfMarginTop;
           notationPage = editionPage();
           notationStarted = true;
-          markPart(NOTATION_TEXT.part);
-          if (volumeParts) drawPartPage(NOTATION_TEXT.part);
-          else cursorY = drawHeading(NOTATION_TEXT.part, textX, cursorY + 3, textColumnW, 10) + 2;
+          markPart(L.notation);
+          if (volumeParts) drawPartPage(L.notation);
+          else cursorY = drawHeading(L.notation, textX, cursorY + 3, textColumnW, 10) + 2;
           const host: NotationHost = {
-            doc, fontFamily, fs: pdfFontSize - 1, x: textX, width: textColumnW, top: pdfMarginTop, bottom: maxContentY,
+            doc, fontFamily, fs: pdfFontSize - 1, x: textX, width: textColumnW, top: pdfMarginTop, bottom: maxContentY, noImage: L.noImage,
             newPage: () => { doc.addPage(); cursorY = pdfMarginTop; return pdfMarginTop; },
           };
           for (let k = 0; k < withDoc.length; k++) {
@@ -1966,17 +1970,17 @@ export class PdfExportService {
             apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });   // the running head names this manuscript
             cursorY += 4;
             if (nd.rows.length) {
-              cursorY = drawSubheading(host, NOTATION_TEXT.equivalents, cursorY);
+              cursorY = drawSubheading(host, L.equivalents, cursorY);
               cursorY = drawEquivalents(host, nd, cursorY);
             }
             cursorY = drawNotes(host, nd, notationNotes(job.source), cursorY);
             // the signs of the lines follow the table at once, and the tree comes last: it needs room and
             // would leave a gap in front of it
             if (nd.strips.length) {
-              cursorY = drawStrips(host, nd.strips, pictures, cursorY + 16, NOTATION_TEXT.inventory);
+              cursorY = drawStrips(host, nd.strips, pictures, cursorY + 16, L.inventory);
             }
             if (opts.neumeTree && nd.rows.length) {
-              cursorY = drawNeumeTree(host, nd.rows.map(r => r.pattern), cursorY + 16, NOTATION_TEXT.tree);
+              cursorY = drawNeumeTree(host, nd.rows.map(r => r.pattern), cursorY + 16, L.tree);
             }
           }
         };
@@ -1989,7 +1993,7 @@ export class PdfExportService {
           const hasNotationDocs = !!opts.notationDocumentation && jobs.some((j) => hasNotation(notationDocOf(j)));
           multiPart = hasApparatus || hasDescriptions || hasNotationDocs;
           volumeParts = partStyle === 'volume' && multiPart;
-          if (volumeParts) drawPartPage('Edition');
+          if (volumeParts) drawPartPage(L.edition);
         }
         for (let ji = 0; ji < jobs.length; ji++) {
           opts.onProgress?.('Rendering ' + (jobs[ji].document.dokumenten_id || jobs[ji].document.textinitium || ''), ji, jobs.length);
@@ -2108,14 +2112,14 @@ export class PdfExportService {
             const docDepth = chapterRows ? 2 : 1;
             // the contents list the manuscripts only, like the printed volume; the documents stay in the bookmarks
             const manuscriptsOnly = contentsEdition !== 'documents';
-            rows.push({ id: '', incipit: 'Edition', genre: '', page: (docEntries[0]?.page ?? 1) - (volumeParts ? 1 : 0), plain: true, chapter: true, indent: 0, depth: 0 });
+            rows.push({ id: '', incipit: L.edition, genre: '', page: (docEntries[0]?.page ?? 1) - (volumeParts ? 1 : 0), plain: true, chapter: true, indent: 0, depth: 0 });
             docEntries.forEach((e) => {
               const j = jobs[e.job];
               if (chapterRows && chapterFirst[e.job]) rows.push({ id: '', incipit: chapterLabelOf(e.job), genre: '', page: e.page, plain: true, indent: 12, depth: 1 });
               rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page, indent: docIndent, depth: docDepth, num: boxTextOf(e.job), bookmarkOnly: manuscriptsOnly });
             });
             if (apparatusStarted) {
-              rows.push({ id: '', incipit: 'Critical Apparatus', genre: '', page: apparatusPage, plain: true, chapter: true, indent: 0, depth: 0 });
+              rows.push({ id: '', incipit: L.apparatus, genre: '', page: apparatusPage, plain: true, chapter: true, indent: 0, depth: 0 });
               for (const ao of apparatusOutline) {
                 if (ao.depth === 1 && chapterRows) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1, bookmarkOnly: contentsApparatus === 'none' });
                 else {
@@ -2129,11 +2133,11 @@ export class PdfExportService {
               if (chapterRows) for (const d of descriptionOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
             }
             if (notationStarted) {
-              rows.push({ id: '', incipit: NOTATION_TEXT.part, genre: '', page: notationPage, plain: true, chapter: true, indent: 0, depth: 0 });
+              rows.push({ id: '', incipit: L.notation, genre: '', page: notationPage, plain: true, chapter: true, indent: 0, depth: 0 });
               if (chapterRows) for (const d of notationOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
             }
             if (y + 40 > maxContentY) y = startNewTitlePage();
-            y = drawHeading('Contents', textX, y, textColumnW, 10) + 6;
+            y = drawHeading(L.contents, textX, y, textColumnW, 10) + 6;
             doc.setFont(fontFamily, 'normal');
             doc.setFontSize(pdfFontSize);
             const idW = Math.min(110, Math.max(0, ...rows.filter((r) => !r.plain).map((r) => doc.getTextWidth(r.id))) + 12);
@@ -2211,13 +2215,14 @@ export class PdfExportService {
           const parts: string[] = [];
           const descPage = firstOf(descriptionOutline);
           const notPage = firstOf(notationOutline);
-          const edPage = firstOf(docEntries.map((e) => ({ job: e.job, page: e.page })));
           const appPage = firstOf(apparatusOutline.filter((o) => o.depth === 1 || !chapterRows));
-          if (descPage) parts.push('Source Description: p. ' + descPage);
-          if (notPage) parts.push('Notation Documentation: p. ' + notPage);
-          if (edPage) parts.push('Edition: p. ' + edPage);
-          if (appPage) parts.push('Critical Apparatus: p. ' + appPage);
-          if (parts.length < 2) continue;
+          // the other parts of the manuscript, in the order of the printed volume; the edition is where the reader is
+          const section = sectionPages.get(chapterKeyOf(jobs[ref.ji]));
+          if (section) parts.push(`${section.title}: ${L.page} ${section.page}`);
+          if (descPage) parts.push(`${descriptionTitle}: ${L.page} ${descPage}`);
+          if (notPage) parts.push(`${L.notation}: ${L.page} ${notPage}`);
+          if (appPage) parts.push(`${L.apparatus}: ${L.page} ${appPage}`);
+          if (!parts.length) continue;
           doc.setPage(ref.page + pageShift());
           doc.setFont(fontFamily, 'normal');
           doc.setFontSize(7.5);
@@ -2250,7 +2255,7 @@ export class PdfExportService {
               return text;
             };
             const owner = ownerOf(pageNum);
-            const part = partStarts.filter((p) => p.page <= pageNum - pageShift()).pop()?.name ?? 'Edition';
+            const part = partStarts.filter((p) => p.page <= pageNum - pageShift()).pop()?.name ?? L.edition;
             const num = pdfShowPageNumbers ? String(shownPage) : '';
             const numAt = (x: number) => {
               if (!num) return;
@@ -2265,7 +2270,7 @@ export class PdfExportService {
               doc.text(label, pageWidth - pdfMarginRight - doc.getTextWidth(label), headY);
             } else {
               // a recto: the manuscript on the left (in the edition by its shelfmark, in the other parts as in the contents), the number outside
-              const headText = fit(part === 'Edition' ? headOf(owner) : chapterLabelOf(owner));
+              const headText = fit(part === L.edition ? headOf(owner) : chapterLabelOf(owner));
               if (headText) doc.text(headText, pdfMarginLeft, headY);
               numAt(pageWidth - pdfMarginRight - (num ? (doc.setFontSize(pdfPageNumberFontSize), doc.getTextWidth(num)) : 0));
             }

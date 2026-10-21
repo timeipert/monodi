@@ -744,6 +744,10 @@ export interface ProjectSettings {
   /** Source descriptions: bold text inside a paragraph or list is set in small capitals, as the printed volume does for the authors of references (default on). */
   /** Which document field plays each part of relations and units for the print (default: the built-in `relation_target` … fields). */
   relationFields?: { target?: string; type?: string; unitId?: string; unitType?: string; unitPosition?: string };
+  /** Language of the fixed words of the print (names of the parts, contents, "p."): 'en' (default) or 'de'. */
+  pdfLanguage?: 'en' | 'de';
+  /** Own wording for single labels, on top of the language (key: see `LabelKey`). */
+  pdfLabels?: { [label: string]: string };
   pdfBoldAsSmallCaps?: boolean;
   /** Source descriptions: words are hyphenated with the German patterns (default on). */
   pdfHyphenate?: boolean;
