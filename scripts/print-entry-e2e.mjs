@@ -137,7 +137,9 @@ await scenario('document view dialog', async (page, problems, pdfText) => {
     const btn = await page.waitForSelector('app-pdf-export-dialog button ::-p-text(Create PDF)');
     await btn.click();
     const text = await pdfText();
-    for (const need of ['Herkunft', 'im Kloster', 'Sequentiar']) if (!text.includes(need)) problems.push(`description text "${need}" missing`);
+    // bold inside a paragraph is small capitals in print ("im Kloster" is drawn as IM KLOSTER)
+    for (const need of ['Herkunft', 'Sequentiar']) if (!text.includes(need)) problems.push(`description text "${need}" missing`);
+    if (!/IM\s+KLOSTER/.test(text)) problems.push('bold text in the description should be set in small capitals (IM KLOSTER)');
     if (text.indexOf('Herkunft') < text.indexOf('Gratuletur')) problems.push('the description comes before the edition');
   });
   docs.splice(0, docs.length, ...keep2);
