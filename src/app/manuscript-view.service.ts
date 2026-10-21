@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { Source } from './api.service';
+import { withReferenceLinks } from './notation-links';
 import { hasAnnotations, Lookup, lookupInManuscript } from './manuscript-lookup';
 
 /** What the "Show in manuscript" overlay displays. */
@@ -20,6 +21,8 @@ export interface ManuscriptViewState {
 export interface ManuscriptViewContext {
   getSource(): Source | null;
   getRoot(): any;
+  /** The document shown: snippets that name its neumes by a Neume Viewer reference are found through it. */
+  getDocument?(): { id: string; dokumenten_id: string; foliostart?: string; zeilenstart?: string } | null;
 }
 
 const CLOSED: ManuscriptViewState = {
@@ -54,7 +57,9 @@ export class ManuscriptViewService {
     const root = this.context?.getRoot();
     if (!source || !root) return;
 
-    const lookup = lookupInManuscript(source, root, noteUuid);
+    const doc = this.context?.getDocument?.();
+    const usable = doc ? withReferenceLinks(source, root, { id: doc.id, label: doc.dokumenten_id, foliostart: doc.foliostart, zeilenstart: doc.zeilenstart }) : source;
+    const lookup = lookupInManuscript(usable, root, noteUuid);
     this.subject.next({ ...CLOSED, open: true, loading: !!lookup, source, lookup });
     if (!lookup) return;
 

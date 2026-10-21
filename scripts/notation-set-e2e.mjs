@@ -87,7 +87,7 @@ await sleep(1200);
 expect((await idb('monodi_settings'))?.notationOrder === 'id', 'the order should be saved again');
 
 // ── the manuscript: Notation Documentation → Table & Tree ───────────────────────────────────────
-await page.goto(BASE + '/#/source/src0?tab=notation&ntab=docs', { waitUntil: 'networkidle0' });
+await page.goto(BASE + '/#/source/src0?tab=notation&ntab=table', { waitUntil: 'networkidle0' });
 await page.waitForSelector('#nd-table', { timeout: 15000 });
 let tableText = await text('#nd-table');
 expect(/21/.test(tableText) && /8 \/ 6/.test(tableText) && /9v \/ 2/.test(tableText), 'the table shows IDs and places: ' + tableText.replace(/\s+/g, ' ').slice(0, 200));
@@ -96,21 +96,23 @@ expect(/\b55\b/.test(tableText) === false || true, '');   // *udd has no ID in t
 expect(/55/.test(tableText), 'a pattern without an own table row takes the ID of the standard set (55)');
 await shot('source-table');
 
-// restrict this manuscript: take `*` out, then the table has no row 10
-await page.click('#nd-toggle-set');
-await page.waitForSelector('#nd-set');
+// restrict this manuscript: take `*` out (Data view lists every pattern with a checkbox), then the table has no row 10
+await page.click('#nd-view-data');
+await page.waitForSelector('#nd-data-patterns');
 const tick = async (pattern, on) => page.evaluate((pattern, on) => {
-  const tr = [...document.querySelectorAll('#nd-set tbody tr')].find((t) => t.querySelector('code')?.innerText === pattern);
+  const tr = [...document.querySelectorAll('#nd-data-patterns tbody tr')].find((t) => t.querySelector('code')?.innerText === pattern);
   const box = tr.querySelector('input[type=checkbox]');
   if (box.checked !== on) box.click();
 }, pattern, on);
 await tick('*', false);
 await sleep(1000);
+await page.click('#nd-view-table');
+await page.waitForSelector('#nd-table');
 const src = (await idb('monodi_sources')).find((s) => s.id === 'src0');
 const set = JSON.parse(src.custom?.notationSet ?? '{}');
 expect(Array.isArray(set.remove) && set.remove.includes('*'), 'the manuscript keeps what it removed: ' + JSON.stringify(src.custom));
 tableText = await text('#nd-table');
-expect(!/\b10\b\s+a/.test(tableText), 'the removed pattern is out of the table');
+expect(!(await page.$$eval('#nd-table .nd-id', (l) => l.map((e) => e.innerText.trim()))).includes('10'), 'the removed pattern is out of the table');
 
 // extend: a pattern only this manuscript shows, typed
 await page.type('#nd-add', '*ddu');

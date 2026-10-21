@@ -331,7 +331,7 @@ export class DocumentComponent implements OnInit {
 
   /** Lends "Show in manuscript" (right-click a neume) the source and transcription shown here. */
   private manuscriptView = inject(ManuscriptViewService);
-  private manuscriptViewContext = { getSource: () => this.sourceData, getRoot: () => this.cont };
+  private manuscriptViewContext = { getSource: () => this.sourceData, getRoot: () => this.cont, getDocument: () => this.document ?? null };
   viewMode: 'transcription' | 'split' | 'iiif' = 'transcription';
   get splitScreen(): boolean { return this.viewMode === 'split'; }
   splitLeftWidth = 45;
