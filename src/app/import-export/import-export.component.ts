@@ -38,6 +38,7 @@ const SIDES: IoSide[] = [
           { id: 'import-workspace', ws: 'import-workspace', icon: 'bi-archive', color: 'text-secondary', title: 'Backup', hint: 'Restore your workspace', badge: '.monodijson' },
           { id: 'import-zip', ws: 'import-zip', icon: 'bi-file-earmark-zip', color: 'text-secondary', title: 'ZIP', hint: 'monodi+ or OMMR4all', badge: 'ZIP' },
           { id: 'import-csv', ws: 'import-csv', icon: 'bi-filetype-csv', color: 'text-secondary', title: 'Spreadsheet', hint: 'Each row becomes a document', badge: 'CSV' },
+          { id: 'import-guido', ws: 'import-guido', icon: 'bi-file-earmark-word', color: 'text-secondary', title: 'GUIDO (Word)', hint: 'Chant in the GUIDO font, a document per source', badge: 'DOCX' },
           { id: 'import-annotations', ws: 'import-annotations', icon: 'bi-images', color: 'text-secondary', title: 'Annotations', hint: 'Neumen-Editor or Neume Viewer', badge: 'JSON' },
         ],
       },

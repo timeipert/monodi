@@ -11,6 +11,7 @@
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
       <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
       <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
+      <input type="file" id="importGuidoFile" (change)="onGuidoFilePicked($event)" style="display: none" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
       <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" style="display: none" multiple accept=".json,application/json,.zip,.png,.jpg,.jpeg,.webp,.gif,.svg" />
       <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
         class="btn btn-sm btn-outline-secondary"
@@ -193,6 +194,126 @@
               <i class="bi bi-check-lg me-1"></i>Close
             </button>
           }
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- GUIDO (Word): what the file would add, read with the selected template -->
+@if (guidoImport) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" id="guido-import-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 640px;">
+      <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-file-earmark-word text-primary"></i><span>Import GUIDO (Word)</span>
+          </h5>
+          <button type="button" class="btn-close" aria-label="Close" (click)="closeGuidoImport()" [disabled]="isApplyingGuido"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="text-muted small mb-3">
+            <strong>{{ guidoImport.fileName }}</strong> — chant typed in the GUIDO font: one table per phrase, a row per
+            source, a column per syllable. Every source becomes a document. Parts written in grey are copies and not
+            read.
+          </p>
+
+          <div class="d-flex gap-2 align-items-center mb-2">
+            <label class="small fw-semibold mb-0" for="guido-template">Template</label>
+            <select id="guido-template" class="form-select form-select-sm" [ngModel]="guidoImport.templateId"
+              (ngModelChange)="selectGuidoTemplate($event)">
+              @for (t of guidoImport.templates; track t.id) {
+                <option [value]="t.id">{{ t.name }}</option>
+              }
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
+              (click)="guidoImport.showTemplate = !guidoImport.showTemplate">
+              <i class="bi bi-sliders me-1"></i>Edit
+            </button>
+          </div>
+          @if (guidoImport.showTemplate) {
+            <div class="mb-3">
+              <textarea class="form-control form-control-sm font-monospace" rows="12" id="guido-template-json"
+                [(ngModel)]="guidoImport.templateJson" spellcheck="false"></textarea>
+              @for (e of guidoImport.templateErrors; track $index) {
+                <p class="text-danger small mb-0"><i class="bi bi-x-circle me-1"></i>{{ e }}</p>
+              }
+              <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" (click)="saveGuidoTemplate()">
+                  <i class="bi bi-save me-1"></i>Save as template
+                </button>
+                @if (!guidoIsBuiltin) {
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="deleteGuidoTemplate()">
+                    <i class="bi bi-trash me-1"></i>Delete this template
+                  </button>
+                }
+                <span class="text-muted small align-self-center">The built-in template is never changed; saving needs another id.</span>
+              </div>
+            </div>
+          }
+
+          @if (guidoImport.error) {
+            <p class="text-danger small"><i class="bi bi-x-circle me-1"></i>{{ guidoImport.error }}</p>
+          }
+          @if (guidoImport.result; as r) {
+            @if (r.title.raw) {
+              <p class="small mb-2">Chant: <strong>{{ r.title.id }}</strong> {{ r.title.incipit }}</p>
+            }
+            <ul class="list-unstyled mb-2" id="guido-sources">
+              @for (rep of r.reports; track rep.siglum) {
+                <li class="mb-1">
+                  <span class="fw-semibold">{{ rep.siglum }}</span>
+                  <span class="text-muted small"> — {{ rep.syllables }} syllables</span>
+                  @if (rep.warnings.length) {
+                    <details class="small text-warning">
+                      <summary>{{ rep.warnings.length }} note{{ rep.warnings.length === 1 ? '' : 's' }}</summary>
+                      @for (w of rep.warnings.slice(0, 12); track $index) { <div>{{ w }}</div> }
+                      @if (rep.warnings.length > 12) { <div>… and {{ rep.warnings.length - 12 }} more</div> }
+                    </details>
+                  }
+                </li>
+              }
+            </ul>
+            @if (r.skipped.length) {
+              <p class="text-muted small">Nothing attested, so not imported: {{ r.skipped.join(', ') }}.</p>
+            }
+            @for (w of r.warnings; track $index) {
+              <p class="text-warning small mb-1"><i class="bi bi-exclamation-triangle me-1"></i>{{ w }}</p>
+            }
+            @if (guidoExisting) {
+              <div class="border rounded p-2 mb-2" id="guido-conflicts">
+                <p class="small mb-1"><i class="bi bi-exclamation-triangle text-warning me-1"></i>
+                  {{ guidoExisting }} of these documents {{ guidoExisting === 1 ? 'is' : 'are' }} already in the workspace:</p>
+                <div class="form-check small">
+                  <input class="form-check-input" type="radio" id="guido-skip" name="guido-mode" [checked]="guidoImport.mode === 'skip'" (change)="setGuidoMode('skip')">
+                  <label class="form-check-label" for="guido-skip">Keep them as they are</label>
+                </div>
+                <div class="form-check small">
+                  <input class="form-check-input" type="radio" id="guido-copy" name="guido-mode" [checked]="guidoImport.mode === 'copy'" (change)="setGuidoMode('copy')">
+                  <label class="form-check-label" for="guido-copy">Import them as new copies</label>
+                </div>
+                <div class="form-check small">
+                  <input class="form-check-input" type="radio" id="guido-replace" name="guido-mode" [checked]="guidoImport.mode === 'replace'" (change)="setGuidoMode('replace')">
+                  <label class="form-check-label" for="guido-replace">Replace their notes (comments and apparatus on them are lost)</label>
+                </div>
+              </div>
+            }
+            @if (guidoImport.flagsToAdd.length) {
+              <p class="text-muted small mb-0">
+                Note flags added to the settings so they show in the editor: {{ guidoImport.flagsToAdd.join(', ') }}
+                (V virga, P plica, T tenor note, F/H/U sign of alteration on a stemmed note).
+              </p>
+            }
+          }
+        </div>
+        <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeGuidoImport()" [disabled]="isApplyingGuido">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+          </button>
+          <button type="button" class="btn btn-sm btn-primary" id="guido-confirm" (click)="confirmGuidoImport()"
+            [disabled]="isApplyingGuido || !guidoImport.result || !guidoWillWrite">
+            <i class="bi bi-check-lg me-1"></i>Import
+          </button>
         </div>
       </div>
     </div>

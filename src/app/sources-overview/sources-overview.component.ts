@@ -38,6 +38,10 @@ import { readAnnotationFiles } from '../neume-docs-import';
 import { saveStripImages } from '../notation-strip-images';
 import { safeStorage } from '../safe-storage';
 import { downloadBlob } from '../download';
+import { GuidoImportResult, parseGuidoDocx } from '../guido/guido-import';
+import { BUILTIN_TEMPLATE_ID, GuidoTemplate, allGuidoTemplates, parseGuidoTemplate } from '../guido/guido-template';
+import { GuidoConflictMode, GuidoPlan, applyGuidoImport, mergeNoteFlags, planGuidoImport } from '../guido/guido-apply';
+import { NoteFlagDef } from '../notes/note-flags';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -61,6 +65,22 @@ const DEFAULT_SOURCE_COLS: SourceColDef[] = [
 ];
 
 const STORAGE_KEY = 'monodi_source_cols';
+
+interface GuidoImportState {
+  fileName: string;
+  data: ArrayBuffer;
+  templates: GuidoTemplate[];
+  templateId: string;
+  result: GuidoImportResult | null;
+  error: string;
+  plan: GuidoPlan | null;
+  mode: GuidoConflictMode;
+  definedFlags: NoteFlagDef[];
+  flagsToAdd: string[];
+  showTemplate: boolean;
+  templateJson: string;
+  templateErrors: string[];
+}
 
 @Component({
     selector: 'app-sources-overview',
@@ -97,6 +117,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   /** An annotation file from the Neumen-Editor waiting for the person's OK. */
   annotationImport: { fileName: string; preview: ImportPreview } | null = null;
   isApplyingAnnotations = false;
+  /** The GUIDO (Word) file that was chosen, read with the selected template, before anything is stored. */
+  guidoImport: GuidoImportState | null = null;
+  isApplyingGuido = false;
   csvIncludeSourceMeta = true;
   csvIncludeDocumentMeta = true;
   csvIncludeContent = true;
@@ -235,6 +258,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         break;
       case 'import-annotations':
         document.getElementById('importAnnotationsFile')?.click();
+        break;
+      case 'import-guido':
+        document.getElementById('importGuidoFile')?.click();
         break;
       default:
         console.warn('Unknown workspace action:', action);
@@ -536,6 +562,164 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     } finally {
       this.isApplyingAnnotations = false;
       this.annotationImport = null;
+      this.updateList();
+      this.cdRef.markForCheck();
+    }
+  }
+
+
+  // ---------------------------------------------------------------------------------------------
+  // GUIDO (Word): chant typed in the GUIDO font, read with an import template (see guido/)
+
+  /** A .docx was chosen: read it with the built-in template and show what it would add. */
+  async onGuidoFilePicked(event: any): Promise<void> {
+    const file: File | undefined = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const settings = await this.guidoSettings();
+      const templates = allGuidoTemplates(settings?.guidoImportTemplates);
+      this.guidoImport = {
+        fileName: file.name, data: await file.arrayBuffer(), templates, templateId: BUILTIN_TEMPLATE_ID,
+        result: null, error: '', plan: null, mode: 'skip', definedFlags: settings?.noteFlags ?? [],
+        flagsToAdd: [], showTemplate: false, templateJson: '', templateErrors: [],
+      };
+      await this.refreshGuido();
+    } catch (err: any) {
+      this.guidoImport = null;
+      this.toastr.error(err?.message || String(err), 'Could not read the Word file');
+    }
+    this.cdRef.markForCheck();
+  }
+
+  private async guidoSettings() {
+    if (!this.user) return null;
+    const res = await firstValueFrom(this.api.getSettings(this.user.token));
+    return res.kind === 'SettingsRetrieved' ? res.settings : null;
+  }
+
+  get guidoTemplate(): GuidoTemplate | undefined {
+    return this.guidoImport?.templates.find(t => t.id === this.guidoImport!.templateId);
+  }
+
+  get guidoIsBuiltin(): boolean {
+    return this.guidoImport?.templateId === BUILTIN_TEMPLATE_ID;
+  }
+
+  /** Reads the file again with the selected template. */
+  async refreshGuido(): Promise<void> {
+    const g = this.guidoImport;
+    const template = this.guidoTemplate;
+    if (!g || !template) return;
+    g.result = null;
+    g.error = '';
+    try {
+      g.result = await parseGuidoDocx(g.data, template, g.fileName);
+      if (!g.result.documents.length) g.error = 'Nothing is attested in this file with this template.';
+    } catch (err: any) {
+      g.error = err?.message || String(err);
+    }
+    g.templateJson = JSON.stringify(
+      this.guidoIsBuiltin ? { ...template, id: 'my-template', name: `${template.name} (copy)` } : template, null, 2);
+    await this.updateGuidoPlan();
+    this.cdRef.markForCheck();
+  }
+
+  async updateGuidoPlan(): Promise<void> {
+    const g = this.guidoImport;
+    if (!g) return;
+    if (!g.result) { g.plan = null; g.flagsToAdd = []; return; }
+    const documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+    g.plan = planGuidoImport(g.result, this.sources, documents.map(d => d.id), g.mode);
+    g.flagsToAdd = mergeNoteFlags(g.definedFlags, g.result.template.ensureFlags).added;
+    this.cdRef.markForCheck();
+  }
+
+  async selectGuidoTemplate(id: string): Promise<void> {
+    if (!this.guidoImport) return;
+    this.guidoImport.templateId = id;
+    this.guidoImport.templateErrors = [];
+    await this.refreshGuido();
+  }
+
+  async setGuidoMode(mode: GuidoConflictMode): Promise<void> {
+    if (!this.guidoImport) return;
+    this.guidoImport.mode = mode;
+    await this.updateGuidoPlan();
+  }
+
+  get guidoExisting(): number {
+    return (this.guidoImport?.plan?.documents ?? []).filter(d => d.action !== 'new').length;
+  }
+
+  get guidoWillWrite(): number {
+    return (this.guidoImport?.plan?.documents ?? []).filter(d => d.action !== 'skip').length;
+  }
+
+  closeGuidoImport(): void {
+    if (this.isApplyingGuido) return;
+    this.guidoImport = null;
+  }
+
+  /** The text of the editor is stored as a template of its own; the built-in one is never changed. */
+  async saveGuidoTemplate(): Promise<void> {
+    const g = this.guidoImport;
+    if (!g || !this.user) return;
+    g.templateErrors = [];
+    let raw: unknown;
+    try { raw = JSON.parse(g.templateJson); }
+    catch (e: any) { g.templateErrors = [`Not valid JSON: ${e.message}`]; return; }
+    const { template, errors } = parseGuidoTemplate(raw);
+    if (!template || errors.length) { g.templateErrors = errors; return; }
+    const settings = await this.guidoSettings();
+    if (!settings) return;
+    const stored = (settings.guidoImportTemplates ?? []).filter(t => t.id !== template.id);
+    settings.guidoImportTemplates = [...stored, template];
+    await firstValueFrom(this.api.updateSettings(this.user.token, settings));
+    g.templates = allGuidoTemplates(settings.guidoImportTemplates);
+    g.templateId = template.id;
+    this.toastr.success(`Template "${template.name}" saved.`);
+    await this.refreshGuido();
+  }
+
+  async deleteGuidoTemplate(): Promise<void> {
+    const g = this.guidoImport;
+    if (!g || !this.user || this.guidoIsBuiltin) return;
+    const settings = await this.guidoSettings();
+    if (!settings) return;
+    settings.guidoImportTemplates = (settings.guidoImportTemplates ?? []).filter(t => t.id !== g.templateId);
+    await firstValueFrom(this.api.updateSettings(this.user.token, settings));
+    g.templates = allGuidoTemplates(settings.guidoImportTemplates);
+    g.templateId = BUILTIN_TEMPLATE_ID;
+    await this.refreshGuido();
+  }
+
+  async confirmGuidoImport(): Promise<void> {
+    const g = this.guidoImport;
+    if (!g?.result || !this.user || this.isApplyingGuido) return;
+    this.isApplyingGuido = true;
+    try {
+      const counts = await applyGuidoImport(g.result, g.mode);
+      if (g.flagsToAdd.length) {
+        const settings = await this.guidoSettings();
+        if (settings) {
+          settings.noteFlags = mergeNoteFlags(settings.noteFlags, g.result.template.ensureFlags).flags;
+          await firstValueFrom(this.api.updateSettings(this.user.token, settings));
+        }
+      }
+      this.api.invalidateCache();
+      const parts = [
+        counts.newDocuments && `${counts.newDocuments} new`,
+        counts.replaced && `${counts.replaced} replaced`,
+        counts.copies && `${counts.copies} copied`,
+        counts.skipped && `${counts.skipped} kept as they were`,
+      ].filter(Boolean).join(', ');
+      this.toastr.success(`${counts.newSources} new source${counts.newSources === 1 ? '' : 's'}; documents: ${parts || 'none'}.`, 'GUIDO import');
+    } catch (err: any) {
+      this.toastr.error(err?.message || String(err), 'GUIDO import failed');
+    } finally {
+      this.isApplyingGuido = false;
+      this.guidoImport = null;
       this.updateList();
       this.cdRef.markForCheck();
     }

@@ -13,6 +13,7 @@ import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
 import { NoteFlagDef, sanitizeNoteFlags, setNoteFlagDefs } from './notes/note-flags';
+import { GuidoTemplate, sanitizeGuidoTemplates } from './guido/guido-template';
 import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule } from './mei/mei-mapping.model';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
@@ -765,6 +766,8 @@ export interface ProjectSettings {
   activeMeiProfileId?: string;
   /** User-defined note flags (virga etc.), see notes/note-flags.ts. */
   noteFlags?: NoteFlagDef[];
+  /** Templates for the GUIDO (Word) import beyond the built-in one, see guido/guido-template.ts. */
+  guidoImportTemplates?: GuidoTemplate[];
   /** Heading where a document begins in the PDF: fields, labels, styles (see print/doc-heading.ts). Default: ID, reference, genre (genre only where the PDF has several). */
   pdfDocHeadingFields?: HeadingField[];
   /** Between the parts of that heading (default three spaces). */
@@ -1130,6 +1133,7 @@ export function sanitizeSettings(settings: any): ProjectSettings {
 
   settings.noteFlags = sanitizeNoteFlags(settings.noteFlags);
   setNoteFlagDefs(settings.noteFlags);
+  settings.guidoImportTemplates = sanitizeGuidoTemplates(settings.guidoImportTemplates);
 
   for (const prof of settings.meiProfiles ?? []) {
     if (prof.patternRules !== undefined) {
