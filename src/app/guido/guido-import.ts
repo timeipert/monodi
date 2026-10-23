@@ -9,7 +9,7 @@ import { DocxCell, DocxContent, readDocx } from './guido-docx-reader';
 import { GLYPH_TABLES } from './guido-glyphs';
 import { GuidoTemplate, fillPattern, matchPattern } from './guido-template';
 
-/** Same namespace as scripts/guido-import/convert.py, so both tools give a document the same ids. */
+/** Namespace of the stable ids: the same file always gives a document the same note ids. */
 const ID_NAMESPACE = '7b0f5d0e-6d0e-4f7e-9d57-3a1f4a0c6c11';
 
 export interface GuidoSourceReport {
@@ -137,7 +137,7 @@ export function importGuido(content: DocxContent, template: GuidoTemplate, fileN
   const raw = content.paragraphs[template.title.paragraph] ?? '';
   const matched = matchPattern(template.title.pattern, raw);
   const title = { id: matched?.['id'] ?? '', incipit: matched ? (matched['incipit'] ?? '') : collapse(raw), raw };
-  // without a number in the title the incipit stands in for it, as convert.py does
+  // without a number in the title the incipit stands in for it
   const idVars = { id: title.id || title.incipit, incipit: title.incipit };
 
   const result: GuidoImportResult = {

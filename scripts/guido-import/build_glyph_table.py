@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Derives glyph_table.json from the guido6+ TrueType file itself.
+Derives the glyph table of the app (src/app/guido/guido-glyphs.hu.ts) from the guido6+ TrueType file itself.
 
 Why measure instead of trusting the keyboard chart: the font carries a piece of staff
 in every note glyph, so a glyph's pitch is *drawn into* it. The table says, for every
@@ -9,10 +9,11 @@ note-like glyphs, which diatonic step above C4 it sits on. Calibration comes fro
 digits 0..9, which the Dobszay/Bali guide defines as consecutive steps of a G clef
 (0 = C4 ... 9 = E5).
 
-    python3 build_glyph_table.py "/path/to/guido6+__.TTF" > glyph_table.json
     python3 build_glyph_table.py "/path/to/guido6+__.TTF" --ts GUIDO_GLYPHS_HU > ../../src/app/guido/guido-glyphs.hu.ts
 
-Needs fontTools, Pillow, numpy, scipy (build time only; convert.py only reads the JSON).
+Without --ts it prints the table as JSON. For another font or keyboard layout, run it on that font, write
+a second generated file and register it in GLYPH_TABLES (src/app/guido/guido-glyphs.ts).
+Needs fontTools, Pillow, numpy, scipy (only to rebuild the table; the app ships the generated file).
 """
 import json
 import sys
@@ -85,7 +86,7 @@ def main(font_path, ts_name=None):
             continue
         a = render(font, ch)
         if not a.any():
-            continue          # empty glyphs (\ and n) are classified in convert.py
+            continue          # empty glyphs (\ and n) are named in the template (symbols.join, symbols.shortGap)
         f = analyse(a)
         heads, ink = f['heads'], f['ink']
         entry = None
