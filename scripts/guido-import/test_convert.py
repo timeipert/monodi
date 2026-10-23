@@ -147,6 +147,8 @@ class Output(unittest.TestCase):
         note = convert.note_json(convert.Note(5, 'virga', plica=True), ids, 'descending')
         self.assertEqual((note['base'], note['octave'], note['noteType'], note['flags']),
                          ('A', 4, 'Descending', ['P']))
+        flagged = convert.note_json(convert.Note(5, 'virga', plica=True), ids, 'flag')
+        self.assertEqual((flagged['noteType'], flagged['flags']), ('Normal', ['V', 'P']))
         self.assertFalse(note['liquescent'])
         q = convert.note_json(convert.Note(2, 'quilisma'), ids, 'descending')
         self.assertEqual(q['noteType'], 'Quilisma')

@@ -3,7 +3,7 @@
 Converts a chant transcription typed in the GUIDO font (Dobszay/Bali, "guido6+", Hungarian
 keyboard) inside a Word table into a Monodi-Zero import ZIP.
 
-    python3 convert.py "R 1001.docx" [--out-dir DIR] [--virga descending|normal]
+    python3 convert.py "R 1001.docx" [--out-dir DIR] [--virga flag|descending|normal]
 
 Writes <stem>.monodi.zip (Sources > Import ZIP; one document per source, merged by id so a
 re-import updates instead of duplicating) and <stem>.report.txt (what was read, what was not).
@@ -32,10 +32,10 @@ calibrated on the digits 0..9 = C4..E5 of the G clef. Meanings, with the guide s
   n                 empty glyph, 1/3 notehead wide: a short gap INSIDE a neume
   \\                empty glyph, 16/1000 em: nudges two notes together, keeps one ligature
 Monodi representation (model.ts): syllable.notes = Spaced > NonSpaced (neume) > Grouped (ligature).
-Pitch is absolute (step 0 = C4). virga -> NoteType.Descending (a stem down); quilisma ->
+Pitch is absolute (step 0 = C4). virga -> note flag V (a stem down; --virga descending stores NoteType.Descending); quilisma ->
 NoteType.Quilisma; plica -> note flag P, tenor note -> flag T, flat/sharp/natural -> NoteType
 when the note is a plain punctum, else flag F/H/U (a note has one noteType). Flags are stored but
-Monodi only draws flags that are defined under Settings > note flags: define P, T, F, H, U there.
+Monodi only draws flags that are defined under Settings > note flags: define V, P, T, F, H, U there.
 
 Not decoded, and reported rather than guessed: the guide's liquescence tail, episema, prolongation
 dot and reduced notehead are not identifiable in this font file (no glyph with that outline
@@ -297,6 +297,8 @@ def note_json(n, ids, virga):
     flags = []
     note_type = {'punctum': 'Normal', 'virga': 'Descending' if virga == 'descending' else 'Normal',
                  'quilisma': 'Quilisma', 'tenor': 'Normal'}[n.shape]
+    if n.shape == 'virga' and virga == 'flag':
+        flags.append('V')
     if n.shape == 'tenor':
         flags.append('T')
     if n.plica:
@@ -391,8 +393,9 @@ def main(argv=None):
     ap.add_argument('--out-dir', default='.')
     ap.add_argument('--marks-in-text', action='store_true',
                     help='append the phrasing marks , . : ; to the syllable text (default: report only)')
-    ap.add_argument('--virga', choices=['descending', 'normal'], default='descending',
-                    help='NoteType of the stemmed note (default: descending = stem down)')
+    ap.add_argument('--virga', choices=['flag', 'descending', 'normal'], default='flag',
+                    help='how the stemmed note is stored: flag V on a normal note (default), '
+                         'NoteType.Descending, or not at all')
     a = ap.parse_args(argv)
     title, phrases = extract(a.docx)
     docs = assemble(phrases, a.marks_in_text)
