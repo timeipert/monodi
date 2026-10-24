@@ -98,7 +98,9 @@ jobs:
 
       - name: Install poppler
         if: matrix.poppler
-        run: sudo apt-get install -y --no-install-recommends poppler-utils unzip
+        # Refresh the package index first: the runner image ships a stale one, and a missing package makes apt exit 100,
+        # which skips the deploy job and (with Pages on branch deployment) left monodi.app on a 404 page (2026-10-24).
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils unzip
 
       - name: Start the dev server
         run: |
