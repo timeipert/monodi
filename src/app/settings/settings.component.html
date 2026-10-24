@@ -1146,6 +1146,60 @@
                   </div>
                 </div>
                 <app-mei-mapping-editor [settings]="settings" (settingsChange)="onSettingsChange()"></app-mei-mapping-editor>
+                @if (settings) {
+                  <div class="settings-panel p-4 mt-4" id="publicationSettings">
+                    <h5 class="mb-1">Publication data</h5>
+                    <p class="text-muted small mb-3">Used by the MEI header levels 2 (Standard) and 3 (Extended). Level 1 ignores everything here, and an empty field produces no element. Never enter e-mail addresses. Explanation: <code>CM-hub/docs/METADATA-STANDARDS.md</code>.</p>
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium" for="pubPublisher">Publisher</label>
+                        <input class="form-control form-control-sm" id="pubPublisher" [ngModel]="pubValue('publisher')" (ngModelChange)="setPub('publisher', $event)">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium" for="pubSeries">Series title</label>
+                        <input class="form-control form-control-sm" id="pubSeries" [ngModel]="pubValue('seriesTitle')" (ngModelChange)="setPub('seriesTitle', $event)">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium" for="pubAddress">Address (one line per row)</label>
+                        <textarea class="form-control form-control-sm" id="pubAddress" rows="3" [ngModel]="pubAddress()" (ngModelChange)="setPubAddress($event)"></textarea>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium" for="pubFunder">Funder</label>
+                        <input class="form-control form-control-sm" id="pubFunder" [ngModel]="pubValue('funderName')" (ngModelChange)="setPub('funderName', $event)">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium" for="pubBase">Document URL prefix (the document ID is appended)</label>
+                        <input class="form-control form-control-sm" id="pubBase" [ngModel]="pubValue('documentBaseUri')" (ngModelChange)="setPub('documentBaseUri', $event)">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small fw-medium" for="pubLang">Language of the header text</label>
+                        <input class="form-control form-control-sm" id="pubLang" placeholder="en" [ngModel]="pubValue('language')" (ngModelChange)="setPub('language', $event)">
+                      </div>
+                      <div class="col-md-8">
+                        <label class="form-label small fw-medium" for="pubLicenceUri">Licence URI</label>
+                        <input class="form-control form-control-sm" id="pubLicenceUri" placeholder="https://creativecommons.org/licenses/by/4.0/" [ngModel]="pubValue('licenseUri')" (ngModelChange)="setPub('licenseUri', $event)">
+                        <small class="text-muted">Without a licence URI an export is marked as a draft: not for publication.</small>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small fw-medium" for="pubLicenceLabel">Licence label</label>
+                        <input class="form-control form-control-sm" id="pubLicenceLabel" placeholder="CC BY 4.0" [ngModel]="pubValue('licenseLabel')" (ngModelChange)="setPub('licenseLabel', $event)">
+                      </div>
+                    </div>
+                    <h6 class="mt-4 mb-2">Contributors</h6>
+                    @for (c of contributors(); track $index; let i = $index) {
+                      <div class="row g-2 mb-2 align-items-center">
+                        <div class="col-md-4"><input class="form-control form-control-sm" aria-label="Name" placeholder="Given Family" [ngModel]="c.name" (ngModelChange)="setContributor(i, 'name', $event)"></div>
+                        <div class="col-md-4"><input class="form-control form-control-sm" aria-label="Role" placeholder="Project direction" [ngModel]="c.role" (ngModelChange)="setContributor(i, 'role', $event)"></div>
+                        <div class="col-md-3"><input class="form-control form-control-sm" aria-label="ORCID" placeholder="0000-0000-0000-0000" [ngModel]="c.orcid || ''" (ngModelChange)="setContributor(i, 'orcid', $event)"></div>
+                        <div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-secondary" aria-label="Remove contributor" (click)="removeContributor(i)"><i class="bi bi-x-lg"></i></button></div>
+                      </div>
+                    }
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="addContributor()"><i class="bi bi-plus-lg"></i> Add contributor</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="fillPublicationFromMapping()" title="Fills empty fields with the values of the Corpus Monodicum from the shared mapping; existing values stay.">Fill empty fields with the Corpus Monodicum values</button>
+                    </div>
+                  </div>
+                }
               </div>
             }
             <!-- 7. HTML Export Settings Tab -->

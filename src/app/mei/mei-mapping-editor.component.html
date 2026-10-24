@@ -102,6 +102,17 @@
                 </div>
                 <small class="text-muted d-block mt-1">Document title, sources and comments at the top of the file.</small>
               </div>
+              @if (activeProfile.emitHeader) {
+                <div class="mb-4">
+                  <label class="form-label fw-medium" for="headerLevelSelect">Header level</label>
+                  <select class="form-select form-select-sm" id="headerLevelSelect" [ngModel]="activeProfile.headerLevel || 1" (ngModelChange)="activeProfile.headerLevel = +$event; emitChange()">
+                    <option [ngValue]="1">1 Minimal: title, siglum, comment, genre (baseline of version 0.9.1)</option>
+                    <option [ngValue]="2">2 Standard: adds publisher, licence, source, folio, encoding information</option>
+                    <option [ngValue]="3">3 Extended: adds authority identifiers of contributors</option>
+                  </select>
+                  <small class="text-muted d-block mt-1">Levels 2 and 3 use the publication data below and follow the shared mapping (<code>CM-hub/config/metadata-mapping.yml</code>). Level 1 leaves the export unchanged.</small>
+                </div>
+              }
               <div>
                 <label class="form-label fw-medium">Structure around the music</label>
                 <p class="text-muted small mb-2">The nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
