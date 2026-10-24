@@ -1,14 +1,17 @@
 // Headless MEI export: writes one MEI file per document of a Monodi ZIP, using the same emitter as the export button
 // of Monodi-Zero (a headless Chrome supplies the DOM the emitter needs).
 //
-//   node scripts/export-mei-batch.mjs --zip <monodi.zip> --out <mei.zip> [--level 1|2|3] [--publication <json>] [--limit <n>]
+//   node scripts/export-mei-batch.mjs --zip <monodi.zip> --out <mei.zip> [--level 1|2|3] [--publication <json>] [--contributors <json>]
+//                                      [--licence-uri <uri> --licence-label <text>] [--limit <n>]
 //
 // Input:  a ZIP in the Monodi+ layout (<source>/meta.json, <source>/<document>/meta.json + data.json), for example the
 //         output of `cm zero package` in the CM-hub repository.
 // Output: a ZIP with `<document id>.mei.xml` for every document, and `report.json` (counts and per-document errors).
+// Credits: --contributors is a JSON file {document id: [{name, role, orcid?, gnd?}]}; each chant names only those people. Without it
+//         the chants name nobody (the whole project is not listed in every header).
 // Header: the level decides how much of the shared mapping the <meiHead> follows (docs/METADATA-STANDARDS.md in CM-hub).
 //         Without --publication the Corpus Monodicum values of the shared mapping are used; a licence is not set, so the
-//         files are marked as drafts.
+//         files are marked as drafts, unless --licence-uri is given (a working choice of one run).
 // Chrome: CHROME_BIN, or the usual macOS / Linux locations.
 import { build } from 'esbuild';
 import puppeteer from 'puppeteer-core';
@@ -27,7 +30,7 @@ const outPath = opt('out');
 const level = Number(opt('level', '2'));
 const limit = Number(opt('limit', '0'));
 if (!zipPath || !outPath || ![1, 2, 3].includes(level)) {
-  console.error('usage: node scripts/export-mei-batch.mjs --zip <monodi.zip> --out <mei.zip> [--level 1|2|3] [--publication <json>] [--limit <n>]');
+  console.error('usage: node scripts/export-mei-batch.mjs --zip <monodi.zip> --out <mei.zip> [--level 1|2|3] [--publication <json>] [--contributors <json>] [--licence-uri <uri> --licence-label <text>] [--limit <n>]');
   process.exit(2);
 }
 
@@ -68,6 +71,9 @@ await page.addScriptTag({ content: script });
 const publication = opt('publication')
   ? JSON.parse(readFileSync(opt('publication'), 'utf8'))
   : await page.evaluate(() => window.__mei.defaultPublication());
+publication.contributors = [];                      // credits come per chant from --contributors, never as one list for all
+if (opt('licence-uri')) { publication.licenseUri = opt('licence-uri'); publication.licenseLabel = opt('licence-label', opt('licence-uri')); }
+const contributorsByDocument = opt('contributors') ? JSON.parse(readFileSync(opt('contributors'), 'utf8')) : {};
 const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 
 const output = new JSZip();
@@ -78,7 +84,8 @@ for (const [i, { meta, dataPath }] of jobs.entries()) {
   const rootContainer = JSON.parse(await input.file(dataPath).async('string'));
   const source = sources.get(meta.quelle_id) ?? {};
   const result = await page.evaluate((job) => window.__mei.exportOne(job),
-    { root: rootContainer, document: meta, source, level, publication, appVersion, now: new Date().toISOString() });
+    { root: rootContainer, document: meta, source, level, appVersion, now: new Date().toISOString(),
+      publication: { ...publication, contributors: contributorsByDocument[meta.id] ?? [] } });
   if (result.xml) { output.file(`${meta.id}.mei.xml`, result.xml); written++; }
   else errors.push({ id: meta.id, dokumenten_id: meta.dokumenten_id, error: result.error });
   if ((i + 1) % 500 === 0) console.log(`  ${i + 1} of ${jobs.length}`);
