@@ -213,7 +213,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     for (const person of METADATA_MAPPING.people) {
       for (const roleId of person.roles) {
         const role = METADATA_MAPPING.roles.find(r => r.id === roleId);
-        if (role && role.levels.includes('corpus')) {
+        if (role && role.levels.includes('corpus') && !role.levels.includes('source')) {
           contributors.push({ name: person.display, role: role.respText, orcid: person.orcid || undefined, gnd: person.gnd || undefined });
         }
       }
