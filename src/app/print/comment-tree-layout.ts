@@ -1,5 +1,5 @@
 import * as VM from '../types/model';
-import { TextKit, breakLines, drawLines, linesWidth, markupSegments } from './rich-text';
+import { TextKit, breakLines, drawLines, linesWidth, linkReferences, markupSegments } from './rich-text';
 
 /** A laid-out piece of the apparatus: its size and how to draw it at a position. */
 export interface Box {
@@ -19,6 +19,8 @@ export interface TreeKit extends TextKit {
   maxCellW: number;
   gapX: number;
   gapY: number;
+  /** Document ID -> label of its frame: a reference to a document of the print is set as that frame. */
+  refs?: ReadonlyMap<string, string>;
   bracket(x: number, y: number, h: number): void;
   /** A line of notes (the "Notes" leaf); `context` notes are set in grey. */
   notes(zeile: VM.ZeileContainer, context: boolean, maxW: number): Box;
@@ -38,7 +40,7 @@ export function layoutCommentTree(tree: VM.CommentTree, kit: TreeKit, maxW: numb
         return { w: 6, h: kit.fs, stretch: true, draw: (x, y, rowH) => kit.bracket(x, y, Math.max(rowH, kit.fs)) };
       }
       if (c.kind === 'Notes') return kit.notes(c.content, !!c.context, maxW);
-      const lines = breakLines(markupSegments(c.content, kit.fs), Math.min(maxW, kit.maxCellW), kit);
+      const lines = breakLines(markupSegments(linkReferences(c.content, kit.refs), kit.fs), Math.min(maxW, kit.maxCellW), kit);
       const w = linesWidth(lines);
       const h = lines.length * kit.lineH;
       return { w, h, draw: (x, y) => drawLines(lines, x, y + kit.fs, kit.lineH, kit) };

@@ -14,6 +14,9 @@ import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
 import { defaultSetup, NotationSetup, readSetup } from '../notation-set';
+import { buildIndex, indexDocument, TNeume, TranscriptionIndex } from '../notation-links';
+import { NotationView } from '../notationsdokumentation/notation-docs-view/notation-docs-view.component';
+import { NavigationService } from '../notationsdokumentation/navigation.service';
 import { PageTitleService } from '../page-title.service';
 import { Header, BatchField } from '../smart-table/smart-table.component';
 import { NotesStore } from '../notes-store';
@@ -26,7 +29,10 @@ interface NotationInput {
   root: RootContainer;
   id: string;
   quelle_id: string;
+  /** `dokumenten_id`: Neume Viewer references name a document by it. */
+  label: string;
   foliostart?: string;
+  zeilenstart?: string;
 }
 
 export interface DocColDef {
@@ -77,10 +83,17 @@ export class SourceComponent implements OnInit {
 
   // Tab state
   activeTab: 'documents' | 'notation' | 'description' = 'documents';
-  activeNotationTab: 'select' | 'annotate' | 'view' | 'docs' = 'select';
+  /** The notation documentation's view, or the scan editor. */
+  activeNotationTab: NotationView | 'annotate' = 'table';
 
   // Notation analysis
   allPatterns: AnalyzedPattern[] = [];
+  /** Unique pattern IDs across all analysed documents, for the scan editor (a field: an input must not get a new array on every pass). */
+  documentPatternIds: string[] = [];
+  /** The transcription's neumes, placed as the Neumen-Editor places them, for the notation documentation; null until read. */
+  transcriptionIndex: TranscriptionIndex | null = null;
+  /** The documents whose neumes are in the index. */
+  notationDocuments: Document[] = [];
   sourceFolios: string[] = [];
   isLoadingNotation = false;
   notationLoaded = false;
@@ -133,7 +146,8 @@ export class SourceComponent implements OnInit {
     private modalService: NgbModal,
     private volpiano: VolpianoService,
     private pageTitle: PageTitleService,
-    private pdfDialog: PdfDialogLauncher) {
+    private pdfDialog: PdfDialogLauncher,
+    private navigation: NavigationService) {
     this.loadDocCols();
   }
 
@@ -158,7 +172,10 @@ export class SourceComponent implements OnInit {
     const tab = q.get('tab');
     if (tab === 'documents' || tab === 'notation' || tab === 'description') this.activeTab = tab;
     const ntab = q.get('ntab');
-    if (ntab === 'select' || ntab === 'annotate' || ntab === 'view' || ntab === 'docs') this.activeNotationTab = ntab;
+    if (ntab === 'table' || ntab === 'lines' || ntab === 'tree' || ntab === 'data' || ntab === 'annotate') this.activeNotationTab = ntab;
+    // addresses of the earlier sub-tabs
+    else if (ntab === 'select' || ntab === 'docs') this.activeNotationTab = 'table';
+    else if (ntab === 'view') this.activeNotationTab = 'lines';
 
     this.subs.push(combineLatest([this.userService.user, this.route.paramMap]).subscribe(([user, params]) => {
       this.user = user;
@@ -247,6 +264,9 @@ export class SourceComponent implements OnInit {
             );
             this.notationLoaded = false;
             this.allPatterns = [];
+            this.documentPatternIds = [];
+            this.transcriptionIndex = null;
+            this.notationDocuments = [];
             this.sourceFolios = [];
             // Reload landed directly on the notation tab (?tab=notation): load it now.
             if (this.activeTab === 'notation' && this.source?.id) {
@@ -434,15 +454,19 @@ export class SourceComponent implements OnInit {
     }
   }
 
-  /** Unique pattern IDs across all analysed documents, passed to the IIIF annotator. */
-  get documentPatternIds(): string[] {
-    return Array.from(new Set(this.allPatterns.map(p => p.patternId)));
+  /** The scan editor, at this folio if one is given (from a line of the notation documentation). */
+  annotateScans(folio: string) {
+    if (!this.source?.id || !this.source.iiifManifestUrl) return;
+    this.activeNotationTab = 'annotate';
+    if (folio) this.navigation.openIiifViewerForFolio(this.source.id, folio);
+    else this.syncTabUrl();
   }
 
-  openPatternInGallery(event: { patternId: string; folio: string }) {
-    this.iiifGalleryPattern = event.patternId;
-    this.activeNotationTab = 'annotate';
-    this.switchTab('notation'); // syncs URL (tab + ntab)
+  /** The print dialog for all documents, with the notation documentation ticked. */
+  printNotation() {
+    const docs = [...this.documents].sort((a, b) => compareNatural(a.dokumenten_id, b.dokumenten_id));
+    const title = [this.source?.quellensigle, this.source?.bibliothekssignatur].filter(Boolean).join(' · ') || 'Manuscript';
+    this.pdfDialog.open({ docs, title, startWith: { notationDocumentation: true } });
   }
 
   switchTab(tab: 'documents' | 'notation' | 'description') {
@@ -454,7 +478,7 @@ export class SourceComponent implements OnInit {
     }
   }
 
-  setNotationTab(tab: 'select' | 'annotate' | 'view' | 'docs') {
+  setNotationTab(tab: NotationView | 'annotate') {
     this.activeNotationTab = tab;
     this.syncTabUrl();
   }
@@ -474,6 +498,8 @@ export class SourceComponent implements OnInit {
     if (!this.user || !this.source?.id) return;
     this.isLoadingNotation = true;
     this.allPatterns = [];
+    this.documentPatternIds = [];
+    this.transcriptionIndex = null;
     this.sourceFolios = [];
     const sourceId = this.source.id;
     const token = this.user.token;
@@ -481,6 +507,7 @@ export class SourceComponent implements OnInit {
     this.api.listDocuments(token).subscribe({
       next: res => {
         const docs = res.kind === 'DocumentsRetrieved' ? res.documents.filter(d => d.quelle_id === sourceId) : [];
+        this.notationDocuments = docs;
         if (docs.length === 0) {
           this.finishNotation(sourceId, []);
           return;
@@ -496,7 +523,7 @@ export class SourceComponent implements OnInit {
           ).subscribe({
             next: noteRes => {
               if (noteRes.kind === 'NotesRetrieved') {
-                loaded[i] = { root: noteRes.data, id: doc.id, quelle_id: doc.quelle_id, foliostart: doc.foliostart };
+                loaded[i] = { root: noteRes.data, id: doc.id, quelle_id: doc.quelle_id, label: doc.dokumenten_id, foliostart: doc.foliostart, zeilenstart: doc.zeilenstart };
               }
             },
             error: e => console.warn('Could not read the notes of document', doc.id, e),
@@ -517,16 +544,22 @@ export class SourceComponent implements OnInit {
       try {
         let patterns: AnalyzedPattern[] = [];
         const folios = new Set<string>();
+        const sigle = this.source?.quellensigle ?? '';
+        const neumes: TNeume[] = [];
         for (const d of docsData) {
           patterns = patterns.concat(analyzeDocument(d.root, d.quelle_id || 'Unknown', d.id || 'Unknown'));
           extractDocumentFolios(d.root, d.foliostart).forEach(f => folios.add(f));
+          neumes.push(...indexDocument(d.root, { id: d.id, label: d.label, foliostart: d.foliostart, zeilenstart: d.zeilenstart, sigle }));
         }
         this.allPatterns = patterns;
+        this.documentPatternIds = Array.from(new Set(patterns.map(p => p.patternId)));
         this.sourceFolios = Array.from(folios);
+        this.transcriptionIndex = buildIndex(neumes);
       } catch (e) {
         console.error('Analysing the notation failed', e);
         this.toastr.error('The notation of this source could not be analysed.');
       } finally {
+        this.transcriptionIndex ??= buildIndex([]);   // read or not, the documentation stops waiting for it
         this.isLoadingNotation = false;
         this.notationLoaded = true;
         this.cdr.detectChanges();

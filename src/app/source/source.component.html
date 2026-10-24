@@ -332,77 +332,25 @@
         <!-- ── Notation Documentation tab ── -->
         @if (activeTab === 'notation') {
           <div class="tab-content-panel">
-            <!-- Sub-navigation -->
-            <ul class="nav nav-pills mb-4">
-              <li class="nav-item">
-                <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'select'"
-                  (click)="setNotationTab('select')">
-                  Select Patterns
-                </a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link cursor-pointer" id="ntab-docs" [class.active]="activeNotationTab === 'docs'"
-                  (click)="setNotationTab('docs')">
-                  Table &amp; Tree
-                </a>
-              </li>
-              @if (source.iiifManifestUrl) {
-                <li class="nav-item">
-                  <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'annotate'"
-                    (click)="setNotationTab('annotate')">
-                    Annotate Scans
-                  </a>
-                </li>
-              }
-              @if (source.iiifManifestUrl) {
-                <li class="nav-item">
-                  <a class="nav-link cursor-pointer" [class.active]="activeNotationTab === 'view'"
-                    (click)="setNotationTab('view')">
-                    View Documentation
-                  </a>
-                </li>
-              }
-            </ul>
-            <!-- Select Patterns Sub-tab -->
-            @if (activeNotationTab === 'select') {
-              <div>
-                @if (isLoadingNotation) {
-                  <div class="text-center py-5 text-muted">
-                    <div class="spinner-border spinner-border-sm me-2"></div>
-                    Analysing notation patterns…
-                  </div>
-                }
-                @if (!isLoadingNotation) {
-                  <app-overview
-                    [manuscriptPatterns]="allPatterns"
-                    [source]="source"
-                    (openInGallery)="openPatternInGallery($event)">
-                  </app-overview>
-                }
-              </div>
+            @if (activeNotationTab !== 'annotate') {
+              <app-notation-docs-view [source]="source" [setup]="notationSetup" [documents]="notationDocuments" [index]="transcriptionIndex"
+                [view]="activeNotationTab" (viewChange)="setNotationTab($event)" (sourceChanged)="save()"
+                (annotate)="annotateScans($event)" (print)="printNotation()"></app-notation-docs-view>
             }
-            <!-- Table & Tree Sub-tab: the documentation as printed, and the neume tree -->
-            @if (activeNotationTab === 'docs') {
-              <app-notation-docs-view [source]="source" [setup]="notationSetup" (sourceChanged)="save()"></app-notation-docs-view>
-            }
-            <!-- Annotate Scans Sub-tab -->
+            <!-- The scan editor -->
             @if (activeNotationTab === 'annotate' && source.iiifManifestUrl) {
+              <div class="mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" (click)="setNotationTab('table')"><i class="bi bi-arrow-left me-1"></i>Back to the notation documentation</button>
+              </div>
               <div class="mt-2" style="margin: -1.5rem; margin-top: 1rem;">
-                <!-- Negative margin to allow the IIIF viewer to expand edge-to-edge if needed, though we add a slight top margin -->
                 <app-iiif-viewer [source]="source"
                   [documentFolios]="sourceFolios"
                   [documentPatterns]="documentPatternIds"
                   [allPatterns]="allPatterns"
                   [jumpToPattern]="iiifGalleryPattern"
                   (sourceChanged)="save()"
-                  (closed)="setNotationTab('select')">
+                  (closed)="setNotationTab('table')">
                 </app-iiif-viewer>
-              </div>
-            }
-            <!-- View Documentation Sub-tab -->
-            @if (activeNotationTab === 'view' && source.iiifManifestUrl) {
-              <div class="mt-2">
-                <app-notation-viewer [source]="source" [allPatterns]="allPatterns"></app-notation-viewer>
               </div>
             }
           </div>

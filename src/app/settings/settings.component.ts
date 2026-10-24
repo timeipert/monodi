@@ -1,4 +1,5 @@
 import { PRINT_PRESET } from '../pdf-defaults';
+import { DEFAULT_LABELS, LABEL_HINTS, LABEL_KEYS, LabelKey, PRINT_LANGUAGES } from '../print/labels';
 import { FORMTEIL_STATUSES } from '../types/formteil-status';
 import { TextStyle, statusTextStyleOf } from '../print/text-style';
 import { HEADING_FIELD_KEYS, HeadingField, DEFAULT_HEADING_SEPARATOR, sanitizeHeadingFields } from '../print/doc-heading';
@@ -584,6 +585,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
   addHeadingField(key: string): void {
     if (!key) return;
     this.editableHeadingFields().push({ key, style: 'normal', showLabel: true });
+    this.onSettingsChange();
+  }
+
+  readonly printLanguages = PRINT_LANGUAGES;
+  readonly labelKeys = LABEL_KEYS;
+  labelHint(k: LabelKey): string { return LABEL_HINTS[k]; }
+  /** What the label is in the chosen language: the placeholder of its box. */
+  labelDefault(k: LabelKey): string { return DEFAULT_LABELS[this.settings?.pdfLanguage === 'de' ? 'de' : 'en'][k]; }
+  setLabel(k: LabelKey, value: string): void {
+    if (!this.settings) return;
+    const own = { ...(this.settings.pdfLabels ?? {}) };
+    if (value.trim()) own[k] = value; else delete own[k];
+    if (Object.keys(own).length) this.settings.pdfLabels = own; else delete this.settings.pdfLabels;
+    this.onSettingsChange();
+  }
+
+  /** The heading of the printed Corpus Monodicum volume: the reference only ("Nat III intr 25 A 31 B …"). */
+  usePrintedVolumeHeading(): void {
+    if (!this.settings) return;
+    this.settings.pdfDocHeadingFields = [{ key: 'bibliographischerverweis', style: 'normal' }];
     this.onSettingsChange();
   }
 

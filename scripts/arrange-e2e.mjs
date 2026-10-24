@@ -104,7 +104,10 @@ try {
     'tropes first, the primary chant as 1P in its section, the play as a chapter in the order of its positions (P-3 is held back): ' + arranged.join(' | '));
   expect(/Primary chants/.test(volume), 'the section of the primary chants has its title');
   expect(/4P\s+siehe\s+1P/.test(volume), 'the second trope that names the antiphon is followed by the line "4P siehe 1P": ' + volume.split('\n').filter((l) => /siehe/.test(l)).join(' / '));
-  expect(volume.indexOf('Primary chants') > volume.indexOf('X-2') && volume.indexOf('Primary chants') < volume.indexOf('AN-1'), 'the section stands behind the other documents of the manuscript and before the primary chant');
+  // (the title also stands in the references under the manuscript's heading: "Primary chants: p. 2 | …"; the section is the line of its own)
+  const sectionAt = volume.search(/^\s*Primary chants\s*$/m);
+  expect(sectionAt > volume.indexOf('X-2') && sectionAt < volume.indexOf('AN-1'), 'the section stands behind the other documents of the manuscript and before the primary chant');
+  expect(/Primary chants: p\. \d+/.test(volume), 'the references under the manuscript\'s heading name the section of the primary chants and its page');
   expect(/\bplay-1\b/.test(volume.slice(0, volume.indexOf('P-1'))), 'the play is named in the heading of its chapter');
 
   // ── on request: directly behind the trope ──

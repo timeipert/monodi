@@ -1,4 +1,5 @@
 import type { Document } from '../api.service';
+import { metadataFieldLabel, metadataFieldValue } from '../document-metadata';
 
 /**
  * Two things the data can say about documents beyond their genre:
@@ -38,10 +39,65 @@ export function relationTypes(settings: { relationTypes?: RelationType[] } | nul
   return own.length ? own : DEFAULT_RELATION_TYPES;
 }
 
-/** Adds the relation and unit fields to the custom document fields, so the grid, the document form and the print see them. Null when all are there. */
-export function withRelationFields<S extends { customDocumentFields?: { key: string; label: string }[] }>(settings: S): S | null {
+/** What a field of the data does for the print. Each role reads one document field; which one is a setting. */
+export type RelationRole = 'target' | 'type' | 'unitId' | 'unitType' | 'unitPosition';
+export type RelationFieldMap = Record<RelationRole, string>;
+
+export const DEFAULT_RELATION_FIELDS: RelationFieldMap = {
+  target: RELATION_TARGET_KEY, type: RELATION_TYPE_KEY, unitId: UNIT_ID_KEY, unitType: UNIT_TYPE_KEY, unitPosition: UNIT_POSITION_KEY,
+};
+
+export const RELATION_ROLES: { role: RelationRole; label: string; hint: string }[] = [
+  { role: 'target', label: 'Related document', hint: 'the ID of the document this one refers to (a trope: its antiphon)' },
+  { role: 'type', label: 'Relation type', hint: 'the name of one of the relation types; empty = the first type' },
+  { role: 'unitId', label: 'Unit ID', hint: 'documents with the same value belong together (a play)' },
+  { role: 'unitType', label: 'Unit type', hint: 'what kind of unit it is (Play)' },
+  { role: 'unitPosition', label: 'Position in unit', hint: 'a number; without it the document IDs set the order' },
+];
+
+/** The field each role reads: the setting where there is one, else the built-in field. Works with any field, a standard one too. */
+export function relationFields(settings: { relationFields?: Partial<RelationFieldMap> } | null | undefined): RelationFieldMap {
+  const own = settings?.relationFields ?? {};
+  const out = { ...DEFAULT_RELATION_FIELDS };
+  for (const r of Object.keys(out) as RelationRole[]) {
+    const k = typeof own[r] === 'string' ? own[r]!.trim() : '';
+    if (k) out[r] = k;
+  }
+  return out;
+}
+
+/** What a document has in a field (standard or custom), trimmed; '' when it has none. */
+export const fieldText = (d: Document, key: string): string => metadataFieldValue(d, key).trim();
+
+/** A field the roles can read: the standard document fields, the registered custom fields and every custom key the documents carry. */
+export interface FieldOption { key: string; label: string; /** how many documents have a value in it */ filled: number; /** a custom key that the settings do not list (an import brought it) */ unregistered?: boolean }
+
+const STANDARD_ROLE_FIELDS = ['bibliographischerverweis', 'druckausgabe', 'festtag', 'feier', 'foliostart', 'zeilenstart', 'gattung1', 'gattung2', 'editionsstatus'];
+
+export function documentFieldOptions(
+  settings: { customDocumentFields?: { key: string; label: string }[] } | null | undefined, documents: readonly Document[],
+): FieldOption[] {
+  const count = (key: string) => documents.reduce((n, d) => n + (fieldText(d, key) ? 1 : 0), 0);
+  const out: FieldOption[] = [];
+  const seen = new Set<string>();
+  const add = (key: string, label: string, unregistered = false) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ key, label, filled: count(key), ...(unregistered ? { unregistered } : {}) });
+  };
+  for (const f of settings?.customDocumentFields ?? []) add(f.key, f.label || f.key);
+  for (const k of STANDARD_ROLE_FIELDS) add(k, metadataFieldLabel(k, settings as any));
+  const found = new Set<string>();
+  for (const d of documents) for (const k of Object.keys(d.custom ?? {})) found.add(k);
+  for (const k of [...found].sort((a, b) => a.localeCompare(b))) add(k, k, true);
+  return out;
+}
+
+/** Adds the built-in relation and unit fields (those a role still reads) to the custom document fields, so the grid, the document form and the print see them. Null when all are there. */
+export function withRelationFields<S extends { customDocumentFields?: { key: string; label: string }[]; relationFields?: Partial<RelationFieldMap> }>(settings: S): S | null {
   const have = new Set((settings.customDocumentFields ?? []).map((f) => f.key));
-  const missing = RELATION_FIELDS.filter((f) => !have.has(f.key));
+  const inUse = new Set(Object.values(relationFields(settings)));
+  const missing = RELATION_FIELDS.filter((f) => !have.has(f.key) && inUse.has(f.key));
   if (!missing.length) return null;
   return { ...settings, customDocumentFields: [...(settings.customDocumentFields ?? []), ...missing] };
 }
@@ -82,14 +138,15 @@ export interface RelationReport {
   units: number;
 }
 
-const text = (d: Document, key: string): string => String(d.custom?.[key] ?? '').trim();
+const text = fieldText;
 
 /**
  * Looks for what would go wrong in a print: a relation that leads nowhere, a circle, a unit whose positions clash.
  * A related document is looked for in the manuscript of the document first, as the primary chant of a trope is the one
  * its own manuscript has; one that exists only in another manuscript is found, but reported.
  */
-export function checkRelations(documents: readonly Document[], settings: { relationTypes?: RelationType[] } | null | undefined): RelationReport {
+export function checkRelations(documents: readonly Document[], settings: { relationTypes?: RelationType[]; relationFields?: Partial<RelationFieldMap> } | null | undefined): RelationReport {
+  const F = relationFields(settings);
   const findings: Finding[] = [];
   const add = (d: Document, kind: FindingKind, severity: Finding['severity'], message: string) =>
     findings.push({ kind, severity, id: d.id ?? '', dokumentenId: d.dokumenten_id ?? '', message });
@@ -106,8 +163,8 @@ export function checkRelations(documents: readonly Document[], settings: { relat
   let relations = 0;
 
   for (const d of documents) {
-    const target = text(d, RELATION_TARGET_KEY);
-    const type = text(d, RELATION_TYPE_KEY);
+    const target = text(d, F.target);
+    const type = text(d, F.type);
     if (!target) {
       if (type) add(d, 'type-without-target', 'warning', `Relation type "${type}" is set, but no related document.`);
       continue;
@@ -146,16 +203,16 @@ export function checkRelations(documents: readonly Document[], settings: { relat
   // units
   const units = new Map<string, Document[]>();
   for (const d of documents) {
-    const id = text(d, UNIT_ID_KEY);
+    const id = text(d, F.unitId);
     if (id) (units.get(id) ?? units.set(id, []).get(id)!).push(d);
   }
   for (const [id, members] of units) {
     if (members.length === 1) add(members[0], 'unit-single', 'warning', `Unit "${id}" has no other document.`);
-    const types = [...new Set(members.map((m) => text(m, UNIT_TYPE_KEY)).filter(Boolean))];
+    const types = [...new Set(members.map((m) => text(m, F.unitType)).filter(Boolean))];
     if (types.length > 1) add(members[0], 'unit-type-mixed', 'warning', `Unit "${id}" has the types ${types.map((t) => `"${t}"`).join(', ')}.`);
     const seen = new Map<number, Document>();
     for (const m of members) {
-      const raw = text(m, UNIT_POSITION_KEY);
+      const raw = text(m, F.unitPosition);
       if (!raw) continue;
       const pos = Number(raw.replace(',', '.'));
       if (!Number.isFinite(pos)) { add(m, 'unit-position-invalid', 'warning', `"${raw}" is not a number (unit "${id}").`); continue; }
@@ -169,7 +226,8 @@ export function checkRelations(documents: readonly Document[], settings: { relat
 }
 
 /** What is wrong with a print that holds back some documents or leaves some out, as far as units and relations go. */
-export function checkPrintSet(all: readonly Document[], printed: ReadonlySet<string>, held: ReadonlySet<string>): string[] {
+export function checkPrintSet(all: readonly Document[], printed: ReadonlySet<string>, held: ReadonlySet<string>, settings?: { relationFields?: Partial<RelationFieldMap> } | null): string[] {
+  const F = relationFields(settings);
   const out: string[] = [];
   const names = (docs: Document[]) => {
     const n = docs.map((d) => d.dokumenten_id || d.id || '?');
@@ -178,7 +236,7 @@ export function checkPrintSet(all: readonly Document[], printed: ReadonlySet<str
   const units = new Map<string, Document[]>();
   const byId = new Map<string, Document[]>();
   for (const d of all) {
-    const unit = text(d, UNIT_ID_KEY);
+    const unit = text(d, F.unitId);
     if (unit) (units.get(unit) ?? units.set(unit, []).get(unit)!).push(d);
     const id = (d.dokumenten_id ?? '').trim();
     if (id) (byId.get(id) ?? byId.set(id, []).get(id)!).push(d);
@@ -192,7 +250,7 @@ export function checkPrintSet(all: readonly Document[], printed: ReadonlySet<str
   }
   for (const d of all) {
     if (!printed.has(d.id ?? '')) continue;
-    const target = text(d, RELATION_TARGET_KEY);
+    const target = text(d, F.target);
     if (!target) continue;
     const found = (byId.get(target) ?? []).filter((c) => c.quelle_id === d.quelle_id);
     if (found.length !== 1) continue;

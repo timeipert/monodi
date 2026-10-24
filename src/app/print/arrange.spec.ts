@@ -140,3 +140,32 @@ describe('arrange: chapters of a print', () => {
     expect(key([{ id: 'T', to: 'A', unit: 'play-1' }, { id: 'A' }, { id: 'B' }])).toEqual([UNIT_CHAPTER + 'play-1', UNIT_CHAPTER + 'play-1', 'ms']);
   });
 });
+
+describe('arrange: the fields come from the settings', () => {
+  const mapped = { relationFields: { target: 'Bezugsgesang', unitId: 'SpielName', unitPosition: 'Nr' } };
+  const mdoc = (d: { id: string; to?: string; unit?: string; pos?: string }): Document => ({
+    dokumenten_id: d.id, custom: { ...(d.to ? { Bezugsgesang: d.to } : {}), ...(d.unit ? { SpielName: d.unit } : {}), ...(d.pos ? { Nr: d.pos } : {}) },
+  } as unknown as Document);
+  const arrange = (items: { id: string; to?: string; unit?: string; pos?: string }[], settings?: object) => {
+    const r = arrangeChapter(items, mdoc, settings, 'behind');
+    return r.items.map((d, i) => `${d.id}=${r.labels[i]}`).join(' ');
+  };
+
+  it('numbers the antiphon named by another field like the built-in one', () => {
+    expect(arrange([{ id: 'T1', to: 'AN1' }, { id: 'X' }, { id: 'AN1' }], mapped)).toBe('T1=1 AN1=1P X=2');
+    // without the setting the field means nothing
+    expect(arrange([{ id: 'T1', to: 'AN1' }, { id: 'X' }, { id: 'AN1' }])).toBe('T1=1 X=2 AN1=3');
+  });
+
+  it('keeps a play together and in order by the fields of the settings', () => {
+    expect(arrange([{ id: 'p2', unit: 'S', pos: '2' }, { id: 'x' }, { id: 'p1', unit: 'S', pos: '1' }], mapped)).toBe('p1=1 p2=2 x=3');
+  });
+
+  it('makes a play a chapter of its own through the field of the settings', () => {
+    const items = [{ id: 'a', unit: 'S' }, { id: 'b' }, { id: 'c', unit: 'S' }];
+    const key = chapterKeyFn(items, mdoc, () => 'src', mapped);
+    expect(key(items[0])).toBe(UNIT_CHAPTER + 'S');
+    expect(key(items[1])).toBe('src');
+    expect(chapterKeyFn(items, mdoc, () => 'src')(items[0])).toBe('src');
+  });
+});

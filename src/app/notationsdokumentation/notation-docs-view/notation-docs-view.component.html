@@ -1,0 +1,535 @@
+@if (source) {
+<div class="nd">
+
+  <!-- ── What the documentation holds, and how it is tied to the transcription ── -->
+  <section class="nd-model" id="nd-model" aria-label="What this notation documentation holds">
+    <button type="button" class="nd-box" id="nd-box-table" [class.on]="view === 'table'" (click)="setView('table')">
+      <span class="nd-box-kind">Table of equivalents</span>
+      <span class="nd-box-n">{{ overview.counts.shown }}</span> patterns shown
+      <span class="nd-box-sub">{{ overview.counts.tableWithId }} of {{ overview.counts.table }} rows of this manuscript have a Reference ID · {{ overview.counts.standard }} in the standard set</span>
+    </button>
+    <div class="nd-edge" title="A snippet belongs to the row of its pattern"><span>pattern</span></div>
+    <button type="button" class="nd-box" id="nd-box-snippets" [class.on]="view === 'lines' && inventory === 'grid'" (click)="inventory = 'grid'; setView('lines')">
+      <span class="nd-box-kind">Snippets</span>
+      <span class="nd-box-n">{{ overview.counts.snippets }}</span> signs marked
+      <span class="nd-box-sub">each with a pattern, a variant letter and its outline</span>
+    </button>
+    <div class="nd-edge" title="A snippet is drawn on a line region"><span>on</span></div>
+    <button type="button" class="nd-box" id="nd-box-lines" [class.on]="view === 'lines' && inventory === 'lines'" (click)="inventory = 'lines'; setView('lines')">
+      <span class="nd-box-kind">Line regions</span>
+      <span class="nd-box-n">{{ overview.counts.lines }}</span> lines
+      <span class="nd-box-sub">on {{ plural(summary.folios, 'folio') }}</span>
+    </button>
+
+    <div class="nd-vlink" style="grid-column: 1;">
+      <span class="nd-vlink-key">same code</span>
+      @if (loading) { <span class="text-muted">…</span> }
+      @else { {{ summary.inTranscription }} of {{ overview.counts.shown }} occur }
+    </div>
+    <div class="nd-vlink" style="grid-column: 3;">
+      <span class="nd-vlink-key">uuid</span>
+      @if (loading) { <span class="text-muted">…</span> }
+      @else {
+        <span class="nd-bar" [title]="summary.snippetsLinked + ' linked, ' + summary.snippetsFound + ' found, ' + summary.snippetsLost + ' lost, ' + summary.snippetsNone + ' not linked'">
+          <i class="nd-k-stored" [style.flex-grow]="summary.snippetsLinked"></i><i class="nd-k-found" [style.flex-grow]="summary.snippetsFound"></i><i class="nd-k-lost" [style.flex-grow]="summary.snippetsLost"></i><i class="nd-k-none" [style.flex-grow]="summary.snippetsNone"></i>
+        </span>
+        {{ summary.snippetsLinked }} linked@if (summary.snippetsFound) {, {{ summary.snippetsFound }} found}@if (summary.snippetsLost) {, <span class="text-danger">{{ summary.snippetsLost }} lost</span>}@if (summary.snippetsNone) {, {{ summary.snippetsNone }} not}
+      }
+    </div>
+    <div class="nd-vlink" style="grid-column: 5;">
+      <span class="nd-vlink-key">lineUUID</span>
+      @if (loading) { <span class="text-muted">…</span> }
+      @else {
+        <span class="nd-bar">
+          <i class="nd-k-stored" [style.flex-grow]="summary.linesLinked"></i><i class="nd-k-found" [style.flex-grow]="summary.linesFound"></i><i class="nd-k-lost" [style.flex-grow]="summary.linesLost"></i><i class="nd-k-none" [style.flex-grow]="summary.linesNone"></i>
+        </span>
+        {{ summary.linesLinked }} linked@if (summary.linesFound) {, {{ summary.linesFound }} found}@if (summary.linesLost) {, <span class="text-danger">{{ summary.linesLost }} lost</span>}@if (summary.linesNone) {, {{ summary.linesNone }} not}
+      }
+    </div>
+
+    <div class="nd-box nd-box-wide" id="nd-box-transcription">
+      <span class="nd-box-kind">Transcription</span>
+      @if (loading) {
+        <span class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Reading the documents…</span>
+      } @else {
+        <span><span class="nd-box-n">{{ overview.counts.documents }}</span> documents · {{ plural(overview.counts.neumes, 'neume') }} · {{ plural(overview.counts.patterns, 'pattern') }} · {{ plural(overview.counts.transcriptionLines, 'line') }}</span>
+        @if (storable.items || storable.regions) {
+          <button type="button" class="btn btn-sm btn-primary ms-auto" id="nd-store-links" (click)="storeLinks()"
+            title="Write the links that were found into the snippets (uuid) and line regions (lineUUID), so that the transcription can show its neumes in the manuscript">
+            <i class="bi bi-link-45deg me-1"></i>Store {{ plural(storable.items, 'snippet link') }}@if (storable.regions) { and {{ plural(storable.regions, 'line link') }}}
+          </button>
+        }
+      }
+    </div>
+  </section>
+
+  @if (notes) { <p class="nd-notes" id="nd-notes"><i class="bi bi-chat-left-text me-2 text-muted"></i>{{ notes }}</p> }
+
+  <!-- ── The views ── -->
+  <div class="nd-toolbar">
+    <div class="btn-group btn-group-sm" role="group" aria-label="View">
+      @for (v of views; track v.id) {
+        <button type="button" class="btn" [id]="'nd-view-' + v.id" [class.btn-primary]="view === v.id" [class.btn-outline-primary]="view !== v.id" (click)="setView(v.id)">
+          <i class="bi me-1" [class]="v.icon"></i>{{ v.label }}
+        </button>
+      }
+    </div>
+    <span class="flex-grow-1"></span>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="nd-annotate" [disabled]="!source.iiifManifestUrl" (click)="annotate.emit('')"
+      [title]="source.iiifManifestUrl ? 'Mark lines and signs on the scans' : 'This manuscript has no IIIF manifest'">
+      <i class="bi bi-bounding-box me-1"></i>Annotate scans
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="nd-print" (click)="print.emit()" title="Print the notation documentation as a PDF, as the Corpus Monodicum volume does">
+      <i class="bi bi-printer me-1"></i>Print…
+    </button>
+  </div>
+
+  @switch (view) {
+
+    <!-- ── Transcription equivalents ── -->
+    @case ('table') {
+      <div class="table-responsive">
+        <table class="table table-sm align-middle nd-eq" id="nd-table">
+          <thead class="table-light small text-muted">
+            <tr>
+              <th style="width: 5rem;">ID</th>
+              <th style="width: 9rem;">Pattern</th>
+              <th style="width: 2.5rem;"></th>
+              <th>Snippets</th>
+              <th>Where</th>
+              <th class="text-end" style="width: 13rem;">In the transcription</th>
+            </tr>
+          </thead>
+          @for (r of overview.rows; track r.pattern) {
+            <tbody class="nd-row" [class.nd-row-open]="panel?.pattern === r.pattern">
+              @for (v of (r.variants.length ? r.variants : [noVariant]); track v.variant; let first = $first) {
+                <tr>
+                  @if (first) {
+                    <td class="nd-id" [attr.rowspan]="r.variants.length || 1">
+                      @for (p of r.idParts; track $index) { <div>{{ p }}</div> }
+                      @if (!r.idParts.length) { <span class="text-muted">–</span> }
+                    </td>
+                    <td [attr.rowspan]="r.variants.length || 1">
+                      <button type="button" class="nd-pattern" (click)="openPattern(r.pattern)" [title]="'Open ' + r.pattern">
+                        <app-svg-pattern [pattern]="r.pattern"></app-svg-pattern>
+                        <code>{{ r.pattern }}</code>
+                      </button>
+                      @if (r.notes) { <div class="nd-note">{{ r.notes }}</div> }
+                    </td>
+                  }
+                  <td class="nd-variant">{{ v.variant }}</td>
+                  <td class="nd-thumbs">
+                    @for (s of v.snippets | slice:0:8; track s.item.id) {
+                      <button type="button" class="nd-thumb" (click)="openSnippet(s, r.snippets)" [title]="s.label + (s.place.text ? ' · ' + s.place.text : '') + ' · ' + linkText[s.link.kind]">
+                        <app-nd-crop class="inline" [view]="signCrops.get(s.item.id) ?? null" height="2.6rem" [labels]="false" [invert]="invert" missing="–"></app-nd-crop>
+                        <i class="nd-dot" [class]="'nd-k-' + s.link.kind"></i>
+                      </button>
+                    }
+                    @if (v.snippets.length > 8) { <span class="small text-muted">+{{ v.snippets.length - 8 }}</span> }
+                    @if (!v.snippets.length) { <span class="small text-muted">no snippet</span> }
+                  </td>
+                  <td class="nd-places">
+                    @for (pl of v.places; track pl.text) {
+                      <button type="button" class="nd-chip" (click)="openSnippet(pl.snippet, r.snippets)">{{ pl.text }}</button>
+                    }
+                  </td>
+                  @if (first) {
+                    <td class="text-end nd-tr" [attr.rowspan]="r.variants.length || 1">
+                      @if (loading) { <span class="text-muted">…</span> }
+                      @else if (r.occurrences.length) {
+                        <button type="button" class="btn btn-link btn-sm p-0" (click)="openPattern(r.pattern)">{{ r.occurrences.length.toLocaleString('en-US') }}× in {{ plural(r.documents, 'document') }}</button>
+                        <div class="small text-muted">{{ r.documented }} depicted by a snippet</div>
+                      } @else { <span class="small text-muted">not in the transcription</span> }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          }
+          @if (!overview.rows.length) {
+            <tbody><tr><td colspan="6" class="text-muted">The documentation shows no pattern: the standard set is empty and there are no snippets.</td></tr></tbody>
+          }
+        </table>
+      </div>
+
+      <div class="nd-others mt-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="nd-others-toggle" (click)="showOthers = !showOthers">
+            <i class="bi me-1" [class.bi-chevron-down]="!showOthers" [class.bi-chevron-up]="showOthers"></i>
+            {{ showOthers ? 'Hide' : 'Show' }} the {{ plural(overview.others.length, 'pattern') }} the documentation does not show
+          </button>
+          <div class="position-relative" style="width: 24rem; max-width: 100%;">
+            <input class="form-control form-control-sm" [(ngModel)]="query" (ngModelChange)="search()" (keydown.enter)="addPattern(query)" id="nd-add"
+              placeholder="Show another pattern: type a code such as *ud" aria-label="Show another pattern">
+            @if (hits.length) {
+              <div class="list-group position-absolute w-100 shadow-sm" style="z-index: 20; max-height: 14rem; overflow: auto;">
+                @for (h of hits; track h) {
+                  <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-1" (click)="addPattern(h)">
+                    <span style="min-width: 6rem;"><app-svg-pattern [pattern]="h"></app-svg-pattern></span><code>{{ h }}</code>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+        @if (showOthers) {
+          <table class="table table-sm align-middle mt-2 nd-others-table" id="nd-others">
+            <thead class="table-light small text-muted"><tr><th style="width: 9rem;">Pattern</th><th style="width: 5rem;">ID</th><th>From</th><th class="text-end">In the transcription</th><th class="text-end">Snippets</th><th></th></tr></thead>
+            <tbody>
+              @for (o of overview.others; track o.pattern) {
+                <tr>
+                  <td><button type="button" class="nd-pattern" (click)="openPattern(o.pattern)"><app-svg-pattern [pattern]="o.pattern"></app-svg-pattern><code>{{ o.pattern }}</code></button></td>
+                  <td>{{ o.refId || '–' }}</td>
+                  <td>
+                    @for (g of o.origins; track g) { <span class="badge bg-light text-dark border me-1">{{ originLabel(g) }}</span> }
+                    @if (!o.origins.length) { <span class="badge bg-light text-muted border">transcription only</span> }
+                  </td>
+                  <td class="text-end">{{ o.occurrences.length || '–' }}</td>
+                  <td class="text-end">{{ o.snippets.length || '–' }}</td>
+                  <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary py-0" (click)="setShown(o.pattern, true)">Show</button></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+
+    <!-- ── Sign inventory ── -->
+    @case ('lines') {
+      <div class="nd-subbar">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Show the snippets">
+          <button type="button" class="btn" id="nd-inv-lines" [class.btn-secondary]="inventory === 'lines'" [class.btn-outline-secondary]="inventory !== 'lines'" (click)="inventory = 'lines'">On their lines</button>
+          <button type="button" class="btn" id="nd-inv-grid" [class.btn-secondary]="inventory === 'grid'" [class.btn-outline-secondary]="inventory !== 'grid'" (click)="inventory = 'grid'">As a grid</button>
+        </div>
+        @if (onlyPattern) {
+          <span class="badge text-bg-light border">only <code>{{ onlyPattern }}</code>
+            <button type="button" class="btn btn-link btn-sm p-0 ms-1" (click)="onlyPattern = ''">show all</button></span>
+        }
+        <div class="form-check form-check-inline small mb-0">
+          <input class="form-check-input" type="checkbox" id="nd-invert" [(ngModel)]="invert">
+          <label class="form-check-label" for="nd-invert" title="Some libraries publish negatives (light ink on a dark ground); they are recognised and inverted, as in the print">Invert (negative scan)</label>
+        </div>
+        @if (manifestLoading) { <span class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Reading the manifest…</span> }
+        @if (manifestProblem) { <span class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>{{ manifestProblem }}</span> }
+      </div>
+
+      @if (!overview.lines.length) {
+        <div class="alert alert-light border">No line regions yet. Lines and signs are marked in the Neumen-Editor (or with <em>Annotate scans</em>) and imported in Settings → Import → Annotations.</div>
+      }
+
+      @if (inventory === 'lines') {
+        @for (line of linesToShow(); track line.region.id) {
+          <article class="nd-line" [id]="'nd-line-' + line.region.id">
+            <header>
+              <h6 class="mb-0"><span class="fw-bold">{{ line.place.folio || '–' }}</span><span class="text-muted mx-1">/</span>{{ line.region.name || '–' }}</h6>
+              <span class="nd-linelink" [class]="'nd-lk nd-k-' + line.link.kind + '-text'" [title]="lineLinkText[line.link.kind]">
+                <i class="bi bi-link-45deg"></i>
+                @if (line.link.line) { transcription {{ line.link.line.folio }} / {{ line.link.line.line }} } @else { not linked }
+                @if (line.link.kind === 'snippets' || line.link.kind === 'name') { <span class="text-muted">(found)</span> }
+              </span>
+              <span class="flex-grow-1"></span>
+              <div class="nd-tags">
+                @for (s of lineSnippets(line); track s.item.id) {
+                  <button type="button" class="nd-tag" [class.on]="hover === s.item.id" (mouseenter)="hover = s.item.id" (mouseleave)="hover = ''" (click)="openSnippet(s, line.snippets)">{{ s.label }}</button>
+                }
+              </div>
+              @if (source.iiifManifestUrl) {
+                <button type="button" class="btn btn-link btn-sm py-0" (click)="annotate.emit(line.place.folio)" title="Open this page in the scan editor"><i class="bi bi-bounding-box"></i></button>
+              }
+            </header>
+            <app-nd-crop [view]="lineCrops.get(line.region.id) ?? null" [invert]="invert" [hover]="hover" [target]="target"
+              (markHover)="hover = $event" (markClick)="openSnippetById($event, line.snippets)" missing="No picture of this line"></app-nd-crop>
+            @if (line.neumes.length) {
+              <div class="nd-tline" aria-label="The transcription of this line">
+                <span class="nd-tline-head">Transcription</span>
+                @for (n of line.neumes; track n.neume) {
+                  <button type="button" class="nd-tneume" [class.nd-tneume-doc]="!!n.snippet" [class.on]="!!n.snippet && hover === n.snippet.item.id"
+                    (mouseenter)="hover = n.snippet?.item?.id ?? ''" (mouseleave)="hover = ''"
+                    (click)="n.snippet ? openSnippet(n.snippet, line.snippets) : openInTranscription(n.neume.docId, n.neume.uuid)"
+                    [title]="n.neume.pattern + ' · ' + n.neume.notes + ' · ' + docLabel(n.neume.docId) + (n.snippet ? ' · snippet ' + n.snippet.label : ' · open in the transcription')">
+                    <app-svg-pattern [pattern]="n.neume.pattern"></app-svg-pattern>
+                    <span class="nd-syl">{{ n.neume.syllable || ' ' }}</span>
+                    @if (n.snippet) { <span class="nd-lbl">{{ n.snippet.label }}</span> }
+                  </button>
+                }
+              </div>
+            } @else if (!loading) {
+              <div class="nd-tline nd-tline-none small text-muted">No line of the transcription was found for it.</div>
+            }
+          </article>
+        }
+      } @else {
+        @for (line of linesToShow(); track line.region.id) {
+          @if (lineSnippets(line).length) {
+            <h6 class="nd-grid-head">{{ line.place.text || line.region.name }}</h6>
+            <ul class="nd-cards">
+              @for (s of lineSnippets(line); track s.item.id) {
+                <li class="nd-card" [class.nd-card-target]="target === s.item.id">
+                  <button type="button" class="nd-card-pic" (click)="openSnippet(s, overview.snippets)" [attr.aria-label]="'Open the snippet ' + s.label">
+                    <app-nd-crop class="inline" [view]="signCrops.get(s.item.id) ?? null" height="4.5rem" [labels]="false" [invert]="invert"></app-nd-crop>
+                  </button>
+                  <div class="nd-card-meta">
+                    <strong>{{ s.label }}</strong>
+                    <code [title]="s.pattern">{{ s.pattern }}</code>
+                  </div>
+                  <div class="nd-card-meta">
+                    <span class="text-muted">{{ s.link.neume?.syllable || '' }}</span>
+                    <i class="nd-dot nd-dot-inline" [class]="'nd-k-' + s.link.kind" [title]="linkText[s.link.kind]"></i>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        }
+      }
+    }
+
+    <!-- ── Neume tree ── -->
+    @case ('tree') {
+      <app-nd-tree [patterns]="treeCodes" (open)="openPattern($event)"></app-nd-tree>
+    }
+
+    <!-- ── Data: every record as it is stored ── -->
+    @case ('data') {
+      <div class="nd-data" id="nd-data">
+        <p class="small text-muted">
+          Everything this notation documentation consists of, as it is stored. The manuscript keeps the table, the line regions
+          and the snippets; the workspace keeps the standard set. <i class="bi bi-link-45deg"></i> marks a link to the transcription:
+          <span class="nd-k-stored-text">linked</span> (stored), <span class="nd-k-found-text">found</span> (worked out here; <em>Store links</em> writes it),
+          <span class="nd-k-lost-text">lost</span>, <span class="nd-k-none-text">not linked</span>.
+        </p>
+
+        <h6>Workspace · standard set <span class="text-muted fw-normal small">(<code>settings.notationStandard</code>, <code>notationOrder</code>)</span></h6>
+        <div class="nd-chips mb-1">
+          @for (e of setup.standard; track e.pattern) { <span class="nd-chip nd-chip-static"><code>{{ e.pattern }}</code>&nbsp;{{ e.refId || '–' }}</span> }
+        </div>
+        <p class="small">Rows ordered {{ setup.order === 'id' ? 'by Reference ID, then as the neume table' : 'as the neume table' }}.
+          <a routerLink="/settings" [queryParams]="{ tab: 'notation' }">Change in Settings → Notation Set</a></p>
+
+        <h6>Manuscript <span class="text-muted fw-normal small">(<code>Source</code>)</span></h6>
+        <dl class="nd-dl">
+          <dt><code>iiifManifestUrl</code></dt><dd>@if (source.iiifManifestUrl) { <a [href]="source.iiifManifestUrl" target="_blank" rel="noopener">{{ source.iiifManifestUrl }}</a> } @else { – }</dd>
+          <dt><code>custom.notationNotes</code></dt><dd>{{ notes || '–' }}</dd>
+          <dt><code>custom.notationSet</code></dt><dd><code>{{ source.custom?.['notationSet'] || '–' }}</code></dd>
+        </dl>
+
+        <h6>Patterns · <code>equivalents</code> and the set <span class="text-muted fw-normal small">({{ dataRows.length }})</span></h6>
+        <div class="table-responsive nd-data-scroll">
+          <table class="table table-sm align-middle nd-data-table" id="nd-data-patterns">
+            <thead class="table-light small text-muted"><tr><th>Shown</th><th>Pattern</th><th><code>refId</code> here</th><th>standard</th><th><code>notes</code></th><th>From</th><th class="text-end">Snippets</th><th class="text-end">In the transcription</th></tr></thead>
+            <tbody>
+              @for (d of dataRows; track d.c.pattern) {
+                <tr [class.text-muted]="!d.c.included">
+                  <td><input type="checkbox" class="form-check-input" [checked]="d.c.included" (change)="setShown(d.c.pattern, $any($event.target).checked)" [attr.aria-label]="'Show ' + d.c.pattern"></td>
+                  <td><button type="button" class="nd-pattern nd-pattern-row" (click)="openPattern(d.c.pattern)"><app-svg-pattern [pattern]="d.c.pattern"></app-svg-pattern><code>{{ d.c.pattern }}</code></button></td>
+                  <td>{{ d.own?.refId || '–' }}</td>
+                  <td>{{ d.standardId || '–' }}</td>
+                  <td class="small">{{ d.own?.notes || '' }}</td>
+                  <td>@for (o of d.c.origins; track o) { <span class="badge bg-light text-dark border me-1">{{ originLabel(o) }}</span> }</td>
+                  <td class="text-end">{{ d.c.snippets || '–' }}</td>
+                  <td class="text-end">{{ d.transcription || '–' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <h6>Line regions · <code>annotationRegions</code> <span class="text-muted fw-normal small">({{ overview.lines.length }})</span></h6>
+        <div class="table-responsive nd-data-scroll">
+          <table class="table table-sm align-middle nd-data-table" id="nd-data-lines">
+            <thead class="table-light small text-muted"><tr><th><code>id</code></th><th><code>name</code></th><th><code>folioLabel</code></th><th><code>folio</code></th><th><code>canvasId</code> / <code>imageId</code></th><th><code>lineUUID</code></th><th><i class="bi bi-link-45deg"></i> transcription line</th><th class="text-end">Snippets</th></tr></thead>
+            <tbody>
+              @for (l of overview.lines; track l.region.id) {
+                <tr>
+                  <td class="nd-mono" [title]="l.region.id">{{ l.region.id }}</td>
+                  <td>{{ l.region.name }}</td>
+                  <td>{{ l.region.folioLabel || '–' }}</td>
+                  <td>{{ l.region.folio || '–' }}</td>
+                  <td class="nd-mono" [title]="(l.region.canvasId || '') + ' ' + (l.region.imageId || '')">{{ l.region.canvasId || l.region.imageId || '–' }}</td>
+                  <td class="nd-mono" [title]="l.region.lineUUID || ''">{{ l.region.lineUUID || '–' }}</td>
+                  <td [class]="'nd-k-' + l.link.kind + '-text'">@if (l.link.line) { {{ l.link.line.folio }} / {{ l.link.line.line }} } {{ l.link.kind === 'stored' ? '' : '(' + (l.link.kind === 'snippets' || l.link.kind === 'name' ? 'found' : l.link.kind === 'lost' ? 'lost' : 'not linked') + ')' }}</td>
+                  <td class="text-end"><button type="button" class="btn btn-link btn-sm p-0" (click)="inventory = 'lines'; setView('lines')">{{ l.snippets.length }}</button></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <h6>Snippets · <code>annotationItems</code> <span class="text-muted fw-normal small">({{ overview.snippets.length }})</span></h6>
+        <div class="table-responsive nd-data-scroll">
+          <table class="table table-sm align-middle nd-data-table" id="nd-data-snippets">
+            <thead class="table-light small text-muted"><tr><th><code>id</code></th><th>line (<code>regionId</code>)</th><th><code>pattern</code></th><th><code>variant</code></th><th><code>uuid</code></th><th><code>sysId</code></th><th><i class="bi bi-link-45deg"></i> neume of the transcription</th></tr></thead>
+            <tbody>
+              @for (s of overview.snippets; track s.item.id) {
+                <tr>
+                  <td class="nd-mono"><button type="button" class="btn btn-link btn-sm p-0 nd-mono" (click)="openSnippet(s, overview.snippets)" [title]="s.item.id">{{ s.item.id }}</button></td>
+                  <td>{{ s.place.text || s.region?.name || s.item.regionId }}</td>
+                  <td><code>{{ s.item.pattern }}</code></td>
+                  <td>{{ s.variant || '–' }}</td>
+                  <td class="nd-mono" [title]="s.item.uuid || ''">{{ s.item.uuid || '–' }}</td>
+                  <td class="nd-mono" [title]="s.item.sysId || ''">{{ s.item.sysId || '–' }}</td>
+                  <td [class]="'nd-k-' + s.link.kind + '-text'">
+                    @if (s.link.neume; as n) {
+                      <button type="button" class="btn btn-link btn-sm p-0" (click)="openInTranscription(n.docId, n.uuid)" title="Open in the transcription">{{ docLabel(n.docId) }}, {{ n.folio }} / {{ n.line }} <em>{{ n.syllable }}</em></button>
+                      @if (s.link.kind !== 'stored') { <span>(found{{ s.link.confidence ? ', ' + s.link.confidence : '' }})</span> }
+                      @if (s.link.patternDiffers) { <span class="text-warning" title="The transcription writes this neume with another code"> · {{ n.pattern }}</span> }
+                    } @else { {{ s.link.kind === 'lost' ? 'lost' : 'not linked' }} }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ── A pattern ── -->
+  @if (panel) {
+    <aside class="nd-panel shadow" id="nd-panel" role="dialog" [attr.aria-label]="'Pattern ' + panel.pattern">
+      <header class="nd-panel-head">
+        <div class="d-flex align-items-center gap-3">
+          <app-svg-pattern class="nd-big" [pattern]="panel.pattern"></app-svg-pattern>
+          <div>
+            <code class="fs-6 text-dark">{{ panel.pattern }}</code>
+            @if (panel.refId) { <span class="badge text-bg-primary ms-2">ID {{ panel.refId }}</span> }
+            <div class="small text-muted mt-1">
+              @for (o of panel.origins; track o) { <span class="badge bg-light text-dark border me-1">{{ originLabel(o) }}</span> }
+              @if (!panel.origins.length) { <span class="badge bg-light text-muted border">transcription only</span> }
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closePanel()"></button>
+      </header>
+      <div class="nd-panel-body">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" role="switch" id="nd-shown" [checked]="panel.shown" (change)="setShown(panel.pattern, $any($event.target).checked)">
+          <label class="form-check-label small" for="nd-shown">Shown in this manuscript's documentation</label>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-4">
+            <label class="form-label small text-muted mb-0" for="nd-refid">Reference ID</label>
+            <input #rid class="form-control form-control-sm" id="nd-refid" [value]="panel.refId" placeholder="e.g. 20" (change)="saveEquivalent(panel.pattern, rid.value, note.value)">
+          </div>
+          <div class="col-8">
+            <label class="form-label small text-muted mb-0" for="nd-note">Note</label>
+            <input #note class="form-control form-control-sm" id="nd-note" [value]="panel.notes" placeholder="printed under the table" (change)="saveEquivalent(panel.pattern, rid.value, note.value)">
+          </div>
+        </div>
+
+        <h6 class="nd-panel-h">
+          Snippets <span class="badge rounded-pill text-bg-light border">{{ panel.snippets.length }}</span>
+          @if (panel.snippets.length) { <button type="button" class="btn btn-link btn-sm p-0 ms-auto" (click)="showOnLines(panel.pattern)">on their lines →</button> }
+        </h6>
+        @for (v of panel.variants; track v.variant) {
+          <div class="nd-variant-head">{{ v.variant ? 'Variant ' + v.variant : 'Without a variant letter' }}</div>
+          <div class="nd-panel-thumbs">
+            @for (s of v.snippets; track s.item.id) {
+              <button type="button" class="nd-panel-thumb" (click)="openSnippet(s, panel.snippets)" [title]="linkText[s.link.kind]">
+                <app-nd-crop class="inline" [view]="signCrops.get(s.item.id) ?? null" height="3.4rem" [labels]="false" [invert]="invert" missing="–"></app-nd-crop>
+                <span>{{ s.place.text || '–' }} <i class="nd-dot nd-dot-inline" [class]="'nd-k-' + s.link.kind"></i></span>
+              </button>
+            }
+          </div>
+        }
+        @if (!panel.snippets.length) { <p class="small text-muted">No sign of this pattern is marked in the manuscript yet.</p> }
+
+        <h6 class="nd-panel-h mt-3">In the transcription</h6>
+        @if (loading) {
+          <p class="small text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Reading the documents…</p>
+        } @else if (!panel.occurrences.length) {
+          <p class="small text-muted">No neume of the transcription is written <code>{{ panel.pattern }}</code>.</p>
+        } @else {
+          <p class="small mb-2" id="nd-panel-count">{{ panel.occurrences.length.toLocaleString('en-US') }}× in {{ plural(panel.documents, 'document') }}; {{ panel.documented }} depicted by a snippet (<i class="bi bi-camera"></i>). A place opens the document at that neume.</p>
+          @for (g of panelDocs; track g.docId) {
+            <div class="nd-occ-doc">
+              <a [routerLink]="['/document', source.id, g.docId]" class="fw-medium">{{ docLabel(g.docId) }}</a>
+              <span class="small text-muted ms-1">{{ docTitle(g.docId) }}</span>
+              <span class="small text-muted ms-1">· {{ g.places.length }}</span>
+            </div>
+            <div class="nd-chips mb-2">
+              @for (o of g.places | slice:0:40; track o.neume) {
+                <button type="button" class="nd-chip" [class.nd-chip-doc]="!!o.snippet"
+                  (click)="o.snippet ? openSnippet(o.snippet, panel.snippets) : openInTranscription(o.neume.docId, o.neume.uuid)"
+                  [title]="o.neume.notes + (o.snippet ? ' · snippet ' + o.snippet.label : ' · open in the transcription')">
+                  {{ o.neume.folio }}/{{ o.neume.line }} <em>{{ o.neume.syllable }}</em>@if (o.snippet) { <i class="bi bi-camera ms-1"></i> }
+                </button>
+              }
+              @if (g.places.length > 40) { <span class="small text-muted">+{{ g.places.length - 40 }}</span> }
+            </div>
+          }
+          @if (panelDocsTotal > panelDocs.length) {
+            <button type="button" class="btn btn-link btn-sm p-0" (click)="showAllDocs()">all {{ panelDocsTotal }} documents</button>
+          }
+        }
+        @if (panelRelated.length) {
+          <h6 class="nd-panel-h mt-3">The same notes, written otherwise</h6>
+          <div class="nd-chips">
+            @for (r of panelRelated; track r.pattern) {
+              <button type="button" class="nd-chip" (click)="openPattern(r.pattern)"><code>{{ r.pattern }}</code> <span class="text-muted">{{ r.count }}</span></button>
+            }
+          </div>
+        }
+      </div>
+    </aside>
+  }
+
+  <!-- ── A snippet ── -->
+  @if (dialog) {
+    <div class="nd-backdrop" (mousedown)="closeDialog()">
+      <div class="nd-dialog shadow-lg" id="nd-dialog" role="dialog" aria-modal="true" [attr.aria-label]="'Snippet ' + dialog.label" (mousedown)="$event.stopPropagation()">
+        <header class="nd-dialog-head">
+          <h5 class="mb-0">{{ source.quellensigle }} · {{ dialog.label }} <span class="text-muted fw-normal small ms-2">{{ dialog.place.text }}</span></h5>
+          @if (dialogSiblings.length > 1) { <span class="small text-muted ms-auto me-3">{{ dialogPosition + 1 }} of {{ dialogSiblings.length }}</span> }
+          <button type="button" class="btn-close" aria-label="Close" (click)="closeDialog()"></button>
+        </header>
+        <div class="nd-dialog-big">
+          @if (dialogSiblings.length > 1) { <button type="button" class="nd-step" aria-label="Previous snippet" title="Previous (←)" (click)="step(-1)">‹</button> }
+          <app-nd-crop class="inline" [view]="dialogSign" [invert]="invert" [labels]="false" height="11rem" missing="No picture of this sign"></app-nd-crop>
+          @if (dialogSiblings.length > 1) { <button type="button" class="nd-step nd-step-next" aria-label="Next snippet" title="Next (→)" (click)="step(1)">›</button> }
+        </div>
+        @if (dialogLine) {
+          <app-nd-crop [view]="dialogLine" [invert]="invert" [target]="dialog.item.id" (markClick)="openSnippetById($event, dialogSiblings)"></app-nd-crop>
+        }
+        <div class="nd-dialog-cols">
+          <section>
+            <h6 class="nd-panel-h">In the documentation</h6>
+            <button type="button" class="nd-pattern mb-2" (click)="openPattern(dialog.pattern)" title="Open the pattern"><app-svg-pattern [pattern]="dialog.pattern"></app-svg-pattern><code>{{ dialog.pattern }}</code></button>
+            <dl class="nd-dl">
+              <dt>Reference ID</dt><dd>{{ dialog.refId || '–' }}</dd>
+              <dt>Variant</dt><dd>{{ dialog.variant || '–' }}</dd>
+              <dt>Folio / line</dt><dd>{{ dialog.place.text || '–' }} <span class="text-muted">({{ dialog.region?.name }})</span></dd>
+              @if (!dialog.shown) { <dt></dt><dd class="text-warning small">Its pattern is not shown in the documentation.</dd> }
+            </dl>
+          </section>
+          <section>
+            <h6 class="nd-panel-h">In the transcription</h6>
+            <p class="small mb-2" [class]="'nd-k-' + dialog.link.kind + '-text'" id="nd-dialog-link">
+              <i class="bi bi-link-45deg"></i> {{ linkText[dialog.link.kind] }}@if (dialog.link.confidence) { ({{ dialog.link.confidence }} confidence)}.
+            </p>
+            @if (dialog.link.neume; as n) {
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <app-svg-pattern [pattern]="n.pattern"></app-svg-pattern><code>{{ n.pattern }}</code>
+                @if (dialog.link.patternDiffers) { <span class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>written otherwise than the snippet</span> }
+              </div>
+              <dl class="nd-dl">
+                <dt>Document</dt><dd>{{ docLabel(n.docId) }} <span class="text-muted">{{ docTitle(n.docId) }}</span></dd>
+                <dt>Folio / line</dt><dd>{{ n.folio }} / {{ n.line }}</dd>
+                <dt>Syllable</dt><dd><em>{{ n.syllable || '–' }}</em></dd>
+                <dt>Notes</dt><dd>{{ n.notes }}</dd>
+              </dl>
+              <button type="button" class="btn btn-sm btn-primary" id="nd-open-transcription" (click)="openInTranscription(n.docId, n.uuid)"><i class="bi bi-box-arrow-up-right me-1"></i>Open in the transcription</button>
+            }
+            <dl class="nd-dl nd-raw mt-2">
+              <dt><code>uuid</code></dt><dd class="nd-mono">{{ dialog.item.uuid || '–' }}</dd>
+              <dt><code>sysId</code></dt><dd class="nd-mono">{{ dialog.item.sysId || '–' }}</dd>
+              <dt><code>id</code></dt><dd class="nd-mono">{{ dialog.item.id }}</dd>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>
+  }
+</div>
+}

@@ -19,6 +19,8 @@ export interface NotationHost {
   top: number;
   /** Lowest y that content may reach. */
   bottom: number;
+  /** What stands where a strip has no picture. */
+  noImage?: string;
   /** Adds a page and returns the y at which content starts on it. */
   newPage(): number;
 }
@@ -298,7 +300,7 @@ export function drawStrips(h: NotationHost, strips: NotationStrip[], pictures: M
       doc.setLineWidth(0.4);
       doc.rect(imgX, top, w, ih);
       setText(h, 'italic', h.fs - 1, 120);
-      doc.text(p?.problem || NOTATION_TEXT.noImage, imgX + 6, top + ih / 2 + h.fs * 0.3);
+      doc.text(p?.problem || h.noImage || NOTATION_TEXT.noImage, imgX + 6, top + ih / 2 + h.fs * 0.3);
     }
     y = top + ih + 10;
   }

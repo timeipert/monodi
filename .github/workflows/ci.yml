@@ -71,7 +71,7 @@ jobs:
           # documents moved over, a conflict decided, and the order the push cache holds for the upload and the deletion.
           - name: pages and metadata grid
             poppler: false
-            scripts: smoke-e2e metadata-grid-e2e metadata-edit-e2e relations-e2e sigle-e2e
+            scripts: smoke-e2e metadata-grid-e2e metadata-edit-e2e relations-e2e sigle-e2e fields-e2e
           # Print: all fixtures as one PDF with the page-break rules checked (no heading alone at the bottom of a
           # page, no single system of a line left alone at a page edge); the release gate (export list imported in the
           # metadata grid, documents marked "dontpublish" held back in the print dialog and not in the PDF); placeholder
@@ -81,7 +81,7 @@ jobs:
           # line strips printed, the IIIF server answered by the script). The PDFs are read back with poppler.
           - name: print, release and import
             poppler: true
-            scripts: layout-e2e release-e2e volume-rules-e2e arrange-e2e placeholder-import-e2e cover-e2e notation-doc-e2e neume-docs-e2e notation-set-e2e
+            scripts: layout-e2e release-e2e volume-rules-e2e arrange-e2e placeholder-import-e2e cover-e2e description-e2e notation-doc-e2e neume-docs-e2e notation-set-e2e notation-links-e2e plays-e2e
 
     steps:
       - name: Checkout repository

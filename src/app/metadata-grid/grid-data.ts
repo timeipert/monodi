@@ -97,3 +97,35 @@ export function documentCountOfSources(sourceIds: string[], documents: Document[
   for (const d of documents) if (set.has(d.quelle_id)) n++;
   return n;
 }
+
+/** What an import can leave in a source's `custom` that is not a field to show: the description, the notation notes and sets. */
+const INTERNAL_SOURCE_KEYS: ReadonlySet<string> = new Set(['description', 'beschreibung', 'notationNotes', 'notationSet']);
+
+export interface UnregisteredField { key: string; /** how many rows have a value in it */ filled: number }
+
+/**
+ * Custom values that the data carries but the settings do not list as fields (a ZIP import keeps every `additionalData`
+ * entry of a document, say Bezugsgesang or SpielName). They are in the data and can be used, but no table, form or print
+ * shows them until they are listed. Sorted by name; values that are empty everywhere are not counted.
+ */
+export function unregisteredFields(
+  kind: GridKind, items: readonly { custom?: { [key: string]: string } }[], settings: ProjectSettings | null | undefined,
+): UnregisteredField[] {
+  const listed = new Set((kind === 'documents' ? settings?.customDocumentFields : settings?.customSourceFields)?.map((f) => f.key) ?? []);
+  const counts = new Map<string, number>();
+  for (const it of items) {
+    for (const [k, v] of Object.entries(it.custom ?? {})) {
+      if (listed.has(k) || (kind === 'sources' && INTERNAL_SOURCE_KEYS.has(k))) continue;
+      if (typeof v === 'string' && v.trim()) counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  }
+  return [...counts].map(([key, filled]) => ({ key, filled })).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** The settings with these fields listed (label = key). Null when nothing is to add. */
+export function withListedFields(settings: ProjectSettings, kind: GridKind, keys: readonly string[]): ProjectSettings | null {
+  const field = kind === 'documents' ? 'customDocumentFields' : 'customSourceFields';
+  const have = new Set((settings[field] ?? []).map((f) => f.key));
+  const add = [...new Set(keys)].filter((k) => k && !have.has(k)).map((key) => ({ key, label: key }));
+  return add.length ? { ...settings, [field]: [...(settings[field] ?? []), ...add] } : null;
+}

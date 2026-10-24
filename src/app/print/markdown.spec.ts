@@ -1,5 +1,6 @@
 import { joinImageDefs, markdownToHtml, nextImageId, parseInline, parseMarkdown, safeHref, splitImageDefs } from './markdown';
-import { layoutInlines } from './markdown-layout';
+import { SUP_SIZE, layoutInlines } from './markdown-layout';
+import { hyphenateWord, loadHyphenation } from './hyphenate';
 
 describe('markdown', () => {
   it('parses emphasis, code and links inline', () => {
@@ -160,6 +161,35 @@ describe('markdown', () => {
   });
 });
 
+describe('markdown print forms', () => {
+  it('reads <sc> as small capitals and <sup> as raised text, also inside bold and links', () => {
+    const ins = parseInline('von <sc>Euw</sc> 2001, XIII<sup>e</sup> **fett <sc>und</sc>**');
+    expect(ins.find((i) => i.sc)!.t).toBe('Euw');
+    expect(ins.find((i) => i.sup)!.t).toBe('e');
+    const nested = ins.find((i) => i.t === 'und')!;
+    expect(nested.bold && nested.sc).toBeTrue();
+  });
+
+  it('leaves an unclosed <sc> or an unknown tag as text', () => {
+    expect(parseInline('a <sc>b').map((i) => i.t).join('')).toBe('a <sc>b');
+    expect(parseInline('a <b>b</b>').map((i) => i.t).join('')).toBe('a <b>b</b>');
+  });
+
+  it('turns <br> into a line break, also in a table cell', () => {
+    expect(parseInline('one<br>two').map((i) => i.t)).toEqual(['one', '\n', 'two']);
+    expect(parseInline('one<br/>two<BR />three').filter((i) => i.t === '\n').length).toBe(2);
+    const t = parseMarkdown('| A | B |\n| --- | --- |\n| x | **Graduale**<br>Anlage |')[0];
+    expect(t.kind === 'table' && t.rows[0][1].map((i) => i.t)).toEqual(['Graduale', '\n', 'Anlage']);
+  });
+
+  it('shows small capitals and raised text in the preview', () => {
+    const html = markdownToHtml('<sc>Euw</sc> XIII<sup>e</sup>');
+    expect(html).toContain('<span class="md-sc">Euw</span>');
+    expect(html).toContain('<sup>e</sup>');
+    expect(markdownToHtml('a<br>b')).toContain('a<br>b');
+  });
+});
+
 describe('markdown layout', () => {
   const measure = (t: string) => t.length * 5;   // 5 pt per character, also for the space
 
@@ -189,5 +219,59 @@ describe('markdown layout', () => {
     const lines = layoutInlines(parseInline('one  \ntwo'), 10, 500, measure, { bold: true });
     expect(lines.length).toBe(2);
     expect(lines[0][0].style).toBe('bold');
+  });
+
+  it('measures and keeps the style of small capitals and raised text', () => {
+    const seen: [string, number, boolean | undefined][] = [];
+    const m = (t: string, _st: string, size: number, sc?: boolean) => { seen.push([t, size, sc]); return t.length * 5; };
+    const lines = layoutInlines(parseInline('Aa <sc>Euw</sc> XIII<sup>e</sup>'), 10, 500, m);
+    const pieces = lines[0];
+    expect(pieces.find((p) => p.text === 'Euw')!.sc).toBeTrue();
+    expect(pieces.find((p) => p.text === 'e')!.sup).toBeTrue();
+    expect(seen.some(([t, size]) => t === 'e' && size === 10 * SUP_SIZE)).toBeTrue();
+    expect(seen.some(([t, , sc]) => t === 'Euw' && sc === true)).toBeTrue();
+    // a raised letter touches its word: they stay on one line
+    const tight = layoutInlines(parseInline('XIII<sup>e</sup> siècle'), 10, 70, m);
+    expect(tight[0].map((p) => p.text).slice(0, 2)).toEqual(['XIII', 'e']);
+  });
+
+  it('hyphenates a word that does not fit and keeps its letters', () => {
+    const hy = (w: string) => (w === 'Handschrift' ? ['Hand', 'schrift'] : null);
+    const lines = layoutInlines(parseInline('aaaa Handschrift'), 10, 60, measure, { hyphenate: hy });
+    expect(lines.map((l) => l.map((p) => p.text).join(' '))).toEqual(['aaaa Hand-', 'schrift']);
+    expect(lines[0][1].x + lines[0][1].width).toBeLessThanOrEqual(60);
+    expect(layoutInlines(parseInline('aaaa Handschrift'), 10, 60, measure).map((l) => l.length)).toEqual([1, 1]);
+  });
+
+  it('breaks after a hyphen the word already has, and never hyphenates what touches other styles', () => {
+    const lines = layoutInlines(parseInline('aaaa Servatius-Kult'), 10, 80, measure);
+    expect(lines.map((l) => l.map((p) => p.text).join(' '))).toEqual(['aaaa Servatius-', 'Kult']);
+    const hy = () => ['ab', 'cd'];
+    const touching = layoutInlines(parseInline('aaaa **abcd**x'), 10, 40, measure, { hyphenate: hy });
+    expect(touching.map((l) => l.map((p) => p.text).join(''))).toEqual(['aaaa', 'abcdx']);
+  });
+
+  it('does not break a short word so that one letter is left alone', () => {
+    const hy = (w: string) => (w === 'Abend' ? ['A', 'bend'] : null);
+    const lines = layoutInlines(parseInline('aaaa Abend'), 10, 40, measure, { hyphenate: hy });
+    expect(lines.map((l) => l.map((p) => p.text).join(' '))).toEqual(['aaaa', 'Abend']);
+  });
+});
+
+describe('German hyphenation patterns', () => {
+  beforeAll(async () => { await loadHyphenation(); });
+
+  it('cuts German words at syllables and leaves short ones whole', () => {
+    expect(hyphenateWord('Handschrift')!.join('')).toBe('Handschrift');
+    expect(hyphenateWord('Handschrift')!.length).toBeGreaterThan(1);
+    expect(hyphenateWord('Doppelblatt')!.slice(0, 2)).toEqual(['Dop', 'pel']);
+    expect(hyphenateWord('Haus')).toBeNull();
+    expect(hyphenateWord('und')).toBeNull();
+    expect(hyphenateWord('(vgl.')).toBeNull();
+  });
+
+  it('keeps punctuation around a word', () => {
+    const parts = hyphenateWord('Doppelblatt,');
+    expect(parts && parts.join('')).toBe('Doppelblatt,');
   });
 });
