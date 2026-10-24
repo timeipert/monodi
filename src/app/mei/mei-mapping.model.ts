@@ -65,6 +65,8 @@ export interface MeiMappingProfileV2 {
   name: string;
   skeleton: string[];                 // element chain inside <mei> around the content, e.g. ['music','body','mdiv','score']
   emitHeader: boolean;                // emit the meiHead block
+  /** Header level: 1 Minimal (baseline, default), 2 Standard, 3 Extended. See mei-header.ts and CM-hub/docs/METADATA-STANDARDS.md. */
+  headerLevel?: 1 | 2 | 3;
   inlineInterventions?: boolean;       // encode interventions inline
   /** Pattern → MEI attribute rules ("transcription equivalents"), optionally per manuscript. */
   patternRules?: MeiPatternRule[];

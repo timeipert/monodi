@@ -21,6 +21,7 @@
     "test:notation": "node scripts/notation-doc-e2e.mjs && node scripts/neume-docs-e2e.mjs && node scripts/notation-set-e2e.mjs && node scripts/notation-links-e2e.mjs",
     "test:metadata": "node scripts/metadata-grid-e2e.mjs && node scripts/metadata-edit-e2e.mjs && node scripts/relations-e2e.mjs",
     "check:templates": "node scripts/check-templates.mjs",
+    "check:mei-header": "node scripts/check-mei-header.mjs",
     "test:pdf-perf": "node scripts/pdf-perf.mjs",
     "fixtures": "node scripts/extract-fixtures.mjs && node scripts/make-extreme-fixtures.mjs && node scripts/gen-testdata-index.mjs",
     "build:electron": "ng build --configuration production,electron",

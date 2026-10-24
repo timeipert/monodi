@@ -640,7 +640,38 @@ export interface GenreLevelProfile {
   names: LevelNames;
 }
 
+/** A person or team credited in the metadata header of exports (see CM-hub/docs/METADATA-STANDARDS.md, section 6). */
+export interface PublicationContributor {
+  /** Display name, for example "Given Family". Never an e-mail address. */
+  name: string;
+  /** Text for <resp>, for example "Project direction". */
+  role: string;
+  orcid?: string;
+  gnd?: string;
+}
+
+/**
+ * Project-wide publication data used by the Standard and Extended MEI header levels. Every field is optional;
+ * a missing value produces no element. Level 1 (baseline) ignores all of it.
+ */
+export interface PublicationSettings {
+  publisher?: string;
+  /** One address line per entry. */
+  address?: string[];
+  funderName?: string;
+  seriesTitle?: string;
+  /** Prefix of the public document URL; the document id is appended. */
+  documentBaseUri?: string;
+  /** Language of the header text, for example "en". */
+  language?: string;
+  licenseUri?: string;
+  licenseLabel?: string;
+  contributors?: PublicationContributor[];
+}
+
 export interface ProjectSettings {
+  /** Publication data for the metadata header of MEI exports (header level 2 and above). */
+  publication?: PublicationSettings;
   genreLevelProfiles?: GenreLevelProfile[];
   quellensigle: string[];
   herkunftsregion: string[];
