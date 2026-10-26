@@ -2,11 +2,13 @@
 // of Monodi-Zero (a headless Chrome supplies the DOM the emitter needs).
 //
 //   node scripts/export-mei-batch.mjs --zip <monodi.zip> --out <mei.zip> [--level 1|2|3] [--publication <json>] [--contributors <json>]
-//                                      [--licence-uri <uri> --licence-label <text>] [--limit <n>]
+//                                      [--licence-uri <uri> --licence-label <text>] [--limit <n>] [--legacy-structure]
 //
 // Input:  a ZIP in the Monodi+ layout (<source>/meta.json, <source>/<document>/meta.json + data.json), for example the
 //         output of `cm zero package` in the CM-hub repository.
 // Output: a ZIP with `<document id>.mei.xml` for every document, and `report.json` (counts and per-document errors).
+// Structure: the body follows the MEI 5.0 schema of the app (profile.schemaConformant); --legacy-structure writes the structure of
+//            the export button instead.
 // Credits: --contributors is a JSON file {document id: [{name, role, orcid?, gnd?}]}; each chant names only those people. Without it
 //         the chants name nobody (the whole project is not listed in every header).
 // Header: the level decides how much of the shared mapping the <meiHead> follows (docs/METADATA-STANDARDS.md in CM-hub).
@@ -84,7 +86,7 @@ for (const [i, { meta, dataPath }] of jobs.entries()) {
   const rootContainer = JSON.parse(await input.file(dataPath).async('string'));
   const source = sources.get(meta.quelle_id) ?? {};
   const result = await page.evaluate((job) => window.__mei.exportOne(job),
-    { root: rootContainer, document: meta, source, level, appVersion, now: new Date().toISOString(),
+    { root: rootContainer, document: meta, source, level, conformant: !args.includes('--legacy-structure'), appVersion, now: new Date().toISOString(),
       publication: { ...publication, contributors: contributorsByDocument[meta.id] ?? [] } });
   if (result.xml) { output.file(`${meta.id}.mei.xml`, result.xml); written++; }
   else errors.push({ id: meta.id, dokumenten_id: meta.dokumenten_id, error: result.error });

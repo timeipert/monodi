@@ -76,6 +76,15 @@ function getOrCreateWrapper(parent: Element, wrapperTag: string, doc: Document):
 /** Siglum of the manuscript being exported; read by the pattern-rule lookup. emitMei is synchronous, so a module variable is safe. */
 let activeSiglum: string | undefined;
 
+/**
+ * Schema-conformant structure (profile.schemaConformant): the body follows the MEI 5.0 schema that ships with the app
+ * (mei-all.rng). The default structure does not (see CM-hub/docs/MEI-BODY-MAPPING.md). Module variables, like activeSiglum:
+ * emitMei is synchronous.
+ */
+let conformant = false;
+/** Prefix of generated xml:id values. Commentary copies of notes get their own prefix, so no id occurs twice. */
+let idPrefix = 'm-';
+
 /** Optional data for the header levels above the baseline. */
 export interface EmitMeiOptions {
   sourceMeta?: Source;
@@ -87,6 +96,8 @@ export interface EmitMeiOptions {
 
 export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, documentMeta?: MonodiDocument, sourceSiglum?: string, options?: EmitMeiOptions): string {
   activeSiglum = sourceSiglum || undefined;
+  conformant = !!profile.schemaConformant;
+  idPrefix = 'm-';
   const doc = document.implementation.createDocument('http://www.music-encoding.org/ns/mei', 'mei', null);
   const mei = doc.documentElement;
   mei.setAttribute('meiversion', '5.0');
@@ -183,7 +194,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                             currentLayer.setAttribute('n', '1');
                             currentStaff.appendChild(currentLayer);
                             commentSection.appendChild(currentStaff);
+                            if (conformant) idPrefix = `m-comment-${i}-reading-${readingIndex}-`;
                             walkZeile(child, currentLayer!, doc, profile);
+                            idPrefix = 'm-';
                         } else {
                             if (!currentStaff) {
                               currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
@@ -193,7 +206,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                               currentStaff.appendChild(currentLayer);
                               commentSection.appendChild(currentStaff);
                             }
+                            if (conformant) idPrefix = `m-comment-${i}-line-${readingIndex}-`;
                             walkZeile(child, currentLayer!, doc, profile);
+                            idPrefix = 'm-';
                         }
                         readingIndex++;
                     }
@@ -212,7 +227,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                     currentStaff.appendChild(currentLayer);
                     ptrSection.appendChild(currentStaff);
                     
+                    if (conformant) idPrefix = `${zItem.id}-`;
                     walkZeile(zItem.zeile, currentLayer, doc, profile);
+                    idPrefix = 'm-';
                     commentScore.appendChild(ptrSection);
                 }
             }
@@ -295,7 +312,7 @@ function walkFormteil(formteil: FormteilContainer, parentElement: Element, doc: 
   }
 
   const section = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-  section.setAttribute('xml:id', 'm-' + formteil.uuid);
+  section.setAttribute('xml:id', idPrefix + formteil.uuid);
 
   const fields = resolveFormteilFields(formteil);
   applyAttributes(section, rule, fields);
@@ -342,6 +359,28 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
     return;
   }
 
+  if (conformant) {
+    // Inside a layer (commentary lines) the caller has made staff and layer: no line break, no wrappers.
+    // Elsewhere a line is a <staff><layer> of its own, announced by a line break in the section (an <sb> in a layer is invalid).
+    let layer = parentElement;
+    if (parentElement.localName !== 'layer') {
+      const sbElement = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
+      sbElement.setAttribute('xml:id', idPrefix + zeile.uuid);
+      applyAttributes(sbElement, rule, { uuid: zeile.uuid });
+      parentElement.appendChild(sbElement);
+      const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+      staff.setAttribute('n', '1');
+      layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+      layer.setAttribute('n', '1');
+      staff.appendChild(layer);
+      parentElement.appendChild(staff);
+    }
+    for (const part of zeile.children ?? []) {
+      walkLinePart(part, layer, doc, profile);
+    }
+    return;
+  }
+
   // Resolve wrappers outermost-first
   let targetParent = parentElement;
   for (const w of rule.wrappers) {
@@ -349,7 +388,7 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
   }
 
   const sb = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-  sb.setAttribute('xml:id', 'm-' + zeile.uuid);
+  sb.setAttribute('xml:id', idPrefix + zeile.uuid);
   applyAttributes(sb, rule, { uuid: zeile.uuid });
   targetParent.appendChild(sb);
 
@@ -372,7 +411,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
 
     const clef = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-    clef.setAttribute('xml:id', 'm-' + part.uuid);
+    clef.setAttribute('xml:id', idPrefix + part.uuid);
     const fields = resolveClefFields(part);
     applyAttributes(clef, rule, fields);
     targetParent.appendChild(clef);
@@ -392,7 +431,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
 
     const syllable = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-    syllable.setAttribute('xml:id', 'm-' + part.uuid);
+    syllable.setAttribute('xml:id', idPrefix + part.uuid);
     applyAttributes(syllable, rule, { uuid: part.uuid });
 
     // syllableText inner tag
@@ -421,7 +460,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
 
     const dir = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-    dir.setAttribute('xml:id', 'm-' + part.uuid);
+    dir.setAttribute('xml:id', idPrefix + part.uuid);
     applyAttributes(dir, rule, { text: part.text || '', paratextType: part.paratextType || '', uuid: part.uuid });
     if (rule.textFrom === 'text') {
       dir.textContent = part.text || '';
@@ -491,6 +530,16 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
           entityKey = 'liquescent';
         }
 
+        // Conformant: an ornament is an empty child of its <nc>, never a replacement for it.
+        const ornaments: MeiEntityKey[] = [];
+        if (conformant) {
+          entityKey = 'note';
+          if (note.noteType === NoteType.Oriscus) ornaments.push('oriscus');
+          if (note.noteType === NoteType.Quilisma) ornaments.push('quilisma');
+          if (note.noteType === NoteType.Strophicus) ornaments.push('strophicus');
+          if (note.noteType === NoteType.Liquescent || note.liquescent) ornaments.push('liquescent');
+        }
+
         const noteRule = profile.entities[entityKey];
         if (!noteRule.enabled) continue;
 
@@ -504,7 +553,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         const flagDefs = flagDefsOf(note.flags);
         const flagTag = flagDefs.find(f => f.meiTag)?.meiTag;
         const nc = doc.createElementNS('http://www.music-encoding.org/ns/mei', flagTag || noteRule.tag);
-        nc.setAttribute('xml:id', 'm-' + note.uuid);
+        nc.setAttribute('xml:id', idPrefix + note.uuid);
 
         const isConnectionGap = isGroupBreakGap(neumeData.nonSpaced, gIndex, nIndex);
 
@@ -519,7 +568,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         const fields = resolveNoteFields(note, isConnectionGap, connectionGapValue);
 
         applyAttributes(nc, noteRule, fields, (ruleName) => {
-          if (ruleName === liquescentAttrName && (!note.liquescent || nc.tagName === profile.entities.liquescent.tag)) {
+          if (ruleName === liquescentAttrName && (conformant || !note.liquescent || nc.tagName === profile.entities.liquescent.tag)) {
             return ''; // Omit liquescent attribute if not liquescent or tag is liquescent
           }
           if (ruleName === connectionAttrName && !isConnectionGap) {
@@ -533,6 +582,11 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         // Pattern rule: the rule's nc entry for this note position (never pname/oct).
         applyRuleAttributes(nc, patternRule?.nc[flatIndex]);
         flatIndex++;
+
+        for (const key of ornaments) {
+          const ornamentRule = profile.entities[key];
+          if (ornamentRule.enabled) nc.appendChild(doc.createElementNS('http://www.music-encoding.org/ns/mei', ornamentRule.tag));
+        }
 
         noteTargetParent.appendChild(nc);
       }

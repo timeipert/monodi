@@ -67,6 +67,12 @@ export interface MeiMappingProfileV2 {
   emitHeader: boolean;                // emit the meiHead block
   /** Header level: 1 Minimal (baseline, default), 2 Standard, 3 Extended. See mei-header.ts and CM-hub/docs/METADATA-STANDARDS.md. */
   headerLevel?: 1 | 2 | 3;
+  /**
+   * Body structure that follows the MEI 5.0 schema of the app (mei-all.rng): a line is a <staff><layer> of its own after an <sb> in the
+   * section, ornaments (oriscus, quilisma, strophicus, liquescent) are empty children of <nc>, and commentary copies of notes get their
+   * own xml:id. Off by default so existing exports stay as they are; see CM-hub/docs/MEI-BODY-MAPPING.md.
+   */
+  schemaConformant?: boolean;
   inlineInterventions?: boolean;       // encode interventions inline
   /** Pattern → MEI attribute rules ("transcription equivalents"), optionally per manuscript. */
   patternRules?: MeiPatternRule[];

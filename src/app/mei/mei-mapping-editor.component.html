@@ -102,6 +102,13 @@
                 </div>
                 <small class="text-muted d-block mt-1">Document title, sources and comments at the top of the file.</small>
               </div>
+              <div class="mb-4">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="schemaConformantCheck" [(ngModel)]="activeProfile.schemaConformant" (ngModelChange)="emitChange()">
+                  <label class="form-check-label fw-medium" for="schemaConformantCheck">Schema-conformant structure (MEI 5.0)</label>
+                </div>
+                <small class="text-muted d-block mt-1">Each line becomes a staff of its own after a line break in the section, ornaments (oriscus, quilisma, strophicus, liquescent) become empty children of the note (<code>nc</code>), and comment copies of notes get their own IDs. Off: the structure of earlier exports, which the MEI 5.0 schema rejects. Details: <code>CM-hub/docs/MEI-BODY-MAPPING.md</code>.</small>
+              </div>
               @if (activeProfile.emitHeader) {
                 <div class="mb-4">
                   <label class="form-label fw-medium" for="headerLevelSelect">Header level</label>

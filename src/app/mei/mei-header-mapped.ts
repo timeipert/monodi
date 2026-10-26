@@ -108,7 +108,8 @@ const GENERIC: Record<string, (b: Builder) => Value | undefined> = {
     const line = (b.doc?.zeilenstart ?? '').trim();
     if (!folio && !line) return undefined;
     const text = [folio ? `f. ${folio}` : '', line ? `l. ${line}` : ''].filter(x => x).join(', ');
-    return { texts: [text], attr: folio || undefined };
+    // @from is a single token: a folio with a column ("7v a") stays in the text only
+    return { texts: [text], attr: /^\S+$/.test(folio) ? folio : undefined };
   },
   'doc.bibl_ref': b => ({ texts: nonEmpty(b.doc?.bibliographischerverweis) }),
   'doc.print_edition': b => ({ texts: nonEmpty(b.doc?.druckausgabe) }),
@@ -121,7 +122,8 @@ const GENERIC: Record<string, (b: Builder) => Value | undefined> = {
   },
   'doc.custom': b => ({
     items: Object.entries(b.doc?.custom ?? {})
-      .filter(([k, v]) => k.trim() && (v ?? '').trim())
+      // a value with an e-mail address never goes into an export header (rule 2 of CM-hub/docs/METADATA-STANDARDS.md)
+      .filter(([k, v]) => k.trim() && (v ?? '').trim() && !(v ?? '').includes('@'))
       .map(([k, v]) => ({ text: v.trim(), attrs: { type: k.replace(/'/g, '') } }))
   }),
   'src.siglum': b => ({ texts: nonEmpty(b.siglum) }),

@@ -18,6 +18,8 @@ export interface MeiJob {
   document: any;          // meta.json of the document
   source: any;            // meta.json of its source
   level: 1 | 2 | 3;
+  /** false = the structure of the export button (not schema-conformant). Default true. */
+  conformant?: boolean;
   publication?: PublicationSettings;
   appVersion?: string;
   now?: string;           // ISO time, for reproducible output
@@ -56,7 +58,7 @@ function monodiDocument(meta: any): any {
   const out: any = { ...meta, custom: {} };
   delete out.additionalData;
   for (const [k, v] of Object.entries(meta?.additionalData ?? {})) {
-    if (v !== null && v !== undefined && String(v).trim() !== '') out.custom[k] = String(v);
+    if (v !== null && v !== undefined && String(v).trim() !== '' && !String(v).includes('@')) out.custom[k] = String(v);   // no e-mail address in an export
   }
   return out;
 }
@@ -65,6 +67,7 @@ export function exportOne(job: MeiJob): { xml?: string; error?: string } {
   try {
     const profile = defaultMeiProfile();
     profile.headerLevel = job.level;
+    profile.schemaConformant = job.conformant !== false;      // the dataset gets schema-conformant MEI
     const source = monodiSource(job.source);
     const xml = emitMei(job.root, profile, monodiDocument(job.document), source.quellensigle || undefined, {
       sourceMeta: source, publication: job.publication, appVersion: job.appVersion, now: job.now ? new Date(job.now) : undefined
