@@ -82,6 +82,8 @@ let activeSiglum: string | undefined;
  * emitMei is synchronous.
  */
 let conformant = false;
+/** ids of page breaks written so far in this document: Monodi data can repeat the uuid of a FolioChange. */
+let pageBreakIds = new Set<string>();
 /** Prefix of generated xml:id values. Commentary copies of notes get their own prefix, so no id occurs twice. */
 let idPrefix = 'm-';
 
@@ -97,6 +99,7 @@ export interface EmitMeiOptions {
 export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, documentMeta?: MonodiDocument, sourceSiglum?: string, options?: EmitMeiOptions): string {
   activeSiglum = sourceSiglum || undefined;
   conformant = !!profile.schemaConformant;
+  pageBreakIds = new Set<string>();
   idPrefix = 'm-';
   const doc = document.implementation.createDocument('http://www.music-encoding.org/ns/mei', 'mei', null);
   const mei = doc.documentElement;
@@ -448,6 +451,18 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
 
     targetParent.appendChild(syllable);
 
+  } else if (conformant && part.kind === LinePartKind.FolioChange) {
+    // A change of manuscript page inside a chant: a page break; the folio text of Monodi (FolioChange.text) is its @label.
+    const pb = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'pb');
+    let pbId = idPrefix + part.uuid;
+    for (let k = 2; pageBreakIds.has(pbId); k++) pbId = `${idPrefix}${part.uuid}-${k}`;
+    pageBreakIds.add(pbId);
+    pb.setAttribute('xml:id', pbId);
+    // @n takes one token only (a folio like "f. 116" has a space), so the full text always goes to @label.
+    if (part.text) pb.setAttribute('label', part.text);
+    if (part.text && /^\S+$/.test(part.text)) pb.setAttribute('n', part.text);
+    parentElement.appendChild(pb);
+
   } else if (part.kind === ContainerKind.ParatextContainer || (part.text !== undefined && part.paratextType !== undefined)) {
     // ParatextContainer
     const rule = profile.entities.paratext;
@@ -483,6 +498,11 @@ function isGroupBreakGap(groups: { grouped: Note[] }[], gIndex: number, nIndex: 
   return false;
 }
 
+/** Conformant structure: MEI `accid/@accid` value of the Monodi accidental note types (f flat, n natural, s sharp). */
+const ACCIDENTAL_VALUE: { [noteType: string]: string } = { Flat: 'f', Natural: 'n', Sharp: 's' };
+/** Conformant structure: `nc/@tilt` (direction of the pen stroke) for the note heads with a stem, as drawn in Monodi-Zero (glyph-paths.ts). */
+const STEM_TILT: { [noteType: string]: string } = { Ascending: 'n', Descending: 's' };
+
 function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
   if (!syllable.notes || !syllable.notes.spaced) return;
 
@@ -499,6 +519,10 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
 
     const neumeRule = profile.entities.neume;
     let targetParent = parentElement;
+    let neumeEl: Element | null = null;
+    // Conformant: accidentals are `accid` children of the syllable, in the sequence of its neumes (see config/mei-body-mapping.yml in CM-hub).
+    const accidsBefore: Element[] = [];
+    const accidsAfter: Element[] = [];
 
     if (neumeRule.enabled) {
       // Resolve wrappers outermost-first
@@ -509,6 +533,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       applyAttributes(neume, neumeRule, {});
       applyRuleAttributes(neume, patternRule?.neume);
       targetParent.appendChild(neume);
+      neumeEl = neume;
       targetParent = neume;
     }
 
@@ -518,6 +543,18 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
 
       for (let nIndex = 0; nIndex < groupedData.grouped.length; nIndex++) {
         const note = groupedData.grouped[nIndex];
+
+        if (conformant && ACCIDENTAL_VALUE[note.noteType]) {
+          // An accidental is not a note of the melody. Monodi does not say which note it affects, and neither does the `accid`:
+          // it stands in the syllable where it stands in the sequence, with the pitch position it was written at (ploc/oloc).
+          const accid = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'accid');
+          accid.setAttribute('xml:id', idPrefix + note.uuid);
+          accid.setAttribute('accid', ACCIDENTAL_VALUE[note.noteType]);
+          if (note.base) accid.setAttribute('ploc', note.base.toLowerCase());
+          if (note.octave !== undefined) accid.setAttribute('oloc', note.octave.toString());
+          (neumeEl && neumeEl.childNodes.length > 0 ? accidsAfter : accidsBefore).push(accid);
+          continue;
+        }
 
         let entityKey: MeiEntityKey = 'note';
         if (note.noteType === NoteType.Oriscus) {
@@ -578,6 +615,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         });
 
         for (const fd of flagDefs) applyRuleAttributes(nc, fd.mei);
+        if (conformant && STEM_TILT[note.noteType]) nc.setAttribute('tilt', STEM_TILT[note.noteType]);
 
         // Pattern rule: the rule's nc entry for this note position (never pname/oct).
         applyRuleAttributes(nc, patternRule?.nc[flatIndex]);
@@ -590,6 +628,15 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
 
         noteTargetParent.appendChild(nc);
       }
+    }
+
+    if (accidsBefore.length || accidsAfter.length) {
+      const holder = neumeEl && neumeEl.parentNode ? neumeEl.parentNode : parentElement;
+      for (const a of accidsBefore) holder.insertBefore(a, neumeEl && neumeEl.parentNode === holder ? neumeEl : null);
+      const next = neumeEl && neumeEl.parentNode === holder ? neumeEl.nextSibling : null;
+      for (const a of accidsAfter) holder.insertBefore(a, next);
+      // A unit that held only accidentals is not a neume.
+      if (neumeEl && neumeEl.childNodes.length === 0 && neumeEl.parentNode) neumeEl.parentNode.removeChild(neumeEl);
     }
   }
 }
