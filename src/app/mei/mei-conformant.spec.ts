@@ -128,4 +128,15 @@ describe('MEI body structure', () => {
     expect(new Set(pbs.map(p => p.getAttribute('xml:id'))).size).toBe(2);       // a repeated uuid in the data still gives unique ids
     expect(make(false).querySelector('pb')).toBeNull();
   });
+
+  it('conformant: the xml-model lines name the released MEI 5.0 neumes schema; the default keeps the development URL', () => {
+    const text = (conformant: boolean) => {
+      const profile = defaultMeiProfile();
+      profile.schemaConformant = conformant;
+      return emitMei(emptyRootContainer(), profile);
+    };
+    expect(text(true)).toContain('href="https://music-encoding.org/schema/5.0/mei-Neumes.rng"');
+    expect(text(true)).not.toContain('schema/dev/');
+    expect(text(false)).toContain('href="https://music-encoding.org/schema/dev/mei-Neumes.rng"');
+  });
 });

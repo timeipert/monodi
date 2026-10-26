@@ -246,9 +246,12 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   const serializer = new XMLSerializer();
   let xmlString = serializer.serializeToString(mei);
   
+  // The development schema URL answers 404 (state 2026-10-26). The conformant structure names the released MEI 5.0 neumes
+  // customization, which accepts meiversion="5.0"; the default keeps the line of earlier exports.
+  const schemaUrl = conformant ? 'https://music-encoding.org/schema/5.0/mei-Neumes.rng' : 'https://music-encoding.org/schema/dev/mei-Neumes.rng';
   const header = `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<?xml-model href="https://music-encoding.org/schema/dev/mei-Neumes.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>\n` +
-    `<?xml-model href="https://music-encoding.org/schema/dev/mei-Neumes.rng" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>\n`;
+    `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>\n` +
+    `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>\n`;
   
   return header + xmlString;
 }
