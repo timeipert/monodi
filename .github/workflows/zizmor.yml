@@ -1,0 +1,33 @@
+name: zizmor
+
+# Static security check of the workflow files themselves (zizmor, https://docs.zizmor.sh): flags dangerous triggers
+# such as pull_request_target, expressions pasted into scripts, unpinned actions and too broad token rights.
+# Runs only when something under .github/ changes. It uploads no artifact (Actions storage rule) and, without
+# GitHub Advanced Security, reports findings as annotations and fails the run.
+# Run it locally before pushing workflow changes: `uvx zizmor .github/workflows`.
+on:
+  push:
+    branches: [master]
+    paths: [".github/**"]
+  pull_request:
+    paths: [".github/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zizmor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          advanced-security: false
+          version: 1.31.1

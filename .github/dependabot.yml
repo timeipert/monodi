@@ -1,0 +1,25 @@
+# Weekly update pull requests for GitHub Actions (SHA pins) and dependencies. A new release waits 7 days
+# (`cooldown`) before it is proposed, so a hijacked release is usually caught by others first. Security updates
+# ignore the cooldown. Every update pull request must pass CI before it is merged.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
