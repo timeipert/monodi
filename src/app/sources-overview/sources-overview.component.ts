@@ -39,6 +39,7 @@ import { saveStripImages } from '../notation-strip-images';
 import { mergeMetaAnnotations } from '../zip-source-annotations';
 import { safeStorage } from '../safe-storage';
 import { downloadBlob } from '../download';
+import { jsonForScript } from '../html-escape';
 import { GuidoImportResult, parseGuidoDocx } from '../guido/guido-import';
 import { BUILTIN_TEMPLATE_ID, GuidoTemplate, allGuidoTemplates, parseGuidoTemplate } from '../guido/guido-template';
 import { GuidoConflictMode, GuidoPlan, applyGuidoImport, mergeNoteFlags, planGuidoImport } from '../guido/guido-apply';
@@ -1692,7 +1693,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
               metadata: docMetadata,
               renderedHtml: renderedHtml,
               sourceId: s.id,
-              rawJsonData: JSON.stringify(notes[doc.id] || {}),
+              rawJsonData: jsonForScript(notes[doc.id] || {}),
               globalCss,
               customCss,
               headerHtml,

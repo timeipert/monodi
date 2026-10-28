@@ -194,6 +194,10 @@
       const docData = JSON.parse(document.getElementById('monodi-data').textContent);
       console.log("Loaded MonodiJSON data:", docData);
 
+      // Comment fields come from the data and are shown as text, never as markup.
+      const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
       if (docData.comments && docData.comments.length > 0) {
         const commentModal = new bootstrap.Modal(document.getElementById('commentModal'));
         const modalBody = document.getElementById('commentModalBody');
@@ -209,14 +213,14 @@
               e.preventDefault();
               e.stopPropagation();
               
-              let html = `<h4>${comment.emendation || 'Note'}</h4>`;
-              if (comment.text) html += `<p>${comment.text}</p>`;
+              let html = `<h4>${esc(comment.emendation || 'Note')}</h4>`;
+              if (comment.text) html += `<p>${esc(comment.text)}</p>`;
               
               if (comment.lines && comment.lines.length > 0) {
                 html += '<div class="table-responsive mt-3"><table class="table table-bordered table-sm">';
                 comment.lines.forEach(row => {
                   html += '<tr>';
-                  row.forEach(cell => html += `<td>${cell || ''}</td>`);
+                  row.forEach(cell => html += `<td>${esc(cell)}</td>`);
                   html += '</tr>';
                 });
                 html += '</table></div>';
