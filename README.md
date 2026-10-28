@@ -39,7 +39,7 @@ It is designed for individual scholars and small research groups who need schola
 - **PDF**: publication-quality vector output of single documents (with apparatus) and of synoptic comparisons. Layout, typography, margins, and bracket geometry are fully configurable.
 - **MEI**: export to Music Encoding Initiative XML with configurable tag mappings for interoperability with tools such as Verovio and with computational corpus research.
 - **HTML edition**: generate a self-contained, offline-capable reading edition of your whole corpus — rendered notation, browsable metadata, and built-in search — suitable for sharing with colleagues or publishing as a website.
-- **ZIP / JSON**: complete workspace backups and corpus archives compatible with monodi+ and OMMR4all exports.
+- **ZIP / JSON**: complete workspace backups and corpus archives compatible with monodi+ and OMMR4all exports. A source's `meta.json` in a ZIP may also carry its notation documentation (`equivalents`, `annotationRegions`, `annotationItems`); the import merges these lists into the source and deletes nothing.
 
 ---
 
