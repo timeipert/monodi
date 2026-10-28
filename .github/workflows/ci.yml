@@ -1,10 +1,22 @@
 name: CI
 
+# Storage rule: a branch with an open pull request would run twice (push and pull_request), so pushes are only
+# tested on master; other branches are tested through their pull request or by hand (workflow_dispatch).
 on:
   push:
     branches:
-      - '**'
+      - master
+    paths-ignore:
+      - '**.md'
   pull_request:
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+# A newer run of the same branch makes an older one pointless. Runs on master are never cancelled (a deploy may be running).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 # The checks that do not depend on each other run side by side (build, unit tests, two groups of browser tests), and
 # on master the site is built while they run: the deploy at the end only publishes what is already built. A run costs
