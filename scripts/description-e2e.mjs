@@ -6,7 +6,7 @@
 // Needs a dev server (npm start, port 4299) or --url, and poppler (pdftotext, pdfimages).
 // Run: node scripts/description-e2e.mjs [--url http://localhost:4299]
 import puppeteer from 'puppeteer';
-import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +19,7 @@ const urlIdx = args.indexOf('--url');
 const BASE = urlIdx >= 0 ? args.splice(urlIdx, 2)[1] : 'http://localhost:4299';
 const outDir = join(here, '../scratch/compare');
 mkdirSync(outDir, { recursive: true });
-const bin = (n) => '/opt/homebrew/bin/' + n;
+const bin = (n) => (existsSync('/opt/homebrew/bin/' + n) ? '/opt/homebrew/bin/' + n : n);
 const dir = join(here, '../src/app/testdata');
 const root = JSON.parse(readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('Abb_7') && f.endsWith('.json'))), 'utf8'));
 

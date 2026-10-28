@@ -4,7 +4,7 @@
 // are not in it. Needs a dev server (npm start, port 4299) or pass --url, and poppler (pdftotext).
 // Run: node scripts/plays-e2e.mjs [--url http://localhost:4299]
 import puppeteer from 'puppeteer';
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -52,7 +52,7 @@ expect(!!pdf, 'no PDF arrived');
 if (pdf) {
   const file = join(mkdtempSync(join(tmpdir(), 'plays-')), 'plays.pdf');
   writeFileSync(file, pdf);
-  const text = execFileSync(process.env.PDFTOTEXT || '/opt/homebrew/bin/pdftotext', ['-layout', file, '-']).toString();
+  const text = execFileSync(process.env.PDFTOTEXT || (existsSync('/opt/homebrew/bin/pdftotext') ? '/opt/homebrew/bin/pdftotext' : 'pdftotext'), ['-layout', file, '-']).toString();
   expect(/1\. Osterspiel/.test(text) && /2\. Weihnachtsspiel/.test(text), 'every play is a chapter named by its Unit ID');
   expect(/P1-a/.test(text) && /P1-b/.test(text) && /P2-a/.test(text) && /P2-b/.test(text), 'all four documents of the plays are in the volume');
   expect(!/Ant-1|Hym-1/.test(text), 'a document that is no play is not in the plays volume');
