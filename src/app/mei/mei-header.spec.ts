@@ -82,6 +82,17 @@ describe('MEI header levels', () => {
     expect(normalize(head)).toBe(normalize(HEADER_LEVEL2_GOLDEN));
   });
 
+  it("a folio with a column ('7v a') stays in the text of the locus; @from takes single tokens only", () => {
+    const root = emptyRootContainer();
+    const profile = defaultMeiProfile();
+    profile.headerLevel = 2;
+    const withColumn = new DOMParser().parseFromString(emitMei(root, profile, { ...documentMeta, foliostart: '7v a' }, 'Ex 1', { now }), 'application/xml');
+    expect(withColumn.querySelector('locus')!.hasAttribute('from')).toBeFalse();
+    expect(withColumn.querySelector('locus')!.textContent).toBe('f. 7v a, l. 12');
+    const plain = new DOMParser().parseFromString(emitMei(root, profile, { ...documentMeta, foliostart: '7v' }, 'Ex 1', { now }), 'application/xml');
+    expect(plain.querySelector('locus')!.getAttribute('from')).toBe('7v');
+  });
+
   it('level 2 keeps the critical comments of the baseline', () => {
     const d = emit(2);
     // The document comment and the critical comment; no draft marker because a licence is set.
@@ -111,6 +122,17 @@ describe('MEI header levels', () => {
       const empty = e.children.length === 0 && !(e.textContent ?? '').trim() && e.attributes.length === 0;
       expect(empty).toBeFalse();
     });
+  });
+
+  it('leaves a custom field out of the header when its value holds an e-mail address', () => {
+    const root = emptyRootContainer();
+    const profile = defaultMeiProfile();
+    profile.headerLevel = 2;
+    const meta = { ...documentMeta, custom: { Editor: 'someone@example.org', melody: 'M 7' } };
+    const d = new DOMParser().parseFromString(emitMei(root, profile, meta, 'Ex 1', { now }), 'application/xml');
+    expect(d.querySelector('term[type="Editor"]')).toBeNull();
+    expect(d.querySelector('term[type="melody"]')!.textContent).toBe('M 7');
+    expect(new XMLSerializer().serializeToString(d)).not.toContain('@');
   });
 
   it('never writes an e-mail address from the contributor list', () => {

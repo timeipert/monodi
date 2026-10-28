@@ -27,7 +27,7 @@ export const METADATA_MAPPING: MetadataMapping = {
     "funderName": "Akademie der Wissenschaften und der Literatur Mainz",
     "seriesTitle": "Corpus Monodicum",
     "documentBaseUri": "https://corpus-monodicum.de/d/",
-    "language": "de",
+    "language": "en",
     "licenseUri": "",
     "licenseLabel": ""
   },

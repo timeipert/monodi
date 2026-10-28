@@ -2,6 +2,7 @@
 
 - Start with `README.md`. Metadata standards (TEI/MEI/…): the mapping is `config/metadata-mapping.yml` and the explanation `docs/METADATA-STANDARDS.md`, both in the repository CM-hub.
 - When several sessions work in the same folder, commit only your own files.
+- **Headless MEI export.** `node scripts/export-mei-batch.mjs --zip <monodi.zip> --out <mei.zip> --level 2` writes one MEI file per document of a Monodi ZIP with the same emitter as the export button (headless Chrome; set `CHROME_BIN` if Chrome is not found). CM-hub uses it for its dataset (`cm dataset package --monodi-light <this folder>`). `src/app/mei/metadata-mapping.generated.ts` is generated from CM-hub; regenerate it there after changing the mapping.
 - **Deployment of monodi.app.** A push to `master` runs `.github/workflows/ci.yml`; its job `deploy-pages` publishes the site and runs only if every other job passed. GitHub Pages must stay on source "GitHub Actions" (`gh api repos/timeipert/monodi/pages --jq .build_type` must print `workflow`). With branch deployment every push to `master` publishes the nearly empty `docs/` folder (`docs/` is gitignored except `docs/CNAME`) and the site shows a 404 page. Before pushing `master`, check that value; after pushing, watch the CI run (`gh run list --repo timeipert/monodi --limit 3`) and confirm `curl -sI https://monodi.app/` answers 200. If a flaky job skipped the deploy, rerun the failed jobs (`gh run rerun <id> --failed`). Pushing a feature branch does not deploy.
 
 ## Writing rule for all texts (project-wide)
