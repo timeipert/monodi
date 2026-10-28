@@ -5,7 +5,8 @@ import { TextStyle, statusTextStyleOf } from '../print/text-style';
 import { HEADING_FIELD_KEYS, HeadingField, DEFAULT_HEADING_SEPARATOR, sanitizeHeadingFields } from '../print/doc-heading';
 import { metadataFieldLabel } from '../document-metadata';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.service';
+import { APIService, ProjectSettings, PublicationContributor, PublicationSettings, sanitizeSettings, Source } from '../api.service';
+import { METADATA_MAPPING } from '../mei/metadata-mapping.generated';
 import { UserService, User } from '../user.service';
 import { GithubService, GithubConfig } from '../github.service';
 import { GithubSessionService } from '../github-session.service';
@@ -151,6 +152,84 @@ export class SettingsComponent implements OnInit, OnDestroy {
   onNotationSetup(setup: NotationSetup): void {
     this.notationSetup = setup;
     Object.assign(this.settings!, settingsOf(setup));
+    this.onSettingsChange();
+  }
+
+  // ----- Publication data for the MEI header levels 2 and 3 (see CM-hub/docs/METADATA-STANDARDS.md) -----
+
+  pubValue(field: 'publisher' | 'funderName' | 'seriesTitle' | 'documentBaseUri' | 'language' | 'licenseUri' | 'licenseLabel'): string {
+    return this.settings?.publication?.[field] ?? '';
+  }
+
+  setPub(field: 'publisher' | 'funderName' | 'seriesTitle' | 'documentBaseUri' | 'language' | 'licenseUri' | 'licenseLabel', value: string): void {
+    if (!this.settings) return;
+    this.settings.publication = { ...(this.settings.publication ?? {}), [field]: value };
+    this.onSettingsChange();
+  }
+
+  pubAddress(): string {
+    return (this.settings?.publication?.address ?? []).join('\n');
+  }
+
+  setPubAddress(text: string): void {
+    if (!this.settings) return;
+    this.settings.publication = { ...(this.settings.publication ?? {}), address: text.split('\n') };
+    this.onSettingsChange();
+  }
+
+  contributors(): PublicationContributor[] {
+    return this.settings?.publication?.contributors ?? [];
+  }
+
+  addContributor(): void {
+    if (!this.settings) return;
+    const pub: PublicationSettings = this.settings.publication ?? {};
+    this.settings.publication = { ...pub, contributors: [...(pub.contributors ?? []), { name: '', role: '' }] };
+    this.onSettingsChange();
+  }
+
+  removeContributor(index: number): void {
+    if (!this.settings?.publication?.contributors) return;
+    this.settings.publication = { ...this.settings.publication, contributors: this.settings.publication.contributors.filter((_c, i) => i !== index) };
+    this.onSettingsChange();
+  }
+
+  setContributor(index: number, field: 'name' | 'role' | 'orcid' | 'gnd', value: string): void {
+    if (!this.settings?.publication?.contributors) return;
+    const list = this.settings.publication.contributors.map((c, i) => (i === index ? { ...c, [field]: value } : c));
+    this.settings.publication = { ...this.settings.publication, contributors: list };
+    this.onSettingsChange();
+  }
+
+  /**
+   * Fills empty publication fields from the shared mapping (project values of the Corpus Monodicum and the corpus-level
+   * contributors of people.csv). Fields that already hold a value are never overwritten.
+   */
+  fillPublicationFromMapping(): void {
+    if (!this.settings) return;
+    const d = METADATA_MAPPING.project;
+    const cur: PublicationSettings = this.settings.publication ?? {};
+    const pick = (have: string | undefined, def: string) => (have && have.trim() ? have : def);
+    const contributors: PublicationContributor[] = [];
+    for (const person of METADATA_MAPPING.people) {
+      for (const roleId of person.roles) {
+        const role = METADATA_MAPPING.roles.find(r => r.id === roleId);
+        if (role && role.levels.includes('corpus') && !role.levels.includes('source')) {
+          contributors.push({ name: person.display, role: role.respText, orcid: person.orcid || undefined, gnd: person.gnd || undefined });
+        }
+      }
+    }
+    this.settings.publication = {
+      publisher: pick(cur.publisher, d.publisher),
+      address: cur.address && cur.address.some(l => l.trim()) ? cur.address : d.address,
+      funderName: pick(cur.funderName, d.funderName),
+      seriesTitle: pick(cur.seriesTitle, d.seriesTitle),
+      documentBaseUri: pick(cur.documentBaseUri, d.documentBaseUri),
+      language: pick(cur.language, d.language),
+      licenseUri: pick(cur.licenseUri, d.licenseUri),
+      licenseLabel: pick(cur.licenseLabel, d.licenseLabel),
+      contributors: cur.contributors && cur.contributors.length ? cur.contributors : contributors
+    };
     this.onSettingsChange();
   }
 

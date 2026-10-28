@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { RootContainer, ContainerKind, LinePartKind, ZeileContainer, Syllable, FormteilContainer, MiscContainer } from './types/model';
-import { ProjectSettings, MeiMappingSettings, Document as MonodiDocument } from './api.service';
+import { ProjectSettings, MeiMappingSettings, Document as MonodiDocument, Source } from './api.service';
 import { emitMei } from './mei/mei-emitter';
 import { defaultMeiProfile } from './mei/mei-mapping.model';
 import { FileSystemService } from './file-system.service';
@@ -11,9 +11,9 @@ import { FileSystemService } from './file-system.service';
 export class MeiExportService {
   constructor(private fsService: FileSystemService) {}
 
-  exportToMei(root: RootContainer, settings: ProjectSettings | null, documentMeta?: MonodiDocument, sourceSiglum?: string): string {
+  exportToMei(root: RootContainer, settings: ProjectSettings | null, documentMeta?: MonodiDocument, sourceSiglum?: string, sourceMeta?: Source): string {
     const profile = settings?.meiProfiles?.find(p => p.id === settings.activeMeiProfileId) || defaultMeiProfile();
-    return emitMei(root, profile, documentMeta, sourceSiglum);
+    return emitMei(root, profile, documentMeta, sourceSiglum, { sourceMeta, publication: settings?.publication });
   }
 
   /**
@@ -463,8 +463,8 @@ export class MeiExportService {
     layer.appendChild(meiSyllable);
   }
 
-  async exportAndDownload(root: RootContainer, filename: string = 'export.mei', settings: ProjectSettings | null = null, documentMeta?: MonodiDocument, sourceSiglum?: string) {
-    const xml = this.exportToMei(root, settings, documentMeta, sourceSiglum);
+  async exportAndDownload(root: RootContainer, filename: string = 'export.mei', settings: ProjectSettings | null = null, documentMeta?: MonodiDocument, sourceSiglum?: string, sourceMeta?: Source) {
+    const xml = this.exportToMei(root, settings, documentMeta, sourceSiglum, sourceMeta);
     await this.fsService.saveFile(xml, {
       suggestedName: filename,
       types: [{

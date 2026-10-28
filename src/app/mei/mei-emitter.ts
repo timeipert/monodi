@@ -10,7 +10,9 @@ import {
   MiscContainer,
   NoteType
 } from '../types/model';
-import { Document as MonodiDocument } from '../api.service';
+import { Document as MonodiDocument, Source, PublicationSettings } from '../api.service';
+import { generateCommentTreeDOM } from './mei-comment-tree';
+import { buildMeiHead } from './mei-header';
 import { flagDefsOf } from '../notes/note-flags';
 import { extractPattern } from '../transcription-analyzer-core';
 import { 
@@ -58,59 +60,6 @@ export function resolveNoteFields(note: Note, isConnectionGap: boolean, connecti
   return res;
 }
 
-function generateCommentTreeDOM(
-  tree: any, 
-  doc: Document, 
-  commentIndex: number, 
-  noteCounter: { count: number }
-): { element: Element | null, zeilen: { id: string, zeile: ZeileContainer }[] } {
-  if (!tree) return { element: null, zeilen: [] };
-  if (tree.kind === "CommentTreeUndecided") return { element: null, zeilen: [] };
-  
-  if (tree.kind === "CommentTreeGrid") {
-    const table = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'table');
-    let zeilen: { id: string, zeile: ZeileContainer }[] = [];
-    if (tree.items) {
-      for (const row of tree.items) {
-        const tr = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'tr');
-        for (const cell of row) {
-          const td = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'td');
-          const cellResult = generateCommentTreeDOM(cell, doc, commentIndex, noteCounter);
-          if (cellResult.element) {
-            td.appendChild(cellResult.element);
-          }
-          tr.appendChild(td);
-          zeilen.push(...cellResult.zeilen);
-        }
-        table.appendChild(tr);
-      }
-    }
-    return { element: table, zeilen };
-  }
-  
-  if (tree.kind === "CommentTreeLeaf") {
-    if (tree.content) {
-      if (tree.content.kind === "Text") {
-        const rend = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'rend');
-        rend.textContent = tree.content.content;
-        return { element: rend, zeilen: [] };
-      } else if (tree.content.kind === "Bracket") {
-        const rend = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'rend');
-        rend.textContent = ']';
-        return { element: rend, zeilen: [] };
-      } else if (tree.content.kind === "Notes") {
-        const id = `m-comment-${commentIndex}-notes-${noteCounter.count++}`;
-        const ptr = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'ptr');
-        ptr.setAttribute('target', '#' + id);
-        return { 
-          element: ptr, 
-          zeilen: [{ id, zeile: tree.content.content }] 
-        };
-      }
-    }
-  }
-  return { element: null, zeilen: [] };
-}
 
 function getOrCreateWrapper(parent: Element, wrapperTag: string, doc: Document): Element {
   let existing = parent.querySelector(`:scope > ${wrapperTag}`);
@@ -127,176 +76,42 @@ function getOrCreateWrapper(parent: Element, wrapperTag: string, doc: Document):
 /** Siglum of the manuscript being exported; read by the pattern-rule lookup. emitMei is synchronous, so a module variable is safe. */
 let activeSiglum: string | undefined;
 
-export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, documentMeta?: MonodiDocument, sourceSiglum?: string): string {
+/**
+ * Schema-conformant structure (profile.schemaConformant): the body follows the MEI 5.0 schema that ships with the app
+ * (mei-all.rng). The default structure does not (see CM-hub/docs/MEI-BODY-MAPPING.md). Module variables, like activeSiglum:
+ * emitMei is synchronous.
+ */
+let conformant = false;
+/** ids of page breaks written so far in this document: Monodi data can repeat the uuid of a FolioChange. */
+let pageBreakIds = new Set<string>();
+/** Prefix of generated xml:id values. Commentary copies of notes get their own prefix, so no id occurs twice. */
+let idPrefix = 'm-';
+
+/** Optional data for the header levels above the baseline. */
+export interface EmitMeiOptions {
+  sourceMeta?: Source;
+  publication?: PublicationSettings;
+  /** Export time; injectable so tests are deterministic. */
+  now?: Date;
+  appVersion?: string;
+}
+
+export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, documentMeta?: MonodiDocument, sourceSiglum?: string, options?: EmitMeiOptions): string {
   activeSiglum = sourceSiglum || undefined;
+  conformant = !!profile.schemaConformant;
+  pageBreakIds = new Set<string>();
+  idPrefix = 'm-';
   const doc = document.implementation.createDocument('http://www.music-encoding.org/ns/mei', 'mei', null);
   const mei = doc.documentElement;
   mei.setAttribute('meiversion', '5.0');
 
-  // 1. Emit Header (Verbatim)
+  // 1. Emit Header. Level 1 is the baseline header; higher levels follow the shared mapping (see mei-header.ts).
   if (profile.emitHeader) {
-    const meiHead = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'meiHead');
-    const fileDesc = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'fileDesc');
-    const titleStmt = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'titleStmt');
-    const title = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'title');
-    title.textContent = documentMeta?.dokumenten_id || 'Exported from Monodi+';
-    titleStmt.appendChild(title);
-    fileDesc.appendChild(titleStmt);
-    
-    const pubStmt = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'pubStmt');
-    fileDesc.appendChild(pubStmt);
-
-    // Collect all distinct sigla
-    const siglaSet = new Set<string>();
-    if (sourceSiglum) {
-        siglaSet.add(sourceSiglum);
-    }
-    if (root.comments) {
-        root.comments.forEach(c => {
-            if (c && c.readingWitnesses) {
-                c.readingWitnesses.forEach(sig => {
-                    if (sig) siglaSet.add(sig);
-                });
-            }
-        });
-    }
-
-    if (siglaSet.size > 0) {
-        const sourceDesc = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'sourceDesc');
-        Array.from(siglaSet).sort().forEach(sig => {
-            const slug = sig.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            const sourceEl = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'source');
-            sourceEl.setAttribute('xml:id', 'wit-' + slug);
-            const identifier = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'identifier');
-            identifier.textContent = sig;
-            sourceEl.appendChild(identifier);
-            sourceDesc.appendChild(sourceEl);
-        });
-        fileDesc.appendChild(sourceDesc);
-    }
-    
-    if (documentMeta && documentMeta.kommentar) {
-        const notesStmt = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'notesStmt');
-        const annot = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'annot');
-        annot.textContent = documentMeta.kommentar;
-        notesStmt.appendChild(annot);
-        fileDesc.appendChild(notesStmt);
-    } else if (root.comments && root.comments.length > 0) {
-        const notesStmt = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'notesStmt');
-        fileDesc.appendChild(notesStmt);
-    }
-    
-    if (root.comments && root.comments.length > 0) {
-        let notesStmt = fileDesc.getElementsByTagNameNS('http://www.music-encoding.org/ns/mei', 'notesStmt')[0];
-        if (!notesStmt) {
-            notesStmt = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'notesStmt');
-            fileDesc.appendChild(notesStmt);
-        }
-        for (let i = 0; i < root.comments.length; i++) {
-            const comment = root.comments[i];
-            const annot = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'annot');
-            annot.setAttribute('startid', '#m-' + comment.startUUID);
-            annot.setAttribute('endid', '#m-' + comment.endUUID);
-            
-            const typeParts: string[] = [];
-            if (comment.emendation) {
-                typeParts.push('emendation');
-            }
-            if (comment.intervention) {
-                typeParts.push(comment.intervention);
-            }
-            if (comment.category) {
-                typeParts.push('cat:' + comment.category);
-            }
-            if (typeParts.length > 0) {
-                annot.setAttribute('type', typeParts.join(' '));
-            }
-
-            if (comment.certainty) {
-                annot.setAttribute('cert', comment.certainty);
-            }
-
-            let treeResult = { element: null as Element | null, zeilen: [] as { id: string, zeile: ZeileContainer }[] };
-            if (comment.tree) {
-                const noteCounter = { count: 0 };
-                treeResult = generateCommentTreeDOM(comment.tree, doc, i, noteCounter);
-            }
-            
-            // A comment's content is a CommentTree when present; legacy
-            // `lines`/`text` are only consulted for truly-legacy comments that
-            // have never been migrated (no `tree`).
-            const hasMusicalStructure = treeResult.zeilen.length > 0 || (!comment.tree && !!comment.lines && comment.lines.length > 0);
-            if (hasMusicalStructure) {
-                annot.setAttribute('corresp', '#m-comment-' + i);
-            }
-
-            const hasWitnessLabels = comment.readingWitnesses && comment.readingWitnesses.some(w => !!w);
-            if (!comment.tree && comment.lines && comment.lines.length > 0 && hasWitnessLabels) {
-                for (let j = 0; j < comment.lines.length; j++) {
-                    const sig = comment.readingWitnesses?.[j];
-                    const ptr = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'ptr');
-                    ptr.setAttribute('target', `#m-comment-${i}-reading-${j}`);
-                    
-                    if (sig) {
-                        const slug = sig.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                        const childAnnot = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'annot');
-                        childAnnot.setAttribute('source', '#wit-' + slug);
-                        childAnnot.appendChild(ptr);
-                        annot.appendChild(childAnnot);
-                    } else {
-                        annot.appendChild(ptr);
-                    }
-                }
-            } else {
-                if (treeResult.element) {
-                    annot.appendChild(treeResult.element);
-                } else if (comment.text) {
-                    annot.textContent = comment.text;
-                }
-            }
-            
-            notesStmt.appendChild(annot);
-        }
-    }
-    
-    meiHead.appendChild(fileDesc);
-    
-    if (documentMeta && (documentMeta.textinitium || documentMeta.gattung1 || documentMeta.gattung2 || documentMeta.festtag || documentMeta.feier)) {
-        const workList = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'workList');
-        const work = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'work');
-        
-        if (documentMeta.textinitium) {
-            const workTitle = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'title');
-            workTitle.textContent = documentMeta.textinitium;
-            work.appendChild(workTitle);
-        }
-        
-        if (documentMeta.gattung1 || documentMeta.gattung2 || documentMeta.festtag || documentMeta.feier) {
-            const classification = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'classification');
-            const termList = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'termList');
-            
-            const addTerm = (termText: string, type: string) => {
-                if (termText) {
-                    const term = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'term');
-                    term.setAttribute('type', type);
-                    term.textContent = termText;
-                    termList.appendChild(term);
-                }
-            };
-            
-            addTerm(documentMeta.gattung1, 'gattung1');
-            addTerm(documentMeta.gattung2, 'gattung2');
-            addTerm(documentMeta.festtag, 'festtag');
-            addTerm(documentMeta.feier, 'feier');
-            
-            classification.appendChild(termList);
-            work.appendChild(classification);
-        }
-        
-        workList.appendChild(work);
-        meiHead.appendChild(workList);
-    }
-    mei.appendChild(meiHead);
+    mei.appendChild(buildMeiHead(doc, {
+      root, documentMeta, sourceSiglum,
+      sourceMeta: options?.sourceMeta, publication: options?.publication,
+      level: profile.headerLevel ?? 1, now: options?.now, appVersion: options?.appVersion
+    }));
   }
 
   // 2. Build Skeleton
@@ -382,7 +197,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                             currentLayer.setAttribute('n', '1');
                             currentStaff.appendChild(currentLayer);
                             commentSection.appendChild(currentStaff);
+                            if (conformant) idPrefix = `m-comment-${i}-reading-${readingIndex}-`;
                             walkZeile(child, currentLayer!, doc, profile);
+                            idPrefix = 'm-';
                         } else {
                             if (!currentStaff) {
                               currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
@@ -392,7 +209,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                               currentStaff.appendChild(currentLayer);
                               commentSection.appendChild(currentStaff);
                             }
+                            if (conformant) idPrefix = `m-comment-${i}-line-${readingIndex}-`;
                             walkZeile(child, currentLayer!, doc, profile);
+                            idPrefix = 'm-';
                         }
                         readingIndex++;
                     }
@@ -411,7 +230,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                     currentStaff.appendChild(currentLayer);
                     ptrSection.appendChild(currentStaff);
                     
+                    if (conformant) idPrefix = `${zItem.id}-`;
                     walkZeile(zItem.zeile, currentLayer, doc, profile);
+                    idPrefix = 'm-';
                     commentScore.appendChild(ptrSection);
                 }
             }
@@ -425,9 +246,12 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   const serializer = new XMLSerializer();
   let xmlString = serializer.serializeToString(mei);
   
+  // The development schema URL answers 404 (state 2026-10-26). The conformant structure names the released MEI 5.0 neumes
+  // customization, which accepts meiversion="5.0"; the default keeps the line of earlier exports.
+  const schemaUrl = conformant ? 'https://music-encoding.org/schema/5.0/mei-Neumes.rng' : 'https://music-encoding.org/schema/dev/mei-Neumes.rng';
   const header = `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<?xml-model href="https://music-encoding.org/schema/dev/mei-Neumes.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>\n` +
-    `<?xml-model href="https://music-encoding.org/schema/dev/mei-Neumes.rng" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>\n`;
+    `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>\n` +
+    `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>\n`;
   
   return header + xmlString;
 }
@@ -494,7 +318,7 @@ function walkFormteil(formteil: FormteilContainer, parentElement: Element, doc: 
   }
 
   const section = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-  section.setAttribute('xml:id', 'm-' + formteil.uuid);
+  section.setAttribute('xml:id', idPrefix + formteil.uuid);
 
   const fields = resolveFormteilFields(formteil);
   applyAttributes(section, rule, fields);
@@ -541,6 +365,28 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
     return;
   }
 
+  if (conformant) {
+    // Inside a layer (commentary lines) the caller has made staff and layer: no line break, no wrappers.
+    // Elsewhere a line is a <staff><layer> of its own, announced by a line break in the section (an <sb> in a layer is invalid).
+    let layer = parentElement;
+    if (parentElement.localName !== 'layer') {
+      const sbElement = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
+      sbElement.setAttribute('xml:id', idPrefix + zeile.uuid);
+      applyAttributes(sbElement, rule, { uuid: zeile.uuid });
+      parentElement.appendChild(sbElement);
+      const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+      staff.setAttribute('n', '1');
+      layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+      layer.setAttribute('n', '1');
+      staff.appendChild(layer);
+      parentElement.appendChild(staff);
+    }
+    for (const part of zeile.children ?? []) {
+      walkLinePart(part, layer, doc, profile);
+    }
+    return;
+  }
+
   // Resolve wrappers outermost-first
   let targetParent = parentElement;
   for (const w of rule.wrappers) {
@@ -548,7 +394,7 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
   }
 
   const sb = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-  sb.setAttribute('xml:id', 'm-' + zeile.uuid);
+  sb.setAttribute('xml:id', idPrefix + zeile.uuid);
   applyAttributes(sb, rule, { uuid: zeile.uuid });
   targetParent.appendChild(sb);
 
@@ -571,7 +417,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
 
     const clef = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-    clef.setAttribute('xml:id', 'm-' + part.uuid);
+    clef.setAttribute('xml:id', idPrefix + part.uuid);
     const fields = resolveClefFields(part);
     applyAttributes(clef, rule, fields);
     targetParent.appendChild(clef);
@@ -591,7 +437,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
 
     const syllable = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-    syllable.setAttribute('xml:id', 'm-' + part.uuid);
+    syllable.setAttribute('xml:id', idPrefix + part.uuid);
     applyAttributes(syllable, rule, { uuid: part.uuid });
 
     // syllableText inner tag
@@ -608,6 +454,18 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
 
     targetParent.appendChild(syllable);
 
+  } else if (conformant && part.kind === LinePartKind.FolioChange) {
+    // A change of manuscript page inside a chant: a page break; the folio text of Monodi (FolioChange.text) is its @label.
+    const pb = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'pb');
+    let pbId = idPrefix + part.uuid;
+    for (let k = 2; pageBreakIds.has(pbId); k++) pbId = `${idPrefix}${part.uuid}-${k}`;
+    pageBreakIds.add(pbId);
+    pb.setAttribute('xml:id', pbId);
+    // @n takes one token only (a folio like "f. 116" has a space), so the full text always goes to @label.
+    if (part.text) pb.setAttribute('label', part.text);
+    if (part.text && /^\S+$/.test(part.text)) pb.setAttribute('n', part.text);
+    parentElement.appendChild(pb);
+
   } else if (part.kind === ContainerKind.ParatextContainer || (part.text !== undefined && part.paratextType !== undefined)) {
     // ParatextContainer
     const rule = profile.entities.paratext;
@@ -620,7 +478,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
 
     const dir = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-    dir.setAttribute('xml:id', 'm-' + part.uuid);
+    dir.setAttribute('xml:id', idPrefix + part.uuid);
     applyAttributes(dir, rule, { text: part.text || '', paratextType: part.paratextType || '', uuid: part.uuid });
     if (rule.textFrom === 'text') {
       dir.textContent = part.text || '';
@@ -643,6 +501,11 @@ function isGroupBreakGap(groups: { grouped: Note[] }[], gIndex: number, nIndex: 
   return false;
 }
 
+/** Conformant structure: MEI `accid/@accid` value of the Monodi accidental note types (f flat, n natural, s sharp). */
+const ACCIDENTAL_VALUE: { [noteType: string]: string } = { Flat: 'f', Natural: 'n', Sharp: 's' };
+/** Conformant structure: `nc/@tilt` (direction of the pen stroke) for the note heads with a stem, as drawn in Monodi-Zero (glyph-paths.ts). */
+const STEM_TILT: { [noteType: string]: string } = { Ascending: 'n', Descending: 's' };
+
 function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
   if (!syllable.notes || !syllable.notes.spaced) return;
 
@@ -659,6 +522,10 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
 
     const neumeRule = profile.entities.neume;
     let targetParent = parentElement;
+    let neumeEl: Element | null = null;
+    // Conformant: accidentals are `accid` children of the syllable, in the sequence of its neumes (see config/mei-body-mapping.yml in CM-hub).
+    const accidsBefore: Element[] = [];
+    const accidsAfter: Element[] = [];
 
     if (neumeRule.enabled) {
       // Resolve wrappers outermost-first
@@ -669,6 +536,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       applyAttributes(neume, neumeRule, {});
       applyRuleAttributes(neume, patternRule?.neume);
       targetParent.appendChild(neume);
+      neumeEl = neume;
       targetParent = neume;
     }
 
@@ -679,6 +547,18 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       for (let nIndex = 0; nIndex < groupedData.grouped.length; nIndex++) {
         const note = groupedData.grouped[nIndex];
 
+        if (conformant && ACCIDENTAL_VALUE[note.noteType]) {
+          // An accidental is not a note of the melody. Monodi does not say which note it affects, and neither does the `accid`:
+          // it stands in the syllable where it stands in the sequence, with the pitch position it was written at (ploc/oloc).
+          const accid = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'accid');
+          accid.setAttribute('xml:id', idPrefix + note.uuid);
+          accid.setAttribute('accid', ACCIDENTAL_VALUE[note.noteType]);
+          if (note.base) accid.setAttribute('ploc', note.base.toLowerCase());
+          if (note.octave !== undefined) accid.setAttribute('oloc', note.octave.toString());
+          (neumeEl && neumeEl.childNodes.length > 0 ? accidsAfter : accidsBefore).push(accid);
+          continue;
+        }
+
         let entityKey: MeiEntityKey = 'note';
         if (note.noteType === NoteType.Oriscus) {
           entityKey = 'oriscus';
@@ -688,6 +568,16 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
           entityKey = 'strophicus';
         } else if (note.noteType === NoteType.Liquescent || note.liquescent) {
           entityKey = 'liquescent';
+        }
+
+        // Conformant: an ornament is an empty child of its <nc>, never a replacement for it.
+        const ornaments: MeiEntityKey[] = [];
+        if (conformant) {
+          entityKey = 'note';
+          if (note.noteType === NoteType.Oriscus) ornaments.push('oriscus');
+          if (note.noteType === NoteType.Quilisma) ornaments.push('quilisma');
+          if (note.noteType === NoteType.Strophicus) ornaments.push('strophicus');
+          if (note.noteType === NoteType.Liquescent || note.liquescent) ornaments.push('liquescent');
         }
 
         const noteRule = profile.entities[entityKey];
@@ -703,7 +593,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         const flagDefs = flagDefsOf(note.flags);
         const flagTag = flagDefs.find(f => f.meiTag)?.meiTag;
         const nc = doc.createElementNS('http://www.music-encoding.org/ns/mei', flagTag || noteRule.tag);
-        nc.setAttribute('xml:id', 'm-' + note.uuid);
+        nc.setAttribute('xml:id', idPrefix + note.uuid);
 
         const isConnectionGap = isGroupBreakGap(neumeData.nonSpaced, gIndex, nIndex);
 
@@ -718,7 +608,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         const fields = resolveNoteFields(note, isConnectionGap, connectionGapValue);
 
         applyAttributes(nc, noteRule, fields, (ruleName) => {
-          if (ruleName === liquescentAttrName && (!note.liquescent || nc.tagName === profile.entities.liquescent.tag)) {
+          if (ruleName === liquescentAttrName && (conformant || !note.liquescent || nc.tagName === profile.entities.liquescent.tag)) {
             return ''; // Omit liquescent attribute if not liquescent or tag is liquescent
           }
           if (ruleName === connectionAttrName && !isConnectionGap) {
@@ -728,13 +618,28 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         });
 
         for (const fd of flagDefs) applyRuleAttributes(nc, fd.mei);
+        if (conformant && STEM_TILT[note.noteType]) nc.setAttribute('tilt', STEM_TILT[note.noteType]);
 
         // Pattern rule: the rule's nc entry for this note position (never pname/oct).
         applyRuleAttributes(nc, patternRule?.nc[flatIndex]);
         flatIndex++;
 
+        for (const key of ornaments) {
+          const ornamentRule = profile.entities[key];
+          if (ornamentRule.enabled) nc.appendChild(doc.createElementNS('http://www.music-encoding.org/ns/mei', ornamentRule.tag));
+        }
+
         noteTargetParent.appendChild(nc);
       }
+    }
+
+    if (accidsBefore.length || accidsAfter.length) {
+      const holder = neumeEl && neumeEl.parentNode ? neumeEl.parentNode : parentElement;
+      for (const a of accidsBefore) holder.insertBefore(a, neumeEl && neumeEl.parentNode === holder ? neumeEl : null);
+      const next = neumeEl && neumeEl.parentNode === holder ? neumeEl.nextSibling : null;
+      for (const a of accidsAfter) holder.insertBefore(a, next);
+      // A unit that held only accidentals is not a neume.
+      if (neumeEl && neumeEl.childNodes.length === 0 && neumeEl.parentNode) neumeEl.parentNode.removeChild(neumeEl);
     }
   }
 }

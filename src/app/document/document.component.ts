@@ -1236,7 +1236,7 @@ export class DocumentComponent implements OnInit {
           { label: 'Export', header: true, action: () => {} },
           { label: 'Document (JSON)…', icon: 'bi-download', action: () => this.openJsonExport() },
           { label: 'PDF…', icon: 'bi-file-pdf', action: () => this.openPdfExport() },
-          { label: 'MEI', icon: 'bi-file-earmark-code', action: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); } },
+          { label: 'MEI', icon: 'bi-file-earmark-code', action: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle, this.sourceData ?? undefined); } },
           { label: 'Volpiano', icon: 'bi-music-note-beamed', action: () => this.exportVolpiano() },
         ]
       }
