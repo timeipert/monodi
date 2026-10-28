@@ -21,6 +21,7 @@ type Mode = 'edit' | 'split' | 'preview';
         <button type="button" class="btn btn-outline-secondary" (click)="heading()" [disabled]="mode === 'preview'" title="Heading"><i class="bi bi-type-h2"></i></button>
         <button type="button" class="btn btn-outline-secondary" (click)="wrap('**')" [disabled]="mode === 'preview'" title="Bold (Ctrl+B)"><i class="bi bi-type-bold"></i></button>
         <button type="button" class="btn btn-outline-secondary" (click)="wrap('*')" [disabled]="mode === 'preview'" title="Italic (Ctrl+I)"><i class="bi bi-type-italic"></i></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="wrap('<sc>', '</sc>')" [disabled]="mode === 'preview'" title="Small capitals (names of authors in references)"><span style="font-variant: small-caps; font-weight: 600; font-size: .85rem; line-height: 1">Sc</span></button>
         <button type="button" class="btn btn-outline-secondary" (click)="wrap('\`')" [disabled]="mode === 'preview'" title="Code"><i class="bi bi-code"></i></button>
       </div>
       <div class="btn-group btn-group-sm" role="group" aria-label="Blocks">
@@ -77,6 +78,7 @@ type Mode = 'edit' | 'split' | 'preview';
     .md-thumb { width: 72px; height: 54px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .md-thumb img { max-width: 100%; max-height: 100%; }
     .md-preview img { max-width: 100%; height: auto; }
+    .md-preview .md-sc { font-variant: small-caps; }
     .md-preview figure { text-align: center; margin: 1rem 0; }
     .md-preview figcaption { font-size: .85rem; color: #6b7280; font-style: italic; }
     .md-preview .md-table-wrap { overflow-x: auto; margin: .75rem 0; }
@@ -154,16 +156,17 @@ export class MarkdownEditorComponent {
     this.onInput(r.text);
   }
 
-  wrap(mark: string): void {
+  /** Puts `mark` (and `close` behind the selection, default the same) around the selection, or takes it off again. */
+  wrap(mark: string, close = mark): void {
     this.edit((t, a, b) => {
       const sel = t.slice(a, b);
-      if (sel.startsWith(mark) && sel.endsWith(mark) && sel.length >= 2 * mark.length) {
-        return { text: t.slice(0, a) + sel.slice(mark.length, -mark.length) + t.slice(b), a, b: b - 2 * mark.length };
+      if (sel.startsWith(mark) && sel.endsWith(close) && sel.length >= mark.length + close.length) {
+        return { text: t.slice(0, a) + sel.slice(mark.length, sel.length - close.length) + t.slice(b), a, b: b - mark.length - close.length };
       }
-      if (t.slice(a - mark.length, a) === mark && t.slice(b, b + mark.length) === mark) {
-        return { text: t.slice(0, a - mark.length) + sel + t.slice(b + mark.length), a: a - mark.length, b: b - mark.length };
+      if (t.slice(a - mark.length, a) === mark && t.slice(b, b + close.length) === close) {
+        return { text: t.slice(0, a - mark.length) + sel + t.slice(b + close.length), a: a - mark.length, b: b - mark.length };
       }
-      return { text: t.slice(0, a) + mark + sel + mark + t.slice(b), a: a + mark.length, b: b + mark.length };
+      return { text: t.slice(0, a) + mark + sel + close + t.slice(b), a: a + mark.length, b: b + mark.length };
     });
   }
 

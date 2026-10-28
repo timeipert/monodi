@@ -25,6 +25,7 @@ export function resolvePrintOptions(s: Partial<ProjectSettings> & { [key: string
     pdfMarginRight: num(s.pdfMarginRight, D.pdfMarginRight),
     pdfMarginTop: num(s.pdfMarginTop, D.pdfMarginTop),
     pdfMarginBottom: num(s.pdfMarginBottom, D.pdfMarginBottom),
+    mirrorMargins: s.pdfMirrorMargins === undefined ? D.pdfMirrorMargins : s.pdfMirrorMargins === true || (s.pdfMirrorMargins as unknown) === 'true',
     // edition
     SCALE: num(s.pdfScale, D.pdfScale),
     pdfStaffSpacing: num(s.pdfStaffSpacing, D.pdfStaffSpacing),
@@ -60,6 +61,8 @@ export function resolvePrintOptions(s: Partial<ProjectSettings> & { [key: string
     contentsEdition: (s.pdfContentsEdition === 'documents' ? 'documents' : 'chapters') as 'documents' | 'chapters',
     partStyle: (s.pdfPartStyle === 'compact' ? 'compact' : 'volume') as 'volume' | 'compact',
     contentsApparatus: (s.pdfContentsApparatus === 'documents' || s.pdfContentsApparatus === 'none' ? s.pdfContentsApparatus : 'chapters') as ContentsApparatus,
+    boldAsSmallCaps: s.pdfBoldAsSmallCaps !== false,
+    hyphenate: s.pdfHyphenate !== false,
     bookmarks: s.pdfBookmarks !== false,
     // running head
     pdfShowPageNumbers: s.pdfShowPageNumbers === true || (s.pdfShowPageNumbers as unknown) === 'true',

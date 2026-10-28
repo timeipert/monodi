@@ -1,5 +1,7 @@
 import type { Document } from '../api.service';
-import { checkPrintSet, checkRelations, DEFAULT_RELATION_TYPES, FindingKind, RELATION_FIELDS, relationTypes, withRelationFields } from './relations';
+import {
+  checkPrintSet, checkRelations, DEFAULT_RELATION_TYPES, documentFieldOptions, FindingKind, RELATION_FIELDS, relationFields, relationTypes, withRelationFields,
+} from './relations';
 
 function doc(id: string, quelle: string, custom: Record<string, string> = {}): Document {
   return { id: 'u-' + id + quelle, dokumenten_id: id, quelle_id: quelle, custom } as unknown as Document;
@@ -116,5 +118,59 @@ describe('relations: what a print breaks apart', () => {
     expect(checkPrintSet(all, ids('T1'), ids('AN1'))[0]).toContain('held back');
     expect(checkPrintSet(all, ids('T1'), ids())[0]).toContain('not in this print');
     expect(checkPrintSet(all, ids('AN1'), ids('T1'))).toEqual([]);
+  });
+});
+
+describe('relations: the fields the roles read', () => {
+  it('reads the built-in fields until a role is given another one; blank means built-in', () => {
+    expect(relationFields(undefined).unitId).toBe('unit_id');
+    expect(relationFields({ relationFields: { unitId: 'SpielName', target: '  ' } })).toEqual({
+      target: 'relation_target', type: 'relation_type', unitId: 'SpielName', unitType: 'unit_type', unitPosition: 'unit_position',
+    });
+  });
+
+  it('checks relations and units on the fields the settings name, standard fields included', () => {
+    const settings = { relationFields: { target: 'Bezugsgesang', unitId: 'SpielName', unitPosition: 'bibliographischerverweis' } };
+    const docs = [
+      doc('T1', 'A', { Bezugsgesang: 'AN9' }),                                   // leads nowhere
+      doc('P1', 'A', { SpielName: 'play-1' }), { ...doc('P2', 'A', { SpielName: 'play-1' }), bibliographischerverweis: '1' } as Document,
+      { ...doc('P3', 'A', { SpielName: 'play-1' }), bibliographischerverweis: '1' } as Document,   // the position of P2 again
+      doc('X', 'A', { relation_target: 'ZZ', unit_id: 'u' }),                    // the built-in fields are not read now
+    ];
+    const r = checkRelations(docs, settings);
+    expect(r.findings.map((f) => f.kind).sort()).toEqual(['target-missing', 'unit-position-duplicate']);
+    expect(r.relations).toBe(1);
+    expect(r.units).toBe(1);
+    // without the setting nothing of this is seen, and the built-in fields of X are
+    expect(checkRelations(docs, {}).findings.map((f) => f.kind).sort()).toEqual(['target-missing', 'unit-single']);
+  });
+
+  it('warns about a held-back related document through the field the setting names', () => {
+    const t = doc('T1', 'A', { Bezugsgesang: 'AN1' });
+    const an = doc('AN1', 'A');
+    const warn = checkPrintSet([t, an], new Set([t.id!]), new Set([an.id!]), { relationFields: { target: 'Bezugsgesang' } });
+    expect(warn.join(' ')).toContain('held back');
+    expect(checkPrintSet([t, an], new Set([t.id!]), new Set([an.id!]))).toEqual([]);
+  });
+
+  it('adds only the built-in fields that a role still reads', () => {
+    const all = { customDocumentFields: [] as { key: string; label: string }[], relationFields: { target: 'Bezugsgesang', unitId: 'SpielName' } };
+    expect(withRelationFields(all)!.customDocumentFields!.map((f) => f.key)).toEqual(['relation_type', 'unit_type', 'unit_position']);
+    const none = { customDocumentFields: [] as { key: string; label: string }[], relationFields: { target: 'a', type: 'b', unitId: 'c', unitType: 'd', unitPosition: 'e' } };
+    expect(withRelationFields(none)).toBeNull();
+  });
+
+  it('lists the fields a role can read: registered, standard and those the documents carry, with how many documents have a value', () => {
+    const docs = [
+      { ...doc('A', 'A', { Bezugsgesang: 'x', mine: 'y' }), bibliographischerverweis: 'AMS 1' } as Document,
+      doc('B', 'A', { Bezugsgesang: 'z' }),
+    ];
+    const opts = documentFieldOptions({ customDocumentFields: [{ key: 'mine', label: 'Mine' }] }, docs);
+    const by = (k: string) => opts.find((o) => o.key === k)!;
+    expect(by('mine')).toEqual({ key: 'mine', label: 'Mine', filled: 1 });
+    expect(by('Bezugsgesang')).toEqual({ key: 'Bezugsgesang', label: 'Bezugsgesang', filled: 2, unregistered: true });
+    expect(by('bibliographischerverweis').filled).toBe(1);
+    expect(by('mine').unregistered).toBeUndefined();
+    expect(opts.filter((o) => o.key === 'mine').length).toBe(1);
   });
 });

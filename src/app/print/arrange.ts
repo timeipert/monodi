@@ -1,5 +1,5 @@
 import type { Document } from '../api.service';
-import { RELATION_TARGET_KEY, RELATION_TYPE_KEY, RelationType, UNIT_ID_KEY, UNIT_POSITION_KEY, relationTypes } from '../relations/relations';
+import { RelationFieldMap, RelationType, fieldText, relationFields, relationTypes } from '../relations/relations';
 
 /**
  * The order and the numbers of the documents of one chapter in a print, when documents belong together:
@@ -27,7 +27,7 @@ export interface Arranged<T> {
 
 export type RelatedAt = 'block' | 'behind';
 
-const text = (d: Document, key: string): string => String(d.custom?.[key] ?? '').trim();
+const text = fieldText;
 
 /** What chapters a print has besides the manuscripts: a unit is a chapter of its own. Keys of units start with this. */
 export const UNIT_CHAPTER = '\u0002';
@@ -45,7 +45,8 @@ function suffixOf(t: RelationType): string {
  * The chapter of each document: a unit is a chapter of its own (a document that a document of the unit names as its
  * related document goes with it), everything else is a chapter by its manuscript. Chapters keep the order of first appearance.
  */
-export function chapterKeyFn<T>(items: readonly T[], docOf: (item: T) => Document, sourceKeyOf: (item: T) => string): (item: T) => string {
+export function chapterKeyFn<T>(items: readonly T[], docOf: (item: T) => Document, sourceKeyOf: (item: T) => string, settings?: { relationFields?: Partial<RelationFieldMap> } | null): (item: T) => string {
+  const F = relationFields(settings);
   const byId = new Map<string, T[]>();
   for (const it of items) {
     const id = String(docOf(it).dokumenten_id ?? '').trim();
@@ -54,38 +55,39 @@ export function chapterKeyFn<T>(items: readonly T[], docOf: (item: T) => Documen
   const pulled = new Map<T, string>();
   for (const it of items) {
     const d = docOf(it);
-    const unit = text(d, UNIT_ID_KEY);
-    const target = text(d, RELATION_TARGET_KEY);
+    const unit = text(d, F.unitId);
+    const target = text(d, F.target);
     if (!unit || !target) continue;
     const found = (byId.get(target) ?? []).filter((c) => sourceKeyOf(c) === sourceKeyOf(it));
-    if (found.length === 1 && !text(docOf(found[0]), UNIT_ID_KEY) && !pulled.has(found[0])) pulled.set(found[0], UNIT_CHAPTER + unit);
+    if (found.length === 1 && !text(docOf(found[0]), F.unitId) && !pulled.has(found[0])) pulled.set(found[0], UNIT_CHAPTER + unit);
   }
   return (it) => {
-    const unit = text(docOf(it), UNIT_ID_KEY);
+    const unit = text(docOf(it), F.unitId);
     return unit ? UNIT_CHAPTER + unit : pulled.get(it) ?? sourceKeyOf(it);
   };
 }
 
 export function arrangeChapter<T>(
-  items: readonly T[], docOf: (item: T) => Document, settings?: { relationTypes?: RelationType[] } | null, relatedAt: RelatedAt = 'block',
+  items: readonly T[], docOf: (item: T) => Document, settings?: { relationTypes?: RelationType[]; relationFields?: Partial<RelationFieldMap> } | null, relatedAt: RelatedAt = 'block',
 ): Arranged<T> {
   const types = relationTypes(settings);
+  const F = relationFields(settings);
 
   // ── units: one block at the place of its first document ──
   const members = new Map<string, T[]>();
   for (const it of items) {
-    const unit = text(docOf(it), UNIT_ID_KEY);
+    const unit = text(docOf(it), F.unitId);
     if (unit) (members.get(unit) ?? members.set(unit, []).get(unit)!).push(it);
   }
   const positionOf = (it: T): number => {
-    const raw = text(docOf(it), UNIT_POSITION_KEY).replace(',', '.');
+    const raw = text(docOf(it), F.unitPosition).replace(',', '.');
     const n = raw === '' ? NaN : Number(raw);
     return Number.isFinite(n) ? n : NaN;
   };
   const seq: T[] = [];
   const emitted = new Set<string>();
   for (const it of items) {
-    const unit = text(docOf(it), UNIT_ID_KEY);
+    const unit = text(docOf(it), F.unitId);
     if (!unit) { seq.push(it); continue; }
     if (emitted.has(unit)) continue;
     emitted.add(unit);
@@ -109,24 +111,24 @@ export function arrangeChapter<T>(
   const isBelow = (it: T, root: T): boolean => { for (let p = parentOf.get(it); p; p = parentOf.get(p)) if (p === root) return true; return false; };
   for (const src of seq) {
     const d = docOf(src);
-    const target = text(d, RELATION_TARGET_KEY);
+    const target = text(d, F.target);
     if (!target) continue;
     const found = byId.get(target) ?? [];
     if (found.length !== 1) continue;                    // missing or ambiguous: the check reports it, the print leaves it be
     const rel = found[0];
     if (rel === src || isBelow(src, rel)) continue;      // itself, or a circle
-    const relUnit = text(docOf(rel), UNIT_ID_KEY);
-    if (relUnit && relUnit !== text(d, UNIT_ID_KEY)) continue;   // it belongs to another unit, whose block must not be broken
+    const relUnit = text(docOf(rel), F.unitId);
+    if (relUnit && relUnit !== text(d, F.unitId)) continue;   // it belongs to another unit, whose block must not be broken
     if (parentOf.has(rel)) { pointsTo.set(src, rel); continue; }
     parentOf.set(rel, src);
-    typeFor.set(rel, typeOf(text(d, RELATION_TYPE_KEY), types));
+    typeFor.set(rel, typeOf(text(d, F.type), types));
     (kidsOf.get(src) ?? kidsOf.set(src, []).get(src)!).push(rel);
   }
 
   // ── the final order ──
   const out: T[] = [];
   const sectionAt = new Map<T, string>();
-  const unitOf = (it: T) => text(docOf(it), UNIT_ID_KEY);
+  const unitOf = (it: T) => text(docOf(it), F.unitId);
   const inBlock = new Set<T>();
   const block: T[] = [];
   const emit = (it: T, into: T[]): void => {
@@ -190,7 +192,7 @@ export function arrangeChapter<T>(
     lastHeading = heading;
   });
   const noteOf = (src: T): SeeNote => {
-    const suffix = suffixOf(typeOf(text(docOf(src), RELATION_TYPE_KEY), types));
+    const suffix = suffixOf(typeOf(text(docOf(src), F.type), types));
     return { label: labels.get(src)! + suffix, to: labels.get(pointsTo.get(src)!)! };
   };
   return {

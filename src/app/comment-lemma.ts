@@ -12,24 +12,35 @@ export function commentStartIndex(parts: LinePart[], comment: Pick<Comment, 'sta
 }
 
 /**
- * The signature (A, B, 23, ...) of the section the comment starts in: the printed apparatus sets it
- * in the margin in front of the first entry of each section. '' where the section has none or the start is unknown.
+ * The signature of the section the comment starts in, as the printed apparatus sets it in the margin in front of the
+ * first entry of each section. Sections nest (a versicle `3` with the halves `a` and `b`): the signatures of all the
+ * sections around the comment are put together, outermost first, a letter directly behind a number (`3a`), anything
+ * else with a space. A section without a signature of its own takes that of the one around it, so that an entry in
+ * `3 > (nothing)` is `3`. '' where there is none or the start is unknown.
  */
 export function commentSignature(root: RootContainer, comment: Pick<Comment, 'startUUID'>): string {
-  const visit = (c: any, sig: string): string | undefined => {
+  const visit = (c: any, chain: string[]): string[] | undefined => {
     if (!c || typeof c !== 'object') return undefined;
-    if (c.kind === 'FormteilContainer') sig = ((c.data || []).find((d: any) => d.name === FormteilDataName.Signatur)?.data || '').trim();
+    if (c.kind === 'FormteilContainer') {
+      const sig = ((c.data || []).find((d: any) => d.name === FormteilDataName.Signatur)?.data || '').trim();
+      if (sig) chain = [...chain, sig];
+    }
     if (c.kind === 'ZeileContainer') {
-      for (const lp of c.children || []) if (getCommentableUUIDsOfLinePart(lp as LinePart).includes(comment.startUUID)) return sig;
+      for (const lp of c.children || []) if (getCommentableUUIDsOfLinePart(lp as LinePart).includes(comment.startUUID)) return chain;
       return undefined;
     }
     for (const ch of c.children || []) {
-      const r = visit(ch, sig);
+      const r = visit(ch, chain);
       if (r !== undefined) return r;
     }
     return undefined;
   };
-  return visit(root, '') || '';
+  return joinSignatures(visit(root, []) || []);
+}
+
+/** Signatures of nested sections, outermost first, as one: a letter directly behind a number (`3a`), anything else with a space. */
+export function joinSignatures(chain: readonly string[]): string {
+  return chain.reduce((out, sig) => (!out ? sig : /^\d+$/.test(out) && /^[a-z]$/i.test(sig) ? out + sig : `${out} ${sig}`), '');
 }
 
 export function commentLemma(parts: LinePart[], comment: Pick<Comment, 'startUUID' | 'endUUID'>): string {

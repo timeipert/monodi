@@ -3,7 +3,10 @@ import { firstValueFrom } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { APIService, Document, ProjectSettings } from '../api.service';
 import { UserService } from '../user.service';
-import { FINDING_TITLE, Finding, FindingKind, RelationReport, RelationType, checkRelations, relationTypes, withRelationFields } from './relations';
+import {
+  DEFAULT_RELATION_FIELDS, FINDING_TITLE, FieldOption, Finding, FindingKind, RELATION_ROLES, RelationFieldMap, RelationReport, RelationRole, RelationType,
+  checkRelations, documentFieldOptions, relationFields, relationTypes, withRelationFields,
+} from './relations';
 
 interface FindingGroup { kind: FindingKind; title: string; severity: Finding['severity']; items: Finding[] }
 
@@ -38,8 +41,30 @@ const SHOWN = 12;
             </p>
 
             <h6 class="mt-3">Fields</h6>
+            <p class="text-muted mb-2">Each part reads one document field. Use the built-in fields, or a field your data already has (an import brings its own: a base chant, a play name) — nothing has to be copied.</p>
+            <table class="table table-sm align-middle mb-2" data-testid="relations-roles">
+              <tbody>
+                @for (r of roles; track r.role) {
+                  <tr>
+                    <td class="fw-semibold text-nowrap">{{ r.label }}</td>
+                    <td>
+                      <select class="form-select form-select-sm" [ngModel]="fieldMap[r.role]" (ngModelChange)="setRole(r.role, $event)" [attr.aria-label]="r.label" [attr.data-testid]="'relations-role-' + r.role">
+                        @for (o of optionsFor(r.role); track o.key) {
+                          <option [value]="o.key">{{ o.label }}{{ o.key !== o.label ? ' (' + o.key + ')' : '' }} — {{ o.filled }} {{ o.filled === 1 ? 'document' : 'documents' }}{{ o.unregistered ? ', not shown in the table yet' : '' }}</option>
+                        }
+                      </select>
+                      <div class="form-text mt-0">{{ r.hint }}</div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <div class="d-flex gap-2 align-items-center mb-2">
+              <button type="button" class="btn btn-sm btn-primary" [disabled]="busy || !rolesDirty" (click)="saveRoles()" data-testid="relations-save-roles">Use these fields</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="busy" (click)="resetRoles()" data-testid="relations-reset-roles">Built-in fields</button>
+            </div>
             @if (missingFields) {
-              <p class="mb-2">The five fields (related document, relation type, unit ID, unit type, position) are not among the document fields yet.</p>
+              <p class="mb-2">The built-in fields that are in use are not among the document fields yet.</p>
               <button type="button" class="btn btn-sm btn-primary" [disabled]="busy" (click)="addFields()" data-testid="relations-add-fields">Add the fields</button>
             } @else {
               <p class="mb-0 text-success"><i class="bi bi-check-lg me-1"></i>The fields are there; they show in the table, in the document form and as placeholders.</p>
@@ -106,6 +131,10 @@ export class RelationsDialogComponent implements OnInit {
   missingFields = false;
   types: RelationType[] = [];
   typesDirty = false;
+  readonly roles = RELATION_ROLES;
+  fieldMap: RelationFieldMap = { ...DEFAULT_RELATION_FIELDS };
+  fieldOptions: FieldOption[] = [];
+  rolesDirty = false;
   report: RelationReport | null = null;
   groups: FindingGroup[] = [];
 
@@ -143,6 +172,8 @@ export class RelationsDialogComponent implements OnInit {
     this.documents = docs.documents;
     this.missingFields = withRelationFields(settings) !== null;
     if (!this.typesDirty) this.types = relationTypes(settings).map((t) => ({ ...t }));
+    this.fieldOptions = documentFieldOptions(settings, this.documents);
+    if (!this.rolesDirty) this.fieldMap = relationFields(settings);
     this.report = checkRelations(this.documents, settings);
     const order: Finding['severity'][] = ['error', 'warning'];
     const by = new Map<FindingKind, FindingGroup>();
@@ -150,6 +181,32 @@ export class RelationsDialogComponent implements OnInit {
       (by.get(f.kind) ?? by.set(f.kind, { kind: f.kind, title: FINDING_TITLE[f.kind], severity: f.severity, items: [] }).get(f.kind)!).items.push(f);
     }
     this.groups = [...by.values()].sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity));
+  }
+
+  /** The fields a role can read: all there are, and the one it reads now even if no document has it. */
+  optionsFor(role: RelationRole): FieldOption[] {
+    const key = this.fieldMap[role];
+    const builtIn = DEFAULT_RELATION_FIELDS[role];
+    const extra: FieldOption[] = [];
+    for (const k of [key, builtIn]) if (!this.fieldOptions.some((o) => o.key === k) && !extra.some((o) => o.key === k)) extra.push({ key: k, label: k, filled: 0 });
+    return [...extra, ...this.fieldOptions];
+  }
+  setRole(role: RelationRole, key: string): void { this.fieldMap = { ...this.fieldMap, [role]: key }; this.rolesDirty = true; }
+  resetRoles(): void { this.fieldMap = { ...DEFAULT_RELATION_FIELDS }; this.rolesDirty = true; }
+
+  async saveRoles(): Promise<void> {
+    await this.write(async (token) => {
+      const settings = await this.settingsNow(token);
+      // only what differs from the built-in field is stored
+      const own: Partial<RelationFieldMap> = {};
+      for (const r of Object.keys(this.fieldMap) as RelationRole[]) if (this.fieldMap[r] !== DEFAULT_RELATION_FIELDS[r]) own[r] = this.fieldMap[r];
+      const next: ProjectSettings = { ...settings };
+      if (Object.keys(own).length) next.relationFields = own; else delete next.relationFields;
+      await firstValueFrom(this.api.updateSettings(token, next));
+      this.rolesDirty = false;
+      this.toastr.success('The fields were saved.');
+      this.applied.emit();
+    });
   }
 
   addType(): void { this.types = [...this.types, { name: '', suffix: '', heading: '' }]; this.typesDirty = true; }

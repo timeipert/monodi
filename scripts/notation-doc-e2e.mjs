@@ -104,6 +104,24 @@ if (pdf) {
     const at = (re) => text.search(re);
     expect(at(/\b10\b/) < at(/\b30\b/) && at(/\b30\b/) < at(/\b21\b/) && at(/\b21\b/) < at(/10\+/), 'rows should be in the order of the neume table (10, 30, 21, 10+/20-): ' + [at(/\b10\b/), at(/\b30\b/), at(/\b21\b/), at(/10\+/)]);
     expect(/Neume tree/.test(text) && /\[\*du\]/.test(text) && /\[\*dL\]/.test(text), 'the neume tree should be printed, its boxes carrying their codes');
+    // facing pages as in the printed volume: the running head starts 2 cm from the spine on a recto (odd page) and 2.5 cm
+    // from the page edge on a verso (even page): 56.7 pt and 70.9 pt
+    const headX = (n) => {
+      const box = execFileSync(bin('pdftotext'), ['-f', String(n), '-l', String(n), '-bbox', file, '-']).toString();
+      const xs = [...box.matchAll(/xMin="([\d.]+)" yMin="([\d.]+)"/g)].filter((m) => Number(m[2]) < 62).map((m) => Number(m[1]));
+      return xs.length ? Math.min(...xs) : null;
+    };
+    const pages = Number(execFileSync(bin('pdfinfo'), [file]).toString().match(/Pages:\s+(\d+)/)[1]);
+    const seen = { odd: 0, even: 0 };
+    for (let n = 2; n <= pages; n++) {
+      const x = headX(n);
+      if (x === null) continue;   // cover, title page, part pages: no running head
+      const want = n % 2 ? 56.7 : 70.9;
+      seen[n % 2 ? 'odd' : 'even']++;
+      expect(Math.abs(x - want) < 1, `the running head of page ${n} should start at ${want} pt, not ${x}`);
+    }
+    expect(seen.even > 0, 'the PDF should have a running head on a verso page: ' + JSON.stringify(seen));
+    expect(text.search(/Sign inventory/) < text.search(/Neume tree/), 'the neume tree comes last, after the sign inventory');
     expect(/10\+20-b/.test(text) && /\b10a\b/.test(text) && /\b21\b/.test(text), 'the frames should carry the ID and variant (10a, 21, 10+20-b)');
     expect(/\*uu/.test(text), 'a snippet of a pattern without an ID is framed with its pattern');
     expect(/Notator A: f\. 8r\./.test(text), 'the notes of the table should be printed');

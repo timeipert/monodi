@@ -718,6 +718,8 @@ export interface ProjectSettings {
   htmlExportFooterHtml?: string;
   undoHistorySize?: number;
   pdfMarginLeft?: number;
+  /** Facing pages: the left margin is the inner one (spine), the right the outer; verso pages are set the other way round. */
+  pdfMirrorMargins?: boolean;
   pdfSignaturSpace?: number;
   pdfFontSize?: number;
   pdfTitleFontSize?: number;
@@ -770,6 +772,16 @@ export interface ProjectSettings {
   /** Transitions between Edition, Critical Apparatus and Source Descriptions: 'volume' = a page of its own with a rule (as in the printed volume, no running head), 'compact' = just a heading where the part begins. */
   pdfPartStyle?: 'volume' | 'compact';
   pdfContentsApparatus?: 'chapters' | 'documents' | 'none';
+  /** Source descriptions: bold text inside a paragraph or list is set in small capitals, as the printed volume does for the authors of references (default on). */
+  /** Which document field plays each part of relations and units for the print (default: the built-in `relation_target` … fields). */
+  relationFields?: { target?: string; type?: string; unitId?: string; unitType?: string; unitPosition?: string };
+  /** Language of the fixed words of the print (names of the parts, contents, "p."): 'en' (default) or 'de'. */
+  pdfLanguage?: 'en' | 'de';
+  /** Own wording for single labels, on top of the language (key: see `LabelKey`). */
+  pdfLabels?: { [label: string]: string };
+  pdfBoldAsSmallCaps?: boolean;
+  /** Source descriptions: words are hyphenated with the German patterns (default on). */
+  pdfHyphenate?: boolean;
   pdfBookmarks?: boolean;
   /** Frame the edition number (document field "Print Edition") in the margin next to the title. */
   pdfShowEditionBox?: boolean;

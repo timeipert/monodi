@@ -512,6 +512,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   @Input() ids: string[] = [];
   @Input() title = '';
   @Input() fileName = '';
+  /** Choices to start with this time (not remembered unless changed), e.g. the notation documentation ticked. */
+  @Input() startWith: Partial<Pick<DialogOptions, 'notationDocumentation' | 'neumeTree' | 'sourceDescription'>> = {};
   @Output() closed = new EventEmitter<void>();
 
   entries: Entry[] = [];
@@ -585,6 +587,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     else if (this.docs.length) this.entries = this.docs.map((d) => ({ id: d.id, doc: d, job: null }));
     else this.entries = this.ids.map((id) => ({ id, doc: null, job: null }));
     this.loadOptions();
+    this.o = { ...this.o, ...this.startWith };
     this.loadTemplate();
     this.fileBase = this.fileName || (this.entries.length === 1 && this.entries[0].doc ? `Document_${this.entries[0].doc.dokumenten_id || 'Export'}` : 'Documents');
 
@@ -632,7 +635,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     const loose = this.entries.filter((e) => e.doc && !isPrintable(e.doc));
     this.heldTotal = this.held.length + loose.length;
     this.flaggedIn = loose.filter((e) => holdReasons(e.doc).includes('dontpublish')).length;
-    this.printWarnings = checkPrintSet(this.allDocs, new Set(this.entries.map((e) => e.id)), new Set(this.held.map((e) => e.id)));
+    this.printWarnings = checkPrintSet(this.allDocs, new Set(this.entries.map((e) => e.id)), new Set(this.held.map((e) => e.id)), this.settings);
   }
 
   ngOnDestroy(): void {
@@ -1035,6 +1038,8 @@ export interface PdfDialogRequest {
   ids?: string[];
   title?: string;
   fileName?: string;
+  /** Parts to tick when the dialog opens, e.g. `{ notationDocumentation: true }` from the notation documentation. */
+  startWith?: { notationDocumentation?: boolean; neumeTree?: boolean; sourceDescription?: boolean };
 }
 
 /** Opens the print dialog from anywhere (document view, search, manuscript, synopsis, …). */
@@ -1049,6 +1054,7 @@ export class PdfDialogLauncher {
     ref.setInput('ids', request.ids ?? []);
     ref.setInput('title', request.title ?? '');
     ref.setInput('fileName', request.fileName ?? '');
+    ref.setInput('startWith', request.startWith ?? {});
     this.appRef.attachView(ref.hostView);
     document.body.appendChild(ref.location.nativeElement);
     ref.instance.closed.subscribe(() => {

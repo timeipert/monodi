@@ -151,8 +151,16 @@ describe('commentSignature', () => {
     expect(commentSignature({ ...root, children: [] }, { startUUID: 'n1' })).toBe('');
   });
 
-  it('uses the innermost section of nested ones', () => {
-    const nested: any = { ...root, children: [formteil('B', formteil('3', zeile('n9')))] };
-    expect(commentSignature(nested, { startUUID: 'n9' })).toBe('3');
+  it('puts the signatures of nested sections together: a letter directly behind a number', () => {
+    const versicle: any = { ...root, children: [formteil('3', formteil('a', zeile('n7')), formteil('b', zeile('n8')))] };
+    expect(commentSignature(versicle, { startUUID: 'n7' })).toBe('3a');
+    expect(commentSignature(versicle, { startUUID: 'n8' })).toBe('3b');
+    const other: any = { ...root, children: [formteil('B', formteil('3', zeile('n9')))] };
+    expect(commentSignature(other, { startUUID: 'n9' })).toBe('B 3');
+  });
+
+  it('a section without a signature takes that of the one around it', () => {
+    const wrapped: any = { ...root, children: [formteil('2', formteil(null, zeile('n5')))] };
+    expect(commentSignature(wrapped, { startUUID: 'n5' })).toBe('2');
   });
 });

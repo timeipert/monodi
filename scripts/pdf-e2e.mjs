@@ -73,7 +73,7 @@ function verify(name, mode, file, root, stats = {}) {
     const low = onPage.filter((w) => w.y1 > pageH - 56.7 + 2);
     if (low.length) problems.push(`page ${pg + 1}: "${low[0].t}" runs into the bottom margin`);
     const lastY = Math.max(...onPage.map((w) => w.y1));
-    const isTitlePage = OPTIONS[mode].titlePage && !words.some((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x1 > pageW - 56.7 - 3);
+    const isTitlePage = OPTIONS[mode].titlePage && !words.some((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x1 > pageW - 70.9 - 3);   // recto: 70.9 pt from the edge, verso (facing pages): 56.7 pt
     if (!isTitlePage && onPage.some((w) => /^RUBRIKBLOCK/.test(w.t) && Math.abs(w.y1 - lastY) < 3) && pg < pageCountAll - 1) problems.push(`page ${pg + 1} ends with a rubric`);
   }
   // a single document has no framed number (that belongs to a printed series), and the Band
@@ -96,7 +96,7 @@ function verify(name, mode, file, root, stats = {}) {
       if (!w) { problems.push(`folio label ${lbl} missing`); continue; }
       const prev = words.filter((q) => q.page === 0 && q.x1 <= w.x0 + 1 && Math.abs(q.y1 - w.y1) < 2).sort((p1, p2) => p2.x1 - p1.x1)[0];
       if (!prev || prev.t !== 'f.') problems.push(`folio label ${lbl} is not written "f. ${lbl}" (found "${prev?.t}")`);
-      if (w.x1 < pageW - 56.7 - 1.5) problems.push(`folio label ${lbl} is not flush right (ends at ${w.x1.toFixed(1)})`);
+      if (w.x1 < pageW - 70.9 - 1.5) problems.push(`folio label ${lbl} is not flush right (ends at ${w.x1.toFixed(1)})`);
     }
   }
   // the label "GLOBAL COMMENT" does not exist any more; placeholders of an import ("#App") are not printed
@@ -170,7 +170,10 @@ function verify(name, mode, file, root, stats = {}) {
   // running head on every edition page (page number flush right at the top, numbered from 1);
   // title page(s) carry neither head nor number
   const pageCount = Math.max(...words.map((w) => w.page)) + 1;
-  const headNo = (pg) => words.find((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x1 > pageW - 56.7 - 3);
+  // recto: the number flush right, 70.9 pt from the edge; verso (facing pages, even page): the number flush left, as in the printed volume
+  const headNo = (pg) => ((pg + 1) % 2 === 0
+    ? words.filter((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x0 < 70.9 + 3).sort((a, b) => a.x0 - b.x0)[0]
+    : words.filter((w) => w.page === pg && /^\d+$/.test(w.t) && w.y1 < 70 && w.x1 > pageW - 70.9 - 3).sort((a, b) => b.x1 - a.x1)[0]);
   let titlePages = 0;
   while (titlePages < pageCount && !headNo(titlePages)) titlePages++;
   const wantTitle = OPTIONS[mode].titlePage;
