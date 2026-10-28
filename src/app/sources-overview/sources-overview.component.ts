@@ -35,6 +35,7 @@ import { applyPlan, describePlan, ImportPreview, planChangesAnything, planImport
 import { parseAnnotationFile } from '../cm-transkriptionseq-import';
 import { readAnnotationFiles } from '../neume-docs-import';
 import { saveStripImages } from '../notation-strip-images';
+import { mergeMetaAnnotations } from '../zip-source-annotations';
 import { safeStorage } from '../safe-storage';
 import { downloadBlob } from '../download';
 
@@ -909,6 +910,8 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           sourceIndex.set(sourceId, next);
           this.importProgress.counts.newSources++;
         }
+        // neume table rows, line regions and snippets of the notation documentation travel in the source's meta.json
+        mergeMetaAnnotations(existing ?? next, meta);
 
         if ((i + 1) % SourcesOverviewComponent.IMPORT_BATCH_SIZE === 0 || i === sourceMetas.length - 1) {
           this.updateProgress({
