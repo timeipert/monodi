@@ -59,6 +59,10 @@ link inside its own folder and depends on it as a local file:
   folder, and add the app to the `LIST` in the step "Find the apps this change touches" of `.github/workflows/ci.yml`.
   Do not run `npm install --save @monodi/core@file:vendor/cm-core`: npm follows the link and writes the real path
   (`file:../../packages/core`), which does not exist in a mirror.
+- **An Angular app needs three more settings** (found on 2026-11-02, see below): `"paths": { "@monodi/core":
+  ["vendor/cm-core/src/neume-tree.ts"] }` in its `tsconfig.json`, and `"preserveSymlinks": true` in the `build` and
+  the `test` options of `angular.json`. Without them the production build passes, but the development build, which
+  the browser tests run against, contains the module empty. A Vite app needs none of this.
 - A test runner of the app must not pick up the tests of `vendor/cm-core`: `apps/neume-docs/ui/vite.config.js`
   excludes `vendor/**`; Karma in `apps/monodi` takes only `*.spec.ts` and ignores the package's `*.test.ts`.
 - Edit the code in `packages/core`, never in a `vendor/cm-core` of a mirror (a mirror is never edited, see
@@ -74,17 +78,27 @@ in a copy made by `scripts/sync-app.sh` into an empty Git repository (the state 
 | Unit tests, monorepo | 1142 passed (`ng test`) | 1460 passed (`npm test` in `ui/`) |
 | Production build, monorepo | passed (`ng build --configuration production`) | passed (`npm run build` in `ui/`) |
 | Same three checks in the `sync-app.sh` copy | passed | passed |
-| Development server | not run | serves the module (`vite`, HTTP 200) |
+| Development server | not run (this was the gap, see the first finding) | serves the module (`vite`, HTTP 200) |
 
 Findings:
 
-- **Angular needs no `preserveSymlinks`.** The build and the tests pass with the default and with
-  `--preserve-symlinks`. Without the option the compiler follows the link and treats the TypeScript source as part of
-  the app, in the monorepo (`packages/core/src`) and in a copy (`vendor/cm-core/src`). The default is kept.
+- **Angular: the first trial was wrong about `preserveSymlinks`.** The production build (AOT) and the unit tests passed
+  without any setting, so the trial concluded that none is needed. The development build (`aot: false`) compiled
+  `@monodi/core` to an **empty module**: TypeScript treats a package found through `node_modules` as an external
+  library, whose source Angular does not compile, even when the link points into the repository. The result was
+  `buildNeumeTree is not a function` in the browser tests of `apps/monodi` after the merge (pull request #10), caught
+  by the mirror's CI before the deploy (the deploy job was skipped; https://monodi.app kept its earlier version).
+  Fix: map the name with `paths` to the file in `vendor/cm-core` (no longer a library import), and set
+  `preserveSymlinks` so that webpack and the TypeScript program name the file alike (without it the loader reports
+  that the file "is missing from the TypeScript compilation"). With both, development build, production build, unit
+  tests and all 18 browser test scripts of the CI pass, in the monorepo and in a `scripts/sync-app.sh` copy.
+  `.github/workflows/ci.yml` now builds the development bundle in the Monodi job and checks that it contains the
+  module, so a pull request fails on this.
 - **Vite needs no setting for building.** It follows the link too; the one addition is that Vitest must not run the
   package's tests a second time (see above).
-- `apps/monodi/angular.json` and `src/tsconfig*.json` are unchanged.
-- Not run: the browser tests of Monodi (`npm run test:notation`), which run in the mirror's CI after the sync.
+- `apps/monodi/angular.json` and `tsconfig.json` carry the settings of the first finding.
+- The browser tests of Monodi run in the mirror's CI after the sync; they were not run in the first trial, which is
+  why that finding was missed.
 
 ## Behaviour differences found when the copies were merged
 

@@ -2,6 +2,9 @@
   "compileOnSave": false,
   "compilerOptions": {
     "baseUrl": "./",
+    "paths": {
+      "@monodi/core": ["vendor/cm-core/src/neume-tree.ts"]
+    },
     "downlevelIteration": true,
     "importHelpers": true,
     "module": "esnext",
