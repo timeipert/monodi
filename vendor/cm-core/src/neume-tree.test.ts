@@ -271,41 +271,36 @@ describe('the layout', () => {
     const sizes = (n: TreeNode) => ({ w: 30 + (n.text.length * 7) % 40, h: 20 + (n.text.length * 11) % 50, anchorY: 10 });
     const inside = (x: number, y: number, b: { x: number; y: number; w: number; h: number }) => x > b.x + 0.5 && x < b.x + b.w - 0.5 && y > b.y + 0.5 && y < b.y + b.h - 0.5;
     const bezier = (p0: number, p1: number, p2: number, p3: number, u: number) => (1 - u) ** 3 * p0 + 3 * (1 - u) ** 2 * u * p1 + 3 * (1 - u) * u * u * p2 + u ** 3 * p3;
-    for (const showRoot of [false, true]) {
-      const big = layoutNeumeTree(wide, sizes, { showRoot });
-      let skipped = 0;
-      for (const e of big.edges) {
-        const points: [number, number][] = [];
-        for (let i = 0; i <= 40; i++) {
-          const u = i / 40;
-          if (e.y1 === e.y2) { points.push([e.x1 + (e.x2 - e.x1) * u, e.y1]); continue; }
-          points.push([e.x1 + (e.xa - e.x1) * u, e.y1]);
-          const mid = (e.xa + e.xb) / 2;
-          points.push([bezier(e.xa, mid, mid, e.xb, u), bezier(e.y1, e.y1, e.y2, e.y2, u)]);
-          points.push([e.xb + (e.x2 - e.xb) * u, e.y2]);
-        }
-        for (const [x, y] of points) {
-          for (const [n, box] of big.boxes) {
-            if (n === wide.root) continue;
-            assert.equal(inside(x, y, box), false, `${e.from.text} -> ${e.to.text} cuts ${n.text}`);
-          }
-        }
-        if (e.to.count - e.from.count > 1) skipped++;
+    const big = layoutNeumeTree(wide, sizes);
+    let skipped = 0;
+    for (const e of big.edges) {
+      const points: [number, number][] = [];
+      for (let i = 0; i <= 40; i++) {
+        const u = i / 40;
+        if (e.y1 === e.y2) { points.push([e.x1 + (e.x2 - e.x1) * u, e.y1]); continue; }
+        points.push([e.x1 + (e.xa - e.x1) * u, e.y1]);
+        const mid = (e.xa + e.xb) / 2;
+        points.push([bezier(e.xa, mid, mid, e.xb, u), bezier(e.y1, e.y1, e.y2, e.y2, u)]);
+        points.push([e.xb + (e.x2 - e.xb) * u, e.y2]);
       }
-      assert.ok(skipped > 0);
+      for (const [x, y] of points) {
+        for (const [n, box] of big.boxes) {
+          if (n === wide.root) continue;
+          assert.equal(inside(x, y, box), false, `${e.from.text} -> ${e.to.text} cuts ${n.text}`);
+        }
+      }
+      if (e.to.count - e.from.count > 1) skipped++;
     }
+    assert.ok(skipped > 0);
   });
 
   it('bends in the gap after the column of the box the line leaves', () => {
-    for (const showRoot of [false, true]) {
-      const shown = layoutNeumeTree(t, SIZE, { showRoot });
-      for (const e of shown.edges.filter(e => e.y1 !== e.y2)) {
-        const col = shown.columns.find(c => c.count === e.from.count)!;
-        assert.ok(e.xa >= col.x + col.w);
-        const next = shown.columns[shown.columns.indexOf(col) + 1];
-        assert.ok(e.xb <= next.x);
-        assert.ok(e.xa <= e.xb);
-      }
+    for (const e of l.edges.filter(e => e.y1 !== e.y2)) {
+      const col = l.columns.find(c => c.count === e.from.count)!;
+      assert.ok(e.xa >= col.x + col.w);
+      const next = l.columns[l.columns.indexOf(col) + 1];
+      assert.ok(e.xb <= next.x);
+      assert.ok(e.xa <= e.xb);
     }
   });
 
@@ -328,42 +323,21 @@ describe('the layout', () => {
     }
   });
 
-  it('uses the middle of a box as its anchor when none is given, and asks for the size of the root only when it is shown', () => {
+  it('uses the middle of a box as its anchor when none is given, and never asks for the size of the root', () => {
     const asked: TreeNode[] = [];
     const small = tree(['*']);
-    const hidden = layoutNeumeTree(small, n => { asked.push(n); return { w: 10, h: 10 }; });
-    assert.equal(hidden.boxes.get(small.nodes[0])!.anchorY, 5);
+    const placed = layoutNeumeTree(small, n => { asked.push(n); return { w: 10, h: 10 }; });
+    assert.equal(placed.boxes.get(small.nodes[0])!.anchorY, 5);
     assert.equal(asked.includes(small.root), false);
-    layoutNeumeTree(small, n => { asked.push(n); return { w: 10, h: 10 }; }, { showRoot: true });
-    assert.equal(asked.includes(small.root), true);
   });
 
-  describe('with the root shown (Monodi-Zero)', () => {
+  it('starts at the single notes: no column and no line for the root', () => {
     const rooted = tree(['*', '*u', '*d', '*ud']);
-    const shown = layoutNeumeTree(rooted, () => ({ w: 20, h: 10 }), { columnGap: 30, rowGap: 4, showRoot: true });
-    const box = (code: string) => shown.boxes.get(rooted.nodes.find(n => n.code === code)!)!;
-
-    it('puts the root in a column of its own and each column to the right of the one before', () => {
-      assert.deepEqual(shown.columns.map(c => c.count), [0, 1, 2, 3]);
-      assert.equal(shown.boxes.get(rooted.root)!.x, 0);
-      assert.ok(shown.boxes.get(rooted.root)!.x < box('*').x);
-      assert.ok(box('*').x < box('*u').x);
-      assert.ok(box('*u').x < box('*ud').x);
-      assert.equal(box('*u').x, box('*d').x);
-    });
-
-    it('puts the branches one below the other, without overlap, and a parent level with its branches', () => {
-      const up = box('*u'), down = box('*d');
-      assert.ok(up.y + up.h <= down.y);
-      const star = box('*');
-      assert.ok(Math.abs(star.y + star.anchorY - (up.y + up.anchorY + down.y + down.anchorY) / 2) < 1e-3);
-    });
-
-    it('draws one line for every box, from its parent (the root included) to it', () => {
-      assert.equal(shown.edges.length, rooted.nodes.length);
-      assert.ok(shown.edges.some(e => e.from === rooted.root));
-      assert.ok(shown.edges.every(e => e.x2 > e.x1));
-    });
+    const shown = layoutNeumeTree(rooted, () => ({ w: 20, h: 10 }), { columnGap: 30, rowGap: 4 });
+    assert.deepEqual(shown.columns.map(c => c.count), [1, 2, 3]);
+    assert.equal(shown.columns[0].x, 0);
+    assert.equal(shown.edges.length, rooted.nodes.length - 1);
+    assert.ok(shown.edges.every(e => e.from !== rooted.root && e.x2 > e.x1));
   });
 });
 

@@ -354,14 +354,13 @@ export function drawNeumeTree(h: NotationHost, codes: string[], y: number, headi
   const labelW = (code: string) => doc.getTextWidth(code);
   const labelH = TREE_LABEL_FS * 1.1;
   const size = (node: TreeNode) => {
-    if (node === tree.root) return { w: 4, h: 4, anchorY: 2 };
     const g = measureGlyph(node.code);
     return { w: Math.max(g.w, labelW(node.code)), h: g.h + TREE_LABEL_GAP + labelH, anchorY: g.h / 2 };
   };
   let gap = 36;
-  let layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5, showRoot: true });
+  let layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5 });
   // narrow the gaps between the columns before shrinking the drawing
-  while (layout.width > h.width && gap > 14) { gap -= 4; layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5, showRoot: true }); }
+  while (layout.width > h.width && gap > 14) { gap -= 4; layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5 }); }
   const room = h.bottom - h.top;
   const scale = Math.min(1, h.width / layout.width, room / layout.height);
   if (heading) y = headingWithRoom(h, heading, y, layout.height * scale);
@@ -385,10 +384,6 @@ export function drawNeumeTree(h: NotationHost, codes: string[], y: number, headi
       doc.line(xb, y2, x2, y2);
     }
   }
-  // the root, where every single note starts
-  const root = layout.boxes.get(tree.root)!;
-  doc.setFillColor(40, 40, 40);
-  doc.circle(X(root.x + root.w / 2), Y(root.y + root.anchorY), 1.4 * scale, 'F');
 
   for (const node of tree.nodes) {
     const box = layout.boxes.get(node)!;

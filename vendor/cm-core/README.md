@@ -1,6 +1,6 @@
 # packages/core
 
-State: 2026-11-02. Baseline: first module `neume-tree` (used by `apps/monodi` and `apps/neume-docs`).
+State: 2026-11-02, both open questions decided. Baseline: first module `neume-tree` (used by `apps/monodi` and `apps/neume-docs`).
 
 The place for code that several apps of this repository need, written once: an improvement made here reaches every
 app that uses it. It is for the people who maintain the apps (and for tools that work on them). Start with
@@ -95,28 +95,29 @@ never got. `apps/transcription-equivalents` has no copy. Column "Core" is what t
 | # | Difference | Monodi (before) | neume-docs (before) | Core | Effect on the apps |
 |---|---|---|---|---|---|
 | 1 | Where a line bends (neume-docs commit `edc91f63`, "Keep the lines of the neume tree off the boxes") | one S-curve from box to box, which can cross a box when a pattern skips a column | level out of the box, curve in the gap after the parent's column, level into the box | neume-docs behaviour; edges carry `xa`, `xb` and the path `d` | **Monodi's lines change** on screen and in the PDF (a fix) |
-| 2 | The root (neume-docs commit `605ace7b`, "start the neume tree at its single notes") | the root has a column and a box (a dot), and a line to each single note | the root is not drawn; the single notes start the tree | both, by the option `showRoot` (default: not drawn) | none: Monodi passes `showRoot: true` and keeps its dot; see open question 1 |
+| 2 | The root (neume-docs commit `605ace7b`, "start the neume tree at its single notes") | the root has a column and a box (a dot), and a line to each single note | the root is not drawn; the single notes start the tree | not drawn, in both apps (decision 1) | **Monodi's dot and the lines from it are gone** on screen and in the PDF; the tree begins at the single notes |
 | 3 | Special signs (neume-docs commit `b025dc61`) | no `hasSpecialSign` | `hasSpecialSign(code)`, for leaving special signs out of the tree | `hasSpecialSign` | none: Monodi does not call it |
 | 4 | Going on from a box, hiding a box, allowing only some boxes (`grown`, `hidden`, `allow`, `continuations`, `treeCode`, `treeNotation`; fields `chosen`, `grown`, `canGrow`) | not there | there | there | none: Monodi's calls use the defaults, which give the former result |
-| 5 | Reading a code that has blanks around it | `baseCode`: blanks around are dropped, any white space ends the code (`" *u"` is `*u`) | `getBaseCode`: only the first space ends the code, nothing is trimmed (`" *u"` is empty and the pattern is dropped without a word) | Monodi's reading; see open question 2 | neume-docs now accepts a code with leading blanks in the tree that its table (`getBaseCode`) still ignores |
+| 5 | Reading a code that has blanks around it | `baseCode`: blanks around are dropped, any white space ends the code (`" *u"` is `*u`) | `getBaseCode`: only the first space ends the code, nothing is trimmed (`" *u"` is empty and the pattern is dropped without a word) | Monodi's reading (decision 2) | neume-docs now accepts a code with leading blanks in the tree that its table (`getBaseCode`) still ignores |
 | 6 | No list of codes (`null`) | throws | treated as empty | treated as empty | none |
-| 7 | Layout call | `layoutNeumeTree(tree, size, columnGap, rowGap)` and a separate `edgePath(edge)` | `layoutNeumeTree(tree, size, { columnGap, rowGap })`, the path is `edge.d` | neume-docs form, plus `showRoot`; `edgePath` is gone | Monodi's three callers are changed |
+| 7 | Layout call | `layoutNeumeTree(tree, size, columnGap, rowGap)` and a separate `edgePath(edge)` | `layoutNeumeTree(tree, size, { columnGap, rowGap })`, the path is `edge.d` | neume-docs form; `edgePath` is gone | Monodi's three callers are changed |
 | 8 | Key of the virga | the constant `V` | `DEFAULT_SIGNS[0].key` (also `V`) | the constant `VIRGA = 'V'` | `neumeTree.test.js` fails if neume-docs ever changes its first default sign |
 
 What stays in neume-docs and is not shared: the picture of a code (`treePicture`), the size of a box (`nodeSize`,
 `LABEL`, `THUMB`) and the line colour (`TREE_INK`), because they depend on that app's SVG renderer and PDF export.
 `apps/neume-docs/ui/src/utils/neumeTree.js` re-exports the shared functions, so the app's imports did not change.
 
-### Open questions
+### Decisions
 
-State 2026-11-02. Both are decided by the repository owner.
+State 2026-11-02. Both were open questions after the first merge of the copies and were decided by the repository
+owner on 2026-11-02.
 
-1. **Root of the tree in Monodi.** Monodi draws a dot as the root, with a line to each single note, on screen
-   (`nd-tree.component.ts`) and in the PDF (`notation-doc-draw.ts`). neume-docs dropped the root on 2026-10-22 so the
-   tree begins at the single notes, and the header of the former Monodi copy says its rules are those of
-   neume-docs. Options: (a) keep the dot in Monodi (the present state, `showRoot: true`); (b) drop it in Monodi as
-   well and make `showRoot` obsolete: change the two callers, remove the option and its tests.
-2. **Blanks around a code.** Options: (a) keep Monodi's reading in core (the present state); (b) use neume-docs's
-   reading (`" *u"` is dropped), which makes the tree agree with the table of neume-docs but discards a code that
-   Monodi accepted. Whether any stored code has blanks around it has not been checked in the data of either app. The
-   reading is the one function `baseCode` in `src/neume-tree.ts`.
+1. **No root dot in Monodi.** The tree begins at the single notes (`*`, `*V`) in both apps, as neume-docs has drawn it
+   since 2026-10-22. The layout has no option for a root: `layoutNeumeTree` never asks for the size of the root, has
+   no column for it and no line from it. Monodi's tree view (`nd-tree.component.ts`) and PDF (`notation-doc-draw.ts`)
+   draw no dot; the end-to-end check `scripts/notation-set-e2e.mjs` expects a line for every box except the single
+   notes.
+2. **Blanks around a code are ignored.** `baseCode` trims them and ends the code at the first white space
+   (`" *u"` is `*u`). The tree therefore keeps a code that has blanks around it. The table of neume-docs
+   (`getBaseCode`) still drops such a code; whether any stored code has blanks around it has not been checked in the
+   data of either app.

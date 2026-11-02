@@ -128,7 +128,8 @@ await page.waitForSelector('#nd-tree');
 const nodes = await page.$$eval('#nd-tree .nd-node code', (l) => l.map((e) => e.innerText));
 expect(nodes.includes('*ddu') && nodes.includes('[*du]') && nodes.includes('[*dL]'), 'the tree has a box for each pattern shown: ' + nodes.join(' '));
 expect(!nodes.includes('*'), 'the removed pattern (the single note) has no box');
-expect(await count('#nd-tree svg path') >= nodes.length - 1, 'every box is joined by a line');
+// the tree has no root: the single notes (`*`, `*V`) start it, every other box is joined to the one it grew from
+expect(await count('#nd-tree svg path') >= nodes.length - 2, 'every box but the single notes is joined by a line');
 if (SHOTS) await (await page.$('#nd-tree')).screenshot({ path: join(SHOTS, 'source-tree.png') });
 
 // a reload keeps it

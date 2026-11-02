@@ -338,36 +338,30 @@ export interface TreeLayout {
 export interface LayoutOptions {
   columnGap?: number;
   rowGap?: number;
-  /**
-   * Whether the root gets a box and a column of its own, with a line to each single note (Monodi-Zero draws a dot
-   * there). By default the root is not drawn: the single notes are where the tree begins, with no line into them
-   * (neume-docs).
-   */
-  showRoot?: boolean;
 }
 
 /**
  * Place the nodes of a tree: one column for each number of notes, left to right; the branches of a node one below
  * the other, the node level with the middle of its branches. `size` is the box of a node (what it shows, and its
- * label); it is asked for the root only when the root is shown.
+ * label). The root is not drawn: it has no box of its own in the result's columns and `size` is not asked for it;
+ * the single notes (`*`, `*V`) are where the tree begins, with no line into them.
  */
-export function layoutNeumeTree(tree: NeumeTree, size: (node: TreeNode) => BoxSize, { columnGap = 64, rowGap = 12, showRoot = false }: LayoutOptions = {}): TreeLayout {
+export function layoutNeumeTree(tree: NeumeTree, size: (node: TreeNode) => BoxSize, { columnGap = 64, rowGap = 12 }: LayoutOptions = {}): TreeLayout {
   const { root } = tree;
   const sizes = new Map<TreeNode, Required<BoxSize>>();
   const sizeOf = (node: TreeNode): Required<BoxSize> => {
     let s = sizes.get(node);
     if (!s) {
-      const raw = node === root && !showRoot ? { w: 0, h: 0 } : size(node) || { w: 0, h: 0 };
+      const raw = node === root ? { w: 0, h: 0 } : size(node) || { w: 0, h: 0 };
       s = { w: raw.w, h: raw.h, anchorY: raw.anchorY === undefined ? raw.h / 2 : raw.anchorY };
       sizes.set(node, s);
     }
     return s;
   };
 
-  // Columns: one for each number of notes. Without the root, the single notes (`*`, `*V`) are where the tree begins,
-  // each one a start of its own.
+  // Columns: one for each number of notes. The single notes (`*`, `*V`) are where the tree begins, each one a start
+  // of its own.
   const columns = tree.columns.map(col => ({ count: col.count, x: 0, w: Math.max(0, ...col.nodes.map(n => sizeOf(n).w)) }));
-  if (showRoot) columns.unshift({ count: 0, x: 0, w: sizeOf(root).w });
   let cursor = 0;
   columns.forEach((col, i) => {
     col.x = cursor;
@@ -410,7 +404,7 @@ export function layoutNeumeTree(tree: NeumeTree, size: (node: TreeNode) => BoxSi
   const edges: TreeEdge[] = [];
   const round = (n: number): number => Math.round(n * 100) / 100;
   for (const node of tree.nodes) {
-    if (!showRoot && node.parent === root) continue; // nothing is drawn for the root, so nothing leads from it
+    if (node.parent === root) continue; // nothing is drawn for the root, so nothing leads from it
     const parent = node.parent!;
     const a = boxes.get(parent)!;
     const b = boxes.get(node)!;

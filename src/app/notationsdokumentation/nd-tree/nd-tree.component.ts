@@ -18,14 +18,11 @@ interface PlacedNode { node: TreeNode; x: number; y: number; w: number; h: numbe
       <div class="nd-tree" id="nd-tree">
         <div class="nd-tree-inner" [style.width.px]="layout.width + 20" [style.height.px]="layout.height + 28">
           @for (c of layout.columns; track c.count) {
-            @if (c.count > 0) {
-              <span class="nd-head" [style.left.px]="c.x" [style.width.px]="c.w" style="top: 0;">{{ c.count }} {{ c.count === 1 ? 'note' : 'notes' }}</span>
-            }
+            <span class="nd-head" [style.left.px]="c.x" [style.width.px]="c.w" style="top: 0;">{{ c.count }} {{ c.count === 1 ? 'note' : 'notes' }}</span>
           }
           <svg class="position-absolute" style="left: 0; top: 0; pointer-events: none;" [attr.width]="layout.width + 20" [attr.height]="layout.height + 28" aria-hidden="true">
             <g transform="translate(0 20)">
               @for (e of edges; track e.d) { <path [attr.d]="e.d" fill="none" stroke="#555" stroke-width="1"></path> }
-              <circle [attr.cx]="rootX" [attr.cy]="rootY" r="3" fill="#222"></circle>
             </g>
           </svg>
           @for (p of placed; track p.node.id) {
@@ -59,25 +56,19 @@ export class NdTreeComponent implements OnChanges {
   layout: TreeLayout = { width: 0, height: 0, boxes: new Map(), columns: [], edges: [] };
   placed: PlacedNode[] = [];
   edges: { d: string }[] = [];
-  rootX = 0;
-  rootY = 0;
 
   ngOnChanges(): void {
     const inTable = new Set(this.patterns);
     this.tree = buildNeumeTree(this.patterns);
     this.layout = layoutNeumeTree(this.tree, node => {
-      if (node === this.tree.root) return { w: 6, h: 6, anchorY: 3 };
       const picture = renderSvg(node.code);
       // the lines meet the middle of the notes: the picture has 24 of room above the first note and 8 below the lowest
       return { w: Math.max(picture.width, node.code.length * 6.6 + 8), h: picture.height + 14, anchorY: 24 + (picture.height - 32) / 2 };
-    }, { showRoot: true });
+    });
     this.placed = this.tree.nodes.map(node => {
       const b = this.layout.boxes.get(node)!;
       return { node, x: b.x, y: b.y, w: b.w, h: b.h, code: node.codes.find(c => inTable.has(c)) ?? node.code };
     });
     this.edges = this.layout.edges.map(e => ({ d: e.d }));
-    const root = this.layout.boxes.get(this.tree.root);
-    this.rootX = root ? root.x + root.w / 2 : 0;
-    this.rootY = root ? root.y + root.anchorY : 0;
   }
 }
