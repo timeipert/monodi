@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
 import { sortForTable, searchPatterns, baseCode } from '../../notation-order';
-import { parseTreeCode } from '../../neume-tree';
+import { parseTreeCode } from '@monodi/core';
 import { defaultSetup, NotationOrder, NotationSetup, StandardEntry } from '../../notation-set';
 
 /**

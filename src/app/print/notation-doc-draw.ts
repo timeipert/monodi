@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { glyphOf, layoutPattern, tokenizePattern } from '../notationsdokumentation/svg-pattern/neume-glyph';
 import { flowColumns, NotationDoc, NotationRow, NotationStrip } from '../notation-doc';
-import { buildNeumeTree, layoutNeumeTree, TreeNode } from '../neume-tree';
+import { buildNeumeTree, layoutNeumeTree, TreeNode } from '@monodi/core';
 import { Rect } from '../iiif-crop';
 import { LoadedImage } from './image-loader';
 import { PathOp, parseSvgPath, transformOps } from './svg-path';
@@ -359,9 +359,9 @@ export function drawNeumeTree(h: NotationHost, codes: string[], y: number, headi
     return { w: Math.max(g.w, labelW(node.code)), h: g.h + TREE_LABEL_GAP + labelH, anchorY: g.h / 2 };
   };
   let gap = 36;
-  let layout = layoutNeumeTree(tree, size, gap, 5);
+  let layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5, showRoot: true });
   // narrow the gaps between the columns before shrinking the drawing
-  while (layout.width > h.width && gap > 14) { gap -= 4; layout = layoutNeumeTree(tree, size, gap, 5); }
+  while (layout.width > h.width && gap > 14) { gap -= 4; layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5, showRoot: true }); }
   const room = h.bottom - h.top;
   const scale = Math.min(1, h.width / layout.width, room / layout.height);
   if (heading) y = headingWithRoom(h, heading, y, layout.height * scale);
@@ -377,8 +377,12 @@ export function drawNeumeTree(h: NotationHost, codes: string[], y: number, headi
     const x1 = X(e.x1), y1 = Y(e.y1), x2 = X(e.x2), y2 = Y(e.y2);
     if (e.y1 === e.y2) doc.line(x1, y1, x2, y2);
     else {
-      const mid = (x1 + x2) / 2;
-      doc.lines([[mid - x1, 0, mid - x1, y2 - y1, x2 - x1, y2 - y1]], x1, y1, [1, 1], 'S', false);
+      // level out of the box, the bend in the gap, level into the next box
+      const xa = X(e.xa), xb = X(e.xb), mid = (xa + xb) / 2;
+      doc.line(x1, y1, xa, y1);
+      // jsPDF takes a curve as three points relative to where it starts
+      doc.lines([[mid - xa, 0, mid - xa, y2 - y1, xb - xa, y2 - y1]], xa, y1, [1, 1], 'S', false);
+      doc.line(xb, y2, x2, y2);
     }
   }
   // the root, where every single note starts

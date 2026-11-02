@@ -43,6 +43,7 @@
     "@angular/platform-browser-dynamic": "^21.2.23",
     "@angular/router": "^21.2.23",
     "@angular/service-worker": "^21.2.23",
+    "@monodi/core": "file:vendor/cm-core",
     "@ng-bootstrap/ng-bootstrap": "^20.0.0",
     "@octokit/auth-oauth-device": "^8.0.3",
     "@octokit/rest": "^22.0.1",

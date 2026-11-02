@@ -8,7 +8,7 @@ import { applyLinks, emptyIndex, LinkReport, linksToStore, resolveLinks, Transcr
 import { baseCode, searchPatterns, signatureOf } from '../../notation-order';
 import { buildOverview, LineView, Overview, PatternView, SnippetView } from '../../notation-overview';
 import { candidatesFor, Candidate, defaultSetup, NotationSetup, setIncluded } from '../../notation-set';
-import { parseTreeCode } from '../../neume-tree';
+import { parseTreeCode } from '@monodi/core';
 import { loadStripImages } from '../../notation-strip-images';
 import { looksNegative } from '../../print/image-loader';
 import { cropView, CropView } from '../crop-view';

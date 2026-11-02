@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
-import { buildNeumeTree, edgePath, layoutNeumeTree, NeumeTree, TreeLayout, TreeNode } from '../../neume-tree';
+import { buildNeumeTree, layoutNeumeTree, NeumeTree, TreeLayout, TreeNode } from '@monodi/core';
 import { renderSvg } from '../svg-pattern/svg-pattern.component';
 
 interface PlacedNode { node: TreeNode; x: number; y: number; w: number; h: number; /** The table's code of this node (a node can be written two ways, `[*]` and `*`). */ code: string }
@@ -70,12 +70,12 @@ export class NdTreeComponent implements OnChanges {
       const picture = renderSvg(node.code);
       // the lines meet the middle of the notes: the picture has 24 of room above the first note and 8 below the lowest
       return { w: Math.max(picture.width, node.code.length * 6.6 + 8), h: picture.height + 14, anchorY: 24 + (picture.height - 32) / 2 };
-    });
+    }, { showRoot: true });
     this.placed = this.tree.nodes.map(node => {
       const b = this.layout.boxes.get(node)!;
       return { node, x: b.x, y: b.y, w: b.w, h: b.h, code: node.codes.find(c => inTable.has(c)) ?? node.code };
     });
-    this.edges = this.layout.edges.map(e => ({ d: edgePath(e) }));
+    this.edges = this.layout.edges.map(e => ({ d: e.d }));
     const root = this.layout.boxes.get(this.tree.root);
     this.rootX = root ? root.x + root.w / 2 : 0;
     this.rootY = root ? root.y + root.anchorY : 0;

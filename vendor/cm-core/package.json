@@ -1,0 +1,14 @@
+{
+  "name": "@monodi/core",
+  "version": "0.1.0",
+  "description": "Code shared by the apps of monodi-platform: framework-free TypeScript (see README.md)",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/neume-tree.ts",
+    "./neume-tree": "./src/neume-tree.ts"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.ts\""
+  }
+}
