@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - '**'
+    # A push that changes only Markdown (the sync writes the README note this way) builds and deploys the same site.
+    # Not for pull_request: the branch rule of this repository requires the checks below by name, and a skipped
+    # workflow would leave them pending.
+    paths-ignore:
+      - '**.md'
   pull_request:
 
 # The checks that do not depend on each other run side by side (build, unit tests, two groups of browser tests), and
@@ -81,7 +86,12 @@ jobs:
           # line strips printed, the IIIF server answered by the script). The PDFs are read back with poppler.
           - name: print, release and import
             poppler: true
-            scripts: layout-e2e release-e2e volume-rules-e2e arrange-e2e placeholder-import-e2e cover-e2e description-e2e notation-doc-e2e neume-docs-e2e notation-set-e2e notation-links-e2e plays-e2e
+            scripts: layout-e2e release-e2e volume-rules-e2e arrange-e2e placeholder-import-e2e cover-e2e description-e2e
+          # The notation documentation, split off from the group above to shorten the run (2026-11-02): the same scripts
+          # as before, in a group of their own. Its name is not a required check of the branch rule.
+          - name: notation documentation
+            poppler: true
+            scripts: notation-doc-e2e neume-docs-e2e notation-set-e2e notation-links-e2e plays-e2e
 
     steps:
       - name: Checkout repository
