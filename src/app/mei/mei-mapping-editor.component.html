@@ -415,6 +415,16 @@
             </datalist>
           }
 
+          <!-- Rules -->
+          @if (tab === 'rules' && activeProfile) {
+            <app-mei-rules-panel [profile]="activeProfile" [previewRoot]="rulesPreviewRoot" (changed)="emitChange()"></app-mei-rules-panel>
+          }
+
+          <!-- Schema -->
+          @if (tab === 'schema' && activeProfile) {
+            <app-mei-schema-panel [profile]="activeProfile" (changed)="emitChange()"></app-mei-schema-panel>
+          }
+
           <!-- Note flags -->
           @if (tab === 'flags') {
             <div class="p-4 mei-pane">

@@ -13,6 +13,8 @@ import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
 import { NoteFlagDef, sanitizeNoteFlags, setNoteFlagDefs } from './notes/note-flags';
+import { sanitizeAnnotationRules } from './mei/mei-annotation-rules';
+import { setActiveMeiProfile } from './mei/mei-annotation-context';
 import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule } from './mei/mei-mapping.model';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
@@ -1163,12 +1165,16 @@ export function sanitizeSettings(settings: any): ProjectSettings {
   setNoteFlagDefs(settings.noteFlags);
 
   for (const prof of settings.meiProfiles ?? []) {
+    prof.annotationRules = sanitizeAnnotationRules(prof.annotationRules);
+    if (prof.attributePolicy !== 'strict') delete prof.attributePolicy;
     if (prof.patternRules !== undefined) {
       prof.patternRules = Array.isArray(prof.patternRules)
         ? prof.patternRules.filter((r: any) => r && typeof r.id === 'string' && typeof r.pattern === 'string').map((r: any) => normalizePatternRule(r))
         : [];
     }
   }
+
+  setActiveMeiProfile((settings.meiProfiles ?? []).find((p: any) => p.id === settings.activeMeiProfileId) ?? settings.meiProfiles?.[0]);
 
   return settings;
 }

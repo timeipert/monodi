@@ -27,6 +27,10 @@ import { ConfirmDeactivateGuard } from './ConfirmDeactivateGuard';
 import { ZipUploadComponent } from './zip-upload/zip-upload.component';
 import { CommentComponent } from './comment/comment.component';
 import { FlagPatternsDialogComponent } from './notes/flag-patterns-dialog.component';
+import { MeiAnnotationDialogComponent } from './mei/mei-annotation-dialog.component';
+import { MeiAttrPickerComponent } from './mei/mei-attr-picker.component';
+import { MeiRulesPanelComponent } from './mei/mei-rules-panel.component';
+import { MeiSchemaPanelComponent } from './mei/mei-schema-panel.component';
 import { ComplexCommentComponent } from './complex-comment/complex-comment.component';
 import { ParatextCommentComponent } from './paratext-comment/paratext-comment.component';
 
@@ -62,6 +66,10 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         ZipUploadComponent,
         CommentComponent,
         FlagPatternsDialogComponent,
+        MeiAnnotationDialogComponent,
+        MeiAttrPickerComponent,
+        MeiRulesPanelComponent,
+        MeiSchemaPanelComponent,
         ParatextCommentComponent,
         ComplexCommentComponent,
         SearchComponent,

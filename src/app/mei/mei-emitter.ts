@@ -14,6 +14,7 @@ import { Document as MonodiDocument, Source, PublicationSettings } from '../api.
 import { generateCommentTreeDOM } from './mei-comment-tree';
 import { buildMeiHead } from './mei-header';
 import { flagDefsOf } from '../notes/note-flags';
+import { AnnotationIndex, applyAnnotationAttrs, buildAnnotationIndex, emptyIndex, firstNoteOf, mergedAttrs } from './mei-annotations';
 import { extractPattern } from '../transcription-analyzer-core';
 import { 
   MeiMappingProfileV2, 
@@ -86,6 +87,8 @@ let conformant = false;
 let pageBreakIds = new Set<string>();
 /** Prefix of generated xml:id values. Commentary copies of notes get their own prefix, so no id occurs twice. */
 let idPrefix = 'm-';
+/** Attributes from the profile's annotation rules for the document being exported. */
+let annotations: AnnotationIndex = emptyIndex();
 
 /** Optional data for the header levels above the baseline. */
 export interface EmitMeiOptions {
@@ -101,6 +104,7 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   conformant = !!profile.schemaConformant;
   pageBreakIds = new Set<string>();
   idPrefix = 'm-';
+  annotations = buildAnnotationIndex(root, profile.annotationRules, activeSiglum);
   const doc = document.implementation.createDocument('http://www.music-encoding.org/ns/mei', 'mei', null);
   const mei = doc.documentElement;
   mei.setAttribute('meiversion', '5.0');
@@ -439,6 +443,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     const syllable = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
     syllable.setAttribute('xml:id', idPrefix + part.uuid);
     applyAttributes(syllable, rule, { uuid: part.uuid });
+    applyAnnotationAttrs(syllable, mergedAttrs(annotations.syllable.get(part.uuid), part.meiAttrs));
 
     // syllableText inner tag
     const textRule = profile.entities.syllableText;
@@ -535,6 +540,8 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       const neume = doc.createElementNS('http://www.music-encoding.org/ns/mei', neumeRule.tag);
       applyAttributes(neume, neumeRule, {});
       applyRuleAttributes(neume, patternRule?.neume);
+      const firstNote = firstNoteOf(neumeData);
+      if (firstNote) applyAnnotationAttrs(neume, mergedAttrs(annotations.neume.get(firstNote.uuid), firstNote.meiNeumeAttrs));
       targetParent.appendChild(neume);
       neumeEl = neume;
       targetParent = neume;
@@ -622,6 +629,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
 
         // Pattern rule: the rule's nc entry for this note position (never pname/oct).
         applyRuleAttributes(nc, patternRule?.nc[flatIndex]);
+        applyAnnotationAttrs(nc, mergedAttrs(annotations.nc.get(note.uuid), note.meiAttrs));
         flatIndex++;
 
         for (const key of ornaments) {

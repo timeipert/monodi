@@ -10,6 +10,8 @@ import { MeiMappingProfileV2, MeiPatternRule, normalizePatternRule, patternBaseC
 import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
+import { checkAnnotations } from './mei-annotation-check';
+import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
 import { RootContainer, ContainerKind, LinePartKind } from '../types/model';
 import { downloadBlob } from '../download';
 
@@ -79,9 +81,12 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     private toastr: ToastrService,
     private api: APIService,
     private userService: UserService,
+    private schemas: MeiSchemaRegistry,
   ) {}
 
   ngOnInit() {
+    // The bundled schema loads in the background; the preview check uses it as soon as it is there.
+    this.schemas.ready().then(() => this.updatePreview(), () => {});
     this.settingsChange$.pipe(
       debounceTime(300)
     ).subscribe(() => {
@@ -214,6 +219,14 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     return { ...root, children: cloneChildren(root.children) };
   }
 
+  /** True for the tabs that are not an element of the entity tree. */
+  get isPseudoNode(): boolean {
+    return ['skeleton', 'patterns', 'flags', 'rules', 'schema'].includes(this.selectedNodeId);
+  }
+
+  /** Document the rules panel counts matches on. */
+  get rulesPreviewRoot(): RootContainer { return this.previewRoot; }
+
   get activeProfile(): MeiMappingProfileV2 | undefined {
     if (!this.settings || !this.settings.meiProfiles) return undefined;
     return this.settings.meiProfiles.find(p => p.id === this.settings.activeMeiProfileId);
@@ -250,11 +263,13 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   manageOpen = false;
 
   // --- Tabs ---
-  readonly tabs: { id: 'general' | 'elements' | 'patterns' | 'flags'; label: string; hint: string; icon: string }[] = [
+  readonly tabs: { id: 'general' | 'elements' | 'patterns' | 'flags' | 'rules' | 'schema'; label: string; hint: string; icon: string }[] = [
     { id: 'general',  label: 'General',    hint: 'Header and frame',          icon: 'bi-file-earmark-code' },
     { id: 'elements', label: 'Elements',   hint: 'Tag and attributes per part', icon: 'bi-diagram-3' },
     { id: 'patterns', label: 'Patterns',   hint: 'Fixed MEI per neume shape',  icon: 'bi-music-note-list' },
-    { id: 'flags',    label: 'Note flags', hint: 'Your own markers, e.g. virga', icon: 'bi-tags' }
+    { id: 'flags',    label: 'Note flags', hint: 'Your own markers, e.g. virga', icon: 'bi-tags' },
+    { id: 'rules',    label: 'Rules',      hint: 'Set MEI attributes automatically', icon: 'bi-magic' },
+    { id: 'schema',   label: 'Schema',     hint: 'Valid attributes and checks', icon: 'bi-patch-check' }
   ];
 
   /** Last entity shown in the Elements tab, so switching tabs and back keeps the selection. */
@@ -281,22 +296,25 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     ] }
   ];
 
-  get tab(): 'general' | 'elements' | 'patterns' | 'flags' {
+  get tab(): 'general' | 'elements' | 'patterns' | 'flags' | 'rules' | 'schema' {
     switch (this.selectedNodeId) {
       case 'skeleton': return 'general';
       case 'patterns': return 'patterns';
       case 'flags': return 'flags';
+      case 'rules': return 'rules';
+      case 'schema': return 'schema';
       default: return 'elements';
     }
   }
 
-  setTab(t: 'general' | 'elements' | 'patterns' | 'flags') {
+  setTab(t: 'general' | 'elements' | 'patterns' | 'flags' | 'rules' | 'schema') {
     this.selectNode(t === 'general' ? 'skeleton' : t === 'elements' ? this.lastEntity : t);
   }
 
   tabCount(t: string): number | null {
     if (t === 'patterns') return this.patternRules.length;
     if (t === 'flags') return this.noteFlags.length;
+    if (t === 'rules') return (this.activeProfile?.annotationRules ?? []).length;
     return null;
   }
 
@@ -349,13 +367,13 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
   /** Convenience for the rule editor: does the currently selected entity differ? */
   get selectedEntityDiffers(): boolean {
-    if (this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return false;
+    if (this.isPseudoNode) return false;
     return this.entityDiffers(this.selectedNodeId as MeiEntityKey);
   }
 
   /** Two-click revert of only the selected entity's rule to the default. */
   resetEntityToDefault() {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return;
+    if (!this.activeProfile || this.isPseudoNode) return;
     const key = this.selectedNodeId as MeiEntityKey;
 
     if (this.armedResetEntity !== key) {
@@ -621,7 +639,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   }
 
   get activeRule(): MeiEntityRule | undefined {
-    if (!this.activeProfile || this.selectedNodeId === 'skeleton' || this.selectedNodeId === 'patterns' || this.selectedNodeId === 'flags') return undefined;
+    if (!this.activeProfile || this.isPseudoNode) return undefined;
     return this.activeProfile.entities[this.selectedNodeId as MeiEntityKey];
   }
 
@@ -673,6 +691,9 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
     // 1. Model Validation
     this.validationErrors.push(...validateMeiProfile(this.activeProfile));
+    this.validationErrors.push(...checkAnnotations(
+      this.previewRoot, this.activeProfile, this.schemas.forProfile(this.activeProfile.schemaId, this.activeProfile.schemaExtensions)
+    ).map(i => ({ entity: i.element, message: `${i.where}: ${i.message}`, isError: i.level === 'error' })));
 
     // Guard very large documents so the debounced render stays snappy.
     let root = this.previewRoot;

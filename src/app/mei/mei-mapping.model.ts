@@ -59,6 +59,41 @@ export function resolvePatternRule(
   return (sigle ? live.find(r => r.sigle === sigle) : undefined) || live.find(r => !r.sigle);
 }
 
+/** Which MEI element an annotation (a hand-set attribute or a rule) writes to. */
+export type AnnotationTarget = 'nc' | 'neume' | 'syllable';
+
+/**
+ * Rule that sets MEI attributes where its conditions all hold ("annotation rule"). Conditions that are
+ * left out do not restrict. Rules run in list order at export; a later rule overrides an earlier one
+ * for the same attribute, and an attribute set by hand on a note always wins.
+ */
+export interface MeiAnnotationRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** Manuscript siglum; empty or missing = every manuscript. */
+  sigle?: string;
+  /** Element that receives `set`: every matching note (`nc`), the neume of a matching note, or its syllable. */
+  target: AnnotationTarget;
+  match: {
+    /** Pattern code of the neume, in the syntax of the pattern tool (`*u`, `[*ud]`, `ud`, `*??`). */
+    neume?: { text: string; mode: 'whole' | 'contains'; ignoreShapes: boolean };
+    /** Which notes of the matched pattern count (default: all). */
+    position?: { which: 'first' | 'last' | 'all' | 'nth'; nth?: number };
+    /** JavaScript regular expression tested on the syllable text, case-insensitive. */
+    syllableText?: string;
+    /** Note types (`Normal`, `Oriscus`, ...); the note must be one of them. */
+    noteTypes?: string[];
+    /** JavaScript regular expression tested on the pitch written as letter and octave, for example `G4`. */
+    pitch?: string;
+    liquescent?: boolean;
+    /** Key of a note flag that the note must carry. */
+    flag?: string;
+  };
+  /** Attributes to set. A value may contain `{pname}`, `{oct}`, `{syllable}`, `{index}` (1-based position in the neume). */
+  set: Record<string, string>;
+}
+
 export interface MeiMappingProfileV2 {
   version: 2;
   id: string;
@@ -76,6 +111,16 @@ export interface MeiMappingProfileV2 {
   inlineInterventions?: boolean;       // encode interventions inline
   /** Pattern → MEI attribute rules ("transcription equivalents"), optionally per manuscript. */
   patternRules?: MeiPatternRule[];
+  /** Rules that set MEI attributes by pattern, text, pitch, note type or flag (see MeiAnnotationRule). */
+  annotationRules?: MeiAnnotationRule[];
+  /** Id of the schema catalog that annotations are checked against (see mei/schema); default `mei-5.0-all`. */
+  schemaId?: string;
+  /** `strict`: an attribute that the schema does not allow on its element is an error; `warn` (default): a warning. */
+  attributePolicy?: 'warn' | 'strict';
+  /** Project-specific attributes that the schema does not contain, offered and accepted like schema attributes. */
+  schemaExtensions?: { element: string; name: string; values?: string[]; doc?: string }[];
+  /** Attributes shown first in the annotation dialog, written `element@name` (for example `nc@tilt`). */
+  favoriteAttributes?: string[];
   entities: Record<MeiEntityKey, MeiEntityRule>;
 }
 

@@ -13,6 +13,7 @@ describe('NotesComponent', () => {
   let fixture: ComponentFixture<NotesComponent>;
 
   const mockFocusService = {
+    meiEditors: new Map(),
     focusedNoteUUID$: of(null),
     preferredFocus: 'Notes',
     mode: { kind: 'Normal' }

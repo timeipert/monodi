@@ -143,6 +143,15 @@
                       [class.bg-secondary]="sidebarTab !== 'comments'">{{cont?.comments?.length || 0}}</span>
                     </button>
                   </li>
+                  <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
+                    <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
+                      [class.active]="sidebarTab === 'mei'"
+                      [style.background-color]="sidebarTab === 'mei' ? 'var(--color-primary)' : 'transparent'"
+                      [style.color]="sidebarTab === 'mei' ? '#fff' : 'var(--color-text-muted)'"
+                      (click)="setSidebarTab('mei')" type="button" title="MEI attributes of the selected note">
+                      <i class="bi bi-tags me-1"></i>MEI
+                    </button>
+                  </li>
                 </ul>
                 <button class="btn sidebar-strip-btn flex-shrink-0" (click)="sidebarVisible = false" title="Hide sidebar">
                   <i class="bi bi-chevron-double-left"></i>
@@ -217,6 +226,56 @@
                     <label class="form-label text-muted small mb-1">Comment</label>
                     <textarea class="form-control form-control-sm" [(ngModel)]="document.kommentar" (blur)="save()" rows="2"></textarea>
                   </div>
+                </div>
+              }
+              <!-- Tab Content: MEI attributes of the selected note -->
+              @if (sidebarTab === 'mei') {
+                @let ann = meiAnnotations;
+                <div class="mei-tab small">
+                  @if (!ann) {
+                    <div class="text-muted text-center py-4 px-2">
+                      <i class="bi bi-cursor fs-4 d-block mb-2"></i>
+                      Click a note to see the MEI attributes set on it, on its neume and on its syllable.
+                    </div>
+                  } @else {
+                    <div class="mb-2 text-muted">
+                      <span class="fw-semibold" style="color: var(--color-text);">Note {{ann.selection.note.base}}{{ann.selection.note.octave}}</span>
+                      in “{{ann.selection.syllable.text}}”
+                    </div>
+                    @for (g of ann.groups; track g.target) {
+                      <section class="mei-group">
+                        <header class="mei-group-head">
+                          <span class="mei-group-title"><code>&lt;{{g.element}}&gt;</code> <span class="text-muted fw-normal">{{g.subject}}</span></span>
+                          <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 flex-shrink-0" (click)="editMeiAttributes(g.target)" title="Edit the attributes set by hand">
+                            <i class="bi bi-pencil me-1"></i>Edit
+                          </button>
+                        </header>
+                        @if (g.rows.length === 0) {
+                          <div class="text-muted fst-italic">No attributes.</div>
+                        } @else {
+                          <ul class="mei-attr-list">
+                            @for (r of g.rows; track r.name) {
+                              <li class="mei-attr">
+                                <span class="mei-attr-name">{{r.name}}</span>
+                                <span class="mei-attr-value">{{r.value}}</span>
+                                <span class="badge rounded-pill border mei-attr-badge"
+                                  [class.mei-hand]="r.source === 'hand'"
+                                  [title]="r.source === 'hand' ? 'Set by hand in the editor' : 'Written by an annotation rule (Settings → MEI Mapping → Rules)'">
+                                  {{r.source === 'hand' ? 'by hand' : 'rule'}}
+                                </span>
+                                @if (r.overridesRule !== undefined) {
+                                  <span class="mei-attr-note">overrides rule value “{{r.overridesRule}}”</span>
+                                }
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </section>
+                    }
+                    <div class="text-muted" style="font-size: 0.72rem;">
+                      Attributes of the entity mapping, note flags and pattern rules are not listed here, only annotations.
+                    </div>
+                  }
                 </div>
               }
               <!-- Tab Content: Comments -->

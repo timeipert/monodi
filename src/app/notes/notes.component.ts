@@ -23,6 +23,9 @@ import { commentColor } from '../comment/comment-colors';
 import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
 import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFlagDefs } from './note-flags';
+import { MeiAnnotationDialogComponent } from '../mei/mei-annotation-dialog.component';
+import { firstNoteOf, setHandAttr } from '../mei/mei-annotations';
+import { AnnotationTarget } from '../mei/mei-mapping.model';
 import { ContextMenuItem, ContextMenuService } from '../context-menu/context-menu.service';
 import { Router } from '@angular/router';
 import { SearchExecService } from '../search/search-exec.service';
@@ -242,6 +245,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   ngOnInit() {
+    this.focusService.meiEditors.set(this.model.uuid, (target, note) => this.openMeiAttributes(target, note));
     this.notesToText();
     if (this.syllableTextElement?.nativeElement) {
       (this.syllableTextElement.nativeElement as HTMLElement).textContent = this.model?.text || '';
@@ -288,6 +292,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   ngOnDestroy() {
+    this.focusService.meiEditors.delete(this.model.uuid);
     this.undoService.deregisterNotesCallbacks(this.model.uuid);
     this.focusedNoteSub?.unsubscribe();
     setTimeout(() => this.toolsService.remove(this), 0);
@@ -1031,6 +1036,57 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     });
   }
 
+  private attrCountLabel(label: string, attrs: Record<string, string> | undefined): string {
+    const n = attrs ? Object.keys(attrs).length : 0;
+    return n > 0 ? `${label} (${n})` : label;
+  }
+
+  /** Context-menu entry for MEI attributes set by hand on the note, its neume or its syllable. */
+  private meiMenuItem(note: VM.Note): ContextMenuItem {
+    const neumeFirst = this.neumeFirstNote(note);
+    const total = Object.keys(note.meiAttrs ?? {}).length + Object.keys(neumeFirst?.meiNeumeAttrs ?? {}).length + Object.keys(this.model.meiAttrs ?? {}).length;
+    return {
+      label: total > 0 ? `MEI attributes (${total})` : 'MEI attributes',
+      action: () => {},
+      children: [
+        { label: this.attrCountLabel('On this note (nc)…', note.meiAttrs), action: () => this.openMeiAttributes('nc', note) },
+        { label: this.attrCountLabel('On its neume…', neumeFirst?.meiNeumeAttrs), action: () => this.openMeiAttributes('neume', note) },
+        { label: this.attrCountLabel('On its syllable…', this.model.meiAttrs), action: () => this.openMeiAttributes('syllable', note) }
+      ]
+    };
+  }
+
+  /** The first note of the neume that contains `note`; it holds the neume's MEI attributes. */
+  private neumeFirstNote(note: VM.Note): VM.Note | undefined {
+    for (const voice of this.getVoices()) {
+      for (const neume of voice?.spaced ?? []) {
+        if (neume.nonSpaced.some(g => g.grouped.includes(note))) return firstNoteOf(neume);
+      }
+    }
+    return undefined;
+  }
+
+  /** Opens the MEI attribute dialog for the note, its neume or its syllable and stores the result as one undo step. */
+  openMeiAttributes(target: AnnotationTarget, note?: VM.Note): void {
+    const holder: { meiAttrs?: Record<string, string>; meiNeumeAttrs?: Record<string, string> } | undefined =
+      target === 'syllable' ? this.model : target === 'neume' ? (note ? this.neumeFirstNote(note) : undefined) : note;
+    if (!holder) return;
+    const current = (target === 'neume' ? holder.meiNeumeAttrs : holder.meiAttrs) ?? {};
+    const ref = this.modalService.open(MeiAnnotationDialogComponent, { centered: true, scrollable: true });
+    ref.componentInstance.target = target;
+    ref.componentInstance.attrs = { ...current };
+    ref.componentInstance.subject = target === 'syllable'
+      ? `syllable "${this.model.text}"`
+      : note ? `${target === 'neume' ? 'neume of ' : ''}note ${note.base}${note.octave} in "${this.model.text}"` : '';
+    ref.result.then((result: Record<string, string>) => {
+      this.undoService.beforeChange('Edit MEI attributes');
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      for (const name of Object.keys(current)) if (!(name in result)) setHandAttr(holder, target, name, null);
+      for (const [name, value] of Object.entries(result)) setHandAttr(holder, target, name, value);
+      this.cdr.markForCheck();
+    }, () => { /* dismissed */ });
+  }
+
   toggleFlag(key: string): void {
     this.withFocus(f => {
       this.undoService.beforeChange('Edit Note');
@@ -1394,6 +1450,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         action: () => { this.toggleLiquescent(); this.refreshNoteText(); }
       },
       ...this.flagMenuItems(d.ref),
+      this.meiMenuItem(d.ref),
       {
         label: 'Split Line After Syllable',
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
@@ -1478,6 +1535,10 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
           this.recalculateWidths();
           this.request.emit({ kind: "NoFocusRequested" });
         }
+      },
+      {
+        label: this.attrCountLabel('MEI attributes of the syllable…', this.model.meiAttrs),
+        action: () => { this.openMeiAttributes('syllable'); }
       },
       {
         label: 'Split Line After Syllable',

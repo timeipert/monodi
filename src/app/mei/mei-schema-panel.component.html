@@ -1,0 +1,80 @@
+<div class="p-4 mei-pane">
+  <p class="mei-lead">
+    The schema tells the editor which attributes exist on which MEI element and which values are valid. It is used to suggest attributes in the
+    right-click dialog, to check annotations and rules, and to report problems in the preview. The export itself always writes what is set.
+  </p>
+  @if (loadError) { <div class="alert alert-danger py-2">{{ loadError }}</div> }
+  @if (message) { <div class="alert alert-success py-2">{{ message }}</div> }
+
+  <div class="border rounded p-3 mb-4 bg-light">
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-7">
+        <label class="form-label small mb-0">Check against</label>
+        <select class="form-select form-select-sm" [(ngModel)]="schemaId">
+          @for (s of schemas; track s.id) {
+            <option [value]="s.id">{{ s.label }} — MEI {{ s.schemaVersion }}, {{ s.elementCount }} elements ({{ s.origin }})</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-5">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="strictAttrs" [(ngModel)]="strict">
+          <label class="form-check-label small" for="strictAttrs">Strict: an attribute the schema does not allow is an error</label>
+        </div>
+      </div>
+    </div>
+    <div class="small text-muted mt-2">
+      Without strict mode such an attribute is a warning and is still exported, so newer MEI attributes and your own can be used before a schema contains them.
+    </div>
+    @if (selectedIsUser) { <button class="btn btn-sm btn-outline-danger mt-2" (click)="removeSchema()">Remove this schema</button> }
+  </div>
+
+  <h6>Load another schema</h6>
+  <p class="small text-muted mb-2">
+    A RelaxNG file (<code>.rng</code>) of any MEI customization, for example <code>mei-Neumes.rng</code> or a later MEI release, or a catalog (<code>.json</code>)
+    made with <code>scripts/build-mei-catalog.mjs</code>. Loaded schemas stay in this browser.
+  </p>
+  <div class="row g-2 align-items-end mb-4">
+    <div class="col-sm-3"><label class="form-label small mb-0">Id</label><input class="form-control form-control-sm" [(ngModel)]="upload.id" placeholder="from the file name"></div>
+    <div class="col-sm-4"><label class="form-label small mb-0">Name</label><input class="form-control form-control-sm" [(ngModel)]="upload.label" placeholder="from the file name"></div>
+    <div class="col-sm-2"><label class="form-label small mb-0">MEI version</label><input class="form-control form-control-sm" [(ngModel)]="upload.version"></div>
+    <div class="col-sm-3">
+      <input #file type="file" accept=".rng,.xml,.json" class="d-none" (change)="onFile($event)">
+      <button class="btn btn-sm btn-outline-primary w-100" [disabled]="busy" (click)="file.click()">{{ busy ? 'Reading …' : 'Choose file …' }}</button>
+    </div>
+  </div>
+
+  <h6>Your own attributes</h6>
+  <p class="small text-muted mb-2">Attributes the schema does not contain. They are offered in the dialog and accepted by the check like schema attributes. Use <code>*</code> as element for every element.</p>
+  @for (e of extensions; track $index) {
+    <div class="d-flex align-items-center gap-2 small mb-1">
+      <code>&lt;{{ e.element }}&gt; &#64;{{ e.name }}</code>
+      @if (e.values?.length) { <span class="text-muted">= {{ e.values!.join(' | ') }}</span> }
+      @if (e.doc) { <span class="text-muted">— {{ e.doc }}</span> }
+      <button class="btn btn-sm btn-link text-danger py-0 ms-auto" (click)="removeExtension($index)">Remove</button>
+    </div>
+  }
+  <div class="row g-2 align-items-end mb-4">
+    <div class="col-sm-2"><label class="form-label small mb-0">Element</label><input class="form-control form-control-sm font-monospace" [(ngModel)]="newExt.element" list="schema-elements"></div>
+    <div class="col-sm-3"><label class="form-label small mb-0">Attribute</label><input class="form-control form-control-sm font-monospace" [(ngModel)]="newExt.name" placeholder="e.g. monodi:shape"></div>
+    <div class="col-sm-3"><label class="form-label small mb-0">Allowed values (comma-separated, optional)</label><input class="form-control form-control-sm" [(ngModel)]="newExt.values"></div>
+    <div class="col-sm-3"><label class="form-label small mb-0">Description (optional)</label><input class="form-control form-control-sm" [(ngModel)]="newExt.doc"></div>
+    <div class="col-sm-1"><button class="btn btn-sm btn-outline-primary w-100" [disabled]="!newExt.name.trim()" (click)="addExtension()">Add</button></div>
+  </div>
+
+  <h6>Favourite attributes</h6>
+  <p class="small text-muted mb-2">Shown as quick buttons in the right-click dialog.</p>
+  <div class="mb-2">
+    @for (f of favorites; track f) {
+      <span class="badge bg-light text-dark border font-monospace me-1">{{ f }} <a href="javascript:void(0)" class="text-danger ms-1 text-decoration-none" (click)="removeFavorite(f)">×</a></span>
+    }
+    @if (favorites.length === 0) { <span class="small text-muted">None.</span> }
+  </div>
+  <div class="input-group input-group-sm" style="max-width: 24rem">
+    <input class="form-control font-monospace" style="max-width: 7rem" [(ngModel)]="newFav.element" list="schema-elements">
+    <span class="input-group-text">&#64;</span>
+    <input class="form-control font-monospace" [(ngModel)]="newFav.name" placeholder="e.g. tilt" (keyup.enter)="addFavorite()">
+    <button class="btn btn-outline-primary" [disabled]="!newFav.name.trim()" (click)="addFavorite()">Add</button>
+  </div>
+  <datalist id="schema-elements">@for (e of elements; track e) { <option [value]="e"></option> }</datalist>
+</div>

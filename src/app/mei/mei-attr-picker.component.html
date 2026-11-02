@@ -1,0 +1,41 @@
+<div class="mei-picker">
+  <div class="input-group input-group-sm">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="text" class="form-control" [placeholder]="placeholder" [(ngModel)]="query" (focus)="open = true" (input)="open = true"
+      (keydown.enter)="enter()" (keydown.escape)="open = false; browse = false" autocomplete="off" spellcheck="false">
+    <button type="button" class="btn btn-outline-secondary" [class.active]="browse" (click)="toggleBrowse()" title="Browse all attributes">
+      <i class="bi bi-list-ul me-1"></i>Browse
+    </button>
+  </div>
+  @if (open || browse) {
+    <div class="mei-picker-panel">
+      <div class="mei-picker-chips">
+        @for (k of kinds; track k.id) {
+          <button type="button" class="btn btn-sm" [class.btn-primary]="kind === k.id" [class.btn-outline-secondary]="kind !== k.id" (click)="kind = k.id">{{ k.label }}</button>
+        }
+        <span class="ms-auto text-muted small">{{ results.length }} attribute{{ results.length === 1 ? '' : 's' }}</span>
+      </div>
+      <div class="mei-picker-list">
+        @for (a of shown; track a.name) {
+          <button type="button" class="mei-picker-item" (click)="pick(a.name)" [title]="a.doc ?? ''">
+            <span class="mei-picker-name">&#64;{{ a.name }}@if (favorites.includes(a.name)) { <i class="bi bi-star-fill ms-1 small"></i> }</span>
+            <span class="mei-picker-badge">{{ badge(a) }}</span>
+            @if (hint(a)) { <span class="mei-picker-values">{{ hint(a) }}</span> }
+            @if (a.doc) { <span class="mei-picker-doc">{{ a.doc }}</span> }
+          </button>
+        }
+        @if (customName) {
+          <button type="button" class="mei-picker-item" (click)="pick(customName)">
+            <span class="mei-picker-name">&#64;{{ customName }}</span>
+            <span class="mei-picker-badge">custom</span>
+            <span class="mei-picker-doc">Not necessarily in the schema; it is still exported.</span>
+          </button>
+        }
+        @if (shown.length === 0 && !customName) { <div class="text-muted small p-2">No attribute matches.</div> }
+        @if (!browse && !query.trim() && results.length > shown.length) {
+          <div class="text-muted small p-2">{{ results.length - shown.length }} more: type to search or press Browse.</div>
+        }
+      </div>
+    </div>
+  }
+</div>

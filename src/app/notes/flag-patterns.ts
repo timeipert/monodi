@@ -82,59 +82,87 @@ function neumesOf(s: VM.Syllable): VM.NonSpaced[] {
   return voices.flatMap(v => v?.spaced ?? []);
 }
 
-export function findFlagMatches(root: VM.RootContainer, query: FlagQuery): FlagMatch[] {
-  const raw = normalizeQuery(query.text);
-  if (!raw || queryProblem(query.text)) return [];
-  const out: FlagMatch[] = [];
+/** One place where a query fits inside one neume. */
+export interface NeumeHit {
+  /** The notes the pattern covers. */
+  notes: VM.Note[];
+  /** Index of the first covered note inside the neume. */
+  start: number;
+  /** The neume's whole code as written. */
+  code: string;
+}
 
+/**
+ * Compiles a query once; the result finds every hit inside one neume. Null when the query is empty or invalid.
+ * Shared by the flag tool and by the MEI annotation rules, so both read the pattern codes the same way.
+ */
+export function compileNeumeQuery(query: Pick<FlagQuery, 'text' | 'mode' | 'ignoreShapes'>): ((neume: VM.NonSpaced) => NeumeHit[]) | null {
+  const raw = normalizeQuery(query.text);
+  if (!raw || queryProblem(query.text)) return null;
   let q = query.ignoreShapes ? stripShapes(raw) : raw;
   const whole = query.mode === 'whole';
   const anchored = !whole && q.startsWith('*');
   if (!whole) q = q.replace(/[[\]]/g, '').replace(/^\*/, '');
-  if (!whole && !q) return [];
+  if (!whole && !q) return null;
   const re = new RegExp(whole ? `^${toRegexSource(q)}$` : toRegexSource(q), whole ? '' : 'y');
 
+  return (neume: VM.NonSpaced): NeumeHit[] => {
+    const steps = describeNeume(neume);
+    if (steps.length === 0) return [];
+    const code = extractPattern(neume);
+    if (whole) {
+      return re.test(query.ignoreShapes ? stripShapes(code) : code) ? [{ notes: steps.map(s => s.note), start: 0, code }] : [];
+    }
+
+    // contains: step tokens of notes 1..n joined, remembering where each token starts
+    const hits: NeumeHit[] = [];
+    const tokens: string[] = steps.slice(1).map((s: NeumeNote) => s.step + (query.ignoreShapes ? '' : s.suffix));
+    const starts: number[] = [];
+    let text = '';
+    for (const t of tokens) { starts.push(text.length); text += t; }
+    const boundaries = new Set([...starts, text.length]);
+    for (let ti = 0; ti < tokens.length; ti++) {
+      if (anchored && ti > 0) break;
+      re.lastIndex = starts[ti];
+      const m = re.exec(text);
+      if (!m || m[0].length === 0) continue;
+      const end = starts[ti] + m[0].length;
+      if (!boundaries.has(end)) continue;
+      const endToken = end === text.length ? tokens.length : starts.indexOf(end);
+      const firstNote = anchored ? 0 : ti;       // token i leads to note i+1, so note i starts the match
+      hits.push({ notes: steps.slice(firstNote, endToken + 1).map(s => s.note), start: firstNote, code });
+      ti = endToken - 1; // continue after the match
+    }
+    return hits;
+  };
+}
+
+export function pickTargetNotes(notes: VM.Note[], target: FlagTarget, nth: number): VM.Note[] {
+  return pickTargets(notes, target, nth);
+}
+
+/** All neumes of one syllable over every voice (also used by the annotation rules). */
+export function neumesOfSyllable(s: VM.Syllable): VM.NonSpaced[] {
+  return neumesOf(s);
+}
+
+export function findFlagMatches(root: VM.RootContainer, query: FlagQuery): FlagMatch[] {
+  const match = compileNeumeQuery(query);
+  if (!match) return [];
+  const out: FlagMatch[] = [];
   for (const syl of VM.getSyllables(root)) {
     neumesOf(syl).forEach((neume, ni) => {
-      const steps = describeNeume(neume);
-      if (steps.length === 0) return;
-      const code = extractPattern(neume);
-      const add = (notes: VM.Note[], start: number) => {
-        const targets = pickTargets(notes, query.target, query.nth);
-        if (targets.length === 0) return;
+      for (const hit of match(neume)) {
+        const targets = pickTargets(hit.notes, query.target, query.nth);
+        if (targets.length === 0) continue;
         out.push({
-          id: `${syl.uuid}:${ni}:${start}`,
+          id: `${syl.uuid}:${ni}:${hit.start}`,
           syllableUuid: syl.uuid,
           syllableText: syl.text,
-          pattern: code,
-          notes,
+          pattern: hit.code,
+          notes: hit.notes,
           targets
         });
-      };
-
-      if (whole) {
-        if (re.test(query.ignoreShapes ? stripShapes(code) : code)) add(steps.map(s => s.note), 0);
-        return;
-      }
-
-      // contains: step tokens of notes 1..n joined, remembering where each token starts
-      const tokens: string[] = steps.slice(1).map((s: NeumeNote) => s.step + (query.ignoreShapes ? '' : s.suffix));
-      const starts: number[] = [];
-      let text = '';
-      for (const t of tokens) { starts.push(text.length); text += t; }
-      const boundaries = new Set([...starts, text.length]);
-      for (let ti = 0; ti < tokens.length; ti++) {
-        if (anchored && ti > 0) break;
-        re.lastIndex = starts[ti];
-        const m = re.exec(text);
-        if (!m || m[0].length === 0) continue;
-        const end = starts[ti] + m[0].length;
-        if (!boundaries.has(end)) continue;
-        const endToken = end === text.length ? tokens.length : starts.indexOf(end);
-        const firstNote = anchored ? 0 : ti;       // token i leads to note i+1, so note i starts the match
-        const notes = steps.slice(firstNote, endToken + 1).map(s => s.note);
-        add(notes, firstNote);
-        ti = endToken - 1; // continue after the match
       }
     });
   }

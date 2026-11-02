@@ -37,6 +37,9 @@ import { PdfExportService, PdfDocJob } from '../pdf-export.service';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
+import { getActiveMeiProfile } from '../mei/mei-annotation-context';
+import { AttrGroup, NoteSelection, selectionAnnotations } from '../mei/mei-selection';
+import { AnnotationTarget } from '../mei/mei-mapping.model';
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
 import { downloadBlob } from '../download';
 
@@ -339,7 +342,7 @@ export class DocumentComponent implements OnInit {
   isSaving = false;
   /** True if a save was requested while an HTTP request was already ongoing */
   private savePending = false;
-  sidebarTab: 'metadata' | 'comments' | 'structure' = 'metadata';
+  sidebarTab: 'metadata' | 'comments' | 'structure' | 'mei' = 'metadata';
   activeSidebarComment: VM.Comment | null = null;
   activeSidebarOriginal: VM.ZeileContainer | null = null;
 
@@ -683,9 +686,30 @@ export class DocumentComponent implements OnInit {
     }
   }
 
+  /**
+   * Annotations of the note that has the editor focus, for the MEI tab. Evaluated while the tab is open;
+   * the result is reused until the focused note, its syllable or any attribute changes.
+   */
+  private meiCache?: { key: string; value: { selection: NoteSelection; groups: AttrGroup[] } | undefined };
+  get meiAnnotations(): { selection: NoteSelection; groups: AttrGroup[] } | undefined {
+    if (this.sidebarTab !== 'mei' || !this.cont) return undefined;
+    const rules = getActiveMeiProfile()?.annotationRules;
+    const value = selectionAnnotations(this.cont, rules, this.sourceSigle);
+    const key = value ? JSON.stringify([value.selection.note.uuid, value.groups]) : '';
+    if (this.meiCache && this.meiCache.key === key) return this.meiCache.value;
+    this.meiCache = { key, value };
+    return value;
+  }
+
+  /** Opens the dialog for the annotations of the focused note (the editor of its syllable does the work). */
+  editMeiAttributes(target: AnnotationTarget): void {
+    const sel = this.meiAnnotations?.selection;
+    this.focusService.meiEditors.get(sel?.syllable.uuid ?? '')?.(target, sel!.note);
+  }
+
   /** Switch the right-hand sidebar tab and keep it in the URL (?stab=) so a
    *  reload returns to the same panel. */
-  setSidebarTab(tab: 'metadata' | 'structure' | 'comments') {
+  setSidebarTab(tab: 'metadata' | 'structure' | 'comments' | 'mei') {
     this.sidebarTab = tab;
     this.router.navigate([], {
       relativeTo: this.route,
@@ -1134,7 +1158,7 @@ export class DocumentComponent implements OnInit {
       if (params['view'] && ['transcription', 'split', 'iiif'].includes(params['view'])) {
         this.setViewMode(params['view'] as any, false);
       }
-      if (params['stab'] && ['metadata', 'structure', 'comments'].includes(params['stab'])) {
+      if (params['stab'] && ['metadata', 'structure', 'comments', 'mei'].includes(params['stab'])) {
         this.sidebarTab = params['stab'];
       }
       if (params['focus']) {

@@ -215,6 +215,17 @@ export interface Note {
   isLatent?: boolean;
   /** Keys of user-defined note flags (see notes/note-flags.ts), e.g. ['V']. */
   flags?: string[];
+  /**
+   * MEI attributes set by hand on this note's `<nc>` (for example `{ tilt: 'n' }`). They win over every
+   * mapping and rule of the export profile. The text editor re-creates notes when the text changes;
+   * the annotations stay with the note at the same position (see copyUuids).
+   */
+  meiAttrs?: Record<string, string>;
+  /**
+   * MEI attributes set by hand on the `<neume>` this note starts. Held by the neume's first note
+   * because the editor splits and joins ligature groups, which would drop a field on a group.
+   */
+  meiNeumeAttrs?: Record<string, string>;
 }
 
 export interface Spaced {
@@ -281,6 +292,8 @@ export interface Syllable {
   notes: Spaced;
   additionalMelodies?: Spaced[];
   syllableType: SyllableType;
+  /** MEI attributes set by hand on the `<syllable>` (see Note.meiAttrs). */
+  meiAttrs?: Record<string, string>;
 }
 
 export enum SyllableType {
@@ -781,6 +794,9 @@ export function copyUuids(s1: Spaced, s2: Spaced): UUIDInfo {
   for (let i = 0; i < n1.length; i++) {
     if (i < n2.length) {
       n2[i].uuid = n1[i].uuid;
+      // Annotations belong to the position, like the uuid: the text editor rebuilds the notes from the code.
+      if (n1[i].meiAttrs && !n2[i].meiAttrs) n2[i].meiAttrs = n1[i].meiAttrs;
+      if (n1[i].meiNeumeAttrs && !n2[i].meiNeumeAttrs) n2[i].meiNeumeAttrs = n1[i].meiNeumeAttrs;
     } else {
       lostUuids.push(n1[i].uuid);
     }

@@ -1,0 +1,170 @@
+<div class="p-4 pb-0">
+  <p class="mei-lead mb-0">
+    A rule sets MEI attributes wherever its conditions all hold: on every matching note (<code>nc</code>), on the neume of a matching note, or on its syllable.
+    Rules run in list order, a later rule overrides an earlier one, and an attribute set by hand in the editor (right-click → MEI attributes) always wins.
+  </p>
+</div>
+<div class="row g-0 mei-pane">
+  <!-- Rule list -->
+  <div class="col-12 col-md-4 p-3">
+    <button class="btn btn-sm btn-outline-primary mb-2" (click)="add()"><i class="bi bi-plus-lg me-1"></i>New rule</button>
+    <ul class="entity-tree">
+      @for (r of rules; track r.id) {
+        <li>
+          <div class="tree-node cursor-pointer" [class.active]="selectedId === r.id" (click)="select(r.id)">
+            <span class="me-auto" [class.text-muted]="!r.enabled">{{ r.name }}</span>
+            <span class="badge bg-light text-dark border font-monospace" title="Receiving element">{{ r.target }}</span>
+            @if (problem(r)) { <i class="bi bi-exclamation-triangle-fill text-danger ms-1" [title]="problem(r)!"></i> }
+            @else if (r.enabled && !conditionProblem(r)) { <span class="badge bg-secondary ms-1" title="Places matched in the preview document">{{ preview(r).count }}</span> }
+          </div>
+        </li>
+      }
+    </ul>
+    @if (rules.length === 0) { <div class="text-muted small">No rules yet. A rule could, for example, set <code>tilt="n"</code> on the last note of every <code>[*u]</code>.</div> }
+  </div>
+
+  <!-- Rule editor -->
+  <div class="col-12 col-md-8 p-3 border-start">
+    @if (selected; as r) {
+      <div class="row g-2 mb-3 align-items-end">
+        <div class="col-sm-6">
+          <label class="form-label small mb-0">Name</label>
+          <input class="form-control form-control-sm" [(ngModel)]="r.name" (ngModelChange)="touch()">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-0">Sets attributes on</label>
+          <select class="form-select form-select-sm" [(ngModel)]="r.target" (ngModelChange)="touch()">
+            <option value="nc">the note (nc)</option>
+            <option value="neume">the neume</option>
+            <option value="syllable">the syllable</option>
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="ruleOn" [(ngModel)]="r.enabled" (ngModelChange)="touch()">
+            <label class="form-check-label small" for="ruleOn">Enabled</label>
+          </div>
+        </div>
+      </div>
+
+      <h6 class="mt-3">When</h6>
+      <div class="small text-muted mb-2">All conditions that are filled in must hold. Leave a field empty to ignore it.</div>
+      <div class="row g-2">
+        <div class="col-sm-6">
+          <label class="form-label small mb-0">Neume pattern <span class="text-muted">(<code>*u</code>, <code>[*ud]</code>, <code>*??</code>)</span></label>
+          <input class="form-control form-control-sm font-monospace" [ngModel]="neumeText" (ngModelChange)="neumeText = $event" placeholder="any neume">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-0">Pattern fits</label>
+          <select class="form-select form-select-sm" [disabled]="!r.match.neume" [ngModel]="neumeMode" (ngModelChange)="neumeMode = $event">
+            <option value="whole">the whole neume</option>
+            <option value="contains">inside a neume</option>
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-0">Notes of the pattern</label>
+          <select class="form-select form-select-sm" [ngModel]="position" (ngModelChange)="position = $event">
+            <option value="all">all</option>
+            <option value="first">the first</option>
+            <option value="last">the last</option>
+            <option value="nth">the n-th</option>
+          </select>
+        </div>
+        @if (r.match.position?.which === 'nth') {
+          <div class="col-sm-3">
+            <label class="form-label small mb-0">n</label>
+            <input type="number" min="1" class="form-control form-control-sm" [ngModel]="r.match.position?.nth" (ngModelChange)="nth = $event">
+          </div>
+        }
+        @if (r.match.neume) {
+          <div class="col-12">
+            <div class="form-check form-check-inline small">
+              <input class="form-check-input" type="checkbox" id="ignShapes" [ngModel]="r.match.neume?.ignoreShapes" (ngModelChange)="ignoreShapes = $event">
+              <label class="form-check-label" for="ignShapes">Compare steps only (ignore note shapes and flags)</label>
+            </div>
+          </div>
+        }
+        <div class="col-sm-6">
+          <label class="form-label small mb-0">Syllable text <span class="text-muted">(regular expression)</span></label>
+          <input class="form-control form-control-sm font-monospace" [ngModel]="r.match.syllableText ?? ''" (ngModelChange)="setText('syllableText', $event)" placeholder="e.g. ^ky">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-0">Pitch <span class="text-muted">(regex)</span></label>
+          <input class="form-control form-control-sm font-monospace" [ngModel]="r.match.pitch ?? ''" (ngModelChange)="setText('pitch', $event)" placeholder="e.g. ^[CD]4$" title="Tested on the pitch letter and octave, for example G4">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-0">Manuscript siglum</label>
+          <input class="form-control form-control-sm" [ngModel]="r.sigle ?? ''" (ngModelChange)="setText('sigle', $event)" placeholder="all">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-0">Liquescent</label>
+          <select class="form-select form-select-sm" [ngModel]="liquescent" (ngModelChange)="liquescent = $event">
+            <option value="any">any</option><option value="yes">yes</option><option value="no">no</option>
+          </select>
+        </div>
+        @if (flags.length > 0) {
+          <div class="col-sm-3">
+            <label class="form-label small mb-0">Note flag</label>
+            <select class="form-select form-select-sm" [ngModel]="r.match.flag ?? ''" (ngModelChange)="setText('flag', $event)">
+              <option value="">any</option>
+              @for (f of flags; track f.key) { <option [value]="f.key">{{ f.label }}</option> }
+            </select>
+          </div>
+        }
+        <div class="col-12">
+          <label class="form-label small mb-0">Note type</label>
+          <div>
+            @for (t of noteTypes; track t) {
+              <div class="form-check form-check-inline small">
+                <input class="form-check-input" type="checkbox" [id]="'nt-' + t" [checked]="hasType(t)" (change)="toggleType(t)">
+                <label class="form-check-label" [for]="'nt-' + t">{{ t }}</label>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <h6 class="mt-4">Then set on &lt;{{ element }}&gt;</h6>
+      @for (row of setRows; track row.name) {
+        <div class="mb-2">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">&#64;</span>
+            <input class="form-control font-monospace" style="max-width: 11rem" [ngModel]="row.name" (change)="renameAttr(row.name, $any($event.target).value)" list="rule-attrs">
+            <input class="form-control font-monospace" [ngModel]="row.value" (ngModelChange)="setAttrValue(row.name, $event)" [attr.list]="'rule-vals-' + row.name" placeholder="value, or {{ '{pname}' }} {{ '{oct}' }} {{ '{syllable}' }} {{ '{index}' }}">
+            <datalist [id]="'rule-vals-' + row.name">
+              @for (v of valueOptions(row.name); track v) { <option [value]="v"></option> }
+            </datalist>
+            <button class="btn btn-outline-secondary" (click)="removeAttr(row.name)" title="Remove"><i class="bi bi-x-lg"></i></button>
+          </div>
+          @if (issue(row.name, row.value); as is) {
+            <div class="small" [class.text-danger]="is.level === 'error'" [class.text-warning-emphasis]="is.level === 'warning'">{{ is.message }}</div>
+          }
+        </div>
+      }
+      <datalist id="rule-attrs">
+        @for (a of suggestions(); track a.name) { <option [value]="a.name">{{ a.doc }}</option> }
+      </datalist>
+      <app-mei-attr-picker class="d-block mb-1" [attributes]="suggestions()" [exclude]="setNames" (picked)="addAttr($event)"></app-mei-attr-picker>
+      <div class="small text-muted">Templates: <code>{{ '{pname}' }}</code> pitch letter, <code>{{ '{oct}' }}</code> octave, <code>{{ '{syllable}' }}</code> syllable text, <code>{{ '{index}' }}</code> position in the neume.</div>
+
+      <hr>
+      @if (problem(r); as p) {
+        <div class="text-danger small">{{ p }} The rule is skipped at export.</div>
+      }
+      @if (!conditionProblem(r)) {
+        <div class="small">
+          Matches <strong>{{ preview(r).count }}</strong> place{{ preview(r).count === 1 ? '' : 's' }} in the preview document.
+          @for (s of preview(r).samples; track s) { <div class="text-muted font-monospace">{{ s }}</div> }
+        </div>
+      }
+      <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" (click)="move(r, -1)" [disabled]="rules.indexOf(r) === 0"><i class="bi bi-arrow-up"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" (click)="move(r, 1)" [disabled]="rules.indexOf(r) === rules.length - 1"><i class="bi bi-arrow-down"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" (click)="duplicate(r)">Duplicate</button>
+        <button class="btn btn-sm btn-outline-danger ms-auto" (click)="remove(r)">Delete rule</button>
+      </div>
+    } @else {
+      <div class="text-muted">Select a rule, or create one.</div>
+    }
+  </div>
+</div>

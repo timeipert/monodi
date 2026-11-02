@@ -4,6 +4,7 @@ import { Focus } from './types/Focus';
 import { ClefDisplayMode, DEFAULT_CLEF_DISPLAY_MODE } from './clef-policy';
 import { DEFAULT_NOTATION_COLOR } from './notation-color';
 import * as VM from './types/model';
+import { AnnotationTarget } from './mei/mei-mapping.model';
 
 @Injectable({
   providedIn: 'root'
@@ -22,6 +23,13 @@ export class FocusService {
 
     this.lastFocus = callback;
   }
+
+  /**
+   * Opens the MEI attribute dialog for a note, its neume or its syllable. Each syllable editor
+   * (notes.component) registers itself under the uuid of its syllable, so the MEI tab of the document
+   * sidebar can edit the focused note without knowing the editor.
+   */
+  readonly meiEditors = new Map<string, (target: AnnotationTarget, note: VM.Note) => void>();
 
   mode: Mode = { kind: "Normal" }
 
