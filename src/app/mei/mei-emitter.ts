@@ -8,7 +8,8 @@ import {
   Note, 
   FormteilContainer, 
   MiscContainer,
-  NoteType
+  NoteType,
+  SyllableType
 } from '../types/model';
 import { Document as MonodiDocument, Source, PublicationSettings } from '../api.service';
 import { generateCommentTreeDOM } from './mei-comment-tree';
@@ -62,6 +63,8 @@ export function resolveNoteFields(note: Note, isConnectionGap: boolean, connecti
 }
 
 
+const MEI_NS = 'http://www.music-encoding.org/ns/mei';
+
 function getOrCreateWrapper(parent: Element, wrapperTag: string, doc: Document): Element {
   let existing = parent.querySelector(`:scope > ${wrapperTag}`);
   if (!existing) {
@@ -85,6 +88,8 @@ let activeSiglum: string | undefined;
 let conformant = false;
 /** ids of page breaks written so far in this document: Monodi data can repeat the uuid of a FolioChange. */
 let pageBreakIds = new Set<string>();
+/** Conformant structure: the previous syllable of the chant ended with a hyphen, so the next one continues its word (syl/@wordpos). */
+let wordOpen = false;
 /** Prefix of generated xml:id values. Commentary copies of notes get their own prefix, so no id occurs twice. */
 let idPrefix = 'm-';
 /** Attributes from the profile's annotation rules for the document being exported. */
@@ -103,6 +108,7 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   activeSiglum = sourceSiglum || undefined;
   conformant = !!profile.schemaConformant;
   pageBreakIds = new Set<string>();
+  wordOpen = false;
   idPrefix = 'm-';
   annotations = buildAnnotationIndex(root, profile.annotationRules, activeSiglum);
   const doc = document.implementation.createDocument('http://www.music-encoding.org/ns/mei', 'mei', null);
@@ -116,6 +122,7 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
       sourceMeta: options?.sourceMeta, publication: options?.publication,
       level: profile.headerLevel ?? 1, now: options?.now, appVersion: options?.appVersion
     }));
+    if (conformant) appendGlobalComment(mei, doc, root);
   }
 
   // 2. Build Skeleton
@@ -260,6 +267,51 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   return header + xmlString;
 }
 
+/**
+ * Conformant structure: the general comment of a chant (RootContainer.globalComment) as an annot in fileDesc/notesStmt.
+ * Music examples inside it have no commentary mdiv to point at, so their ptr is left out; they stay in the notes file of the dataset.
+ */
+function appendGlobalComment(mei: Element, doc: Document, root: RootContainer) {
+  if (!root.globalComment) return;
+  const content = generateCommentTreeDOM(root.globalComment, doc, -1, { count: 0 }).element;
+  if (!content) return;
+  content.querySelectorAll('ptr').forEach(p => p.remove());
+  if (!content.textContent?.trim()) return;
+  const fileDesc = mei.getElementsByTagNameNS(MEI_NS, 'fileDesc')[0];
+  if (!fileDesc) return;
+  let notesStmt = Array.from(fileDesc.children).find(c => c.localName === 'notesStmt');
+  if (!notesStmt) {
+    notesStmt = doc.createElementNS(MEI_NS, 'notesStmt');
+    fileDesc.insertBefore(notesStmt, Array.from(fileDesc.children).find(c => c.localName === 'sourceDesc') ?? null);
+  }
+  const annot = doc.createElementNS(MEI_NS, 'annot');
+  annot.setAttribute('type', 'global-comment');
+  annot.appendChild(content);
+  notesStmt.appendChild(annot);
+}
+
+/** Conformant structure: an xml:id that is unique in the document, for markers whose uuid Monodi data can repeat (FolioChange, LineChange). */
+function uniqueMarkerId(uuid: string): string {
+  let id = idPrefix + uuid;
+  for (let k = 2; pageBreakIds.has(id); k++) id = `${idPrefix}${uuid}-${k}`;
+  pageBreakIds.add(id);
+  return id;
+}
+
+/**
+ * Conformant structure: word position from the text. A trailing hyphen means the word continues in the next syllable. The Monodi flag
+ * `endsWord` is not used: it disagrees with the hyphens in about half of the syllables of the edition (config/mei-body-mapping.yml in CM-hub).
+ * Commentary copies are excerpts and get no word position; a text without letters (an ellipsis) or with spaces is not one syllable of a word.
+ */
+function applyWordPosition(syl: Element, text: string) {
+  const t = text.trim();
+  if (idPrefix !== 'm-' || !/\p{L}/u.test(t) || /\s/.test(t)) return;
+  const continues = t.endsWith('-');
+  syl.setAttribute('wordpos', wordOpen ? (continues ? 'm' : 't') : (continues ? 'i' : 's'));
+  if (continues) syl.setAttribute('con', 'd');
+  wordOpen = continues;
+}
+
 /** Sets pattern-rule attributes; empty values are skipped, pitch is never overridden. */
 function applyRuleAttributes(element: Element, attrs?: Record<string, string>) {
   if (!attrs) return;
@@ -330,6 +382,17 @@ function walkFormteil(formteil: FormteilContainer, parentElement: Element, doc: 
   // Verbatim Signatur annotations, Verweis, etc.
   if (formteil.data) {
     for (const d of formteil.data) {
+      if (conformant && d.data && d.name !== 'Verweis') {
+        // Signatur (label of the part) and Status (its function, for example Tropenelement) describe the section itself.
+        if (d.name === 'Signatur') section.setAttribute('label', d.data);
+        else if (d.name === 'Status') section.setAttribute('type', d.data.trim().replace(/\s+/g, '_'));
+        else {
+          const other = doc.createElementNS(MEI_NS, 'annot');
+          other.setAttribute('type', d.name.trim().replace(/\s+/g, '_'));
+          other.textContent = d.data;
+          section.appendChild(other);
+        }
+      }
       if (d.name === 'Verweis' && d.data) {
         const annot = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'annot');
         annot.setAttribute('type', 'verweis');
@@ -352,6 +415,8 @@ function walkFormteil(formteil: FormteilContainer, parentElement: Element, doc: 
         walkFormteil(child, section, doc, profile);
       } else if (child.kind === ContainerKind.ZeileContainer) {
         walkZeile(child, section, doc, profile);
+      } else if (conformant && child.kind === ContainerKind.ParatextContainer) {
+        walkLinePart(child, section, doc, profile);
       }
     }
   }
@@ -444,6 +509,8 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     syllable.setAttribute('xml:id', idPrefix + part.uuid);
     applyAttributes(syllable, rule, { uuid: part.uuid });
     applyAnnotationAttrs(syllable, mergedAttrs(annotations.syllable.get(part.uuid), part.meiAttrs));
+    // Conformant: a syllable that is not a normal one (no notes, ellipsis of the source or the edition) says so.
+    if (conformant && part.syllableType && part.syllableType !== SyllableType.Normal) syllable.setAttribute('type', part.syllableType);
 
     // syllableText inner tag
     const textRule = profile.entities.syllableText;
@@ -451,6 +518,7 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
       const syl = doc.createElementNS('http://www.music-encoding.org/ns/mei', textRule.tag);
       syl.textContent = part.text;
       applyAttributes(syl, textRule, { text: part.text, uuid: part.uuid });
+      if (conformant) applyWordPosition(syl, part.text);
       syllable.appendChild(syl);
     }
 
@@ -462,14 +530,26 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
   } else if (conformant && part.kind === LinePartKind.FolioChange) {
     // A change of manuscript page inside a chant: a page break; the folio text of Monodi (FolioChange.text) is its @label.
     const pb = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'pb');
-    let pbId = idPrefix + part.uuid;
-    for (let k = 2; pageBreakIds.has(pbId); k++) pbId = `${idPrefix}${part.uuid}-${k}`;
-    pageBreakIds.add(pbId);
-    pb.setAttribute('xml:id', pbId);
+    pb.setAttribute('xml:id', uniqueMarkerId(part.uuid));
     // @n takes one token only (a folio like "f. 116" has a space), so the full text always goes to @label.
     if (part.text) pb.setAttribute('label', part.text);
     if (part.text && /^\S+$/.test(part.text)) pb.setAttribute('n', part.text);
     parentElement.appendChild(pb);
+
+  } else if (conformant && part.kind === LinePartKind.LineChange) {
+    // The end of a line of the manuscript. An sb with this type in the layer; the sb without a type in the section is the line of the edition (ZeileContainer).
+    const sb = doc.createElementNS(MEI_NS, 'sb');
+    sb.setAttribute('xml:id', uniqueMarkerId(part.uuid));
+    sb.setAttribute('type', 'source-line');
+    parentElement.appendChild(sb);
+
+  } else if (conformant && part.kind === ContainerKind.ParatextContainer) {
+    // Rubrics and other text around the chant. dir is not allowed in section or layer (MEI 5.0, also the neumes customization); annot is.
+    const annot = doc.createElementNS(MEI_NS, 'annot');
+    annot.setAttribute('xml:id', idPrefix + part.uuid);
+    annot.setAttribute('type', part.paratextType ? `paratext ${part.paratextType}` : 'paratext');
+    annot.textContent = part.text || '';
+    parentElement.appendChild(annot);
 
   } else if (part.kind === ContainerKind.ParatextContainer || (part.text !== undefined && part.paratextType !== undefined)) {
     // ParatextContainer
@@ -649,5 +729,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       // A unit that held only accidentals is not a neume.
       if (neumeEl && neumeEl.childNodes.length === 0 && neumeEl.parentNode) neumeEl.parentNode.removeChild(neumeEl);
     }
+    // Conformant: a group without any note is left out, an empty neume says nothing.
+    if (conformant && neumeEl && neumeEl.childNodes.length === 0 && neumeEl.parentNode) neumeEl.parentNode.removeChild(neumeEl);
   }
 }

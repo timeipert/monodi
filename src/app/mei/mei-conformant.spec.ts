@@ -2,7 +2,7 @@ import { emitMei } from './mei-emitter';
 import { defaultMeiProfile } from './mei-mapping.model';
 import {
   emptyRootContainer, emptyFormteilContainer, emptyZeileContainer, emptySyllable,
-  DocumentType, BaseNote, NoteType
+  DocumentType, BaseNote, NoteType, SyllableType, ContainerKind, LinePartKind, ParatextType
 } from '../types/model';
 
 /** Structure of the MEI body: the default is kept, the schema-conformant structure is opt-in (profile.schemaConformant). */
@@ -138,5 +138,75 @@ describe('MEI body structure', () => {
     expect(text(true)).toContain('href="https://music-encoding.org/schema/5.0/mei-Neumes.rng"');
     expect(text(true)).not.toContain('schema/dev/');
     expect(text(false)).toContain('href="https://music-encoding.org/schema/dev/mei-Neumes.rng"');
+  });
+  describe('parts of the Monodi data that the default structure leaves out', () => {
+    function chant(conformant: boolean): Document {
+      const root = emptyRootContainer();
+      const formteil = emptyFormteilContainer(DocumentType.Level1, []);
+      formteil.data = [{ name: 'Signatur', data: 'A b' }, { name: 'Status', data: 'Tropenelement' }, { name: 'Verweis', data: 'CAO 1' }] as any;
+      const zeile = emptyZeileContainer(1);
+      const syllables = ['Glo-', 'ri-', 'a', 'in', '…'].map((text, i) => {
+        const syl = emptySyllable(i);
+        syl.text = text;
+        syl.notes = { spaced: i === 3 ? [{ nonSpaced: [{ grouped: [] }] }] : [{ nonSpaced: [{ grouped: [note('n' + i)] }] }] } as any;
+        return syl;
+      });
+      syllables[3].syllableType = SyllableType.WithoutNotes;
+      zeile.children = [syllables[0], syllables[1], { kind: LinePartKind.LineChange, uuid: 'lc', focus: false } as any,
+        syllables[2], syllables[3], syllables[4]];
+      formteil.children = [{ kind: ContainerKind.ParatextContainer, uuid: 'px', text: 'INTROITUS', paratextType: ParatextType.Gesang, focus: false } as any, zeile];
+      root.children = [formteil];
+      root.globalComment = { kind: 'CommentTreeLeaf', id: 'g', content: { kind: 'Text', content: 'General remark' } } as any;
+      const profile = defaultMeiProfile();
+      profile.schemaConformant = conformant;
+      profile.emitHeader = true;
+      return new DOMParser().parseFromString(emitMei(root, profile), 'application/xml');
+    }
+
+    it('writes the paratext as an annot with its type at its place in the section', () => {
+      const a = chant(true).querySelector('section > section > annot[type^="paratext"]')!;
+      expect(a.getAttribute('type')).toBe('paratext Gesang');
+      expect(a.textContent).toBe('INTROITUS');
+      expect(a.nextElementSibling?.localName).toBe('sb');
+    });
+
+    it('writes a line change as an sb of type source-line in the layer, and keeps the sb of the edition line', () => {
+      const d = chant(true);
+      expect(d.querySelectorAll('section > sb:not([type])').length).toBe(1);
+      expect(d.querySelector('layer > sb[type="source-line"]')?.previousElementSibling?.querySelector('syl')?.textContent).toBe('ri-');
+    });
+
+    it('derives the word position from the hyphen; an ellipsis gets none', () => {
+      const syl = Array.from(chant(true).querySelectorAll('syl'));
+      expect(syl.map(s => s.getAttribute('wordpos'))).toEqual(['i', 'm', 't', 's', null]);
+      expect(syl.map(s => s.getAttribute('con'))).toEqual(['d', 'd', null, null, null]);
+    });
+
+    it('marks the type of a syllable that is not normal and leaves out a group without notes', () => {
+      const d = chant(true);
+      const s = d.querySelector('syllable[type="WithoutNotes"]')!;
+      expect(s.querySelector('syl')?.textContent).toBe('in');
+      expect(s.querySelector('neume')).toBeNull();
+    });
+
+    it('writes Signatur as section/@label and Status as section/@type', () => {
+      const s = chant(true).querySelector('section > section')!;
+      expect(s.getAttribute('label')).toBe('A b');
+      expect(s.getAttribute('type')).toBe('Tropenelement');
+    });
+
+    it('writes the general comment as an annot in fileDesc/notesStmt', () => {
+      expect(chant(true).querySelector('fileDesc > notesStmt > annot[type="global-comment"]')?.textContent).toBe('General remark');
+    });
+
+    it('changes nothing in the default structure', () => {
+      const d = chant(false);
+      expect(d.querySelector('annot[type^="paratext"]')).toBeNull();
+      expect(d.querySelector('sb[type]')).toBeNull();
+      expect(d.querySelector('syl[wordpos]')).toBeNull();
+      expect(d.querySelector('syllable[type]')).toBeNull();
+      expect(d.querySelector('section[label]')).toBeNull();
+      expect(d.querySelector('annot[type="global-comment"]')).toBeNull();
+    });
   });
 });

@@ -28,8 +28,8 @@ export const METADATA_MAPPING: MetadataMapping = {
     "seriesTitle": "Corpus Monodicum",
     "documentBaseUri": "https://corpus-monodicum.de/d/",
     "language": "en",
-    "licenseUri": "",
-    "licenseLabel": ""
+    "licenseUri": "https://creativecommons.org/licenses/by-nc/4.0/",
+    "licenseLabel": "CC BY-NC 4.0"
   },
   "entries": [
     {
@@ -894,7 +894,8 @@ export const METADATA_MAPPING: MetadataMapping = {
       "sort": "Hartmann-Strauß, Jasmin",
       "roles": [
         "edition",
-        "manuscript-descriptions"
+        "manuscript-descriptions",
+        "assistance"
       ],
       "orcid": "",
       "gnd": ""
