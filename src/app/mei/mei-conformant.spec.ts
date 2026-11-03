@@ -41,18 +41,25 @@ describe('MEI body structure', () => {
     expect(d.querySelector('nc > oriscus')).toBeNull();
   });
 
-  it('conformant: each line is a staff of its own, announced by an sb in the section', () => {
+  it('conformant: each line is a staff of its own, announced by an sb; a line after the first has a section of its own, because Verovio lays all staves of one section on top of each other', () => {
     const d = build(true, [note('n1')]);
     const section = d.querySelector('section > section')!;
-    expect(names(section)).toEqual(['sb', 'staff', 'sb', 'staff']);
+    expect(names(section)).toEqual(['sb', 'staff', 'section']);
+    expect(names(section.querySelector(':scope > section'))).toEqual(['sb', 'staff']);
+    expect(Array.from(d.querySelectorAll('section')).every(s => Array.from(s.children).filter(c => c.localName === 'staff').length <= 1)).toBeTrue();
     expect(d.querySelector('layer > sb')).toBeNull();
     expect(d.querySelectorAll('staff > layer[n="1"] > syllable').length).toBe(2);
+  });
+
+  it('conformant: the staffDef declares neume notation, without which Verovio and MEI-Friend read the chant as common music notation', () => {
+    expect(build(true, [note('n1')]).querySelector('scoreDef > staffGrp > staffDef')?.getAttribute('notationtype')).toBe('neume');
   });
 
   it('conformant: the scoreDef declares staff 1, which a Schematron rule of the schema requires for every staff; by default it stays empty', () => {
     const def = build(true, [note('n1')]).querySelector('scoreDef > staffGrp > staffDef');
     expect(def?.getAttribute('n')).toBe('1');
     expect(def?.getAttribute('lines')).toBe('5');
+    expect(def?.getAttribute('notationtype')).toBe('neume');
     expect(build(false, [note('n1')]).querySelector('staffDef')).toBeNull();
   });
 
@@ -190,11 +197,15 @@ describe('MEI body structure', () => {
       return new DOMParser().parseFromString(emitMei(root, profile), 'application/xml');
     }
 
-    it('writes the paratext as an annot with its type at its place in the section', () => {
-      const a = chant(true).querySelector('section > section > annot[type="paratext"]')!;
+    it('writes the paratext as an annot with its type at the start of the layer of the line that follows it (an annot directly in a section crashes Verovio)', () => {
+      const d = chant(true);
+      const a = d.querySelector('layer > annot[type="paratext"]')!;
       expect(a.getAttribute('label')).toBe('Gesang');
       expect(a.textContent).toBe('INTROITUS');
-      expect(a.nextElementSibling?.localName).toBe('sb');
+      // the annotations keep their order: the reference of the form part comes first, then the paratext, then the syllables
+      expect(names(a.parentElement)).toEqual(['annot', 'annot', 'syllable', 'syllable', 'sb', 'syllable', 'syllable', 'syllable']);
+      expect(a.previousElementSibling?.getAttribute('type')).toBe('verweis');
+      expect(d.querySelector('section > annot')).toBeNull();
     });
 
     it('writes a line change as an sb of type manuscriptLine in the layer, and keeps the sb of the edition line', () => {
@@ -290,12 +301,13 @@ describe('MEI body structure: syllable types, paratext, line breaks, clefs, voic
     expect(emit([s]).querySelector('neume')).toBeNull();
   });
 
-  it('writes the paratext as an annot of the section, in the order of the form part, with its kind as @label', () => {
+  it('writes the paratext as an annot at the start of the layer of the following line, with its kind as @label', () => {
     const paratext = { kind: ContainerKind.ParatextContainer, uuid: 'p1', text: 'Ad missam', retro: false, paratextType: 'Feier' };
     const d = emit([syl('a', 'x', SyllableType.Normal, BaseNote.G)], () => {}, {}, [paratext as any]);
     const section = d.querySelector('section > section')!;
-    expect(names(section)).toEqual(['annot', 'sb', 'staff']);
-    const annot = section.children[0];
+    expect(names(section)).toEqual(['sb', 'staff']);
+    const annot = section.querySelector('staff > layer')!.children[0];
+    expect(annot.localName).toBe('annot');
     expect(annot.getAttribute('type')).toBe('paratext');
     expect(annot.getAttribute('label')).toBe('Feier');
     expect(annot.textContent).toBe('Ad missam');
@@ -313,7 +325,10 @@ describe('MEI body structure: syllable types, paratext, line breaks, clefs, voic
     const section = d.querySelector('section > section')!;
     expect(section.getAttribute('label')).toBe('A b');
     expect(section.getAttribute('type')).toBe('Draft');
-    expect(section.querySelector('annot[type="initium"]')!.textContent).toBe('Kyrie eleison');
+    const initium = section.querySelector('annot[type="initium"]')!;
+    expect(initium.textContent).toBe('Kyrie eleison');
+    expect(initium.parentElement!.localName).toBe('layer');          // a form part without lines gets a staff for it: no annot stays directly in a section
+    expect(d.querySelector('section > annot')).toBeNull();
   });
 
   it('writes a change of the manuscript line as an sb in the layer, unless the option is off', () => {

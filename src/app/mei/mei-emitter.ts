@@ -278,6 +278,8 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
     }
   }
 
+  if (conformant) makeVerovioSafe(mei, doc);
+
   const serializer = new XMLSerializer();
   let xmlString = serializer.serializeToString(mei);
   
@@ -341,6 +343,9 @@ function makeScoreDef(doc: Document, profile: MeiMappingProfileV2): Element {
     const staffGrp = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staffGrp');
     const staffDef = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staffDef');
     staffDef.setAttribute('n', '1');
+    // Without @notationtype="neume" Verovio (and MEI-Friend, which is built on it) reads the neumes as common music notation: it warns
+    // "Parent note for <syl> was not found" for every syllable and draws the staff wrongly (checked 2026-11-03 with Verovio 6.4).
+    staffDef.setAttribute('notationtype', 'neume');
     staffDef.setAttribute('lines', String(staff.lines));
     if (staff.clefShape) staffDef.setAttribute('clef.shape', staff.clefShape);
     if (staff.clefShape && staff.clefLine) staffDef.setAttribute('clef.line', String(staff.clefLine));
@@ -348,6 +353,61 @@ function makeScoreDef(doc: Document, profile: MeiMappingProfileV2): Element {
     scoreDef.appendChild(staffGrp);
   }
   return scoreDef;
+}
+
+/**
+ * Two rules of the viewers that are built on Verovio (MEI-Friend, Verovio's own tools). Found on 2026-11-03 by loading the exported
+ * chants of the edition into Verovio 6.4; both structures are valid MEI (checked against the MEI 5.0 neumes schema), the viewers
+ * cannot show them:
+ *
+ * 1. Verovio lays out all `staff` children of ONE section as one system, on top of each other. A form part with several lines then
+ *    shows its lines over each other (the texts overlap). A line after the first gets a section of its own, together with its `sb`.
+ * 2. An `annot` that is a direct child of a section (paratext, Verweis, initium) crashes Verovio 6.4. It moves to the start of the layer of
+ *    the next line of the same `mdiv`, or to the end of the layer of the previous line; a chant without any line gets a staff for it.
+ *    The comments of the header (`notesStmt`) are not touched.
+ */
+function makeVerovioSafe(mei: Element, doc: Document): void {
+  const NS = 'http://www.music-encoding.org/ns/mei';
+  for (const section of Array.from(mei.getElementsByTagNameNS(NS, 'section'))) {
+    let seenStaff = false;
+    for (const child of Array.from(section.children)) {
+      if (child.localName !== 'staff') continue;
+      if (seenStaff) {
+        const before = child.previousElementSibling;
+        const anchor = before && before.localName === 'sb' ? before : child;
+        const holder = doc.createElementNS(NS, 'section');
+        const sbId = anchor !== child ? anchor.getAttribute('xml:id') : null;
+        if (sbId) holder.setAttribute('xml:id', sbId + '-line');
+        section.insertBefore(holder, anchor);
+        holder.appendChild(anchor);
+        if (anchor !== child) holder.appendChild(child);
+      }
+      seenStaff = true;
+    }
+  }
+
+  const annots = Array.from(mei.getElementsByTagNameNS(NS, 'annot')).filter(a => a.parentElement?.localName === 'section');
+  const layersOf = (el: Element): Element[] => Array.from((el.closest('mdiv') ?? mei).getElementsByTagNameNS(NS, 'layer'));
+  for (const annot of annots.reverse()) {                       // reversed: inserting at the start keeps the order of annotations
+    const layers = layersOf(annot);
+    const next = layers.find(l => !!(annot.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING));
+    if (next) {
+      next.insertBefore(annot, next.firstChild);
+      continue;
+    }
+    const previous = [...layers].reverse().find(l => !!(annot.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_PRECEDING));
+    if (previous) {
+      previous.appendChild(annot);
+      continue;
+    }
+    const staff = doc.createElementNS(NS, 'staff');
+    staff.setAttribute('n', '1');
+    const layer = doc.createElementNS(NS, 'layer');
+    layer.setAttribute('n', '1');
+    staff.appendChild(layer);
+    annot.parentElement!.appendChild(staff);
+    layer.appendChild(annot);
+  }
 }
 
 /** Sets pattern-rule attributes; empty values are skipped, pitch is never overridden. */
