@@ -39,6 +39,8 @@ export interface MeiAttrDef extends MeiAttrAlternative {
   /** Name of the MEI data type in the schema, for display (for example `data.DURATION`). */
   typeName?: string;
   doc?: string;
+  /** Attribute class of the schema that defines it (for example `ncForm`, `nc.log`, `common`); missing for attributes defined on the element itself. */
+  group?: string;
 }
 
 export interface MeiElementDef {
@@ -102,8 +104,9 @@ export function attributesOf(catalog: MeiSchemaCatalog, element: string): MeiAtt
   const cached = perElement.get(element);
   if (cached) return cached;
   const def = catalog.elements[element];
+  const seen = new Set<string>();
   const list = def
-    ? def.attrs.map(k => catalog.attrDefs[k]).filter((a): a is MeiAttrDef => !!a).sort((a, b) => a.name.localeCompare(b.name))
+    ? def.attrs.map(k => catalog.attrDefs[k]).filter((a): a is MeiAttrDef => !!a && !seen.has(a.name) && !!seen.add(a.name)).sort((a, b) => a.name.localeCompare(b.name))
     : [];
   perElement.set(element, list);
   return list;

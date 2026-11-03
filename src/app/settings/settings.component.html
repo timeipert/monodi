@@ -1189,9 +1189,9 @@
                     <div class="settings-pane-sub">Control the structure and tag names of exported MEI XML with mapping profiles.</div>
                   </div>
                 </div>
-                <app-mei-mapping-editor [settings]="settings" (settingsChange)="onSettingsChange()"></app-mei-mapping-editor>
+                <app-mei-mapping-editor [settings]="settings" (settingsChange)="onSettingsChange()">
                 @if (settings) {
-                  <div class="settings-panel p-4 mt-4" id="publicationSettings">
+                  <div meiPublication class="mt-4 pt-4 border-top" id="publicationSettings">
                     <h5 class="mb-1">Publication data</h5>
                     <p class="text-muted small mb-3">Used by the MEI header levels 2 (Standard) and 3 (Extended). Level 1 ignores everything here, and an empty field produces no element. Never enter e-mail addresses. Explanation: <code>CM-hub/docs/METADATA-STANDARDS.md</code>.</p>
                     <div class="row g-3">
@@ -1244,6 +1244,7 @@
                     </div>
                   </div>
                 }
+                </app-mei-mapping-editor>
               </div>
             }
             <!-- 7. HTML Export Settings Tab -->

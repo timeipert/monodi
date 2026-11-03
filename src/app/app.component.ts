@@ -1,4 +1,4 @@
-import { Component, HostListener } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { APIService } from './api.service';
 import { StackEntry, ToolsService, Tool} from './tools.service';
@@ -32,7 +32,7 @@ interface ConflictGroup {
     styleUrls: ['./app.component.css'],
     standalone: false
 })
-export class AppComponent {
+export class AppComponent implements AfterViewInit {
   title = 'app';
 
   user: User | null = null;
@@ -83,6 +83,14 @@ export class AppComponent {
   /** Mobile/tablet navbar collapse state (driven by ng-bootstrap's ngbCollapse). */
   isNavCollapsed = true;
 
+  /** The sticky header. Its height is published as --app-chrome-height, so editor panels can stick below it even when the backup reminder makes it taller. */
+  @ViewChild('chrome', { static: true }) chromeRef?: ElementRef<HTMLElement>;
+
+  /** True in the note editor, where one bar replaces the navbar and the tool bar. Waits for the editor's tools, so a document that fails to load keeps the navbar. */
+  get editorBar(): boolean {
+    return !!this.tools?.breadcrumb && this.router.url.includes('/document/');
+  }
+
   constructor (
     // Injecting it also configures localforage (database and store name) before anything else reads from
     // storage. Do not remove. Whatever this component writes to storage itself must be followed by
@@ -101,6 +109,12 @@ export class AppComponent {
     window.addEventListener('online', () => this.isOnline = true);
     window.addEventListener('offline', () => this.isOnline = false);
     this.backupReminder.visible$.subscribe(v => this.showBackupReminder = v);
+  }
+
+  ngAfterViewInit(): void {
+    const chrome = this.chromeRef?.nativeElement;
+    if (!chrome || typeof ResizeObserver === 'undefined') return;
+    new ResizeObserver(() => document.documentElement.style.setProperty('--app-chrome-height', chrome.offsetHeight + 'px')).observe(chrome);
   }
 
   /** Backup reminder banner actions. */

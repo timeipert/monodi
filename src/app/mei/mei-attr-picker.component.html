@@ -1,10 +1,25 @@
 <div class="mei-picker">
+  @if (element) {
+    <div class="mei-picker-about">
+      <button type="button" class="btn btn-link btn-sm p-0" (click)="aboutOpen = !aboutOpen">
+        <i class="bi" [class.bi-chevron-right]="!aboutOpen" [class.bi-chevron-down]="aboutOpen"></i> About &lt;{{ element }}&gt;
+      </button>
+      @if (aboutOpen) {
+        <div class="mei-picker-about-body">
+          @if (elementDoc) { <p class="mb-1">{{ elementDoc }}</p> }
+          <div class="small text-muted">{{ attributes.length }} attributes. @if (children.length) { May contain: }
+            @for (c of children; track c) { <code class="me-1">{{ c }}</code> }
+          </div>
+        </div>
+      }
+    </div>
+  }
   <div class="input-group input-group-sm">
     <span class="input-group-text"><i class="bi bi-search"></i></span>
     <input type="text" class="form-control" [placeholder]="placeholder" [(ngModel)]="query" (focus)="open = true" (input)="open = true"
       (keydown.enter)="enter()" (keydown.escape)="open = false; browse = false" autocomplete="off" spellcheck="false">
-    <button type="button" class="btn btn-outline-secondary" [class.active]="browse" (click)="toggleBrowse()" title="Browse all attributes">
-      <i class="bi bi-list-ul me-1"></i>Browse
+    <button type="button" class="btn btn-outline-secondary" [class.active]="browse" (click)="toggleBrowse()" title="Browse all attributes by group">
+      <i class="bi bi-diagram-3 me-1"></i>Browse
     </button>
   </div>
   @if (open || browse) {
@@ -14,26 +29,72 @@
           <button type="button" class="btn btn-sm" [class.btn-primary]="kind === k.id" [class.btn-outline-secondary]="kind !== k.id" (click)="kind = k.id">{{ k.label }}</button>
         }
         <span class="ms-auto text-muted small">{{ results.length }} attribute{{ results.length === 1 ? '' : 's' }}</span>
+        @if (browse && !searching) {
+          <button type="button" class="btn btn-link btn-sm p-0" (click)="setAllSections(true)">Collapse</button>
+          <button type="button" class="btn btn-link btn-sm p-0" (click)="setAllSections(false)">Expand</button>
+        }
       </div>
-      <div class="mei-picker-list">
-        @for (a of shown; track a.name) {
-          <button type="button" class="mei-picker-item" (click)="pick(a.name)" [title]="a.doc ?? ''">
+
+      <ng-template #row let-a="a" let-showGroup="showGroup">
+        <div class="mei-picker-item" [class.open]="detail === a.name">
+          <button type="button" class="mei-picker-main" (click)="toggleDetail(a.name)" [attr.aria-expanded]="detail === a.name">
             <span class="mei-picker-name">&#64;{{ a.name }}@if (favorites.includes(a.name)) { <i class="bi bi-star-fill ms-1 small"></i> }</span>
             <span class="mei-picker-badge">{{ badge(a) }}</span>
             @if (hint(a)) { <span class="mei-picker-values">{{ hint(a) }}</span> }
-            @if (a.doc) { <span class="mei-picker-doc">{{ a.doc }}</span> }
+            @if (a.doc && detail !== a.name) { <span class="mei-picker-doc">{{ a.doc }}</span> }
+            @if (showGroup) { <span class="mei-picker-group">{{ groupLabel(a) }}</span> }
           </button>
+          <button type="button" class="btn btn-sm btn-outline-primary mei-picker-add" (click)="pick(a.name)" title="Add @{{ a.name }}">Add</button>
+          @if (detail === a.name) {
+            <div class="mei-picker-detail">
+              @if (a.doc) { <p>{{ a.doc }}</p> }
+              <dl>
+                <dt>Value</dt><dd>@for (c of constraints(a); track c) { <div>{{ c }}</div> }</dd>
+                @if (a.typeName) { <dt>Schema type</dt><dd><code>{{ a.typeName }}</code></dd> }
+                <dt>Belongs to</dt><dd>{{ groupLabel(a) }}@if (a.group) { <span class="text-muted"> (<code>att.{{ a.group }}</code>)</span> }</dd>
+              </dl>
+              @if (a.values?.length) {
+                <table class="mei-picker-values-table">
+                  <tbody>
+                    @for (v of a.values; track v.value) {
+                      <tr><td><code>{{ v.value }}</code></td><td>{{ v.doc }}</td></tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </div>
+          }
+        </div>
+      </ng-template>
+
+      <div class="mei-picker-list">
+        @if (browse && !searching) {
+          @for (s of sections; track s.key) {
+            <div class="mei-picker-section">
+              <button type="button" class="mei-picker-section-head" (click)="toggleSection(s.key)">
+                <i class="bi" [class.bi-chevron-right]="isCollapsed(s.key)" [class.bi-chevron-down]="!isCollapsed(s.key)"></i>
+                {{ s.label }} <span class="text-muted">{{ s.items.length }}</span>
+              </button>
+              @if (!isCollapsed(s.key)) {
+                @for (a of s.items; track a.name) { <ng-container *ngTemplateOutlet="row; context: { a: a, showGroup: false }"></ng-container> }
+              }
+            </div>
+          }
+        } @else {
+          @for (a of shown; track a.name) { <ng-container *ngTemplateOutlet="row; context: { a: a, showGroup: true }"></ng-container> }
+          @if (shown.length === 0 && !customName) { <div class="text-muted small p-2">No attribute matches.</div> }
+          @if (!searching && results.length > shown.length) {
+            <div class="text-muted small p-2">{{ results.length - shown.length }} more: type to search, or press Browse to see them by group.</div>
+          }
         }
         @if (customName) {
-          <button type="button" class="mei-picker-item" (click)="pick(customName)">
-            <span class="mei-picker-name">&#64;{{ customName }}</span>
-            <span class="mei-picker-badge">custom</span>
-            <span class="mei-picker-doc">Not necessarily in the schema; it is still exported.</span>
-          </button>
-        }
-        @if (shown.length === 0 && !customName) { <div class="text-muted small p-2">No attribute matches.</div> }
-        @if (!browse && !query.trim() && results.length > shown.length) {
-          <div class="text-muted small p-2">{{ results.length - shown.length }} more: type to search or press Browse.</div>
+          <div class="mei-picker-item">
+            <button type="button" class="mei-picker-main" (click)="pick(customName)">
+              <span class="mei-picker-name">&#64;{{ customName }}</span>
+              <span class="mei-picker-badge">custom</span>
+              <span class="mei-picker-doc">Not in the list; it is still exported.</span>
+            </button>
+          </div>
         }
       </div>
     </div>

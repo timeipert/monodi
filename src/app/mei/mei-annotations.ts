@@ -165,3 +165,13 @@ export function previewRule(root: VM.RootContainer, rule: MeiAnnotationRule, max
   }
   return { count: seen.size, samples };
 }
+
+/** Flat, sharp and natural: the export writes them as `<accid>` (profile option `accidentals`), not as a note. */
+export function isAccidentalType(noteType: string | undefined): boolean {
+  return noteType === 'Flat' || noteType === 'Sharp' || noteType === 'Natural';
+}
+
+/** Name for a note of one of these types, for menus and headings. */
+export function accidentalName(noteType: string | undefined): string {
+  return noteType === 'Flat' ? 'flat' : noteType === 'Sharp' ? 'sharp' : noteType === 'Natural' ? 'natural' : '';
+}

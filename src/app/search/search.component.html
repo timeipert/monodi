@@ -834,7 +834,7 @@
                             </div>
                             <!-- Visual Track Bar -->
                             <div class="position-relative my-2" style="height: 16px;">
-                              <div class="position-absolute w-100 rounded" style="top: 4px; height: 8px; background-color: #cbd5e1;"></div>
+                              <div class="position-absolute w-100 rounded" style="top: 4px; height: 8px; background-color: var(--color-border-hover);"></div>
                               <div class="position-absolute rounded bg-primary"
                                 [style.left.%]="melodyRangeStartPct"
                                 [style.width.%]="melodyRangeEndPct - melodyRangeStartPct"
@@ -1042,7 +1042,7 @@
                                       }
                                     </div>
                                     <!-- 190x56 Mini SVG sparkline histogram along fixed pitch/interval X-axis -->
-                                    <svg width="190" height="56" class="overflow-visible" style="background-color: #ffffff; border-radius: 3px;">
+                                    <svg width="190" height="56" class="overflow-visible" style="background-color: var(--color-surface); border-radius: 3px;">
                                       <!-- Baseline -->
                                       <line x1="0" y1="44" x2="190" y2="44" stroke="#cbd5e1" stroke-width="1" />
                                       <!-- Fixed axis bars -->
@@ -1214,7 +1214,7 @@
                                           <td class="text-center align-middle" (click)="$event.stopPropagation()">
                                             <div class="d-flex flex-column align-items-center">
                                               <div class="chant-minimap-track border rounded-1 position-relative overflow-hidden bg-light shadow-sm"
-                                                style="width: 100px; height: 14px; border-color: #cbd5e1 !important;"
+                                                style="width: 100px; height: 14px; border-color: var(--color-border-hover) !important;"
                                                 [title]="r.occurrences.length + ' match(es) in chant'">
                                                 <div class="position-absolute top-50 start-0 end-0 border-top border-secondary opacity-25" style="transform: translateY(-50%);"></div>
                                                 @for (occ of r.occurrences; track occ) {
@@ -1499,7 +1499,7 @@
                                   <!-- Witness stave rows -->
                                   @for (doc of selectedDocs; track doc; let docIdx = $index) {
                                     <div class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
-                                      <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">
+                                      <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                                         <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">{{docSigles[doc.id] || doc.dokumenten_id}}</span>
                                       </div>
                                       <div class="d-flex flex-row">
@@ -1520,7 +1520,7 @@
                                   <!-- Consensus text row -->
                                   @if (showConsensusText) {
                                     <div class="synopsis-consensus-text-row d-flex align-items-center mt-0 pt-0.5 border-top" style="background-color: white;">
-                                      <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">Consensus</div>
+                                      <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">Consensus</div>
                                       <div class="d-flex flex-row">
                                         <div class="flex-shrink-0" [style.width.px]="synLeadWidth"></div>
                                         @for (seg of synVisibleSegments; track trackBySegment($index, seg)) {
@@ -1564,7 +1564,7 @@
                                 <div style="min-width: max-content; display: flex; flex-direction: column;">
                                   @for (doc of selectedDocs; track doc; let docIdx = $index) {
                                     <div class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
-                                      <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">
+                                      <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                                         <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
                                           {{docSigles[doc.id] || doc.dokumenten_id}}
                                         </span>
@@ -1599,7 +1599,7 @@
                                   <!-- Consensus Text Row -->
                                   @if (showConsensusText) {
                                     <div class="synopsis-consensus-text-row d-flex align-items-center mt-0 pt-0.5 border-top" style="background-color: white;">
-                                      <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">
+                                      <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                                         Consensus
                                       </div>
                                       <div class="d-flex flex-row align-items-start">
@@ -1704,7 +1704,7 @@
                       <div style="min-width: max-content; display: flex; flex-direction: column;">
                         @for (doc of selectedDocs; track doc; let docIdx = $index) {
                           <div class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
-                            <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">
+                            <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                               <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
                                 {{docSigles[doc.id] || doc.dokumenten_id}}
                               </span>
@@ -1765,7 +1765,7 @@
                         <!-- Consensus Text Row for Structure/Sequential Mode -->
                         @if (showConsensusText) {
                           <div class="synopsis-consensus-text-row d-flex align-items-center mt-0 pt-0.5 border-top" style="background-color: white;">
-                            <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #dee2e6; padding-right: 4px;">
+                            <div class="me-2 text-end text-muted small fw-semibold sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                               Consensus
                             </div>
                             <div class="d-flex flex-row align-items-start">
@@ -1906,7 +1906,7 @@
                               <button class="btn-close btn-sm" (click)="showSavedSessionsPopover = false"></button>
                             </div>
                             <!-- List of Saved Sessions -->
-                            <div class="saved-sessions-list mb-3 border rounded overflow-auto" style="max-height: 150px; background-color: #fafafa;">
+                            <div class="saved-sessions-list mb-3 border rounded overflow-auto" style="max-height: 150px; background-color: var(--color-bg);">
                               @if (savedPatternSessions.length === 0) {
                                 <div class="text-center text-muted py-3 small">
                                   No saved sessions in this browser.
@@ -1973,7 +1973,7 @@
                         </div>
                       }
                       @for (g of pagedPatternGroups; track g) {
-                        <div [id]="'pattern-group-' + g.id" class="card mb-3 shadow-sm border-0" style="border-left: 4px solid #0d6efd !important;" (mouseenter)="onPatternFamilyHover(g.id)" (mouseleave)="onPatternFamilyHover(null)">
+                        <div [id]="'pattern-group-' + g.id" class="card mb-3 shadow-sm border-0" style="border-left: 4px solid var(--color-primary) !important;" (mouseenter)="onPatternFamilyHover(g.id)" (mouseleave)="onPatternFamilyHover(null)">
                           <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
                             <div>
                               <span class="badge bg-primary rounded-pill me-2">Freq: {{g.occurrences.length}}</span>
@@ -2083,7 +2083,7 @@
                         <table class="table table-sm table-borderless mb-0 timeline-table" style="min-width: 900px; table-layout: fixed;">
                           <tbody>
                             @for (docRow of patternTimelineDocs; track docRow) {
-                              <tr class="timeline-row" style="border-bottom: 1px solid #f0f0f0;">
+                              <tr class="timeline-row" style="border-bottom: 1px solid var(--color-border);">
                                 <!-- Y-axis Metadata Column (260px) -->
                                 <td class="text-truncate align-middle pe-2 py-1" style="width: 260px; max-width: 260px; font-size: 0.75rem;" [title]="docRow.sourceSigle + ' ' + docRow.doc.textinitium + ' (' + docRow.doc.gattung1 + ')'">
                                   <span class="fw-semibold text-accent">{{docRow.sourceSigle}}</span>

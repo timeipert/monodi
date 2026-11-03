@@ -28,9 +28,9 @@
   font-family: 'Georgia', serif;
   line-height: 1.4;
 }
-.snippet-text { color: #555; }
+.snippet-text { color: var(--color-text-muted); }
 .snippet-mark {
-  background: #fff3cd;
+  background: var(--color-warning-light);
   color: #7a4500;
   padding: 0 2px;
   border-radius: 2px;
@@ -49,17 +49,17 @@
 }
 
 .matching-syllable {
-  background-color: #fffbeb !important; /* amber-50 */
+  background-color: var(--color-warning-light) !important; /* amber-50 */
   border: 1.5px dashed #fbbf24 !important; /* amber-400 */
   box-shadow: 0 1px 3px rgba(245, 158, 11, 0.1);
   transition: background-color 0.2s, border-color 0.2s;
 }
 
 /* ── Quick results list ─────────────────────────────────────────────────────── */
-.list-group-item:hover { background: #f8faff; }
+.list-group-item:hover { background: var(--color-surface-muted); }
 
 /* ── Accent color ──────────────────────────────────────────────────────────── */
-.text-accent { color: #2563eb; }
+.text-accent { color: var(--color-primary); }
 
 /* ── Monospace pattern input ────────────────────────────────────────────────── */
 .font-monospace {
@@ -71,12 +71,12 @@
 .page-title {
   font-weight: 700;
   font-size: 1.5rem;
-  color: #1e293b;
+  color: var(--color-text);
 }
 
 /* ── Help box inline code ──────────────────────────────────────────────────── */
 code {
-  background: #f1f5f9;
+  background: var(--color-surface-muted);
   padding: 1px 5px;
   border-radius: 3px;
   font-size: 0.85em;
@@ -88,7 +88,7 @@ code {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #64748b;
+  color: var(--color-text-muted);
   border-bottom-width: 1px;
 }
 .table-responsive { overflow-x: auto; }
@@ -98,7 +98,7 @@ code {
 
 /* ── Modern Tabs (Pills) Layout ────────────────────────────────────────────── */
 .nav-pills-container {
-  background-color: #f1f5f9;
+  background-color: var(--color-surface-muted);
   border-radius: 12px;
   gap: 2px;
 }
@@ -106,22 +106,22 @@ code {
   font-size: 0.88rem;
   font-weight: 500;
   transition: all 0.2s ease;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 .btn-pill:hover {
-  color: #1e293b;
+  color: var(--color-text);
   background-color: rgba(0, 0, 0, 0.03);
 }
 .btn-pill.active-pill {
-  background-color: #ffffff !important;
-  color: #4f46e5 !important;
+  background-color: var(--color-surface) !important;
+  color: var(--color-primary) !important;
   font-weight: 600;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
 }
 
 /* ── Glassmorphism and modern cards ────────────────────────────────────────── */
 .card-glass {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: 16px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.02), 0 4px 6px -2px rgba(0, 0, 0, 0.01);
@@ -134,21 +134,21 @@ code {
   transition: all 0.15s ease;
 }
 .btn-tab-option.btn-primary {
-  background-color: #4f46e5;
-  border-color: #4f46e5;
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 /* ── Elevated Melody Result Cards ──────────────────────────────────────────── */
 .melody-card {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
 }
 .melody-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.03) !important;
-  border-color: #cbd5e1;
-  background: #ffffff;
+  border-color: var(--color-border-hover);
+  background: var(--color-surface);
 }
 
 /* ── Nice scrollbar for melody previews ─────────────────────────────────────── */
@@ -156,15 +156,15 @@ code {
   height: 6px;
 }
 .melody-preview-container::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--color-surface-muted);
   border-radius: 4px;
 }
 .melody-preview-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--color-border-hover);
   border-radius: 4px;
 }
 .melody-preview-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--color-text-light);
 }
 
 /* ── Synopsis Comparison View (classic edition look) ─────────────────────── */
@@ -178,8 +178,8 @@ code {
   flex-wrap: wrap;
   padding: 0.5rem 0.75rem;
   margin-bottom: 1.25rem;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
@@ -189,7 +189,7 @@ code {
   text-align: center;
   margin: 0.25rem 0 1.4rem;
   padding-bottom: 0.7rem;
-  border-bottom: 2px solid #0f172a;
+  border-bottom: 2px solid var(--color-text);
   position: relative;
 }
 .synopsis-masthead::after {
@@ -198,20 +198,20 @@ code {
   left: 0;
   right: 0;
   bottom: -4px;
-  border-bottom: 1px solid #0f172a;
+  border-bottom: 1px solid var(--color-text);
 }
 .synopsis-masthead-title {
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  color: #0f172a;
+  color: var(--color-text);
 }
 .synopsis-masthead-sub {
   font-size: 0.82rem;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin-top: 0.15rem;
 }
-.synopsis-masthead-dot { margin: 0 0.4rem; color: #94a3b8; }
+.synopsis-masthead-dot { margin: 0 0.4rem; color: var(--color-text-light); }
 
 /* Witness table — hairline rules, no card chrome */
 .synopsis-meta { margin-bottom: 1.5rem; }
@@ -220,14 +220,14 @@ code {
   letter-spacing: 0.06em;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin-bottom: 0.3rem;
 }
 .synopsis-meta-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  color: #0f172a;
+  color: var(--color-text);
 }
 .synopsis-meta-table th {
   text-align: left;
@@ -235,18 +235,18 @@ code {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #475569;
-  border-top: 1.5px solid #0f172a;
-  border-bottom: 1px solid #0f172a;
+  color: var(--color-text-muted);
+  border-top: 1.5px solid var(--color-text);
+  border-bottom: 1px solid var(--color-text);
   padding: 3px 14px 3px 0;
   white-space: nowrap;
 }
 .synopsis-meta-table td {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border);
   padding: 3.5px 14px 3.5px 0;
   vertical-align: top;
 }
-.synopsis-meta-table tr:last-child td { border-bottom: 1.5px solid #0f172a; }
+.synopsis-meta-table tr:last-child td { border-bottom: 1.5px solid var(--color-text); }
 .synopsis-meta-table .meta-siglum { font-weight: 700; white-space: nowrap; }
 .synopsis-meta-table .meta-incipit { font-style: italic; }
 
@@ -258,7 +258,7 @@ code {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.3rem;
-  color: #1e293b;
+  color: var(--color-text);
   break-after: avoid;
   page-break-after: avoid;
 }
@@ -266,19 +266,19 @@ code {
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.syn-sec-rule { flex: 1; border-bottom: 1px solid #cbd5e1; }
+.syn-sec-rule { flex: 1; border-bottom: 1px solid var(--color-border-hover); }
 .syn-sec-match {
   font-size: 10px;
   font-family: 'SFMono-Regular', Consolas, monospace;
-  color: #64748b;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 .syn-sec-1 > .syn-sec-head { font-size: 0.95rem; font-weight: 700; }
-.syn-sec-1 > .syn-sec-head .syn-sec-rule { border-bottom-color: #94a3b8; }
+.syn-sec-1 > .syn-sec-head .syn-sec-rule { border-bottom-color: var(--color-text-light); }
 .syn-sec-2 { margin-left: 0.6rem; }
 .syn-sec-2 > .syn-sec-head { font-size: 0.88rem; font-weight: 600; }
 .syn-sec-3 { margin-left: 1.2rem; }
-.syn-sec-3 > .syn-sec-head { font-size: 0.82rem; font-weight: 500; color: #475569; }
+.syn-sec-3 > .syn-sec-head { font-size: 0.82rem; font-weight: 500; color: var(--color-text-muted); }
 
 /* Melody segment label */
 .syn-chunk-label {
@@ -286,7 +286,7 @@ code {
   letter-spacing: 0.06em;
   font-size: 0.7rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: var(--color-text-light);
   margin-bottom: 0.25rem;
 }
 
@@ -317,7 +317,7 @@ code {
   font-weight: 600;
   font-size: 11.5px;
   letter-spacing: 0.02em;
-  color: #334155;
+  color: var(--color-text-muted);
   text-align: left;
   padding: 0;
   background: transparent;
@@ -365,7 +365,7 @@ code {
 }
 
 .synopsis-empty-line {
-  color: #94a3b8;
+  color: var(--color-text-light);
   font-style: italic;
 }
 
@@ -411,28 +411,28 @@ code {
   gap: 8px;
 }
 .result-filter-bar .form-control:focus {
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  border-color: var(--color-primary-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 @keyframes pulseHighlight {
   0% {
-    box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.4);
-    background-color: rgba(13, 110, 253, 0.05);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 40%, transparent);
+    background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 10px rgba(13, 110, 253, 0);
-    background-color: rgba(13, 110, 253, 0.02);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-primary) 0%, transparent);
+    background-color: color-mix(in srgb, var(--color-primary) 2%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 0%, transparent);
     background-color: transparent;
   }
 }
 
 .highlight-pulse {
   animation: pulseHighlight 2s ease-in-out;
-  border: 1px solid #0d6efd !important;
+  border: 1px solid var(--color-primary) !important;
 }
 
 /* ── Sessions popover ─────────────────────────────────────────────────────── */
@@ -450,10 +450,10 @@ code {
   transition: background-color 0.15s ease;
 }
 .timeline-row:hover {
-  background-color: #f8fafc !important;
+  background-color: var(--color-bg) !important;
 }
 .saved-sessions-list .hover-bg-light:hover {
-  background-color: #f1f5f9;
+  background-color: var(--color-surface-muted);
 }
 .btn-xs {
   padding: 0.2rem 0.4rem;
@@ -469,14 +469,14 @@ code {
   height: 8px;
 }
 .synopsis-scroll-wrapper::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--color-surface-muted);
   border-radius: 4px;
 }
 .synopsis-scroll-wrapper::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--color-border-hover);
   border-radius: 4px;
 }
 .synopsis-scroll-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--color-text-light);
 }
 

@@ -14,7 +14,8 @@ export class ToolsService {
   public subscribe(f: (tools: StackEntry, hasParent: boolean) => void) {
     return this.stackChange.pipe(debounceTime(100)).subscribe(se => {
       if (se.length > 0) {
-        f(se[0], se.length > 1)
+        // A tool set pushed on top (the tools of a selected note, say) stays in the same editor bar.
+        f({...se[0], breadcrumb: se.find(e => e.breadcrumb)?.breadcrumb}, se.length > 1)
       } else {
         f({source: 'a', tools: []}, false);
       }
@@ -66,4 +67,6 @@ export interface Tool {
 export interface StackEntry {
   source: any;
   tools: Tool[];
+  /** Places shown in the single editor bar, which replaces the navbar while this entry is on top. Read on every render, so an edited title shows at once. */
+  breadcrumb?: () => { source: string; document: string; openSource: () => void };
 }

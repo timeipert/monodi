@@ -3,6 +3,10 @@ import { Subject } from 'rxjs';
 
 export interface ContextMenuItem {
   label: string;
+  /** Shortcut or note shown at the right edge, for example `Ctrl+K`. */
+  hint?: string;
+  /** Draws a separator line above the item, to group related items. */
+  separatorBefore?: boolean;
   icon?: string;
   /** When true, render as a non-clickable section header (groups items without
    *  needing nested submenus). `action` is ignored. */

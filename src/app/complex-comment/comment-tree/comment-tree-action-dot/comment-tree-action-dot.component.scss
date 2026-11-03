@@ -34,7 +34,7 @@ svg {
   top: 100%;
   left: 0;
   background-color: white;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border-hover);
   border-radius: 0.25rem;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
   flex-direction: column;
@@ -50,19 +50,19 @@ svg {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #333;
+  color: var(--color-text);
 
   &:hover {
-    background-color: #f8f9fa;
+    background-color: var(--color-bg);
   }
   
   &.active {
     font-weight: bold;
-    background-color: #e9ecef;
+    background-color: var(--color-border);
   }
 
   &.text-danger {
-    color: #dc3545;
+    color: var(--color-danger);
   }
 }
 

@@ -1,4 +1,4 @@
-import { RootContainer, ZeileContainer } from '../types/model';
+import { ContainerKind, RootContainer, ZeileContainer } from '../types/model';
 
 /** Renders the content tree of a critical comment (grid, text, bracket, notes) as MEI elements. Shared by the header and the body of the MEI export. */
 export function generateCommentTreeDOM(
@@ -73,12 +73,12 @@ export function appendCommentAnnots(doc: Document, notesStmt: Element, root: Roo
             if (comment.category) {
                 typeParts.push('cat:' + comment.category);
             }
+            // The schema has no @cert on annot, so the certainty is a token of @type, like the category.
+            if (comment.certainty) {
+                typeParts.push('cert:' + comment.certainty);
+            }
             if (typeParts.length > 0) {
                 annot.setAttribute('type', typeParts.join(' '));
-            }
-
-            if (comment.certainty) {
-                annot.setAttribute('cert', comment.certainty);
             }
 
             let treeResult = { element: null as Element | null, zeilen: [] as { id: string, zeile: ZeileContainer }[] };
@@ -97,10 +97,13 @@ export function appendCommentAnnots(doc: Document, notesStmt: Element, root: Roo
 
             const hasWitnessLabels = comment.readingWitnesses && comment.readingWitnesses.some(w => !!w);
             if (!comment.tree && comment.lines && comment.lines.length > 0 && hasWitnessLabels) {
+                // The body writes one staff per line of music (a ZeileContainer), numbered in that order; a line of text has none.
+                let reading = 0;
                 for (let j = 0; j < comment.lines.length; j++) {
+                    if (comment.lines[j].kind !== ContainerKind.ZeileContainer) continue;
                     const sig = comment.readingWitnesses?.[j];
                     const ptr = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'ptr');
-                    ptr.setAttribute('target', `#m-comment-${i}-reading-${j}`);
+                    ptr.setAttribute('target', `#m-comment-${i}-reading-${reading++}`);
                     
                     if (sig) {
                         const slug = sig.toLowerCase().replace(/[^a-z0-9]+/g, '-');

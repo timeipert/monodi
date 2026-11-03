@@ -234,6 +234,11 @@ export abstract class Section<T extends Model.Container> implements OnInit {
   }
 
   /** True when this section's line is set to adiastematic (contour-only) notation. */
+  /** Whether this section shows the first step of a document without content. Only the root section can. */
+  isEmptyDocument(): boolean {
+    return false;
+  }
+
   isAdiastematic(): boolean {
     return (this.data as any)?.notation === 'adiastematic';
   }

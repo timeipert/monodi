@@ -211,8 +211,8 @@ describe('MeiEmitter', () => {
     // Test annot
     const annot = doc.querySelector('notesStmt > annot');
     expect(annot).not.toBeNull();
-    expect(annot!.getAttribute('type')).toBe('emendation correction cat:variant');
-    expect(annot!.getAttribute('cert')).toBe('high');
+    expect(annot!.getAttribute('type')).toBe('emendation correction cat:variant cert:high');
+    expect(annot!.hasAttribute('cert')).toBe(false);
 
     // Test nested annot readings
     const nestedAnnots = annot!.querySelectorAll('annot');

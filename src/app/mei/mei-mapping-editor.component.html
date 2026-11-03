@@ -1,91 +1,82 @@
 <div class="card shadow-sm border-light mb-4 mei-editor">
-  <!-- ===== Header: what this is + profile ===== -->
+  <!-- ===== Header: profile and result ===== -->
   <div class="card-header bg-light">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-      <div>
-        <h6 class="mb-1 fw-semibold"><i class="bi bi-music-note-beamed me-2 text-secondary"></i>MEI export</h6>
-        <p class="text-muted small mb-0 mei-intro">
-          Decide how your transcription is written as MEI. A <strong>profile</strong> holds all these choices.
-        </p>
-      </div>
-      <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-sm" [ngClass]="showPreview ? 'btn-secondary' : 'btn-outline-secondary'" (click)="togglePreview()">
-          <i class="bi bi-code-square me-1"></i>{{ showPreview ? 'Hide result' : 'Show result' }}
+    <div class="d-flex align-items-center flex-wrap gap-2">
+      <h6 class="mb-0 fw-semibold me-auto"><i class="bi bi-music-note-beamed me-2 text-secondary"></i>MEI export profile</h6>
+      <select id="meiProfileSelect" class="form-select form-select-sm w-auto pe-5" style="min-width: 12rem;" aria-label="Profile"
+        [ngModel]="settings.activeMeiProfileId"
+        (change)="onProfileChange($event)">
+        @for (p of settings.meiProfiles; track p) {
+          <option [value]="p.id">{{ p.name }}</option>
+        }
+      </select>
+      <div class="position-relative">
+        <button class="btn btn-sm btn-outline-secondary" type="button" (click)="manageOpen = !manageOpen" [attr.aria-expanded]="manageOpen" title="New, duplicate, rename, import, export, reset, delete">
+          <i class="bi bi-three-dots"></i>
         </button>
-        <label class="small text-muted mb-0 ms-2" for="meiProfileSelect">Profile</label>
-        <select id="meiProfileSelect" class="form-select form-select-sm w-auto"
-          [ngModel]="settings.activeMeiProfileId"
-          (change)="onProfileChange($event)">
-          @for (p of settings.meiProfiles; track p) {
-            <option [value]="p.id">{{ p.name }}</option>
-          }
-        </select>
-        <div class="position-relative">
-          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="manageOpen = !manageOpen" [attr.aria-expanded]="manageOpen">
-            Manage <i class="bi bi-chevron-down ms-1" style="font-size: 0.7rem;"></i>
-          </button>
-          @if (manageOpen) {
-          <div class="mei-backdrop" (click)="manageOpen = false"></div>
-          <ul class="dropdown-menu dropdown-menu-end show" style="right: 0;" (click)="manageOpen = false">
-            <li><button class="dropdown-item" (click)="onNewProfile()"><i class="bi bi-plus-lg me-2"></i>New profile</button></li>
-            <li><button class="dropdown-item" (click)="onDuplicateProfile()" [disabled]="!activeProfile"><i class="bi bi-files me-2"></i>Duplicate</button></li>
-            <li><button class="dropdown-item" (click)="onRenameProfile()" [disabled]="!activeProfile"><i class="bi bi-pencil me-2"></i>Rename</button></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><button class="dropdown-item" (click)="onExportProfile()" [disabled]="!activeProfile"><i class="bi bi-download me-2"></i>Export as JSON</button></li>
-            <li><label class="dropdown-item mb-0 cursor-pointer"><i class="bi bi-upload me-2"></i>Import from JSON
-              <input type="file" accept=".json" class="d-none" (change)="onImportProfile($event)"></label></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><button class="dropdown-item" (click)="onResetProfile()" [disabled]="!activeProfile"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset to defaults</button></li>
-            <li><button class="dropdown-item text-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0"><i class="bi bi-trash me-2"></i>Delete profile</button></li>
-          </ul>
-          }
-        </div>
+        @if (manageOpen) {
+        <div class="mei-backdrop" (click)="manageOpen = false"></div>
+        <ul class="dropdown-menu dropdown-menu-end show" style="right: 0;" (click)="manageOpen = false">
+          <li><button class="dropdown-item" (click)="onNewProfile()"><i class="bi bi-plus-lg me-2"></i>New profile</button></li>
+          <li><button class="dropdown-item" (click)="onDuplicateProfile()" [disabled]="!activeProfile"><i class="bi bi-files me-2"></i>Duplicate</button></li>
+          <li><button class="dropdown-item" (click)="onRenameProfile()" [disabled]="!activeProfile"><i class="bi bi-pencil me-2"></i>Rename</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item" (click)="onExportProfile()" [disabled]="!activeProfile"><i class="bi bi-download me-2"></i>Export as JSON</button></li>
+          <li><label class="dropdown-item mb-0 cursor-pointer"><i class="bi bi-upload me-2"></i>Import from JSON
+            <input type="file" accept=".json" class="d-none" (change)="onImportProfile($event)"></label></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item" (click)="onResetProfile()" [disabled]="!activeProfile"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset to defaults</button></li>
+          <li><button class="dropdown-item text-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0"><i class="bi bi-trash me-2"></i>Delete profile</button></li>
+        </ul>
+        }
       </div>
+      <button class="btn btn-sm" [ngClass]="showPreview ? 'btn-secondary' : 'btn-outline-secondary'" (click)="togglePreview()" title="Show the MEI that this profile produces">
+        <i class="bi bi-code-square me-1"></i>Result
+      </button>
     </div>
   </div>
 
   <div class="card-body bg-white p-0">
-    <!-- Validation Alerts -->
-    @if (validationErrors && validationErrors.length > 0) {
-      <div class="px-4 pt-3 pb-0">
-        @for (err of validationErrors; track err) {
-          <div
-            class="alert alert-sm mb-2 d-flex align-items-center"
-            [ngClass]="err.isError ? 'alert-danger' : 'alert-warning'">
-            <i class="bi me-2" [ngClass]="err.isError ? 'bi-x-circle-fill' : 'bi-exclamation-triangle-fill'"></i>
-            <div>
-              @if (err.entity) {
-                <strong class="me-1 cursor-pointer text-decoration-underline" (click)="selectNode(err.entity)">{{ err.entity | titlecase }}:</strong>
-              }
+    <!-- Checks: one line, details on demand -->
+    @if (activeProfile) {
+      @if (validationErrors && validationErrors.length > 0) {
+        <details class="mei-checks px-4 pt-2" [open]="hasValidationError">
+          <summary class="small" [class.text-danger]="hasValidationError" [class.text-warning-emphasis]="!hasValidationError">
+            <i class="bi me-1" [ngClass]="hasValidationError ? 'bi-x-circle-fill' : 'bi-exclamation-triangle-fill'"></i>{{ validationErrors.length }} {{ validationErrors.length === 1 ? 'problem' : 'problems' }} found
+          </summary>
+          @for (err of validationErrors; track err) {
+            <div class="small ms-4 mt-1" [class.text-danger]="err.isError">
+              @if (err.entity) { <strong class="me-1 cursor-pointer text-decoration-underline" (click)="selectNode(err.entity)">{{ err.entity | titlecase }}:</strong> }
               {{ err.message }}
             </div>
-          </div>
-        }
-      </div>
-    }
-    @if (activeProfile && (!validationErrors || validationErrors.length === 0)) {
-      <div class="px-4 pt-2 small text-success"><i class="bi bi-check-circle-fill me-1"></i>Output is well-formed.</div>
+          }
+        </details>
+      } @else {
+        <div class="px-4 pt-2 small text-success"><i class="bi bi-check-circle-fill me-1"></i>Checks passed.</div>
+      }
     }
 
     @if (activeProfile) {
-      <!-- ===== Tabs ===== -->
+      <!-- ===== Three areas, each with its sections ===== -->
       <ul class="nav nav-tabs mei-tabs px-3 pt-2" role="tablist">
-        @for (t of tabs; track t.id) {
+        @for (g of groups; track g.id) {
           <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" role="tab" [class.active]="tab === t.id" (click)="setTab(t.id)">
-              <span class="d-flex align-items-center">
-                <i class="bi me-2" [ngClass]="t.icon"></i>
-                <span class="d-flex flex-column text-start">
-                  <span class="fw-medium">{{ t.label }}
-                    @if (tabCount(t.id) !== null) { <span class="badge bg-secondary ms-1">{{ tabCount(t.id) }}</span> }
-                  </span>
-                  <span class="tab-hint">{{ t.hint }}</span>
-                </span>
-              </span>
+            <button type="button" class="nav-link" role="tab" [class.active]="group.id === g.id" (click)="setGroup(g.id)">
+              <i class="bi me-2" [ngClass]="g.icon"></i><span class="fw-medium">{{ g.label }}</span>
+              @if (groupCount(g) !== null) { <span class="badge bg-secondary ms-1">{{ groupCount(g) }}</span> }
             </button>
           </li>
         }
       </ul>
+      @if (group.tabs.length > 1) {
+        <div class="mei-subtabs px-4 py-2">
+          @for (t of tabsOf(group); track t.id) {
+            <button type="button" class="btn btn-sm" [class.btn-primary]="tab === t.id" [class.btn-outline-secondary]="tab !== t.id" (click)="setTab(t.id)" [title]="t.hint">
+              {{ t.label }}@if (tabCount(t.id) !== null) { <span class="ms-1 opacity-75">{{ tabCount(t.id) }}</span> }
+            </button>
+          }
+        </div>
+      }
 
       <div class="row g-0">
         <!-- ===== Left: the active tab ===== -->
@@ -93,31 +84,80 @@
           <!-- General -->
           @if (tab === 'general') {
             <div class="p-4 mei-pane">
-              <p class="mei-lead">The frame around your music: the header block and the elements that wrap everything.</p>
+              <p class="mei-lead">The frame around your music: how lines are encoded and which elements wrap everything.</p>
             @if (selectedNodeId === 'skeleton') {
               <div class="mb-4">
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="emitHeaderCheck" [(ngModel)]="activeProfile.emitHeader" (ngModelChange)="emitChange()">
-                  <label class="form-check-label fw-medium" for="emitHeaderCheck">Emit standard &lt;meiHead&gt; block</label>
+                  <input class="form-check-input" type="checkbox" id="accidCheck" [ngModel]="activeProfile.accidentals !== 'note'" (ngModelChange)="activeProfile.accidentals = $event ? undefined : 'note'; emitChange()">
+                  <label class="form-check-label fw-medium" for="accidCheck">Flat, sharp and natural as &lt;accid&gt;</label>
                 </div>
-                <small class="text-muted d-block mt-1">Document title, sources and comments at the top of the file.</small>
+                <small class="text-muted d-block mt-1">On: an accidental becomes <code>&lt;accid accid="f" ploc="b" oloc="4"/&gt;</code> in the syllable, between the neumes, and adds no note to the melody. Off: it is written as a note <code>&lt;nc&gt;</code> with pitch, as in earlier exports.</small>
               </div>
               <div class="mb-4">
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="schemaConformantCheck" [(ngModel)]="activeProfile.schemaConformant" (ngModelChange)="emitChange()">
+                  <input class="form-check-input" type="checkbox" id="schemaConformantCheck" [ngModel]="activeProfile.schemaConformant !== false" (ngModelChange)="activeProfile.schemaConformant = $event; emitChange()">
                   <label class="form-check-label fw-medium" for="schemaConformantCheck">Schema-conformant structure (MEI 5.0)</label>
                 </div>
-                <small class="text-muted d-block mt-1">Each line becomes a staff of its own after a line break in the section, ornaments (oriscus, quilisma, strophicus, liquescent) become empty children of the note (<code>nc</code>), and comment copies of notes get their own IDs. Off: the structure of earlier exports, which the MEI 5.0 schema rejects. Details: <code>CM-hub/docs/MEI-BODY-MAPPING.md</code>.</small>
+                <small class="text-muted d-block mt-1">Each line becomes a staff of its own after a line break in the section, ornaments (oriscus, quilisma, strophicus, liquescent) become empty children of the note (<code>nc</code>), and comment copies of notes get their own IDs. Off: the structure of earlier exports, which the MEI 5.0 schema rejects. The options below apply only while this is on. Details: <code>CM-hub/docs/MEI-BODY-MAPPING.md</code>.</small>
               </div>
-              @if (activeProfile.emitHeader) {
+              @if (activeProfile.schemaConformant !== false) {
                 <div class="mb-4">
-                  <label class="form-label fw-medium" for="headerLevelSelect">Header level</label>
-                  <select class="form-select form-select-sm" id="headerLevelSelect" [ngModel]="activeProfile.headerLevel || 1" (ngModelChange)="activeProfile.headerLevel = +$event; emitChange()">
-                    <option [ngValue]="1">1 Minimal: title, siglum, comment, genre (baseline of version 0.9.1)</option>
-                    <option [ngValue]="2">2 Standard: adds publisher, licence, source, folio, encoding information</option>
-                    <option [ngValue]="3">3 Extended: adds authority identifiers of contributors</option>
+                  <label class="form-label fw-medium">Staff of the score</label>
+                  <div class="row g-2 align-items-center">
+                    <div class="col-auto"><label class="small text-muted" for="staffLines">Lines</label></div>
+                    <div class="col-auto"><input id="staffLines" type="number" min="1" max="12" class="form-control form-control-sm" style="width:5rem" [ngModel]="staff.lines" (ngModelChange)="setStaff({ lines: +$event })"></div>
+                    <div class="col-auto"><label class="small text-muted" for="staffClef">Clef</label></div>
+                    <div class="col-auto">
+                      <select id="staffClef" class="form-select form-select-sm" [ngModel]="staff.clefShape" (ngModelChange)="setStaff({ clefShape: $event })">
+                        <option value="G">G</option><option value="C">C</option><option value="F">F</option><option value="">none</option>
+                      </select>
+                    </div>
+                    <div class="col-auto"><label class="small text-muted" for="staffClefLine">on line</label></div>
+                    <div class="col-auto"><input id="staffClefLine" type="number" min="1" max="12" class="form-control form-control-sm" style="width:5rem" [ngModel]="staff.clefLine" (ngModelChange)="setStaff({ clefLine: +$event })"></div>
+                  </div>
+                  <small class="text-muted d-block mt-1">Written once as <code>&lt;staffDef lines clef.shape clef.line&gt;</code> (the schema requires it). Default: five lines and the G clef on the second line from the bottom, as the editor draws it. A clef of the transcription becomes a <code>&lt;clef&gt;</code> in the layer with the line of its position.</small>
+                </div>
+                <div class="mb-4">
+                  <label class="form-label fw-medium">Syllables that are not normal</label>
+                  @for (t of syllableTypeKeys; track t.key) {
+                    <div class="row g-2 align-items-center mb-2">
+                      <div class="col-12 col-md-3 small">{{ t.label }} @if (typeRuleDiffers(t.key)) { <span class="modified-dot ms-1" title="Differs from the default"></span> }</div>
+                      <div class="col-12 col-md-4">
+                        <select class="form-select form-select-sm" [ngModel]="typeRule(t.key).form" (ngModelChange)="setTypeRule(t.key, { form: $event })" [attr.aria-label]="'How ' + t.label + ' is written'">
+                          @for (f of syllableTypeForms; track f.form) { <option [value]="f.form">{{ f.label }}</option> }
+                        </select>
+                      </div>
+                      @if (typeRule(t.key).form !== 'none') {
+                        <div class="col-6 col-md-2"><input class="form-control form-control-sm" placeholder="type" [ngModel]="typeRule(t.key).value" (ngModelChange)="setTypeRule(t.key, { value: $event })" [attr.aria-label]="'Value of @type for ' + t.label"></div>
+                      }
+                      @if (typeRule(t.key).form === 'supplied' || typeRule(t.key).form === 'gap') {
+                        <div class="col-6 col-md-3"><input class="form-control form-control-sm" placeholder="reason" [ngModel]="typeRule(t.key).reason" (ngModelChange)="setTypeRule(t.key, { reason: $event })" [attr.aria-label]="'Value of @reason for ' + t.label"></div>
+                      }
+                    </div>
+                  }
+                  <small class="text-muted d-block mt-1">MEI neume notation has no element for the type of a syllable. A syllable without notes is a syllable with <code>&#64;type</code>; an ellipsis is material that the source does not write out, so it is <code>&lt;supplied&gt;</code> around the syllable (also without notes). Both the neume and the full schema accept these forms.</small>
+                </div>
+                <div class="mb-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="lineBreaksCheck" [ngModel]="activeProfile.lineBreaks !== false" (ngModelChange)="activeProfile.lineBreaks = $event ? undefined : false; emitChange()">
+                    <label class="form-check-label fw-medium" for="lineBreaksCheck">Line changes of the manuscript as &lt;sb&gt;</label>
+                  </div>
+                  <small class="text-muted d-block mt-1">A change of the manuscript's line inside a line of the transcription becomes <code>&lt;sb type="manuscriptLine"/&gt;</code> in the layer.</small>
+                </div>
+                <div class="mb-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="voicesCheck" [ngModel]="activeProfile.voices !== false" (ngModelChange)="activeProfile.voices = $event ? undefined : false; emitChange()">
+                    <label class="form-check-label fw-medium" for="voicesCheck">Additional melodies as further layers</label>
+                  </div>
+                  <small class="text-muted d-block mt-1">The second voice and further ones of a syllable become <code>&lt;layer n="2"&gt;</code> and so on of the same staff; their syllables point to the first voice with <code>&#64;corresp</code>.</small>
+                </div>
+                <div class="mb-4">
+                  <label class="form-label fw-medium" for="adiaSelect">Lines of adiastematic notation (no staff)</label>
+                  <select id="adiaSelect" class="form-select form-select-sm w-auto" [ngModel]="activeProfile.adiastematic ?? 'contour'" (ngModelChange)="activeProfile.adiastematic = $event === 'contour' ? undefined : $event; emitChange()">
+                    <option value="contour">Contour: &#64;intm (u, d, s), no pitch</option>
+                    <option value="pitch">Stored pitches: &#64;pname and &#64;oct</option>
                   </select>
-                  <small class="text-muted d-block mt-1">Levels 2 and 3 use the publication data below and follow the shared mapping (<code>CM-hub/config/metadata-mapping.yml</code>). Level 1 leaves the export unchanged.</small>
+                  <small class="text-muted d-block mt-1">The notes of such a line were typed as a contour, so the pitches that Monodi stores are not read from the manuscript. The staff gets <code>type="adiastematic"</code>.</small>
                 </div>
               }
               <div>
@@ -147,6 +187,32 @@
                 </div>
               </div>
             }
+            </div>
+          }
+
+          <!-- Header -->
+          @if (tab === 'header') {
+            <div class="p-4 mei-pane">
+              <p class="mei-lead">The metadata block at the top of each MEI file, and the publication data it uses.</p>
+              <div class="mb-4">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="emitHeaderCheck" [(ngModel)]="activeProfile.emitHeader" (ngModelChange)="emitChange()">
+                  <label class="form-check-label fw-medium" for="emitHeaderCheck">Emit standard &lt;meiHead&gt; block</label>
+                </div>
+                <small class="text-muted d-block mt-1">Document title, sources and comments at the top of the file.</small>
+              </div>
+              @if (activeProfile.emitHeader) {
+                <div class="mb-4">
+                  <label class="form-label fw-medium" for="headerLevelSelect">Header level</label>
+                  <select class="form-select form-select-sm" id="headerLevelSelect" [ngModel]="activeProfile.headerLevel || 1" (ngModelChange)="activeProfile.headerLevel = +$event; emitChange()">
+                    <option [ngValue]="1">1 Minimal: title, siglum, comment, genre (baseline of version 0.9.1)</option>
+                    <option [ngValue]="2">2 Standard: adds publisher, licence, source, folio, encoding information</option>
+                    <option [ngValue]="3">3 Extended: adds authority identifiers of contributors</option>
+                  </select>
+                  <small class="text-muted d-block mt-1">Levels 2 and 3 use the publication data below and follow the shared mapping (<code>CM-hub/config/metadata-mapping.yml</code>). Level 1 leaves the export unchanged.</small>
+                </div>
+              }
+              <ng-content select="[meiPublication]"></ng-content>
             </div>
           }
 
@@ -428,7 +494,7 @@
           <!-- Note flags -->
           @if (tab === 'flags') {
             <div class="p-4 mei-pane">
-              <p class="mei-lead">A flag is your own marker on a note, for example a virga. Set it in the editor with the number shown on its card (note selected), from the right-click menu, or by typing its letter in the note's brackets: <code>g[V]</code>.</p>
+              <p class="mei-lead">A flag is your own marker on a note, for example a virga. Name it after an MEI neume form (Virga, Punctum, …) or pick the form under "MEI form", and the export writes it as <code>&lt;nc type="virga"/&gt;</code>. Set it in the editor with the number shown on its card (note selected), from the right-click menu, or by typing its letter in the note's brackets: <code>g[V]</code>.</p>
 
               <div class="border rounded p-3 mb-4 bg-light">
                 <div class="row g-2 align-items-end">
@@ -449,6 +515,15 @@
                   {{ flagFormHint || 'The letter is suggested from the name; type another one if you like (case does not matter).' }}
                 </div>
               </div>
+
+              @if (standardFlagForms.length > 0) {
+                <div class="mb-3 small">
+                  <span class="text-muted">Standard forms of MEI, connected to the neume form (<code>&#64;type</code>):</span>
+                  @for (v of standardFlagForms; track v) {
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 ms-1" (click)="addStandardFlag(v)">+ {{ v }}</button>
+                  }
+                </div>
+              }
 
               @for (fd of noteFlags; track fd.key; let fi = $index) {
                 <div class="border rounded mb-3">
@@ -482,22 +557,38 @@
                       </div>
                       <div class="col-md-6">
                         <div class="small fw-medium mb-1">In the MEI file</div>
-                        <div class="d-flex flex-wrap align-items-center gap-1">
-                          @for (name of ruleAttrNames(fd.mei || {}); track name) {
-                            <span class="input-group input-group-sm w-auto">
-                              <span class="input-group-text font-monospace">{{ name }}</span>
-                              <input type="text" class="form-control" style="width: 5rem;" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
-                              <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
-                            </span>
-                          }
-                          <input type="text" class="form-control form-control-sm w-auto" style="width: 9rem;" placeholder="+ attribute, e.g. type" list="ncAttrNames" #fa
-                            (keyup.enter)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''" (change)="fd.mei = fd.mei || {}; addRuleAttr(fd.mei, fa.value); fa.value = ''">
+                        <div class="input-group input-group-sm mb-2">
+                          <label class="input-group-text" [attr.for]="'flagType' + fi">MEI form</label>
+                          <select class="form-select" [id]="'flagType' + fi" [ngModel]="flagMeiType(fd)" (ngModelChange)="setFlagMeiType(fd, $event)" title="The neume form of MEI that this flag stands for (@type of the note)">
+                            <option value="">none</option>
+                            @for (v of ncTypeValues; track v.value) { <option [value]="v.value">{{ v.value }}</option> }
+                            @if (flagMeiType(fd) && !ncTypeValues.some(t => t.value === flagMeiType(fd))) { <option [value]="flagMeiType(fd)">{{ flagMeiType(fd) }} (not in the schema)</option> }
+                          </select>
                         </div>
-                        <div class="small text-muted mt-2">
-                          Element:
-                          <input type="text" class="form-control form-control-sm d-inline-block font-monospace" style="width: 7rem;" placeholder="nc" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" list="meiSuggestionsList">
-                          <span class="ms-1">(leave empty to keep the note's usual one)</span>
-                        </div>
+                        <div class="flag-xml"><code>{{ flagXml(fd) }}</code></div>
+                        @for (is of flagIssues(fd); track is.message) {
+                          <div class="small" [class.text-danger]="is.level === 'error'" [class.text-warning-emphasis]="is.level === 'warning'">{{ is.message }}</div>
+                        }
+                        <details class="mt-2 small">
+                          <summary class="text-muted">More MEI attributes and element</summary>
+                          <div class="d-flex flex-wrap align-items-center gap-1 mt-2">
+                            @for (name of ruleAttrNames(fd.mei || {}); track name) {
+                              @if (name !== 'type') {
+                                <span class="input-group input-group-sm w-auto">
+                                  <span class="input-group-text font-monospace">{{ name }}</span>
+                                  <input type="text" class="form-control" style="width: 5rem;" [ngModel]="fd.mei![name]" (ngModelChange)="fd.mei![name] = $event; emitChange()">
+                                  <button class="btn btn-outline-danger" (click)="removeRuleAttr(fd.mei!, name)">&times;</button>
+                                </span>
+                              }
+                            }
+                          </div>
+                          <app-mei-attr-picker class="d-block mt-2" [attributes]="ncAttrDefs" [exclude]="ruleAttrNames(fd.mei || {})" [element]="ncElement" placeholder="Add an attribute, e.g. tilt" (picked)="addFlagAttr(fd, $event)"></app-mei-attr-picker>
+                          <div class="mt-2">
+                            Element
+                            <input type="text" class="form-control form-control-sm d-inline-block font-monospace" style="width: 7rem;" placeholder="nc" [(ngModel)]="fd.meiTag" (ngModelChange)="emitChange()" list="meiSuggestionsList">
+                            <span class="text-muted ms-1">(empty keeps the note's usual one; only elements of the schema are valid MEI)</span>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   </div>

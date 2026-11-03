@@ -41,9 +41,9 @@
     font-weight: 700;
     letter-spacing: 0.55px;
     text-transform: uppercase;
-    color: #6b7280;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
+    color: var(--color-text-muted);
+    background: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
     border-radius: 4px;
     padding: 2px 7px;
     line-height: 1.5;
@@ -54,14 +54,14 @@
 .formteil-section {
     margin-top: 10px;
     padding-top: 8px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--color-border);
 }
 
 .formteil-section .type-identifier-name {
     font-size: 0.7rem;
-    color: #4338ca;
-    background: rgba(99,102,241,0.07);
-    border-color: rgba(99,102,241,0.22);
+    color: var(--color-primary-hover);
+    background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+    border-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
 /* ── Children — indent with guide line ───────────── */
@@ -71,7 +71,7 @@
 
 .child {
     padding-left: 14px;
-    border-left: 1.5px solid #e9ecef;
+    border-left: 1.5px solid var(--color-border);
     margin-top: 1px;
 }
 
@@ -108,7 +108,7 @@
         cursor: pointer;
         font-size: 1rem;
         line-height: 1;
-        color: #d1d5db;
+        color: var(--color-border-hover);
         padding: 0 2px;
         border: none;
         background: transparent;
@@ -117,7 +117,7 @@
         transition: color 0.12s, background 0.12s;
 
         &:hover {
-            color: #ef4444;
+            color: var(--color-danger);
             background: rgba(239, 68, 68, 0.08);
         }
     }
@@ -167,12 +167,12 @@ textarea,
 .form-control {
     margin: 2px;
     font-size: 0.85rem;
-    border-color: #e5e7eb;
+    border-color: var(--color-border);
     border-radius: 6px;
     padding: 4px 8px;
 
     &:focus {
-        border-color: #a5b4fc;
+        border-color: var(--color-primary-muted);
         box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.18);
     }
 }
@@ -181,8 +181,8 @@ textarea,
 .after-dragger textarea.form-control {
     font-family: 'Times New Roman', Times, serif;
     font-size: 0.95rem;
-    border: 1px dashed #d1d5db;
-    background: #fafafa;
+    border: 1px dashed var(--color-border-hover);
+    background: var(--color-bg);
     border-radius: 6px;
     padding: 6px 10px;
     resize: vertical;
@@ -190,8 +190,8 @@ textarea,
 
     &:focus {
         border-style: solid;
-        border-color: #a5b4fc;
-        background: #fff;
+        border-color: var(--color-primary-muted);
+        background: var(--color-surface);
         outline: none;
     }
 }
@@ -223,7 +223,7 @@ span.segment-type {
     transition: background 0.12s;
 
     &:hover {
-        background-color: #dbeafe;
+        background-color: var(--color-primary-light);
     }
 }
 
@@ -244,7 +244,7 @@ span.segment-type {
     left: 0;
     right: 0;
     height: 2px;
-    background: rgba(99, 102, 241, 0.8);
+    background: color-mix(in srgb, var(--color-primary) 80%, transparent);
     border-radius: 1px;
     pointer-events: none;
 }
@@ -269,18 +269,18 @@ span.segment-type {
     .child {
         padding-left: 20px !important;
         margin-left: 10px !important;
-        border-left: 1px solid #ddd !important;
+        border-left: 1px solid var(--color-border) !important;
         margin-bottom: 5px !important;
     }
 }
 
 /* ── Selected container highlight ───────────────── */
 .selected-container-highlight {
-    background-color: rgba(59, 130, 246, 0.04);
-    border-left: 3px solid #3b82f6 !important;
+    background-color: color-mix(in srgb, var(--color-primary) 4%, transparent);
+    border-left: 3px solid var(--color-primary) !important;
     padding-left: 8px !important;
     border-radius: 4px;
-    box-shadow: inset 2px 0 6px rgba(59, 130, 246, 0.02);
+    box-shadow: inset 2px 0 6px color-mix(in srgb, var(--color-primary) 2%, transparent);
     transition: background-color 0.2s ease, border-left-color 0.2s ease;
 }
 
@@ -291,3 +291,10 @@ span.segment-type {
   content-visibility: auto;
   contain-intrinsic-size: auto 90px;
 }
+
+/* First step of a document without content. */
+.empty-document { padding: 2.5rem 1rem; text-align: center; }
+.empty-document-title { margin-bottom: .9rem; font-size: 1.15rem; color: var(--color-text); }
+.empty-document-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-bottom: 1.5rem; }
+.empty-document-levels { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem; font-size: .88rem; color: var(--color-text-muted); }
+.empty-document-hint { flex-basis: 100%; font-size: .82rem; }

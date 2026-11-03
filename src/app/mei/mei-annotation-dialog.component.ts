@@ -25,8 +25,12 @@ export class MeiAnnotationDialogComponent implements OnInit {
   @Input() attrs: Record<string, string> = {};
   /** Attributes that rules would set on this element, shown for information. */
   @Input() fromRules: Record<string, string> = {};
+  /** Attributes the export mapping generates for this element; shown locked. Setting the same name overrides them. */
+  @Input() generated: Record<string, string> = {};
   /** What is being edited, for the title (for example `Note G4 in "Glo"`). */
   @Input() subject = '';
+  /** MEI element to edit when it is not the one the profile maps the target to (an accidental is an `accid`, not an `nc`). */
+  @Input() elementName = '';
 
   rows: Row[] = [];
   newName = '';
@@ -43,7 +47,8 @@ export class MeiAnnotationDialogComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.rows = Object.entries(this.attrs).map(([name, value]) => ({ name, value }));
-    if (this.profile) this.element = targetElements(this.profile)[this.target];
+    if (this.elementName) this.element = this.elementName;
+    else if (this.profile) this.element = targetElements(this.profile)[this.target];
     else this.element = this.target;
     try {
       await this.registry.ready();
@@ -107,6 +112,9 @@ export class MeiAnnotationDialogComponent implements OnInit {
     this.rows.splice(i, 1);
   }
 
+  get elementDoc(): string { return this.catalog?.elements[this.element]?.doc ?? ''; }
+  get elementChildren(): string[] { return this.catalog?.elements[this.element]?.children ?? []; }
+
   get rowNames(): string[] { return this.rows.map(r => r.name); }
 
   get canApply(): boolean {
@@ -117,6 +125,10 @@ export class MeiAnnotationDialogComponent implements OnInit {
     const out: Record<string, string> = {};
     for (const r of this.rows) if (r.value.trim() !== '') out[r.name] = r.value.trim();
     this.modal.close(out);
+  }
+
+  get generatedEntries(): { name: string; value: string }[] {
+    return Object.entries(this.generated).filter(([n]) => !this.rows.some(r => r.name === n)).map(([name, value]) => ({ name, value }));
   }
 
   get ruleEntries(): { name: string; value: string }[] {

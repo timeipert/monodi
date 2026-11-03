@@ -11,6 +11,7 @@
           <div class="menu-header">{{ item.label }}</div>
         }
         @if (!item.header) {
+          @if (item.separatorBefore) { <div class="menu-divider"></div> }
           <div
             class="menu-item"
             [class.disabled]="item.disabled"
@@ -20,6 +21,7 @@
               <i class="bi" [ngClass]="item.icon"></i>
             }
             <span>{{ item.label }}</span>
+            @if (item.hint) { <span class="menu-hint">{{ item.hint }}</span> }
             @if (item.checked) {
               <i class="bi bi-check-lg ms-auto text-success"></i>
             }
@@ -32,6 +34,7 @@
               @for (child of item.children; track child) {
                 <div class="menu-item" [class.checked]="child.checked" (click)="executeAction(child, $event)">
                   <span>{{ child.label }}</span>
+                  @if (child.hint) { <span class="menu-hint">{{ child.hint }}</span> }
                   @if (child.checked) {
                     <i class="bi bi-check-lg ms-auto text-success"></i>
                   }

@@ -302,11 +302,22 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
     return false;
   }
 
+  override isEmptyDocument(): boolean {
+    return !this.readOnly && this.data.children.length === 0;
+  }
+
+  /** Creates the first line at the level the document has, ready for typing. */
+  startDocument(): void {
+    this.setDocumentType(this.data.documentType);
+  }
+
   /** Called by the button-group in the template. Sets the documentType AND always triggers
    *  structure initialisation — even when the user clicks the already-selected level. */
   setDocumentType(value: string): void {
+    const wasEmpty = this.data.children.length === 0;
     this.data.documentType = value as Model.DocumentType;
     this.onDocumentTypeChange();
+    if (wasEmpty) focusNewChild(this.children, this.cdr, this.data.children[0], false);
   }
 
   onDocumentTypeChange(): void {

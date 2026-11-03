@@ -11,10 +11,14 @@ State: 2026-11-02. Baseline: branch `feature/monodi-mei-annotations` of the mono
 | I want to … | Go to |
 |---|---|
 | set an attribute on one note, neume or syllable | editor: right-click a note → *MEI attributes* (section 2) |
-| set an attribute everywhere a condition holds | Settings → MEI Mapping → *Rules* (section 3) |
+| set an attribute everywhere a condition holds | Settings → MEI Mapping → Annotations → *Rules* (section 3) |
 | choose or load an MEI schema, allow my own attributes | Settings → MEI Mapping → *Schema* (section 4) |
 | understand how the pieces fit | section 1 |
 | change the code | section 6 |
+
+**The MEI Mapping page.** It has three areas: *Export format* (sections *Structure*, *Elements*, *Header* with the publication data), *Annotations* (*Flags*, *Patterns*, *Rules*) and *Schema*. The profile (select, "…" menu for new, duplicate, rename, import, export, reset, delete) and the *Result* preview are in the top row; the checks are one line that opens to the list of problems.
+
+**Flat, sharp and natural.** A Monodi note of type Flat, Sharp or Natural is not a note of the melody. The export writes it as `<accid accid="f|s|n" ploc="…" oloc="…"/>` in the syllable, between the neumes, in the default and in the schema-conformant structure (profile option `accidentals`, switch *Flat, sharp and natural as &lt;accid&gt;* in Export format → Structure). Switched off, it is written as a note `<nc>` with pitch, as in Monodi-Zero 0.9.1. Attributes set by hand on the accidental's note are written to its `accid`; the right-click menu, the dialog and the MEI tab of the sidebar then speak of the `accid` (and show no neume), and the tab lists its generated `accid`, `ploc` and `oloc`.
 
 ## 1. Terms and precedence
 
@@ -46,7 +50,11 @@ Storage: `Note.meiAttrs` (on `nc`), `Note.meiNeumeAttrs` (on the `neume`; held b
 
 **MEI tab of the document sidebar.** With a note selected, the sidebar tab *MEI* lists the annotations of the note, its neume and its syllable, each marked *by hand* or *rule*, with an *Edit* button that opens the dialog (`mei/mei-selection.ts`). The layout adapts to the width of the sidebar.
 
+**What the tab shows, and how much.** The tab has two views: *Selected* (the note, its neume and its syllable in one card) and *All annotated* (every annotated place of the document, from the hand and from rules, filterable; a row jumps to the note). Two switches control the amount of detail: the lock shows or hides the generated rows, the dot shows or hides the marks in the staff. Generated rows are the attributes the export mapping writes from the Monodi data (`pname`, `oct`, `con` after a gap, …); they are computed by exporting the selected syllable alone, are locked, and are overridden by setting the same attribute by hand (the row then says "overrides generated value"). The marks in the staff are a filled dot on a note with attributes of its own or on its neume, and an open ring on the first note of a syllable with attributes of its own. In the staff, red marks come from attributes set by hand and amber marks from annotation rules. The list *All annotated* is grouped, so that it stays readable in a long document: by annotation (places with the same element and the same attribute values together, most frequent first; the default), by syllable, or by element; groups open and close, and a row jumps to the note. The choices are kept per browser (`mei/mei-view-prefs.ts`) and never change the export. The dialog lists the generated attributes of the element as well.
+
 **Limit.** When the note text is edited, the editor rebuilds the notes from the code and carries the uuid and the annotations over **by position** (`copyUuids`). Inserting a note before an annotated one therefore shifts the annotation by one position. The same holds for comments, which are also anchored by uuid.
+
+**Flags and the MEI vocabulary.** A note flag (for example *Virga*) is the Monodi side of an MEI neume form. In Settings → MEI Mapping → Annotations → *Flags* each flag has an **MEI form**, chosen from the values the schema lists for `@type` of a note (virga, punctum, apostropha, …); the card shows what the export writes (`<nc type="virga"/>`) and the schema check reports an unknown form or attribute. A flag whose name is an MEI form (Virga, Punctum) is connected when it is created, and the *+ virga*, *+ punctum* buttons add the standard forms with the connection made. Further attributes and a different element are under *More MEI attributes and element*; `@type` and the element `virga` differ: MEI has no `<virga>` element, so the element field is meant for elements the schema knows. The same attributes appear as locked *generated* rows in the sidebar tab.
 
 ## 3. Rules
 
@@ -120,4 +128,4 @@ node scripts/build-mei-catalog.mjs src/app/mei/mei-all.rng src/assets/mei/mei-5.
 | 4 | Full schema validation in the browser | The checks cover attribute names and values per element, not the nesting of the whole file, and not the Schematron rules. The offline check (`xmllint --relaxng`, CM-hub `meicheck`) remains the full check. | maintainer of the MEI export |
 | 5 | Annotations by position | See the limit in section 2. Option: anchor annotations by a marker in the note code. | maintainer of the editor |
 | 6 | Body mapping table of CM-hub | `config/mei-body-mapping.yml` in CM-hub does not describe annotations; the dataset check reports extra attributes only through the schema check. | maintainer of CM-hub |
-| 7 | Visible marker | The sidebar tab lists the annotations of the selected note, but annotated notes carry no mark in the staff. | maintainer of the editor |
+| 7 | Rule marks, state 2026-11-02 | The amber marks of rules are evaluated every 600 ms while marks are on and rules exist; covered by a unit test of the mark store, not yet by an e2e test with a rule in the profile. | maintainer of the editor |

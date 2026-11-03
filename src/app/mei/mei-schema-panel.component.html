@@ -29,7 +29,8 @@
     @if (selectedIsUser) { <button class="btn btn-sm btn-outline-danger mt-2" (click)="removeSchema()">Remove this schema</button> }
   </div>
 
-  <h6>Load another schema</h6>
+  <details class="mb-3" [open]="!!loadError || !!message">
+  <summary class="fw-semibold">Load another schema</summary>
   <p class="small text-muted mb-2">
     A RelaxNG file (<code>.rng</code>) of any MEI customization, for example <code>mei-Neumes.rng</code> or a later MEI release, or a catalog (<code>.json</code>)
     made with <code>scripts/build-mei-catalog.mjs</code>. Loaded schemas stay in this browser.
@@ -44,7 +45,10 @@
     </div>
   </div>
 
-  <h6>Your own attributes</h6>
+  </details>
+
+  <details class="mb-3" [open]="extensions.length > 0">
+  <summary class="fw-semibold">Your own attributes <span class="text-muted fw-normal">({{ extensions.length }})</span></summary>
   <p class="small text-muted mb-2">Attributes the schema does not contain. They are offered in the dialog and accepted by the check like schema attributes. Use <code>*</code> as element for every element.</p>
   @for (e of extensions; track $index) {
     <div class="d-flex align-items-center gap-2 small mb-1">
@@ -62,7 +66,10 @@
     <div class="col-sm-1"><button class="btn btn-sm btn-outline-primary w-100" [disabled]="!newExt.name.trim()" (click)="addExtension()">Add</button></div>
   </div>
 
-  <h6>Favourite attributes</h6>
+  </details>
+
+  <details class="mb-3" [open]="favorites.length > 0">
+  <summary class="fw-semibold">Favourite attributes <span class="text-muted fw-normal">({{ favorites.length }})</span></summary>
   <p class="small text-muted mb-2">Shown as quick buttons in the right-click dialog.</p>
   <div class="mb-2">
     @for (f of favorites; track f) {
@@ -76,5 +83,6 @@
     <input class="form-control font-monospace" [(ngModel)]="newFav.name" placeholder="e.g. tilt" (keyup.enter)="addFavorite()">
     <button class="btn btn-outline-primary" [disabled]="!newFav.name.trim()" (click)="addFavorite()">Add</button>
   </div>
+  </details>
   <datalist id="schema-elements">@for (e of elements; track e) { <option [value]="e"></option> }</datalist>
 </div>

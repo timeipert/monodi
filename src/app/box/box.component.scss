@@ -12,7 +12,7 @@ svg {
 .syllableText {
     white-space: nowrap;
     text-align: center;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     margin: 2px 3px;
     font-family: 'Times New Roman', Times, serif;
@@ -20,7 +20,7 @@ svg {
     visibility: hidden;
     line-height: 24px;
     height: 24px;
-    background: #f9fafb;
+    background: var(--color-surface-muted);
 }
 
 svg .note {

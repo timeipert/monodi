@@ -7,6 +7,7 @@ import { ToolsService } from '../tools.service';
 import { UndoService } from '../undoService';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { ContextMenuService } from '../context-menu/context-menu.service';
+import { SyllableType } from '../types/model';
 
 describe('NotesComponent', () => {
   let component: NotesComponent;
@@ -32,7 +33,9 @@ describe('NotesComponent', () => {
   };
 
   const mockUndoService = {
-    deregisterNotesCallbacks: () => {}
+    deregisterNotesCallbacks: () => {},
+    beforeChange: () => {},
+    registerNotesCallbacks: () => {}
   };
 
   const mockNgbModal = {
@@ -40,7 +43,7 @@ describe('NotesComponent', () => {
   };
 
   const mockContextMenuService = {
-    open: () => {}
+    open: jasmine.createSpy('open')
   };
 
   beforeEach(waitForAsync(() => {
@@ -92,5 +95,59 @@ describe('NotesComponent', () => {
     const scaledWidth = component.getWidth();
 
     expect(scaledWidth).toBeCloseTo(baseWidth * 0.8, 5);
+  });
+
+  describe('syllable types', () => {
+    const staffLines = () => fixture.nativeElement.querySelectorAll('svg line').length;
+    const render = () => { (component as any).cdr.markForCheck(); fixture.detectChanges(); };
+    const menuItem = () => mockContextMenuService.open.calls.mostRecent().args[1].find((i: any) => i.label === 'Syllable type');
+
+    beforeEach(() => mockContextMenuService.open.calls.reset());
+
+    it('draws the staff for a normal syllable, also without notes, and no staff for the other types', () => {
+      component.showGClef = true;
+      component.model.syllableType = SyllableType.Normal;
+      render();
+      expect(staffLines()).toBe(5);
+      expect(fixture.nativeElement.querySelector('.auto-clef')).not.toBeNull();
+      for (const type of [SyllableType.WithoutNotes, SyllableType.SourceEllipsis, SyllableType.EditorialEllipsis]) {
+        component.model.syllableType = type;
+        render();
+        expect(staffLines()).withContext(type).toBe(0);
+        expect(fixture.nativeElement.querySelector('.auto-clef')).withContext(type).toBeNull();
+      }
+    });
+
+    it('tints the place of a syllable without staff only while it has the focus', () => {
+      component.model.syllableType = SyllableType.WithoutNotes;
+      render();
+      expect(fixture.nativeElement.querySelector('.bare-focus')).toBeNull();
+      component.hasFocus[0] = true;
+      render();
+      expect(fixture.nativeElement.querySelector('.bare-focus')).not.toBeNull();
+    });
+
+    it('offers the type in the menu of the staff and of the text, marking the current one', () => {
+      const event = new MouseEvent('contextmenu');
+      for (const open of [() => component.onStaffContextMenu(event), () => component.onSyllableContextMenu(event)]) {
+        component.model.syllableType = SyllableType.WithoutNotes;
+        open();
+        expect(menuItem().children.length).toBe(4);
+        expect(menuItem().children.filter((c: any) => c.checked).map((c: any) => c.label)).toEqual(['Without notes (no staff)']);
+      }
+    });
+
+    it('sets the chosen type from the menu', () => {
+      component.model.syllableType = SyllableType.Normal;
+      component.onStaffContextMenu(new MouseEvent('contextmenu'));
+      menuItem().children.find((c: any) => c.label.startsWith('Source ellipsis')).action();
+      expect(component.model.syllableType).toBe(SyllableType.SourceEllipsis);
+    });
+
+    it('cycles through all types with the tool bar action', () => {
+      component.model.syllableType = SyllableType.Normal;
+      const seen = [1, 2, 3, 4].map(() => { component.changeType(); return component.model.syllableType; });
+      expect(seen).toEqual([SyllableType.WithoutNotes, SyllableType.SourceEllipsis, SyllableType.EditorialEllipsis, SyllableType.Normal]);
+    });
   });
 });

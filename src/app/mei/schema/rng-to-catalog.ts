@@ -176,6 +176,9 @@ export function rngToCatalog(doc: Document, meta: RngCatalogMeta): MeiSchemaCata
     return a;
   }
 
+  /** Name of the `<define>` being walked; the attribute class is read from it (`mei_att.ncForm.attribute.con` → `ncForm`). */
+  let currentDefine = '';
+
   function attrDefOf(attr: Element): MeiAttrDef | null {
     const name = attr.getAttribute('name');
     if (!name) return null;                      // `<anyName/>` attributes carry no fixed name
@@ -185,6 +188,8 @@ export function rngToCatalog(doc: Document, meta: RngCatalogMeta): MeiSchemaCata
     if (info.alternatives) def.alternatives = info.alternatives;
     if (info.typeName) def.typeName = info.typeName;
     if (doc) def.doc = doc;
+    const group = /^mei_att\.(.+?)\.attribute\./.exec(currentDefine)?.[1];
+    if (group) def.group = group;
     return def;
   }
 
@@ -261,7 +266,10 @@ export function rngToCatalog(doc: Document, meta: RngCatalogMeta): MeiSchemaCata
     if (!def || inProgress.has(defName)) return null;
     inProgress.add(defName);
     const acc: Acc = { attrs: new Set(), children: new Set(), text: false };
+    const outer = currentDefine;
+    currentDefine = defName;
     walk(def, acc);
+    currentDefine = outer;
     inProgress.delete(defName);
     memo.set(defName, acc);
     return acc;
@@ -273,7 +281,9 @@ export function rngToCatalog(doc: Document, meta: RngCatalogMeta): MeiSchemaCata
   elementNodes.forEach((node, defName) => {
     const name = elementNames.get(defName)!;
     const acc: Acc = { attrs: new Set(), children: new Set(), text: false };
+    currentDefine = defName;
     walk(node, acc);
+    currentDefine = '';
     const doc = docOf(node);
     const prev = elements[name];
     if (prev) {

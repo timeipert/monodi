@@ -9,14 +9,14 @@
   justify-content: center;
   font-size: 12px;
   font-weight: bold;
-  color: #555;
+  color: var(--color-text-muted);
   cursor: pointer;
   margin-left: 8px;
   transition: all 0.2s ease-in-out;
 }
 
 .help-btn:hover {
-  background: #007bff;
+  background: var(--color-primary);
   color: white;
-  border-color: #007bff;
+  border-color: var(--color-primary);
 }

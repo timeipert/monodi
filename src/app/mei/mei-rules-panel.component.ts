@@ -98,6 +98,12 @@ export class MeiRulesPanelComponent implements OnInit, OnChanges {
 
   // ---- conditions -------------------------------------------------------------------------
 
+  /** The less common conditions are folded away unless one of them is set. */
+  moreConditionsSet(r: MeiAnnotationRule): boolean {
+    const m = r.match;
+    return !!(m.position || m.noteTypes?.length || m.liquescent !== undefined || m.flag || r.sigle);
+  }
+
   get neumeText(): string { return this.selected?.match.neume?.text ?? ''; }
   set neumeText(v: string) {
     const r = this.selected!;
@@ -203,6 +209,9 @@ export class MeiRulesPanelComponent implements OnInit, OnChanges {
     const r = this.selected!;
     return checkAttribute(this.catalog, targetElements(this.profile)[r.target], name, value.includes('{') ? null : value, this.profile.attributePolicy ?? 'warn');
   }
+
+  get elementDoc(): string { return this.catalog?.elements[this.element]?.doc ?? ''; }
+  get elementChildren(): string[] { return this.catalog?.elements[this.element]?.children ?? []; }
 
   get element(): string { return this.selected ? targetElements(this.profile)[this.selected.target] : ''; }
 

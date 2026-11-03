@@ -61,6 +61,18 @@
             <option value="contains">inside a neume</option>
           </select>
         </div>
+        <div class="col-sm-6">
+          <label class="form-label small mb-0">Syllable text <span class="text-muted">(regular expression)</span></label>
+          <input class="form-control form-control-sm font-monospace" [ngModel]="r.match.syllableText ?? ''" (ngModelChange)="setText('syllableText', $event)" placeholder="e.g. ^ky">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-0">Pitch <span class="text-muted">(regex)</span></label>
+          <input class="form-control form-control-sm font-monospace" [ngModel]="r.match.pitch ?? ''" (ngModelChange)="setText('pitch', $event)" placeholder="e.g. ^[CD]4$" title="Tested on the pitch letter and octave, for example G4">
+        </div>
+      </div>
+      <details class="mt-2" [open]="moreConditionsSet(r)">
+        <summary class="small text-muted">More conditions: notes of the pattern, note type, liquescent, flag, manuscript</summary>
+        <div class="row g-2 mt-1">
         <div class="col-sm-3">
           <label class="form-label small mb-0">Notes of the pattern</label>
           <select class="form-select form-select-sm" [ngModel]="position" (ngModelChange)="position = $event">
@@ -84,14 +96,6 @@
             </div>
           </div>
         }
-        <div class="col-sm-6">
-          <label class="form-label small mb-0">Syllable text <span class="text-muted">(regular expression)</span></label>
-          <input class="form-control form-control-sm font-monospace" [ngModel]="r.match.syllableText ?? ''" (ngModelChange)="setText('syllableText', $event)" placeholder="e.g. ^ky">
-        </div>
-        <div class="col-sm-3">
-          <label class="form-label small mb-0">Pitch <span class="text-muted">(regex)</span></label>
-          <input class="form-control form-control-sm font-monospace" [ngModel]="r.match.pitch ?? ''" (ngModelChange)="setText('pitch', $event)" placeholder="e.g. ^[CD]4$" title="Tested on the pitch letter and octave, for example G4">
-        </div>
         <div class="col-sm-3">
           <label class="form-label small mb-0">Manuscript siglum</label>
           <input class="form-control form-control-sm" [ngModel]="r.sigle ?? ''" (ngModelChange)="setText('sigle', $event)" placeholder="all">
@@ -122,7 +126,8 @@
             }
           </div>
         </div>
-      </div>
+        </div>
+      </details>
 
       <h6 class="mt-4">Then set on &lt;{{ element }}&gt;</h6>
       @for (row of setRows; track row.name) {
@@ -144,7 +149,7 @@
       <datalist id="rule-attrs">
         @for (a of suggestions(); track a.name) { <option [value]="a.name">{{ a.doc }}</option> }
       </datalist>
-      <app-mei-attr-picker class="d-block mb-1" [attributes]="suggestions()" [exclude]="setNames" (picked)="addAttr($event)"></app-mei-attr-picker>
+      <app-mei-attr-picker class="d-block mb-1" [attributes]="suggestions()" [exclude]="setNames" [element]="element" [elementDoc]="elementDoc" [children]="elementChildren" (picked)="addAttr($event)"></app-mei-attr-picker>
       <div class="small text-muted">Templates: <code>{{ '{pname}' }}</code> pitch letter, <code>{{ '{oct}' }}</code> octave, <code>{{ '{syllable}' }}</code> syllable text, <code>{{ '{index}' }}</code> position in the neume.</div>
 
       <hr>

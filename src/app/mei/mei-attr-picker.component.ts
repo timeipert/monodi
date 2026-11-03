@@ -1,12 +1,19 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { MeiAttrDef, isValidAttributeName } from './schema/mei-schema-catalog';
+import { groupInfo } from './schema/mei-attr-groups';
 
 type Kind = 'all' | 'values' | 'number' | 'text';
 
+interface Section { key: string; label: string; order: number; items: MeiAttrDef[] }
+
 /**
- * Searchable list of the attributes a schema allows on one element. Typing filters by name and by description
- * (all words must occur, name matches first); "Browse" opens the whole list; the chips narrow it by kind of value.
- * A name that is not in the list can still be picked as a custom attribute. Emits the chosen attribute name.
+ * Searchable, browsable list of the attributes a schema allows on one element.
+ *  - Typing searches names and descriptions (all words must occur; a name match ranks first).
+ *  - *Browse* lists every attribute in sections by attribute class of the schema (common, logical, gestural,
+ *    visual, analytical, defined on the element), each section collapsible.
+ *  - A row opens a detail view: full description, type, range or pattern, every allowed value with its meaning.
+ *  - The chips narrow the list by kind of value. A name that is not in the list can be added as a custom attribute.
+ * Emits the chosen attribute name.
  */
 @Component({
   selector: 'app-mei-attr-picker',
@@ -18,14 +25,22 @@ export class MeiAttrPickerComponent {
   @Input() attributes: MeiAttrDef[] = [];
   /** Names that are already set; they are left out of the list. */
   @Input() exclude: string[] = [];
-  @Input() placeholder = 'Search attributes, e.g. tilt or "pen stroke"';
+  @Input() placeholder = 'Search attributes by name or meaning, e.g. tilt or "pen stroke"';
   @Input() favorites: string[] = [];
+  /** The element the attributes belong to, with its description and the elements it may contain (shown as background). */
+  @Input() element = '';
+  @Input() elementDoc = '';
+  @Input() children: string[] = [];
   @Output() picked = new EventEmitter<string>();
 
   query = '';
   open = false;
   browse = false;
+  aboutOpen = false;
   kind: Kind = 'all';
+  /** Attribute whose details are open. */
+  detail: string | null = null;
+  private collapsed = new Set<string>();
   readonly kinds: { id: Kind; label: string }[] = [
     { id: 'all', label: 'All' }, { id: 'values', label: 'With fixed values' }, { id: 'number', label: 'Numbers' }, { id: 'text', label: 'Text' }
   ];
@@ -63,9 +78,33 @@ export class MeiAttrPickerComponent {
     return scored.map(x => x.a);
   }
 
+  get searching(): boolean { return !!this.query.trim(); }
+
+  /** Flat list for a search, or the first few attributes before anything is typed. */
   get shown(): MeiAttrDef[] {
     const all = this.results;
-    return this.browse || this.query.trim() ? all : all.slice(0, 12);
+    return this.searching ? all : all.slice(0, 8);
+  }
+
+  /** Sections for browsing, in the order common, defined on the element, logical, gestural, visual, analytical, general. */
+  get sections(): Section[] {
+    const by = new Map<string, Section>();
+    for (const a of this.results) {
+      const info = groupInfo(a.group, this.element);
+      const key = a.group ?? '';
+      let s = by.get(key);
+      if (!s) { s = { key, label: info.label, order: info.order, items: [] }; by.set(key, s); }
+      s.items.push(a);
+    }
+    return [...by.values()].sort((x, y) => x.order - y.order || x.label.localeCompare(y.label));
+  }
+
+  groupLabel(a: MeiAttrDef): string { return groupInfo(a.group, this.element).label; }
+
+  isCollapsed(key: string): boolean { return this.collapsed.has(key); }
+  toggleSection(key: string): void { if (!this.collapsed.delete(key)) this.collapsed.add(key); }
+  setAllSections(collapse: boolean): void {
+    this.collapsed = collapse ? new Set(this.sections.map(s => s.key)) : new Set();
   }
 
   get customName(): string {
@@ -75,6 +114,7 @@ export class MeiAttrPickerComponent {
 
   badge(a: MeiAttrDef): string {
     if (a.values && a.values.length > 0 && !a.alternatives) return `${a.values.length} values`;
+    if (a.alternatives) return a.alternatives.map(x => x.type === 'token' && x.pattern ? `“${x.pattern}”` : x.type).join(' or ');
     return a.typeName?.replace(/^data\./, '') ?? a.type;
   }
 
@@ -82,14 +122,33 @@ export class MeiAttrPickerComponent {
     return (a.values ?? []).slice(0, 6).map(v => v.value).join(' · ') + ((a.values?.length ?? 0) > 6 ? ' …' : '');
   }
 
+  /** Short statements about what a value must look like, for the detail view. */
+  constraints(a: MeiAttrDef): string[] {
+    const out: string[] = [];
+    const parts = a.alternatives ?? [a];
+    for (const p of parts) {
+      let t: string = p.type;
+      if (p.list) t += ' list';
+      if (p.min !== undefined || p.max !== undefined) t += ` (${p.min ?? '…'} to ${p.max ?? '…'})`;
+      if (p.pattern) t += `, pattern ${p.pattern}`;
+      if (p.type === 'enum' || p.type === 'boolean') t = `one of the values below${p.list ? ' (several allowed, separated by spaces)' : ''}`;
+      out.push(t);
+    }
+    return a.alternatives ? [`either ${out.join(' or ')}`] : out;
+  }
+
+  toggleDetail(name: string): void { this.detail = this.detail === name ? null : name; }
+
   toggleBrowse(): void {
     this.browse = !this.browse;
-    this.open = this.browse || this.open;
+    this.open = true;
+    if (!this.browse) this.detail = null;
   }
 
   pick(name: string): void {
     this.picked.emit(name);
     this.query = '';
+    this.detail = null;
     this.browse = false;
     this.open = false;
   }

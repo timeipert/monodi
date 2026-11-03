@@ -24,7 +24,10 @@ import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
 import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFlagDefs } from './note-flags';
 import { MeiAnnotationDialogComponent } from '../mei/mei-annotation-dialog.component';
-import { firstNoteOf, setHandAttr } from '../mei/mei-annotations';
+import { accidentalName, firstNoteOf, isAccidentalType, setHandAttr } from '../mei/mei-annotations';
+import { getMeiViewPrefs, meiRuleMarks, meiViewChanges$ } from '../mei/mei-view-prefs';
+import { generatedAttrs } from '../mei/mei-selection';
+import { getActiveMeiProfile } from '../mei/mei-annotation-context';
 import { AnnotationTarget } from '../mei/mei-mapping.model';
 import { ContextMenuItem, ContextMenuService } from '../context-menu/context-menu.service';
 import { Router } from '@angular/router';
@@ -33,6 +36,20 @@ import { extractPattern } from '../transcription-analyzer-core';
 import { ManuscriptViewService } from '../manuscript-view.service';
 
 declare const $: any;
+
+/** First note of the syllable's main melody. */
+function firstNoteOfSyllable(s: VM.Syllable): VM.Note | undefined {
+  for (const neume of s.notes?.spaced ?? []) { const n = firstNoteOf(neume); if (n) return n; }
+  return undefined;
+}
+
+/** The syllable types in the order the tool bar button cycles through them, with the names of the menu. */
+const SYLLABLE_TYPE_CHOICES: { type: VM.SyllableType; label: string }[] = [
+  { type: VM.SyllableType.Normal, label: 'Normal (with staff)' },
+  { type: VM.SyllableType.WithoutNotes, label: 'Without notes (no staff)' },
+  { type: VM.SyllableType.SourceEllipsis, label: 'Source ellipsis (...)' },
+  { type: VM.SyllableType.EditorialEllipsis, label: 'Editorial ellipsis (<...>)' },
+];
 
 @Component({
     selector: 'app-notes',
@@ -245,6 +262,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   ngOnInit() {
+    this.meiViewSub = meiViewChanges$.subscribe(() => this.cdr.markForCheck());
     this.focusService.meiEditors.set(this.model.uuid, (target, note) => this.openMeiAttributes(target, note));
     this.notesToText();
     if (this.syllableTextElement?.nativeElement) {
@@ -274,6 +292,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   private focusedNoteSub?: Subscription;
+  private meiViewSub?: Subscription;
 
   @HostListener('window:focus')
   onWindowFocus() {
@@ -293,6 +312,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   ngOnDestroy() {
     this.focusService.meiEditors.delete(this.model.uuid);
+    this.meiViewSub?.unsubscribe();
     this.undoService.deregisterNotesCallbacks(this.model.uuid);
     this.focusedNoteSub?.unsubscribe();
     setTimeout(() => this.toolsService.remove(this), 0);
@@ -1041,19 +1061,22 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     return n > 0 ? `${label} (${n})` : label;
   }
 
+  /** An accidental (flat, sharp, natural) is exported as an `accid` and belongs to no neume. */
+  private isAccid(note: VM.Note): boolean {
+    return isAccidentalType(note.noteType) && getActiveMeiProfile()?.accidentals !== 'note';
+  }
+
   /** Context-menu entry for MEI attributes set by hand on the note, its neume or its syllable. */
   private meiMenuItem(note: VM.Note): ContextMenuItem {
-    const neumeFirst = this.neumeFirstNote(note);
+    const accid = this.isAccid(note);
+    const neumeFirst = accid ? undefined : this.neumeFirstNote(note);
     const total = Object.keys(note.meiAttrs ?? {}).length + Object.keys(neumeFirst?.meiNeumeAttrs ?? {}).length + Object.keys(this.model.meiAttrs ?? {}).length;
-    return {
-      label: total > 0 ? `MEI attributes (${total})` : 'MEI attributes',
-      action: () => {},
-      children: [
-        { label: this.attrCountLabel('On this note (nc)…', note.meiAttrs), action: () => this.openMeiAttributes('nc', note) },
-        { label: this.attrCountLabel('On its neume…', neumeFirst?.meiNeumeAttrs), action: () => this.openMeiAttributes('neume', note) },
-        { label: this.attrCountLabel('On its syllable…', this.model.meiAttrs), action: () => this.openMeiAttributes('syllable', note) }
-      ]
-    };
+    const children: ContextMenuItem[] = [
+      { label: this.attrCountLabel(accid ? `On this ${accidentalName(note.noteType)} (accid)` : 'On this note (nc)', note.meiAttrs), action: () => this.openMeiAttributes('nc', note) }
+    ];
+    if (!accid) children.push({ label: this.attrCountLabel('On its neume', neumeFirst?.meiNeumeAttrs), action: () => this.openMeiAttributes('neume', note) });
+    children.push({ label: this.attrCountLabel('On its syllable', this.model.meiAttrs), action: () => this.openMeiAttributes('syllable', note) });
+    return { label: total > 0 ? `MEI attributes (${total})` : 'MEI attributes', icon: 'bi-tags', separatorBefore: true, action: () => {}, children };
   }
 
   /** The first note of the neume that contains `note`; it holds the neume's MEI attributes. */
@@ -1074,10 +1097,16 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const current = (target === 'neume' ? holder.meiNeumeAttrs : holder.meiAttrs) ?? {};
     const ref = this.modalService.open(MeiAnnotationDialogComponent, { centered: true, scrollable: true });
     ref.componentInstance.target = target;
+    if (target === 'nc' && note && this.isAccid(note)) ref.componentInstance.elementName = 'accid';
     ref.componentInstance.attrs = { ...current };
+    const profile = getActiveMeiProfile();
+    if (note && profile && getMeiViewPrefs().showGenerated) {
+      const neume = this.getVoices().flatMap(v => v?.spaced ?? []).find(n => n.nonSpaced.some(g => g.grouped.includes(note)));
+      if (neume) ref.componentInstance.generated = generatedAttrs({ note, neume, syllable: this.model }, profile)[target];
+    }
     ref.componentInstance.subject = target === 'syllable'
       ? `syllable "${this.model.text}"`
-      : note ? `${target === 'neume' ? 'neume of ' : ''}note ${note.base}${note.octave} in "${this.model.text}"` : '';
+      : note ? `${target === 'neume' ? 'neume of ' : ''}${this.isAccid(note) ? accidentalName(note.noteType) + ' at' : 'note'} ${note.base}${note.octave} in "${this.model.text}"` : '';
     ref.result.then((result: Record<string, string>) => {
       this.undoService.beforeChange('Edit MEI attributes');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
@@ -1124,7 +1153,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const items: ContextMenuItem[] = defs.map(fd => {
       const sc = this.flagShortcut(fd.key);
       return {
-        label: sc ? `${fd.label}  (${sc})` : fd.label,
+        label: fd.label, hint: sc ?? undefined,
         checked: (note.flags ?? []).includes(fd.key),
         action: () => { this.toggleFlag(fd.key); this.refreshNoteText(); }
       };
@@ -1132,13 +1161,29 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     if (defs.length <= 4) {
       return [{ label: 'Flags', header: true, action: () => {} }, ...items];
     }
-    const set = items.filter(i => i.checked).map(i => i.label.split('  (')[0]);
+    const set = items.filter(i => i.checked).map(i => i.label);
     return [{ label: set.length ? `Flags: ${set.join(', ')}` : `Flags (${defs.length})`, action: () => {}, children: items }];
   }
 
   /** Flag markers drawn above a note head (abbreviation or SVG outline). */
   flagMarkers(n: VM.Note): NoteFlagDef[] {
     return flagDefsOf(n.flags);
+  }
+
+  /**
+   * Mark above a note in the staff: a filled dot for attributes on the note or on the neume it starts, an open ring on the
+   * first note of a syllable with attributes of its own. The colour tells the source: red when set by hand, amber when only
+   * an annotation rule writes them. Off when the person turned the marks off.
+   */
+  meiMarker(n: VM.Note): { kind: 'note' | 'syllable'; source: 'hand' | 'rule' } | null {
+    if (!getMeiViewPrefs().markInStaff) return null;
+    if (Object.keys(n.meiAttrs ?? {}).length > 0 || Object.keys(n.meiNeumeAttrs ?? {}).length > 0) return { kind: 'note', source: 'hand' };
+    if (meiRuleMarks.notes.has(n.uuid)) return { kind: 'note', source: 'rule' };
+    if (n === firstNoteOfSyllable(this.model)) {
+      if (this.model.meiAttrs && Object.keys(this.model.meiAttrs).length > 0) return { kind: 'syllable', source: 'hand' };
+      if (meiRuleMarks.syllables.has(this.model.uuid)) return { kind: 'syllable', source: 'rule' };
+    }
+    return null;
   }
 
   flagViewBox(d: NoteFlagDef): string { return d.viewBox || '0 0 10 10'; }
@@ -1434,33 +1479,34 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const sc = this.shortcutsService.getShortcuts();
     const items: ContextMenuItem[] = [
       {
-        label: `Set to Flat (${sc.setFlat})`,
+        label: 'Set to flat', hint: sc.setFlat,
         action: () => { this.toggleNoteType(VM.NoteType.Flat); this.refreshNoteText(); }
       },
       {
-        label: `Set to Sharp (${sc.setSharp})`,
+        label: 'Set to sharp', hint: sc.setSharp,
         action: () => { this.toggleNoteType(VM.NoteType.Sharp); this.refreshNoteText(); }
       },
       {
-        label: `Set to Natural (${sc.setNatural})`,
+        label: 'Set to natural', hint: sc.setNatural,
         action: () => { this.toggleNoteType(VM.NoteType.Normal); this.refreshNoteText(); }
       },
       {
-        label: `Toggle Liquescent (${sc.toggleLiquescent})`,
+        label: 'Toggle liquescent', hint: sc.toggleLiquescent,
         action: () => { this.toggleLiquescent(); this.refreshNoteText(); }
       },
       ...this.flagMenuItems(d.ref),
       this.meiMenuItem(d.ref),
+      this.syllableTypeMenuItem(),
       {
-        label: 'Split Line After Syllable',
+        label: 'Split line after syllable', separatorBefore: true,
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
       },
       {
-        label: `Add Comment (Ctrl+${sc.addComment.toUpperCase()})`,
+        label: 'Add comment', hint: `Ctrl+${sc.addComment.toUpperCase()}`,
         action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: sc.addComment, ctrlKey: true })); }
       },
       {
-        label: '⚙️ Keyboard Shortcuts Settings...',
+        label: 'Keyboard shortcuts…', icon: 'bi-gear',
         action: () => { this.openShortcutsModal(); }
       }
     ];
@@ -1482,11 +1528,11 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         });
       }
       items.push({
-        label: 'Open in Pattern Overview',
+        label: 'Open in pattern overview', separatorBefore: true,
         action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern } }); }
       });
       items.push({
-        label: 'Open Pattern Variants',
+        label: 'Open pattern variants',
         action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern, showVariants: 'true' } }); }
       });
     }
@@ -1500,7 +1546,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     me.preventDefault();
     me.stopPropagation();
     const count = this.getSyllableComments().length;
-    const items = [
+    const items: ContextMenuItem[] = [
       {
         label: 'Comment on this syllable',
         icon: 'bi-chat-left-plus',
@@ -1516,6 +1562,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         icon: 'bi-chat-left-text',
         action: () => this.showComments(true)
       }] : []),
+      { ...this.syllableTypeMenuItem(), separatorBefore: true },
     ];
     this.contextMenuService.open(me, items, 'transcription', 'entering-notes');
   }
@@ -1526,7 +1573,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     this.setTextAsPreferredFocus();
     
     const sc = this.shortcutsService.getShortcuts();
-    const items = [
+    const items: ContextMenuItem[] = [
       {
         label: 'Clear Syllable Text',
         action: () => { 
@@ -1540,16 +1587,17 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
         label: this.attrCountLabel('MEI attributes of the syllable…', this.model.meiAttrs),
         action: () => { this.openMeiAttributes('syllable'); }
       },
+      this.syllableTypeMenuItem(),
       {
-        label: 'Split Line After Syllable',
+        label: 'Split line after syllable', separatorBefore: true,
         action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
       },
       {
-        label: `Add Comment (Ctrl+${sc.addComment.toUpperCase()})`,
+        label: 'Add comment', hint: `Ctrl+${sc.addComment.toUpperCase()}`,
         action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: sc.addComment, ctrlKey: true })); }
       },
       {
-        label: '⚙️ Keyboard Shortcuts Settings...',
+        label: 'Keyboard shortcuts…', icon: 'bi-gear',
         action: () => { this.openShortcutsModal(); }
       }
     ];
@@ -1557,11 +1605,11 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const patInfo = this.findFirstPatternForSyllable();
     if (patInfo) {
       items.push({
-        label: 'Open in Pattern Overview',
+        label: 'Open in pattern overview', separatorBefore: true,
         action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern } }); }
       });
       items.push({
-        label: 'Open Pattern Variants',
+        label: 'Open pattern variants',
         action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern, showVariants: 'true' } }); }
       });
     }
@@ -1593,27 +1641,35 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     });
   }
 
+  /** Moves on to the next syllable type (the tool bar button). */
   changeType(): void {
-    const t = this.model.syllableType;
-    this.undoService.beforeChange('Edit Note');
-    this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
-    switch (t) {
-      case VM.SyllableType.Normal:
-        this.model.syllableType = VM.SyllableType.WithoutNotes;
-        break;
-      case VM.SyllableType.WithoutNotes:
-        this.model.syllableType = VM.SyllableType.SourceEllipsis;
-        break;
-      case VM.SyllableType.SourceEllipsis:
-        this.model.syllableType = VM.SyllableType.EditorialEllipsis;
-        break;
-      case VM.SyllableType.EditorialEllipsis:
-        this.model.syllableType = VM.SyllableType.Normal;
-        break;
-      default: assertNever(t);
-    }
+    const types = SYLLABLE_TYPE_CHOICES.map(c => c.type);
+    this.setSyllableType(types[(types.indexOf(this.model.syllableType) + 1) % types.length]);
+  }
 
+  setSyllableType(type: VM.SyllableType): void {
+    if (this.model.syllableType === type) return;
+    this.undoService.beforeChange('Edit Note');
+    this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+    this.model.syllableType = type;
+    this.recalculateWidths();
     this.refocus();
+    this.cdr.markForCheck();
+  }
+
+  /** Available wherever a syllable can be right-clicked, also when it has no note to click on. */
+  private syllableTypeMenuItem(): ContextMenuItem {
+    const current = SYLLABLE_TYPE_CHOICES.find(c => c.type === this.model.syllableType);
+    return {
+      label: 'Syllable type',
+      hint: current?.label,
+      action: () => {},
+      children: SYLLABLE_TYPE_CHOICES.map(c => ({
+        label: c.label,
+        checked: c.type === this.model.syllableType,
+        action: () => this.setSyllableType(c.type)
+      }))
+    };
   }
 
 
@@ -1781,6 +1837,8 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     return !!(window as any).groupedLayout;
   }
   isNormal(): boolean { return this.model.syllableType === VM.SyllableType.Normal; }
+  /** Staff lines are drawn for a syllable of type Normal, also when it has no notes (an empty staff), and never in adiastematic notation. */
+  hasStaff(): boolean { return !this.adiastematic && this.isNormal(); }
   isWithoutNotes(): boolean { return this.model.syllableType === VM.SyllableType.WithoutNotes; }
   isSourceEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.SourceEllipsis; }
   isEditorEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.EditorialEllipsis; }
@@ -1790,9 +1848,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   /** Draw a leading G-clef when this is the first element of its staff line
    *  (`showGClef`, set per-line by the template) or the first syllable of the
-   *  whole document. Never on adiastematic lines (no staff). */
+   *  whole document. Never where there is no staff. */
   get showClef(): boolean {
-    if (this.adiastematic) return false;
+    if (!this.hasStaff()) return false;
     if (this.showGClef) return true;
     return !!this.focusService.firstSyllableUuid && !!this.model && this.model.uuid === this.focusService.firstSyllableUuid;
   }
@@ -1800,7 +1858,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   getWidth(): number {
     const isEdit = !this.readOnly;
     const minW = isEdit ? 40 : (this.hideSyllableText ? 12 : 30);
-    const padding = (isEdit ? 20 : (this.hideSyllableText ? 6 : 12)) + (this.showGClef ? 22 : 0);
+    const padding = (isEdit ? 20 : (this.hideSyllableText ? 6 : 12)) + (this.showGClef && this.hasStaff() ? 22 : 0);
     const activeSyllTextWidth = (this.hideSyllableText && !isEdit) ? 0 : this.syllTextWidth;
     let baseW = padding;
     if (this.isNormal()) {

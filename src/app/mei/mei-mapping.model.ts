@@ -94,6 +94,52 @@ export interface MeiAnnotationRule {
   set: Record<string, string>;
 }
 
+/** How a syllable type of Monodi that is not `Normal` is written. */
+export type MeiSyllableTypeForm =
+  /** `<syllable type="…">`: the syllable stays where it is and carries the value. */
+  | 'attribute'
+  /** `<supplied type="…" reason="…">` around the syllable: the content is not (fully) in the source. */
+  | 'supplied'
+  /** `<gap type="…" reason="…"/>` as the first child of the syllable. */
+  | 'gap'
+  /** Nothing: the type is not written. */
+  | 'none';
+
+export interface MeiSyllableTypeRule {
+  form: MeiSyllableTypeForm;
+  /** Value of `@type`. */
+  value: string;
+  /** Value of `@reason` (forms `supplied` and `gap`). */
+  reason?: string;
+}
+
+export type MeiSyllableTypeKey = 'WithoutNotes' | 'SourceEllipsis' | 'EditorialEllipsis';
+
+/**
+ * Defaults of the syllable types (state 2026-11-02). MEI neume notation has no element for the type of a syllable:
+ * a syllable without notes needs no wrapper (a syllable may hold only `syl`), the two ellipses are material that is not
+ * (fully) written in the source and are marked with `supplied`, which the neume schema allows around a syllable.
+ */
+export const DEFAULT_SYLLABLE_TYPES: Record<MeiSyllableTypeKey, MeiSyllableTypeRule> = {
+  WithoutNotes: { form: 'attribute', value: 'withoutNotes' },
+  SourceEllipsis: { form: 'supplied', value: 'sourceEllipsis', reason: 'ellipsis in the source' },
+  EditorialEllipsis: { form: 'supplied', value: 'editorialEllipsis', reason: 'ellipsis made by the edition' }
+};
+
+export function syllableTypeRule(profile: MeiMappingProfileV2, type: string): MeiSyllableTypeRule | undefined {
+  const key = type as MeiSyllableTypeKey;
+  return profile.syllableTypes?.[key] ?? DEFAULT_SYLLABLE_TYPES[key];
+}
+
+/** The staff of the score: the editor draws five lines and, at a line start, a G clef on the second line from the bottom. */
+export interface MeiStaffSettings {
+  lines: number;
+  clefShape: string;
+  clefLine: number;
+}
+
+export const DEFAULT_STAFF: MeiStaffSettings = { lines: 5, clefShape: 'G', clefLine: 2 };
+
 export interface MeiMappingProfileV2 {
   version: 2;
   id: string;
@@ -108,6 +154,22 @@ export interface MeiMappingProfileV2 {
    * own xml:id. Off by default so existing exports stay as they are; see CM-hub/docs/MEI-BODY-MAPPING.md.
    */
   schemaConformant?: boolean;
+  /** How the syllable types `WithoutNotes`, `SourceEllipsis` and `EditorialEllipsis` are written; missing entries use `DEFAULT_SYLLABLE_TYPES`. */
+  syllableTypes?: Partial<Record<MeiSyllableTypeKey, MeiSyllableTypeRule>>;
+  /** Lines and clef of the `staffDef` of the score (conformant structure); missing = `DEFAULT_STAFF`. */
+  staff?: MeiStaffSettings;
+  /** A change of manuscript line inside a Monodi line becomes `<sb type="manuscriptLine"/>` in the layer (conformant structure); default on. */
+  lineBreaks?: boolean;
+  /** The additional melodies of a syllable become `<layer n="2">` and so on, aligned by `@corresp` (conformant structure); default on. */
+  voices?: boolean;
+  /** Notes of a line of adiastematic notation: `contour` writes `@intm` (u, d or s) and no pitch, `pitch` writes the stored pitches; default `contour`. */
+  adiastematic?: 'contour' | 'pitch';
+  /**
+   * How a flat, sharp or natural of the Monodi data is written. `accid` (default): an `<accid>` of the syllable at its place
+   * between the neumes, with the pitch position in `@ploc` and `@oloc`; it adds no note to the melody. `note`: a note `<nc>`
+   * with pitch, as earlier exports did (Monodi-Zero 0.9.1).
+   */
+  accidentals?: 'accid' | 'note';
   inlineInterventions?: boolean;       // encode interventions inline
   /** Pattern → MEI attribute rules ("transcription equivalents"), optionally per manuscript. */
   patternRules?: MeiPatternRule[];
@@ -127,6 +189,7 @@ export interface MeiMappingProfileV2 {
 export const ENTITY_FIELDS: Record<MeiEntityKey, { key: string; label: string; example: string }[]> = {
   formteil: [
     { key: 'signature', label: 'Signature', example: 'A' },
+    { key: 'status', label: 'Status', example: 'Draft' },
     { key: 'uuid', label: 'UUID', example: 'formteil-123' }
   ],
   zeile: [
@@ -200,6 +263,17 @@ export const MEI_ELEMENT_SUGGESTIONS: string[] = [
   'custos', 'divLine', 'accid'
 ];
 
+/** Section attributes: the signature of the form part is its label (it may hold spaces, `@n` may not), the status its type. */
+const FORMTEIL_ATTRIBUTES: MeiAttributeRule[] = [
+  { name: 'label', source: 'field', value: 'signature', omitIfEmpty: true },
+  { name: 'type', source: 'field', value: 'status', omitIfEmpty: true }
+];
+/** Paratext (text written in the manuscript next to the music): an `annot` of the section; `dir` is not allowed there. */
+const PARATEXT_ATTRIBUTES: MeiAttributeRule[] = [
+  { name: 'type', source: 'static', value: 'paratext' },
+  { name: 'label', source: 'field', value: 'paratextType', omitIfEmpty: true }
+];
+
 function buildEntities(v1: any): Record<MeiEntityKey, MeiEntityRule> {
   const formteilTag = v1?.formteilContainer?.tag || 'section';
   const zeileTag = v1?.zeileContainer?.tag || 'sb';
@@ -222,7 +296,8 @@ function buildEntities(v1: any): Record<MeiEntityKey, MeiEntityRule> {
   const clefLineAttr = v1?.clef?.lineAttr || 'line';
   const clefDefaultLine = v1?.clef?.defaultLine || '1';
   
-  const paratextTag = v1?.paratextContainer?.tag || 'dir';
+  // `dir` was the default of earlier versions; the schema does not allow it in a section, so it counts as "not set".
+  const paratextTag = (v1?.paratextContainer?.tag && v1.paratextContainer.tag !== 'dir') ? v1.paratextContainer.tag : 'annot';
   const oriscusTag = v1?.oriscus?.tag || 'oriscus';
   const quilismaTag = v1?.quilisma?.tag || 'quilisma';
   const strophicusTag = v1?.strophicus?.tag || 'strophicus';
@@ -233,7 +308,7 @@ function buildEntities(v1: any): Record<MeiEntityKey, MeiEntityRule> {
       enabled: true,
       tag: formteilTag,
       wrappers: [],
-      attributes: []
+      attributes: [...FORMTEIL_ATTRIBUTES.map(a => ({ ...a }))]
     },
     zeile: {
       enabled: true,
@@ -242,10 +317,10 @@ function buildEntities(v1: any): Record<MeiEntityKey, MeiEntityRule> {
       attributes: []
     },
     paratext: {
-      enabled: false,
+      enabled: true,
       tag: paratextTag,
       wrappers: [],
-      attributes: [],
+      attributes: PARATEXT_ATTRIBUTES.map(a => ({ ...a })),
       textFrom: 'text'
     },
     syllable: {
@@ -308,8 +383,9 @@ function buildEntities(v1: any): Record<MeiEntityKey, MeiEntityRule> {
         },
         {
           name: clefLineAttr,
-          source: 'static',
-          value: clefDefaultLine
+          // `1` was the fixed default of earlier versions; now the line is taken from the position of the clef.
+          source: clefDefaultLine !== '1' ? 'static' : 'field',
+          value: clefDefaultLine !== '1' ? clefDefaultLine : 'line'
         }
       ]
     },
@@ -442,6 +518,24 @@ export function defaultMeiProfile(): MeiMappingProfileV2 {
     inlineInterventions: false,
     entities: buildEntities(null)
   };
+}
+
+/**
+ * Brings a stored profile to the defaults of state 2026-11-02 where it still holds the earlier defaults: the paratext
+ * (it was off and named the element `dir`, which the schema does not allow in a section), the clef line (it was a fixed 1) and
+ * the section attributes (there were none). A setting that a person changed is left as it is.
+ */
+export function upgradeMeiProfile(profile: MeiMappingProfileV2): MeiMappingProfileV2 {
+  const e = profile.entities;
+  if (!e) return profile;
+  const p = e.paratext;
+  if (p && !p.enabled && p.tag === 'dir' && p.attributes.length === 0) {
+    e.paratext = { ...p, enabled: true, tag: 'annot', attributes: PARATEXT_ATTRIBUTES.map(a => ({ ...a })) };
+  }
+  const line = e.clef?.attributes.find(a => a.name === 'line');
+  if (line && line.source === 'static' && line.value === '1') { line.source = 'field'; line.value = 'line'; }
+  if (e.formteil && e.formteil.attributes.length === 0) e.formteil.attributes = FORMTEIL_ATTRIBUTES.map(a => ({ ...a }));
+  return profile;
 }
 
 export function migrateV1MeiMappings(v1: any): MeiMappingProfileV2 {

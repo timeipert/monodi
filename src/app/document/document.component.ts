@@ -1,6 +1,6 @@
 import { FocusService } from '../focus.service';
 import { applyPlaceholderImport, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
-import { ViewChild, ElementRef, Component, OnInit, HostListener, ChangeDetectorRef, NgZone, inject } from '@angular/core';
+import { ViewChild, ElementRef, Component, OnInit, DoCheck, HostListener, ChangeDetectorRef, NgZone, inject } from '@angular/core';
 import { followDrag } from '../follow-drag';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -38,7 +38,9 @@ import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
 import { getActiveMeiProfile } from '../mei/mei-annotation-context';
-import { AttrGroup, NoteSelection, selectionAnnotations } from '../mei/mei-selection';
+import { AnnotatedPlace, AttrGroup, NoteSelection, PlaceGroup, annotatedPlaces, findFocusedNote, groupPlaces, selectionAnnotations } from '../mei/mei-selection';
+import { MeiViewPrefs, getMeiViewPrefs, setMeiViewPrefs, setMeiRuleMarks } from '../mei/mei-view-prefs';
+import { buildAnnotationIndex } from '../mei/mei-annotations';
 import { AnnotationTarget } from '../mei/mei-mapping.model';
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
 import { downloadBlob } from '../download';
@@ -49,7 +51,7 @@ import { downloadBlob } from '../download';
     styleUrls: ['./document.component.css'],
     standalone: false
 })
-export class DocumentComponent implements OnInit {
+export class DocumentComponent implements OnInit, DoCheck {
   /** Publish the first syllable's UUID (for the chant-start clef). Called when a
    *  document is loaded — NOT during change detection — so it never mutates state
    *  that a freshly-created child view reads in the same CD pass (NG0100). */
@@ -346,7 +348,53 @@ export class DocumentComponent implements OnInit {
   activeSidebarComment: VM.Comment | null = null;
   activeSidebarOriginal: VM.ZeileContainer | null = null;
 
-  sidebarVisible = true;
+  /** Whether the inspector is open. The choice is kept per browser, so a person who works on the score alone only closes it once. */
+  sidebarVisible: boolean = (() => {
+    try { return localStorage.getItem('monodi_inspector_visible') !== '0'; }
+    catch { return true; }
+  })();
+
+  /** Whether the note code stays visible under every syllable. Off: only on the selected or hovered syllable. */
+  showNoteCodes: boolean = (() => {
+    try { return localStorage.getItem('monodi_show_note_codes') === '1'; }
+    catch { return false; }
+  })();
+
+  isOnline: boolean = navigator.onLine;
+  @HostListener('window:online') onBrowserOnline(): void { this.isOnline = true; }
+  @HostListener('window:offline') onBrowserOffline(): void { this.isOnline = false; }
+
+  /** Time of the last save that worked, and whether the last attempt failed; both feed the status bar. */
+  private lastSavedAt?: Date;
+  saveError = false;
+
+  get documentTitle(): string {
+    return this.document?.textinitium || this.document?.dokumenten_id || 'Untitled Chant';
+  }
+
+  get saveStateLabel(): string {
+    if (this.isSaving) return 'Saving…';
+    if (this.saveError) return 'Not saved';
+    if (!this.lastSavedAt) return '';
+    return 'Saved ' + this.lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  get focusedNoteLabel(): string | undefined {
+    const sel = this.cont ? findFocusedNote(this.cont) : undefined;
+    if (!sel) return undefined;
+    const note = `Note ${sel.note.base}${sel.note.octave}`;
+    return sel.syllable.text ? `${note} in “${sel.syllable.text}”` : note;
+  }
+
+  setInspectorVisible(visible: boolean): void {
+    this.sidebarVisible = visible;
+    try { localStorage.setItem('monodi_inspector_visible', visible ? '1' : '0'); } catch { /* the choice then lasts for this page only */ }
+  }
+
+  toggleNoteCodes(): void {
+    this.showNoteCodes = !this.showNoteCodes;
+    try { localStorage.setItem('monodi_show_note_codes', this.showNoteCodes ? '1' : '0'); } catch { /* the choice then lasts for this page only */ }
+  }
 
   /** Whether the inline "How to add a comment" help card is collapsed.
    *  Persisted in localStorage so a user only sees the verbose card once. */
@@ -693,12 +741,90 @@ export class DocumentComponent implements OnInit {
   private meiCache?: { key: string; value: { selection: NoteSelection; groups: AttrGroup[] } | undefined };
   get meiAnnotations(): { selection: NoteSelection; groups: AttrGroup[] } | undefined {
     if (this.sidebarTab !== 'mei' || !this.cont) return undefined;
-    const rules = getActiveMeiProfile()?.annotationRules;
-    const value = selectionAnnotations(this.cont, rules, this.sourceSigle);
-    const key = value ? JSON.stringify([value.selection.note.uuid, value.groups]) : '';
+    const profile = getActiveMeiProfile();
+    const sel = findFocusedNote(this.cont);
+    // The syllable and the profile decide the result, so an unchanged pair reuses it; the export that lists the generated
+    // attributes only runs when one of them changes.
+    const withGenerated = this.meiPrefs.showGenerated;
+    const key = sel ? JSON.stringify([sel.note.uuid, sel.syllable, profile, this.sourceSigle, withGenerated]) : '';
     if (this.meiCache && this.meiCache.key === key) return this.meiCache.value;
+    const value = sel ? selectionAnnotations(this.cont, profile?.annotationRules, this.sourceSigle, withGenerated ? profile : undefined) : undefined;
     this.meiCache = { key, value };
     return value;
+  }
+
+  get meiPrefs(): MeiViewPrefs { return getMeiViewPrefs(); }
+  setMeiPref(change: Partial<MeiViewPrefs>): void { setMeiViewPrefs(change); this.meiCache = undefined; }
+
+  meiPlaceFilter: 'all' | 'hand' | 'rule' = 'all';
+  private meiPlacesCache?: { at: number; json: string; value: AnnotatedPlace[] };
+  /**
+   * Every annotated place of the document, for the list view. The scan runs at most every 600 ms and the previous array
+   * is kept while the content is equal, so change detection sees a stable value.
+   */
+  get meiPlaces(): AnnotatedPlace[] {
+    if (this.sidebarTab !== 'mei' || this.meiPrefs.view !== 'all' || !this.cont) return [];
+    const now = Date.now();
+    if (this.meiPlacesCache && now - this.meiPlacesCache.at < 600) return this.meiPlacesCache.value;
+    const value = annotatedPlaces(this.cont, getActiveMeiProfile()?.annotationRules, this.sourceSigle);
+    const json = JSON.stringify(value);
+    if (this.meiPlacesCache && this.meiPlacesCache.json === json) { this.meiPlacesCache.at = now; return this.meiPlacesCache.value; }
+    this.meiPlacesCache = { at: now, json, value };
+    return value;
+  }
+
+  private meiMarksAt = 0;
+  /**
+   * Keeps the marks of annotation rules in the staff up to date: evaluates the rules at most every 600 ms, and only while
+   * the marks are on and the profile has rules. The staff redraws only when the result changes.
+   */
+  ngDoCheck(): void {
+    const now = Date.now();
+    if (now - this.meiMarksAt < 600) return;
+    this.meiMarksAt = now;
+    const rules = getActiveMeiProfile()?.annotationRules;
+    if (!this.cont || !this.meiPrefs.markInStaff || !rules || !rules.some(r => r.enabled)) { setMeiRuleMarks(new Set(), new Set()); return; }
+    const idx = buildAnnotationIndex(this.cont, rules, this.sourceSigle);
+    const notes = new Set<string>([...idx.nc.keys(), ...idx.neume.keys()]);
+    const sylls = new Set<string>(idx.syllable.keys());
+    setMeiRuleMarks(notes, sylls);
+  }
+
+  meiOpenGroups = new Set<string>();
+  meiClosedGroups = new Set<string>();
+  private meiGroupsCache?: { places: AnnotatedPlace[]; filter: string; by: string; value: PlaceGroup[] };
+  get meiGroups(): PlaceGroup[] {
+    const places = this.meiPlaces;
+    const by = this.meiPrefs.groupBy;
+    const c = this.meiGroupsCache;
+    if (c && c.places === places && c.filter === this.meiPlaceFilter && c.by === by) return c.value;
+    const value = groupPlaces(this.meiPlacesFiltered, by);
+    this.meiGroupsCache = { places, filter: this.meiPlaceFilter, by, value };
+    return value;
+  }
+  /** A group is open when the person opened it, or when there are few groups and the person did not close it. */
+  isMeiGroupOpen(g: PlaceGroup): boolean {
+    return this.meiOpenGroups.has(g.key) || (this.meiGroups.length <= 3 && !this.meiClosedGroups.has(g.key));
+  }
+  toggleMeiGroup(g: PlaceGroup): void {
+    if (this.isMeiGroupOpen(g)) { this.meiOpenGroups.delete(g.key); this.meiClosedGroups.add(g.key); }
+    else { this.meiClosedGroups.delete(g.key); this.meiOpenGroups.add(g.key); }
+  }
+
+  readonly meiListLimit = 200;
+  get meiPlacesFiltered(): AnnotatedPlace[] {
+    return this.meiPlaces.filter(p => this.meiPlaceFilter === 'all' || p.source === this.meiPlaceFilter);
+  }
+  meiPlaceCount(source: 'hand' | 'rule'): number { return this.meiPlaces.filter(p => p.source === source).length; }
+
+  /** Scrolls to the note and selects it (same mechanism as the `focus` link parameter). */
+  jumpToNote(uuid: string): void {
+    this.pendingFocusNoteUuid = uuid;
+    this.applyPendingFocus();
+  }
+
+  meiCount(g: AttrGroup, source: 'hand' | 'rule' | 'generated'): number {
+    return g.rows.filter(r => r.source === source).length;
   }
 
   /** Opens the dialog for the annotations of the focused note (the editor of its syllable does the work). */
@@ -711,6 +837,7 @@ export class DocumentComponent implements OnInit {
    *  reload returns to the same panel. */
   setSidebarTab(tab: 'metadata' | 'structure' | 'comments' | 'mei') {
     this.sidebarTab = tab;
+    this.sidebarVisible = true;
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { stab: tab },
@@ -1256,6 +1383,7 @@ export class DocumentComponent implements OnInit {
         title: 'Import and export',
         group: 'exchange',
         menu: [
+          { label: 'Cite this chant…', icon: 'bi-quote', action: () => { this.showCiteDialog = true; } },
           { label: 'Upload document (JSON)…', icon: 'bi-upload', action: () => this.upload() },
           { label: 'Export', header: true, action: () => {} },
           { label: 'Document (JSON)…', icon: 'bi-download', action: () => this.openJsonExport() },
@@ -1270,7 +1398,8 @@ export class DocumentComponent implements OnInit {
     this.toolService.remove(this);
     this.toolService.addStack({
       source: this,
-      tools: tools
+      tools: tools,
+      breadcrumb: () => ({ source: this.sourceSigle ?? '', document: this.documentTitle, openSource: () => this.goToSource(source) }),
     });
   }
 
@@ -1439,6 +1568,7 @@ export class DocumentComponent implements OnInit {
             case 'LoginRequired': this.userService.logout(); break;
             case 'DocumentCreated': 
               this.toastr.success("Saved successfully");
+              this.markSaved();
               this.document!.id = res.id;
               this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
               break;
@@ -1465,7 +1595,13 @@ export class DocumentComponent implements OnInit {
 
   private lastSaveErrorToast = 0;
 
+  private markSaved(): void {
+    this.lastSavedAt = new Date();
+    this.saveError = false;
+  }
+
   private saveFailed(error: unknown): void {
+    this.saveError = true;
     console.error('Saving the document failed', error);
     // Autosave retries on every edit: tell the person once in a while, not with every keystroke.
     if (Date.now() - this.lastSaveErrorToast < 10_000) return;
@@ -1491,9 +1627,10 @@ export class DocumentComponent implements OnInit {
             case 'Ok': 
               // Removed toastr to prevent spamming on autosave
               this.resetClones(); 
+              this.markSaved();
               break;
-            case 'DocumentNotFound': this.toastr.error("It looks like this document was deleted in the meantime."); break;
-            case 'InsufficientPermissions': this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
+            case 'DocumentNotFound': this.saveError = true; this.toastr.error("It looks like this document was deleted in the meantime."); break;
+            case 'InsufficientPermissions': this.saveError = true; this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
             default: assertNever(res);
           }
         },

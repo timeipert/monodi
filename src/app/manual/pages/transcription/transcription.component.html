@@ -36,16 +36,17 @@
   <h3 id="note-pitch-input">2. Note Navigation & Pitch Tuning</h3>
   <p>Press <kbd>Arrow Up</kbd> to shift focus from the syllable lyric text directly to the notes staff above it. Press <kbd>Space</kbd> to insert a note, and use <kbd>Arrow Up</kbd> or <kbd>Arrow Down</kbd> to adjust the note's pitch vertically. Pressing <kbd>l</kbd>, <kbd>o</kbd>, or <kbd>q</kbd> changes its type.</p>
 
-  <h2 id="editor-sidebar">The Editor Sidebar</h2>
-  <p>The collapsible sidebar on the left of the editor has three tabs:</p>
+  <h2 id="editor-sidebar">The Editor Inspector</h2>
+  <p>The collapsible inspector on the right of the score has four tabs. The status bar at the bottom of the screen shows the selected note and the save state; its <strong>Note codes</strong> switch keeps the note code visible under every syllable.</p>
   <ul>
-    <li><strong>Meta</strong>: The document's metadata fields — see <a routerLink="/manual/metadata">Metadata &amp; Export</a>.</li>
-    <li><strong>Struct</strong>: The structural outline of the chant (see below).</li>
+    <li><strong>Metadata</strong>: The document's metadata fields — see <a routerLink="/manual/metadata">Metadata &amp; Export</a>.</li>
+    <li><strong>Structure</strong>: The structural outline of the chant (see below).</li>
     <li><strong>Comments</strong>: All critical-apparatus comments of the document as colour-coded cards — see <a routerLink="/manual/comments">Critical Apparatus</a>.</li>
+    <li><strong>MEI</strong>: The MEI (Music Encoding Initiative) attributes of the selected note, its neume and its syllable.</li>
   </ul>
 
-  <h3 id="structure-tab">Organizing Sections (Struct tab)</h3>
-  <p>Longer chants are organized into named sections (e.g. strophes, verses, or antiphon/verse divisions). The Struct tab gives you a live outline of the document:</p>
+  <h3 id="structure-tab">Organizing Sections (Structure tab)</h3>
+  <p>Longer chants are organized into named sections (e.g. strophes, verses, or antiphon/verse divisions). The Structure tab gives you a live outline of the document:</p>
   <ul>
     <li><strong>Structural layers</strong>: Choose how many nesting levels (0–3) the document hierarchy uses. The labels of these levels can follow your genre profiles configured in <a routerLink="/manual/settings">Settings</a>.</li>
     <li><strong>Hierarchy tree</strong>: Every section, staff line, and paratext appears as a row, indented by depth. Section names are edited inline — the name is stored as the section's signature and appears in PDF exports and the synopsis.</li>

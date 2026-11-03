@@ -7,12 +7,11 @@ svg {
 }
 
 /* ── Main Navbar ─────────────────────────────────────
-   Dark slate, matches the hero section palette.
-   Keeps the app feeling professional and cohesive.
+   Paper-coloured bar with ink text from the shared theme (same as neume-docs).
 ─────────────────────────────────────────────────── */
 .navbar {
-    background-color: #1a1a2e !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background-color: var(--color-nav-bg) !important;
+    border-bottom: 1px solid var(--color-border) !important;
 }
 
 /* Brand wordmark */
@@ -20,33 +19,33 @@ svg {
     font-size: 1.15rem;
     font-weight: 700;
     letter-spacing: -0.4px;
-    color: #fff !important;
+    color: var(--color-text) !important;
     text-decoration: none;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--serif);
 }
 .brand-zero {
     font-weight: 300;
-    color: #a5b4fc;
+    color: var(--color-primary);
     margin-left: 3px;
     letter-spacing: 0;
 }
 
 /* Nav links */
 .navbar .nav-link {
-    color: rgba(255, 255, 255, 0.65) !important;
+    color: var(--color-text-muted) !important;
     font-weight: 500;
     padding: 0.4rem 0.75rem;
     border-radius: 6px;
     transition: color 0.15s, background 0.15s;
 }
 .navbar .nav-link:hover {
-    color: #fff !important;
-    background: rgba(255, 255, 255, 0.07);
+    color: var(--color-text) !important;
+    background: var(--color-surface-muted);
 }
 .navbar .nav-link.active,
 .navbar .nav-link.active.text-accent {
-    color: #a5b4fc !important;
-    background: rgba(129, 140, 248, 0.12);
+    color: var(--color-primary) !important;
+    background: var(--color-primary-light);
 }
 
 /* Settings gear link — same treatment */
@@ -57,38 +56,38 @@ svg {
 /* GitHub Pull/Push buttons — tinted to look right on dark bg */
 .navbar .btn-outline-success {
     border-color: rgba(52, 211, 153, 0.5);
-    color: #34d399;
+    color: var(--color-success);
     background: transparent;
 }
 .navbar .btn-outline-success:hover {
     background: rgba(52, 211, 153, 0.12);
-    border-color: #34d399;
-    color: #34d399;
+    border-color: var(--color-success);
+    color: var(--color-success);
 }
 .navbar .btn-success {
     background: rgba(52, 211, 153, 0.18);
     border-color: rgba(52, 211, 153, 0.4);
-    color: #34d399;
+    color: var(--color-success);
 }
 .navbar .btn-success:hover {
     background: rgba(52, 211, 153, 0.28);
-    color: #34d399;
+    color: var(--color-success);
 }
 
 /* Hamburger toggler on mobile */
 .navbar .navbar-toggler {
-    border-color: rgba(255,255,255,0.25);
+    border-color: var(--color-border-hover);
 }
 .navbar .navbar-toggler-icon {
-    filter: invert(1) brightness(2);
+    filter: none;
 }
 
 /* ── Toolbar strip (note editor toolbar) ─────────────
    One tone lighter than the navbar — a warm dark strip.
 ─────────────────────────────────────────────────── */
 .monodi-tool-bar {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #e5e7eb;
+    background-color: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -106,14 +105,14 @@ svg {
     height: 36px;
     padding: 0;
     border-radius: 7px;
-    border: 1px solid #d1d5db;
-    background: #fff;
+    border: 1px solid var(--color-border-hover);
+    background: var(--color-surface);
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
 .btn-toolbar-icon:hover {
-    background: #f3f4f6;
-    border-color: #9ca3af;
+    background: var(--color-surface-muted);
+    border-color: var(--color-text-light);
 }
 
 .toolbar-icon {
@@ -124,30 +123,30 @@ svg {
 
 /* Back button */
 .monodi-tool-bar .btn-outline-secondary {
-    color: #374151;
-    border-color: #d1d5db;
-    background: #fff;
+    color: var(--color-text);
+    border-color: var(--color-border-hover);
+    background: var(--color-surface);
     height: 36px;
 }
 .monodi-tool-bar .btn-outline-secondary:hover {
-    color: #111827;
-    background: #f3f4f6;
-    border-color: #9ca3af;
+    color: var(--color-text);
+    background: var(--color-surface-muted);
+    border-color: var(--color-text-light);
 }
 
 /* Toolbar badge labels */
 .monodi-tool-bar .badge {
-    background: #e5e7eb !important;
-    color: #374151 !important;
+    background: var(--color-border) !important;
+    color: var(--color-text) !important;
     font-size: 0.78rem !important;
     padding: 0.4em 0.75em !important;
 }
 
 /* Back to Source button — sits in the light toolbar on the left */
 .btn-back-source {
-    color: #374151;
+    color: var(--color-text);
     background: transparent;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--color-border-hover);
     border-radius: 7px;
     font-size: 0.85rem;
     font-weight: 500;
@@ -155,9 +154,9 @@ svg {
     transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .btn-back-source:hover {
-    color: #111827;
-    background: #f3f4f6;
-    border-color: #9ca3af;
+    color: var(--color-text);
+    background: var(--color-surface-muted);
+    border-color: var(--color-text-light);
 }
 
 .source-sigle {
@@ -177,7 +176,7 @@ svg {
 }
 
 .backup-reminder {
-  background: #fff8e1;
+  background: var(--color-warning-light);
 }
 
 .sync-progress-overlay {
@@ -190,16 +189,35 @@ svg {
 }
 
 .sync-progress-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 14px 16px;
 }
+
+/* Tool buttons, in the tool bar of every page. */
+.monodi-tool-bar .tool-btn { min-width: 40px; height: 40px; }
+.monodi-tool-bar .tool-icon { font-size: 1.25rem; }
+
+/* ── Editor bar ──────────────────────────────────────
+   In the note editor one bar replaces the navbar and the tool bar, so the score starts near the top of the screen.
+─────────────────────────────────────────────────── */
+.monodi-tool-bar.editor-bar { flex-wrap: wrap; justify-content: flex-start; padding: 6px 14px !important; }
+.editor-bar .tool-btn { min-width: 34px; height: 34px; padding: 0 .5rem; }
+.editor-bar .tool-icon { font-size: 1.05rem; }
+.editor-bar .btn-outline-secondary { height: 34px; }
+.editor-crumbs { display: flex; align-items: center; gap: .4rem; min-width: 0; flex: 0 1 auto; font-size: .92rem; }
+.editor-crumbs .bi-chevron-right { font-size: .6rem; color: var(--color-text-light); flex-shrink: 0; }
+.editor-crumbs a, .editor-crumb-link { color: var(--color-text-muted); text-decoration: none; white-space: nowrap; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.editor-crumbs a:hover, .editor-crumb-link:hover { color: var(--color-primary); }
+.editor-crumbs .editor-brand { color: var(--color-text); font-size: 1.1rem; font-weight: 600; }
+.editor-brand span { color: var(--color-primary); }
+.editor-crumb-current { color: var(--color-text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28vw; }
 
 /* thin divider between groups of tool buttons */
 .monodi-tool-bar .tool-sep {
   width: 1px;
   height: 24px;
   margin: 0 .35rem;
-  background: #d5dae0;
+  background: var(--color-border-hover);
 }

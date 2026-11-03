@@ -6,12 +6,13 @@ import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
 import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
-import { MeiMappingProfileV2, MeiPatternRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
+import { MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
 import { emitMei } from './mei-emitter';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
 import { checkAnnotations } from './mei-annotation-check';
 import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
+import { AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from './schema/mei-schema-catalog';
 import { RootContainer, ContainerKind, LinePartKind } from '../types/model';
 import { downloadBlob } from '../download';
 
@@ -19,6 +20,9 @@ import { downloadBlob } from '../download';
  *  a large chant doesn't freeze the debounced live-preview render. */
 const PREVIEW_SYLLABLE_LIMIT = 40;
 const PREVIEW_MAX_ZEILEN = 2;
+
+type MeiTabId = 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema';
+interface MeiGroup { id: 'export' | 'annotations' | 'schema'; label: string; icon: string; tabs: MeiTabId[] }
 
 @Component({
     selector: 'app-mei-mapping-editor',
@@ -219,9 +223,11 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     return { ...root, children: cloneChildren(root.children) };
   }
 
+  get hasValidationError(): boolean { return this.validationErrors.some(e => e.isError); }
+
   /** True for the tabs that are not an element of the entity tree. */
   get isPseudoNode(): boolean {
-    return ['skeleton', 'patterns', 'flags', 'rules', 'schema'].includes(this.selectedNodeId);
+    return ['skeleton', 'header', 'patterns', 'flags', 'rules', 'schema'].includes(this.selectedNodeId);
   }
 
   /** Document the rules panel counts matches on. */
@@ -238,6 +244,41 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       this.settings.activeMeiProfileId = id;
       this.emitChange(true); // immediate
     }
+  }
+
+  /** The syllable types of Monodi that are not normal, with the names of the editor. */
+  readonly syllableTypeKeys: { key: MeiSyllableTypeKey; label: string }[] = [
+    { key: 'WithoutNotes', label: 'Without notes' },
+    { key: 'SourceEllipsis', label: 'Ellipsis of the source (...)' },
+    { key: 'EditorialEllipsis', label: 'Ellipsis of the edition (<...>)' }
+  ];
+  readonly syllableTypeForms: { form: MeiSyllableTypeForm; label: string }[] = [
+    { form: 'attribute', label: '<syllable type="…">' },
+    { form: 'supplied', label: '<supplied> around the syllable' },
+    { form: 'gap', label: '<gap/> in the syllable' },
+    { form: 'none', label: 'Not written' }
+  ];
+
+  typeRule(key: MeiSyllableTypeKey): MeiSyllableTypeRule {
+    return syllableTypeRule(this.activeProfile!, key) ?? DEFAULT_SYLLABLE_TYPES[key];
+  }
+
+  /** Writes a complete rule for the type, so the profile keeps it when the defaults change. */
+  setTypeRule(key: MeiSyllableTypeKey, change: Partial<MeiSyllableTypeRule>) {
+    const profile = this.activeProfile!;
+    profile.syllableTypes = { ...profile.syllableTypes, [key]: { ...this.typeRule(key), ...change } };
+    this.emitChange();
+  }
+
+  typeRuleDiffers(key: MeiSyllableTypeKey): boolean {
+    return JSON.stringify(this.typeRule(key)) !== JSON.stringify(DEFAULT_SYLLABLE_TYPES[key]);
+  }
+
+  get staff() { return this.activeProfile?.staff ?? DEFAULT_STAFF; }
+
+  setStaff(change: Partial<typeof DEFAULT_STAFF>) {
+    this.activeProfile!.staff = { ...this.staff, ...change };
+    this.emitChange();
   }
 
   emitChange(immediate: boolean = false) {
@@ -263,14 +304,40 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   manageOpen = false;
 
   // --- Tabs ---
-  readonly tabs: { id: 'general' | 'elements' | 'patterns' | 'flags' | 'rules' | 'schema'; label: string; hint: string; icon: string }[] = [
-    { id: 'general',  label: 'General',    hint: 'Header and frame',          icon: 'bi-file-earmark-code' },
-    { id: 'elements', label: 'Elements',   hint: 'Tag and attributes per part', icon: 'bi-diagram-3' },
-    { id: 'patterns', label: 'Patterns',   hint: 'Fixed MEI per neume shape',  icon: 'bi-music-note-list' },
-    { id: 'flags',    label: 'Note flags', hint: 'Your own markers, e.g. virga', icon: 'bi-tags' },
-    { id: 'rules',    label: 'Rules',      hint: 'Set MEI attributes automatically', icon: 'bi-magic' },
-    { id: 'schema',   label: 'Schema',     hint: 'Valid attributes and checks', icon: 'bi-patch-check' }
+  /** The three areas of the page; each has one or more sections. */
+  readonly groups: MeiGroup[] = [
+    { id: 'export',      label: 'Export format', icon: 'bi-file-earmark-code', tabs: ['general', 'elements', 'header'] },
+    { id: 'annotations', label: 'Annotations',   icon: 'bi-tags',              tabs: ['flags', 'patterns', 'rules'] },
+    { id: 'schema',      label: 'Schema',        icon: 'bi-patch-check',       tabs: ['schema'] }
   ];
+
+  readonly tabs: { id: 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema'; label: string; hint: string }[] = [
+    { id: 'general',  label: 'Structure', hint: 'Frame around the music' },
+    { id: 'elements', label: 'Elements',  hint: 'Tag and attributes per part' },
+    { id: 'header',   label: 'Header',    hint: 'Header block and publication data' },
+    { id: 'flags',    label: 'Flags',     hint: 'Your own markers, e.g. virga' },
+    { id: 'patterns', label: 'Patterns',  hint: 'Fixed MEI per neume shape' },
+    { id: 'rules',    label: 'Rules',     hint: 'Set attributes automatically' },
+    { id: 'schema',   label: 'Schema',    hint: 'Valid attributes and checks' }
+  ];
+
+  get group(): MeiGroup {
+    return this.groups.find(g => g.tabs.includes(this.tab)) ?? this.groups[0];
+  }
+
+  tabsOf(g: MeiGroup) { return g.tabs.map(id => this.tabs.find(t => t.id === id)!); }
+
+  private lastTabOfGroup: Partial<Record<string, string>> = {};
+  setGroup(id: string) {
+    const g = this.groups.find(x => x.id === id)!;
+    this.lastTabOfGroup[this.group.id] = this.tab;
+    this.setTab((this.lastTabOfGroup[id] as MeiTabId) ?? g.tabs[0]);
+  }
+
+  groupCount(g: MeiGroup): number | null {
+    const n = g.tabs.reduce((sum, t) => sum + (this.tabCount(t) ?? 0), 0);
+    return n > 0 ? n : null;
+  }
 
   /** Last entity shown in the Elements tab, so switching tabs and back keeps the selection. */
   private lastEntity: MeiEntityKey = 'note';
@@ -296,9 +363,10 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     ] }
   ];
 
-  get tab(): 'general' | 'elements' | 'patterns' | 'flags' | 'rules' | 'schema' {
+  get tab(): 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema' {
     switch (this.selectedNodeId) {
       case 'skeleton': return 'general';
+      case 'header': return 'header';
       case 'patterns': return 'patterns';
       case 'flags': return 'flags';
       case 'rules': return 'rules';
@@ -307,7 +375,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     }
   }
 
-  setTab(t: 'general' | 'elements' | 'patterns' | 'flags' | 'rules' | 'schema') {
+  setTab(t: 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema') {
     this.selectNode(t === 'general' ? 'skeleton' : t === 'elements' ? this.lastEntity : t);
   }
 
@@ -397,6 +465,77 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   /** Key typed by the user; empty means "use the suggestion". */
   newFlagKeyInput = '';
 
+  // --- Flags and the MEI vocabulary ---
+
+  /** MEI element of a note, as the profile names it. */
+  get ncElement(): string { return this.activeProfile?.entities.note.tag || 'nc'; }
+
+  private ncCatalogMemo?: { key: string; value: MeiSchemaCatalog | undefined };
+  /** The schema catalog of the active profile (with its own additions), kept between change detection runs. */
+  get ncCatalog(): MeiSchemaCatalog | undefined {
+    const p = this.activeProfile;
+    const key = JSON.stringify([p?.schemaId, p?.schemaExtensions]);
+    if (!this.ncCatalogMemo || this.ncCatalogMemo.key !== key) {
+      this.ncCatalogMemo = { key, value: p ? this.schemas.forProfile(p.schemaId, p.schemaExtensions) : undefined };
+    }
+    return this.ncCatalogMemo.value;
+  }
+
+  get ncAttrDefs(): MeiAttrDef[] { return this.ncCatalog ? attributesOf(this.ncCatalog, this.ncElement) : []; }
+
+  /** Neume forms the schema lists for `@type` of a note (virga, punctum, …). */
+  get ncTypeValues(): { value: string; doc?: string }[] {
+    return (this.ncCatalog ? findAttribute(this.ncCatalog, this.ncElement, 'type')?.values : undefined) ?? [];
+  }
+
+  /** The MEI neume forms a flag can stand for, with the ones of the standard set first. */
+  private readonly standardForms = ['virga', 'punctum', 'apostropha', 'bistropha', 'tristropha', 'virgastrata'];
+  get standardFlagForms(): string[] {
+    const have = new Set(this.noteFlags.map(f => f.mei?.['type']));
+    const known = new Set(this.ncTypeValues.map(v => v.value));
+    return this.standardForms.filter(v => known.has(v) && !have.has(v));
+  }
+
+  flagMeiType(fd: NoteFlagDef): string { return fd.mei?.['type'] ?? ''; }
+  setFlagMeiType(fd: NoteFlagDef, value: string) {
+    fd.mei = { ...(fd.mei ?? {}) };
+    if (value) fd.mei['type'] = value; else delete fd.mei['type'];
+    this.emitChange(true);
+  }
+
+  /** What the flag writes, as the export will: `<nc type="virga"/>`. */
+  flagXml(fd: NoteFlagDef): string {
+    const attrs = Object.entries(fd.mei ?? {}).filter(([, v]) => v !== '').map(([k, v]) => ` ${k}="${v}"`).join('');
+    return `<${fd.meiTag || this.ncElement}${attrs}/>`;
+  }
+
+  flagIssues(fd: NoteFlagDef): AttrIssue[] {
+    const el = fd.meiTag || this.ncElement;
+    const out: AttrIssue[] = [];
+    if (fd.meiTag && this.ncCatalog && !this.ncCatalog.elements[fd.meiTag]) out.push({ level: 'warning', message: `<${fd.meiTag}> is not an element of the schema "${this.ncCatalog.label}".` });
+    for (const [k, v] of Object.entries(fd.mei ?? {})) {
+      const issue = checkAttribute(this.ncCatalog, el, k, v, this.activeProfile?.attributePolicy ?? 'warn');
+      if (issue) out.push(issue);
+    }
+    return out;
+  }
+
+  addFlagAttr(fd: NoteFlagDef, name: string) {
+    fd.mei = { ...(fd.mei ?? {}) };
+    if (!(name in fd.mei)) fd.mei[name] = '';
+    this.emitChange();
+  }
+
+  /** Adds a flag for an MEI neume form (for example virga) with the connection already made. */
+  addStandardFlag(value: string) {
+    const label = value.charAt(0).toUpperCase() + value.slice(1);
+    const free = this.freeFlagKeys;
+    const key = label.toUpperCase().split('').find(c => free.includes(c)) ?? free[0];
+    if (!key) { this.toastr.error('All letters are taken.'); return; }
+    this.noteFlags.push({ key, label, abbrev: key, mei: { type: value } });
+    this.emitChange(true);
+  }
+
   get noteFlags(): NoteFlagDef[] {
     return this.settings.noteFlags ??= [];
   }
@@ -446,7 +585,9 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     if (this.flagFormHint) return;
     const key = this.newFlagKey;
     const label = this.newFlagLabel.trim();
-    this.noteFlags.push({ key, label, abbrev: key, mei: {} });
+    // A name that is an MEI neume form (Virga, Punctum, …) is connected to it right away.
+    const form = this.ncTypeValues.find(v => v.value === label.toLowerCase());
+    this.noteFlags.push({ key, label, abbrev: key, mei: form ? { type: form.value } : {} });
     this.newFlagLabel = '';
     this.newFlagKeyInput = '';
     this.emitChange(true);
@@ -869,6 +1010,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       this.activeProfile.skeleton = JSON.parse(JSON.stringify(def.skeleton));
       this.activeProfile.emitHeader = def.emitHeader;
       this.activeProfile.inlineInterventions = def.inlineInterventions;
+      for (const k of ['schemaConformant', 'syllableTypes', 'staff', 'lineBreaks', 'voices', 'adiastematic', 'accidentals'] as const) delete this.activeProfile[k];
       this.emitChange(true);
       this.toastr.success('Profile reset to defaults.');
     }

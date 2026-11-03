@@ -44,7 +44,7 @@
       </div>
 
       <!-- Split Screen Simulator Frame -->
-      <div class="demo-wrapper w-100 mt-2 position-relative" style="height: 220px; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+      <div class="demo-wrapper w-100 mt-2 position-relative" style="height: 220px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 8px; background: white;">
 
         <!-- Flash indicator -->
         @if (showFlash) {
@@ -66,15 +66,15 @@
             <!-- Stave Line Block -->
             <div class="p-1 border rounded bg-white" id="mock-stave-target" style="font-size: 0.7rem; min-height: 50px;">
               <span class="text-muted d-block" style="font-size: 0.6rem;">Line 1</span>
-              <div style="border-top: 1px solid #94a3b8; margin: 3px 0;"></div>
-              <div style="border-top: 1px solid #94a3b8; margin: 3px 0;"></div>
-              <div style="border-top: 1px solid #94a3b8; margin: 3px 0;"></div>
+              <div style="border-top: 1px solid var(--color-text-light); margin: 3px 0;"></div>
+              <div style="border-top: 1px solid var(--color-text-light); margin: 3px 0;"></div>
+              <div style="border-top: 1px solid var(--color-text-light); margin: 3px 0;"></div>
               <div class="text-center font-monospace" style="font-size: 0.6rem; color: var(--accent-color);">F G A G F</div>
             </div>
           </div>
 
           <!-- Right side: Mock IIIF Manuscript Viewer -->
-          <div class="col-6 h-100 d-flex flex-column p-2 transition" [class.bg-warning-subtle]="activeHighlightId === 'split-screen'" style="background-color: #fafaf9;">
+          <div class="col-6 h-100 d-flex flex-column p-2 transition" [class.bg-warning-subtle]="activeHighlightId === 'split-screen'" style="background-color: var(--color-bg);">
             <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
               <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem;"><i class="bi bi-image me-1"></i>IIIF Viewer</span>
               <span class="badge bg-secondary" style="font-size: 0.6rem;" [class.bg-primary]="activeHighlightId === 'auto-folio'">Folio {{activeFolio}}</span>

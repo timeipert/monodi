@@ -1,9 +1,9 @@
-<div class="sticky-top shadow-sm">
-  <nav class="navbar navbar-expand-lg navbar-light bg-white px-3 px-md-4 border-bottom">
+<div #chrome class="sticky-top">
+  <nav class="navbar navbar-expand-lg navbar-light px-3 px-md-4 border-bottom" [class.d-none]="editorBar">
     <a class="navbar-brand d-flex align-items-center gap-2" [routerLink]="['/']" style="text-decoration: none;">
-      <div class="d-flex align-items-baseline" style="font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.5px;">
-        <span style="color: #fff;">Monodi</span>
-        <span style="color: #34d399; font-size: 1.5rem; line-height: 1; margin-left: 1px;">+</span>
+      <div class="d-flex align-items-baseline" style="font-family: var(--serif); font-weight: 600; font-size: 1.35rem; letter-spacing: 0;">
+        <span style="color: var(--color-text);">Monodi</span>
+        <span style="color: var(--color-primary); font-size: 1.5rem; line-height: 1; margin-left: 1px;">+</span>
       </div>
       <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">zero</span>
     </a>
@@ -110,9 +110,20 @@
   }
 
   @if (tools && tools.tools.length > 0) {
-    <div class="monodi-tool-bar bg-light border-bottom px-3 py-2 d-flex align-items-center flex-wrap gap-2 shadow-sm">
-      <!-- Left: Back to Source button -->
-      @if (tools.tools[0]?.icon === 'to-source') {
+    <div class="monodi-tool-bar bg-light border-bottom px-3 py-2 d-flex align-items-center flex-wrap gap-2" [class.editor-bar]="editorBar">
+      <!-- Left: where the document lives. In the editor this replaces the navbar and the back button. -->
+      @if (editorBar && tools.breadcrumb) {
+        @let place = tools.breadcrumb();
+        <nav class="editor-crumbs" aria-label="Location">
+          <a class="editor-brand" [routerLink]="['/']" title="Monodi-Zero start page">Monodi<span>+</span></a>
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          <a [routerLink]="['sources']">Sources</a>
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          <button type="button" class="editor-crumb-link" (click)="place.openSource()" title="Back to Source">{{ place.source || 'Source' }}</button>
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          <span class="editor-crumb-current" aria-current="page" [title]="place.document">{{ place.document }}</span>
+        </nav>
+      } @else if (tools.tools[0]?.icon === 'to-source') {
         <button
           class="btn btn-sm btn-back-source d-flex align-items-center gap-1 me-3"
           (click)="tools.tools[0].callback && tools.tools[0].callback()">
@@ -151,7 +162,7 @@
         </div>
       }
       <!-- Right: remaining tool icons -->
-      <div class="ms-auto d-flex align-items-center gap-2">
+      <div class="ms-auto d-flex align-items-center flex-wrap gap-2">
         @for (t of tools.tools; track t; let i = $index) {
           @if (t.icon !== 'to-source') {
             @if (t.icon) {
@@ -160,8 +171,7 @@
                   <span class="tool-sep" aria-hidden="true"></span>
                 }
                 <button
-                  class="btn d-flex align-items-center justify-content-center"
-                  style="min-width: 40px; height: 40px;"
+                  class="btn tool-btn d-flex align-items-center justify-content-center"
                   [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
                   (click)="t.menu ? openToolMenu($event, t) : (t.callback && t.callback())"
                   (contextmenu)="onToolContextMenu($event, t)"
@@ -170,7 +180,7 @@
                     <span class="fw-bold px-1" style="font-family: serif; font-size: 1.1em; letter-spacing: 0.5px;">MEI</span>
                   }
                   @if (t.icon !== 'mei') {
-                    <i class="bi bi-{{t.icon}}" style="font-size: 1.25rem;"></i>
+                    <i class="bi bi-{{t.icon}} tool-icon"></i>
                   }
                   @if (t.menu && t.label) {
                     <span class="ms-2 small fw-medium">{{t.label}}</span>
@@ -184,6 +194,15 @@
               <span class="badge bg-secondary text-white">{{t.title}}</span>
             }
           }
+        }
+        <!-- The navbar is hidden in the editor; sync and settings stay one click away. -->
+        @if (editorBar) {
+          <span class="tool-sep" aria-hidden="true"></span>
+          @if (github.isConnected) {
+            <button class="btn btn-outline-secondary tool-btn" (click)="sync('pull')" [disabled]="isSyncing" title="Pull from GitHub"><i class="bi bi-cloud-arrow-down tool-icon"></i></button>
+            <button class="btn btn-outline-secondary tool-btn" (click)="sync('push')" [disabled]="isSyncing" title="Push everything to GitHub"><i class="bi bi-cloud-arrow-up tool-icon"></i></button>
+          }
+          <a class="btn btn-outline-secondary tool-btn d-flex align-items-center justify-content-center" [routerLink]="['settings']" title="Settings"><i class="bi bi-gear tool-icon"></i></a>
         }
       </div>
     </div>

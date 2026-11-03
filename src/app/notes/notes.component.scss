@@ -13,22 +13,30 @@ svg {
     white-space: pre;
     padding-left: 5px;
     text-align: left;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     margin: 2px 3px;
     font-family: 'Courier New', monospace;
     font-size: 12px;
     line-height: 22px;
     height: 22px;
-    color: #374151;
-    background: #f9fafb;
-    transition: border-color 0.12s, background 0.12s;
+    color: var(--color-text);
+    background: var(--color-surface-muted);
+    transition: border-color 0.12s, background 0.12s, opacity 0.12s;
+    /* Hidden, not removed: it stays clickable and keeps its place, so the line does not jump when it appears. */
+    opacity: 0;
 
     &:focus {
-        border-color: #a5b4fc;
-        background: #fff;
+        border-color: var(--color-primary-muted);
+        background: var(--color-surface);
         outline: none;
     }
+}
+
+.section:hover .noteText,
+.section:focus-within .noteText,
+:host-context(.show-note-codes) .noteText {
+    opacity: 1;
 }
 
 /* Syllable text input */
@@ -36,19 +44,30 @@ svg {
     white-space: pre;
     padding-left: 5px;
     text-align: left;
-    border: 1px solid #e5e7eb;
+    /* Plain type, as in print; the field shows on hover and focus. */
+    border: 1px solid transparent;
     border-radius: 3px;
     margin: 2px 3px;
-    font-family: 'Times New Roman', Times, serif;
+    font-family: var(--serif);
     font-size: 15px;
     line-height: 24px;
     height: 24px;
-    color: #1f2937;
+    color: var(--color-text);
     transition: border-color 0.12s, background 0.12s;
 
+    &:hover {
+        border-color: var(--color-border);
+    }
+
     &:focus {
-        border-color: #a5b4fc;
+        border-color: var(--color-primary-muted);
+        background: var(--color-surface);
         outline: none;
+    }
+
+    /* A syllable still without text has to be findable. */
+    &:empty {
+        border-bottom: 1px dashed var(--color-border-hover);
     }
 }
 
@@ -62,6 +81,11 @@ svg {
 
 svg .note {
     cursor: pointer;
+}
+
+svg .bare-focus {
+    fill: var(--color-primary-muted, #9fc2ff);
+    opacity: 0.25;
 }
 
 .read-only {
@@ -97,6 +121,10 @@ svg .note {
 .section:not(.grouped-layout) .notes.voice-1 { order: 3; }
 .section:not(.grouped-layout) .noteText.voice-1 { order: 4; }
 .section:not(.grouped-layout) .syllableText { order: 5; }
+
+/* One voice: the text sits directly under its notes and the note code below the text. */
+.section:not(.grouped-layout):not(:has(.notes.voice-1)) .syllableText { order: 2; }
+.section:not(.grouped-layout):not(:has(.notes.voice-1)) .noteText.voice-0 { order: 3; }
 
 /* ── Comment-creation: animated dashed ring around the picked START note ──── */
 .comment-start-marker {

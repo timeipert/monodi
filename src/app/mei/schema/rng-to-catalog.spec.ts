@@ -71,6 +71,13 @@ describe('rngTextToCatalog', () => {
     expect(attributesOf(cat, 'nc').find(a => a.name === 'ligated')!.type).toBe('boolean');
   });
 
+  it('records the attribute class of the schema as the group of an attribute', () => {
+    const attrs = attributesOf(cat, 'nc');
+    expect(attrs.find(a => a.name === 'con')!.group).toBe('ncForm');
+    expect(attrs.find(a => a.name === 'oct')!.group).toBe('nc');
+    expect(attrs.find(a => a.name === 'xml:id')!.group).toBeUndefined();
+  });
+
   it('keeps a union as alternatives so that each alternative is checked on its own', () => {
     expect(checkAttribute(cat, 'nc', 'oct', '4')).toBeNull();
     expect(checkAttribute(cat, 'nc', 'oct', 'unknown')).toBeNull();

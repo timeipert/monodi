@@ -24,7 +24,7 @@
   top: 0.4rem;
   left: 1rem;
   font-size: 0.7rem;
-  color: #6c757d; // muted text
+  color: var(--color-text-muted); // muted text
   user-select: none;
   pointer-events: none;
 }
@@ -72,7 +72,7 @@
 }
 
 .del-row, .del-col {
-  color: #dc3545;
+  color: var(--color-danger);
   background: transparent;
   width: unset;
   height: unset;

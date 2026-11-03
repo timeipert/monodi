@@ -1,0 +1,182 @@
+/*
+ * Shared look of the apps of monodi-platform (Monodi-Zero and neume-docs).
+ *
+ * What it is for: one set of design tokens (CSS custom properties for colour, spacing, radius, shadow) and the
+ * base look built on them, so both apps read as one tool. Who it is for: people who maintain the app styles.
+ * Where to start: the `:root` block holds the neutral tokens; the `body` block below replaces some of them with
+ * the "classical" values (book face, ink on paper, hairline rules, the red of a rubric as the only colour).
+ *
+ * How an app uses it: neume-docs imports it in `ui/src/main.js`, Monodi-Zero lists it in `angular.json` under
+ * `styles` (both reach it through `vendor/cm-core`). App-specific rules stay in the app. A component should use a
+ * token (`var(--color-primary)`), never a hard-coded colour, so that changing a value here changes both apps.
+ * Source of the values: moved from `apps/neume-docs/ui/src/style.css` and `style-classic.css`, state 2026-11-02.
+ */
+
+:root {
+  /* Backgrounds */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f9;
+  --color-nav-bg: #1e293b;
+
+  /* Borders */
+  --color-border: #e2e8f0;
+  --color-border-hover: #cbd5e1;
+
+  /* Text */
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-text-light: #94a3b8;
+
+  /* Primary (Blue scale) */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-primary-active: #1d4ed8;
+  --color-primary-light: #dbeafe;
+  --color-primary-dark: #1e3a8a;
+  --color-primary-muted: #93c5fd;
+
+  /* Semantic */
+  --color-danger-light: #fee2e2;
+  --color-danger-muted: #fca5a5;
+  --color-warning-light: #fef3c7;
+  --color-warning-muted: #fde68a;
+  --color-warning-dark: #b45309;
+  --color-success-light: #dcfce7;
+  --color-success-muted: #86efac;
+  --color-accent: #8b5cf6;
+  --color-accent-light: #ede9fe;
+  --color-accent-dark: #5b21b6;
+  --color-success-dark: #166534;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #22c55e;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.14);
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(59, 130, 246, 0.35);
+}
+
+:root {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Classical look: replaces the neutral token values above. */
+body {
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+
+    --color-bg: #fbfaf7;
+    --color-surface: #fffefb;
+    --color-surface-muted: #f3f0e9;
+    --color-nav-bg: #fbfaf7;
+
+    --color-border: #e2dccf;
+    --color-border-hover: #c9c0ae;
+
+    --color-text: #1f1d1a;
+    --color-text-muted: #5f5a52;
+    --color-text-light: #8a847a;
+
+    --color-primary: #9a2a1f;
+    --color-primary-hover: #7f2219;
+    --color-primary-active: #6b1c15;
+    --color-primary-light: #f6ebe7;
+    --color-primary-dark: #6b1c15;
+    --color-primary-muted: #ddbfb8;
+    --color-accent: #9a2a1f;
+    --color-accent-light: #f6ebe7;
+    --color-accent-dark: #6b1c15;
+
+    --radius-sm: 2px;
+    --radius-md: 2px;
+    --radius-lg: 3px;
+
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: 0 6px 24px rgba(31, 29, 26, 0.12);
+
+    --ring: 0 0 0 2px rgba(154, 42, 31, 0.35);
+
+    background: var(--color-bg);
+    font-family: var(--serif);
+    font-variant-numeric: lining-nums;
+    accent-color: var(--color-primary);
+}
+
+body h1,
+body h2,
+body h3,
+body h4 { font-family: var(--serif); font-weight: 400; letter-spacing: 0.005em; }
+
+body .ne-btn { font-family: var(--serif); font-size: 0.95em; box-shadow: none; }
+body .ne-input,
+body select,
+body input { font-family: var(--serif); }
+body code,
+body .ne-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+body h1,
+body h2,
+body h3,
+body h4 { font-family: var(--serif); font-weight: 400; letter-spacing: 0.005em; }
+
+body input,
+body select,
+body textarea { font-family: var(--serif); }
+body code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* Accessible, consistent focus ring across the app */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+/* Consistent slim scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-hover) transparent;
+}
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--color-text-light); background-clip: padding-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

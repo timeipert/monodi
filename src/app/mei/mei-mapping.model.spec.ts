@@ -1,8 +1,7 @@
 import { 
   defaultMeiProfile, 
   migrateV1MeiMappings, 
-  MeiEntityKey 
-} from './mei-mapping.model';
+  MeiEntityKey, upgradeMeiProfile } from './mei-mapping.model';
 
 describe('MeiMappingModelV2', () => {
   const v1Default = {
@@ -45,11 +44,7 @@ describe('MeiMappingModelV2', () => {
 
     expectedKeys.forEach(key => {
       expect(profile.entities[key]).toBeDefined();
-      if (key === 'paratext') {
-        expect(profile.entities[key].enabled).toBe(false);
-      } else {
-        expect(profile.entities[key].enabled).toBe(true);
-      }
+      expect(profile.entities[key].enabled).toBe(true);
       expect(profile.entities[key].tag).toBeTruthy();
       expect(profile.entities[key].tag.length).toBeGreaterThan(0);
     });
@@ -90,5 +85,28 @@ describe('MeiMappingModelV2', () => {
     expectedEntities.note.tag = 'custom-nc-tag';
     
     expect(migratedProfile.entities).toEqual(expectedEntities);
+  });
+});
+
+describe('upgradeMeiProfile', () => {
+  it('replaces the earlier defaults of paratext, clef line and section attributes, and leaves changed settings alone', () => {
+    const old = defaultMeiProfile();
+    old.entities.paratext = { enabled: false, tag: 'dir', wrappers: [], attributes: [], textFrom: 'text' };
+    old.entities.clef.attributes[1] = { name: 'line', source: 'static', value: '1' };
+    old.entities.formteil.attributes = [];
+    const up = upgradeMeiProfile(old);
+    expect(up.entities.paratext.enabled).toBe(true);
+    expect(up.entities.paratext.tag).toBe('annot');
+    expect(up.entities.clef.attributes[1]).toEqual({ name: 'line', source: 'field', value: 'line' });
+    expect(up.entities.formteil.attributes.map(a => a.name)).toEqual(['label', 'type']);
+
+    const own = defaultMeiProfile();
+    own.entities.paratext = { enabled: false, tag: 'rend', wrappers: [], attributes: [] };
+    own.entities.clef.attributes[1] = { name: 'line', source: 'static', value: '3' };
+    own.entities.formteil.attributes = [{ name: 'n', source: 'field', value: 'uuid' }];
+    const kept = upgradeMeiProfile(own);
+    expect(kept.entities.paratext.tag).toBe('rend');
+    expect(kept.entities.clef.attributes[1].value).toBe('3');
+    expect(kept.entities.formteil.attributes.length).toBe(1);
   });
 });

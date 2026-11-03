@@ -4,7 +4,7 @@
   overflow-x: auto;
   overflow-y: auto;
   position: relative;
-  background-color: #fff;
+  background-color: var(--color-surface);
 }
 
 /* Sticky Headers & Columns styling */
@@ -24,9 +24,9 @@
 .stats-table thead tr th {
   position: sticky;
   top: 0;
-  background-color: #f8fafc;
+  background-color: var(--color-bg);
   z-index: 5;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--color-border);
 }
 
 /* Sticky Left Columns */
@@ -38,12 +38,12 @@
 
 .stats-table .first-col {
   left: 0;
-  border-right: 1px solid #f1f5f9;
+  border-right: 1px solid var(--color-surface-muted);
 }
 
 .stats-table .second-col {
   left: 220px;
-  border-right: 2px solid #cbd5e1 !important;
+  border-right: 2px solid var(--color-border-hover) !important;
 }
 
 /* Sticky Headers for left columns (needs higher z-index to overlay top headers) */
@@ -57,21 +57,21 @@
 
 .stats-table th.second-header {
   left: 220px;
-  border-right: 2px solid #cbd5e1 !important;
+  border-right: 2px solid var(--color-border-hover) !important;
 }
 
 /* Row backgrounds to avoid transparency overlapping in sticky cells */
 .stats-table tbody tr td {
-  background-color: #ffffff;
+  background-color: var(--color-surface);
 }
 
 .stats-table tbody tr.bg-even td {
-  background-color: #fdfdfd;
+  background-color: var(--color-surface-muted);
 }
 
 /* Even rows sticky cell backgrounds */
 .stats-table tbody tr.bg-even td.sticky-col {
-  background-color: #fdfdfd;
+  background-color: var(--color-surface-muted);
 }
 
 /* Hover styling on cells */
@@ -86,7 +86,7 @@
 }
 
 .count-cell.has-occs:hover {
-  background-color: #f0fdf4 !important;
+  background-color: var(--color-success-light) !important;
 }
 
 /* Count number vs hover details flip effect */
@@ -120,7 +120,7 @@
 }
 
 .pattern-header:hover {
-  background-color: #f1f5f9;
+  background-color: var(--color-surface-muted);
 }
 
 /* Spin animation for loading reload button */
