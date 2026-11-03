@@ -5,9 +5,7 @@
  * It does what Monodi-Zero does on import of a Monodi ZIP: `manifest` becomes `iiifManifestUrl`, unknown source keys
  * go to `custom`, and `additionalData` of a document becomes `custom`. Then it calls the same emitMei as the export button.
  */
-import { emitMei } from '../../src/app/mei/mei-emitter';
-import { defaultMeiProfile } from '../../src/app/mei/mei-mapping.model';
-import { METADATA_MAPPING } from '../../src/app/mei/metadata-mapping.generated';
+import { emitMei, defaultMeiProfile, METADATA_MAPPING } from '@monodi/core/mei';
 import type { PublicationContributor, PublicationSettings } from '../../src/app/api.service';
 
 const SOURCE_KEYS = ['id', 'quellensigle', 'herkunftsregion', 'herkunftsort', 'herkunftsinstitution', 'ordenstradition', 'quellentyp',

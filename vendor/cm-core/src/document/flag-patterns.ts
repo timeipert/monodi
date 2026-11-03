@@ -9,8 +9,9 @@
  * "whole" matches the code of a whole neume; "contains" finds the steps anywhere inside a neume
  * (a leading `*` anchors it at the neume's start, ligature brackets are then ignored).
  */
-import * as VM from '../types/model';
-import { NeumeNote, describeNeume, extractPattern } from '../transcription-analyzer-core';
+import * as VM from './model';
+import { describeNeume, extractPattern } from './pattern';
+import type { NeumeNote } from './pattern';
 
 export type FlagTarget = 'first' | 'last' | 'all' | 'nth';
 

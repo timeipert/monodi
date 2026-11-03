@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { DHelperLine, DNote, DTie } from '../notes/Drawables';
 import { GLYPH_PATHS } from '../notes/glyph-paths';
-import { flagDefsOf } from '../notes/note-flags';
+import { flagDefsOf } from '@monodi/core/document';
 import { G_CLEF_PATH } from '../clef-glyph';
 import { PathOp, parseSvgPath, transformOps } from './svg-path';
 import { SyllableGeometry } from './notation-geometry';
@@ -62,7 +62,7 @@ export function drawSyllableNotation(doc: jsPDF, g: SyllableGeometry, f: Notatio
 
 const flagOpsCache = new Map<string, PathOp[]>();
 
-/** User-defined note flags (see notes/note-flags.ts) above the note head: SVG outline or abbreviation. */
+/** User-defined note flags (see packages/core/src/document/note-flags.ts) above the note head: SVG outline or abbreviation. */
 function drawNoteFlags(doc: jsPDF, d: DNote, shift: number, px: (x: number) => number, py: (y: number) => number, S: number): void {
   const defs = flagDefsOf(d.ref.flags);
   if (defs.length === 0) return;

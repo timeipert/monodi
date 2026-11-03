@@ -49,8 +49,12 @@ export const CHILD_ORDER: Record<string, string[]> = {
 
 export class HeaderWriter {
   readonly root: Element;
+  readonly doc: Document;
+  private readonly aliases: Record<string, string>;
 
-  constructor(readonly doc: Document, rootName: string, private readonly aliases: Record<string, string>) {
+  constructor(doc: Document, rootName: string, aliases: Record<string, string>) {
+    this.doc = doc;
+    this.aliases = aliases;
     this.root = doc.createElementNS(MEI_NS, rootName);
   }
 

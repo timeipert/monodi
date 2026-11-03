@@ -1,7 +1,7 @@
-import { 
-  defaultMeiProfile, 
-  migrateV1MeiMappings, 
-  MeiEntityKey, upgradeMeiProfile } from './mei-mapping.model';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { defaultMeiProfile, migrateV1MeiMappings, upgradeMeiProfile } from './mapping.model.ts';
+import type { MeiEntityKey } from './mapping.model.ts';
 
 describe('MeiMappingModelV2', () => {
   const v1Default = {
@@ -33,9 +33,9 @@ describe('MeiMappingModelV2', () => {
 
   it('should have all 12 entity keys with non-empty tags in defaultMeiProfile', () => {
     const profile = defaultMeiProfile();
-    expect(profile.version).toBe(2);
-    expect(profile.skeleton).toEqual(['music', 'body', 'mdiv', 'score']);
-    expect(profile.emitHeader).toBe(true);
+    assert.equal(profile.version, 2);
+    assert.deepEqual(profile.skeleton, ['music', 'body', 'mdiv', 'score']);
+    assert.equal(profile.emitHeader, true);
 
     const expectedKeys: MeiEntityKey[] = [
       'formteil', 'zeile', 'paratext', 'syllable', 'syllableText', 'neume',
@@ -43,10 +43,10 @@ describe('MeiMappingModelV2', () => {
     ];
 
     expectedKeys.forEach(key => {
-      expect(profile.entities[key]).toBeDefined();
-      expect(profile.entities[key].enabled).toBe(true);
-      expect(profile.entities[key].tag).toBeTruthy();
-      expect(profile.entities[key].tag.length).toBeGreaterThan(0);
+      assert.notEqual(profile.entities[key], undefined);
+      assert.equal(profile.entities[key].enabled, true);
+      assert.ok(profile.entities[key].tag);
+      assert.ok((profile.entities[key].tag.length) > 0);
     });
   });
 
@@ -55,14 +55,14 @@ describe('MeiMappingModelV2', () => {
     const migratedProfile = migrateV1MeiMappings(v1Default);
 
     // Deep equal except id and name
-    expect(migratedProfile.version).toBe(defaultProfile.version);
-    expect(migratedProfile.skeleton).toEqual(defaultProfile.skeleton);
-    expect(migratedProfile.emitHeader).toBe(defaultProfile.emitHeader);
-    expect(migratedProfile.entities).toEqual(defaultProfile.entities);
+    assert.equal(migratedProfile.version, defaultProfile.version);
+    assert.deepEqual(migratedProfile.skeleton, defaultProfile.skeleton);
+    assert.equal(migratedProfile.emitHeader, defaultProfile.emitHeader);
+    assert.deepEqual(migratedProfile.entities, defaultProfile.entities);
     
     // Check that id and name are indeed different or separate
-    expect(migratedProfile.id).toBe('migrated');
-    expect(defaultProfile.id).toBe('default');
+    assert.equal(migratedProfile.id, 'migrated');
+    assert.equal(defaultProfile.id, 'default');
   });
 
   it('should change only entities.note.tag when migrating a v1 with a renamed note tag', () => {
@@ -78,13 +78,13 @@ describe('MeiMappingModelV2', () => {
     const migratedProfile = migrateV1MeiMappings(customV1);
 
     // Only note tag changes, everything else in entities remains the same
-    expect(migratedProfile.entities.note.tag).toBe('custom-nc-tag');
+    assert.equal(migratedProfile.entities.note.tag, 'custom-nc-tag');
     
     // Create copy of default entities, update the note tag and compare
     const expectedEntities = JSON.parse(JSON.stringify(defaultProfile.entities));
     expectedEntities.note.tag = 'custom-nc-tag';
     
-    expect(migratedProfile.entities).toEqual(expectedEntities);
+    assert.deepEqual(migratedProfile.entities, expectedEntities);
   });
 });
 
@@ -95,18 +95,18 @@ describe('upgradeMeiProfile', () => {
     old.entities.clef.attributes[1] = { name: 'line', source: 'static', value: '1' };
     old.entities.formteil.attributes = [];
     const up = upgradeMeiProfile(old);
-    expect(up.entities.paratext.enabled).toBe(true);
-    expect(up.entities.paratext.tag).toBe('annot');
-    expect(up.entities.clef.attributes[1]).toEqual({ name: 'line', source: 'field', value: 'line' });
-    expect(up.entities.formteil.attributes.map(a => a.name)).toEqual(['label', 'type']);
+    assert.equal(up.entities.paratext.enabled, true);
+    assert.equal(up.entities.paratext.tag, 'annot');
+    assert.deepEqual(up.entities.clef.attributes[1], { name: 'line', source: 'field', value: 'line' });
+    assert.deepEqual(up.entities.formteil.attributes.map(a => a.name), ['label', 'type']);
 
     const own = defaultMeiProfile();
     own.entities.paratext = { enabled: false, tag: 'rend', wrappers: [], attributes: [] };
     own.entities.clef.attributes[1] = { name: 'line', source: 'static', value: '3' };
     own.entities.formteil.attributes = [{ name: 'n', source: 'field', value: 'uuid' }];
     const kept = upgradeMeiProfile(own);
-    expect(kept.entities.paratext.tag).toBe('rend');
-    expect(kept.entities.clef.attributes[1].value).toBe('3');
-    expect(kept.entities.formteil.attributes.length).toBe(1);
+    assert.equal(kept.entities.paratext.tag, 'rend');
+    assert.equal(kept.entities.clef.attributes[1].value, '3');
+    assert.equal(kept.entities.formteil.attributes.length, 1);
   });
 });

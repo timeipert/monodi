@@ -6,7 +6,7 @@ import { HEADING_FIELD_KEYS, HeadingField, DEFAULT_HEADING_SEPARATOR, sanitizeHe
 import { metadataFieldLabel } from '../document-metadata';
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, ProjectSettings, PublicationContributor, PublicationSettings, sanitizeSettings, Source } from '../api.service';
-import { METADATA_MAPPING } from '../mei/metadata-mapping.generated';
+import { METADATA_MAPPING } from '@monodi/core/mei';
 import { UserService, User } from '../user.service';
 import { GithubService, GithubConfig } from '../github.service';
 import { GithubSessionService } from '../github-session.service';

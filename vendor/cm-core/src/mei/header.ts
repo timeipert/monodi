@@ -1,8 +1,8 @@
-import { RootContainer } from '../types/model';
-import { Document as MonodiDocument, Source, PublicationSettings } from '../api.service';
-import { appendCommentAnnots } from './mei-comment-tree';
-import { buildMappedHead } from './mei-header-mapped';
-import { HeaderLevel } from './metadata-mapping.model';
+import type { RootContainer } from '../document/model';
+import type { MonodiDocument, Source, PublicationSettings } from './meta';
+import { appendCommentAnnots } from './comment-tree';
+import { buildMappedHead } from './header-mapped';
+import type { HeaderLevel } from './metadata-mapping.model';
 
 /**
  * Metadata header (<meiHead>) of the MEI export.

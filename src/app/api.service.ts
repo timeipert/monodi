@@ -12,10 +12,10 @@ import { v4 as uuidv4 } from 'uuid';
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
-import { NoteFlagDef, sanitizeNoteFlags, setNoteFlagDefs } from './notes/note-flags';
+import { NoteFlagDef, sanitizeNoteFlags, setNoteFlagDefs } from '@monodi/core/document';
 import { sanitizeAnnotationRules } from './mei/mei-annotation-rules';
 import { setActiveMeiProfile } from './mei/mei-annotation-context';
-import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule, upgradeMeiProfile } from './mei/mei-mapping.model';
+import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule, upgradeMeiProfile } from '@monodi/core/mei';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
 import { PushCache } from './push-cache';
@@ -641,34 +641,9 @@ export interface GenreLevelProfile {
   names: LevelNames;
 }
 
-/** A person or team credited in the metadata header of exports (see CM-hub/docs/METADATA-STANDARDS.md, section 6). */
-export interface PublicationContributor {
-  /** Display name, for example "Given Family". Never an e-mail address. */
-  name: string;
-  /** Text for <resp>, for example "Project direction". */
-  role: string;
-  orcid?: string;
-  gnd?: string;
-}
-
-/**
- * Project-wide publication data used by the Standard and Extended MEI header levels. Every field is optional;
- * a missing value produces no element. Level 1 (baseline) ignores all of it.
- */
-export interface PublicationSettings {
-  publisher?: string;
-  /** One address line per entry. */
-  address?: string[];
-  funderName?: string;
-  seriesTitle?: string;
-  /** Prefix of the public document URL; the document id is appended. */
-  documentBaseUri?: string;
-  /** Language of the header text, for example "en". */
-  language?: string;
-  licenseUri?: string;
-  licenseLabel?: string;
-  contributors?: PublicationContributor[];
-}
+// Defined in the shared package (the MEI header is their only reader) and re-exported so that app code imports them from here as before.
+import type { PublicationContributor, PublicationSettings } from '@monodi/core/mei';
+export type { PublicationContributor, PublicationSettings };
 
 export interface ProjectSettings {
   /** Publication data for the metadata header of MEI exports (header level 2 and above). */
@@ -796,7 +771,7 @@ export interface ProjectSettings {
   meiMappings?: MeiMappingSettings;
   meiProfiles?: MeiMappingProfileV2[];
   activeMeiProfileId?: string;
-  /** User-defined note flags (virga etc.), see notes/note-flags.ts. */
+  /** User-defined note flags (virga etc.), see packages/core/src/document/note-flags.ts. */
   noteFlags?: NoteFlagDef[];
   /** Heading where a document begins in the PDF: fields, labels, styles (see print/doc-heading.ts). Default: ID, reference, genre (genre only where the PDF has several). */
   pdfDocHeadingFields?: HeadingField[];

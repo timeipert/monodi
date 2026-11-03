@@ -4,7 +4,7 @@ import { Focus } from './types/Focus';
 import { ClefDisplayMode, DEFAULT_CLEF_DISPLAY_MODE } from './clef-policy';
 import { DEFAULT_NOTATION_COLOR } from './notation-color';
 import * as VM from './types/model';
-import { AnnotationTarget } from './mei/mei-mapping.model';
+import { AnnotationTarget } from '@monodi/core/mei';
 
 @Injectable({
   providedIn: 'root'

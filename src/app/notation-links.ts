@@ -25,7 +25,7 @@
  */
 
 import * as VM from './types/model';
-import { extractPattern, firstNoteUuid } from './transcription-analyzer-core';
+import { extractPattern, firstNoteUuid } from '@monodi/core/document';
 import { baseCode } from './notation-order';
 import { compareFolios, folioOf, lineNumberOf } from './notation-doc';
 

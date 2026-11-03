@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Builds a schema catalog (JSON) from a RelaxNG file, with the same parser the app uses to load a
- * schema at runtime (src/app/mei/schema/rng-to-catalog.ts).
+ * schema at runtime (src/app/mei/schema/rng-to-catalog.ts, which uses the catalog types of packages/core).
  *
  *   node scripts/build-mei-catalog.mjs <schema.rng> <out.json> --id mei-5.0-all --label "MEI 5.0 (all)" --version 5.0
  *
@@ -24,13 +24,14 @@ if (!input || !output) {
   process.exit(2);
 }
 
-// The parser is TypeScript; compile the two modules it needs to a temporary folder and import them.
+// The parser is TypeScript; compile the two modules it needs to a temporary folder and import them. The catalog
+// module is shared code (packages/core, linked as vendor/cm-core); the parser imports it as `@monodi/core/mei`.
 const tmp = mkdtempSync(join(tmpdir(), 'mei-catalog-'));
-for (const f of ['mei-schema-catalog', 'rng-to-catalog']) {
-  const src = readFileSync(resolve('src/app/mei/schema', `${f}.ts`), 'utf8');
+for (const [name, file] of [['mei-schema-catalog', 'vendor/cm-core/src/mei/schema-catalog.ts'], ['rng-to-catalog', 'src/app/mei/schema/rng-to-catalog.ts']]) {
+  const src = readFileSync(resolve(file), 'utf8');
   const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText
-    .replace(/from '\.\/mei-schema-catalog'/g, "from './mei-schema-catalog.mjs'");
-  writeFileSync(join(tmp, `${f}.mjs`), out);
+    .replace(/from '@monodi\/core\/mei'/g, "from './mei-schema-catalog.mjs'");
+  writeFileSync(join(tmp, `${name}.mjs`), out);
 }
 const { rngToCatalog } = await import(pathToFileURL(join(tmp, 'rng-to-catalog.mjs')).href);
 

@@ -1,9 +1,11 @@
 import { Injectable } from '@angular/core';
 import * as VM from './types/model';
-import { AnalyzedPattern, extractPattern, analyzeDocument, extractDocumentFolios } from './transcription-analyzer-core';
+import type { AnalyzedPattern } from '@monodi/core/document';
+import { extractPattern, analyzeDocument, extractDocumentFolios } from '@monodi/core/document';
 
 // Re-export so existing consumers of this service don't need to change their imports
-export { AnalyzedPattern, extractDocumentFolios } from './transcription-analyzer-core';
+export type { AnalyzedPattern };
+export { extractDocumentFolios };
 
 @Injectable({ providedIn: 'root' })
 export class TranscriptionAnalyzerService {

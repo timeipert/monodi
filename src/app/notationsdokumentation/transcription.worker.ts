@@ -4,7 +4,7 @@
 // Importing the service would pull @angular/core → zone.js into the worker bundle,
 // which crashes (zone.js patches browser globals absent in worker scope) and causes
 // webpack to fall back to a file:// URL for the worker chunk.
-import { analyzeDocument } from '../transcription-analyzer-core';
+import { analyzeDocument } from '@monodi/core/document';
 
 addEventListener('message', ({ data }) => {
   const { documentsData } = data;

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { MeiSchemaCatalog, MeiSchemaExtension, subsetCatalog, withExtensions } from './mei-schema-catalog';
+import { MeiSchemaCatalog, MeiSchemaExtension, subsetCatalog, withExtensions } from '@monodi/core/mei';
 import { rngTextToCatalog } from './rng-to-catalog';
 
 export const BUNDLED_ALL_ID = 'mei-5.0-all';

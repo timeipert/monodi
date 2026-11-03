@@ -1,8 +1,7 @@
 import { Injectable } from '@angular/core';
 import { RootContainer, ContainerKind, LinePartKind, ZeileContainer, Syllable, FormteilContainer, MiscContainer } from './types/model';
 import { ProjectSettings, MeiMappingSettings, Document as MonodiDocument, Source } from './api.service';
-import { emitMei } from './mei/mei-emitter';
-import { defaultMeiProfile } from './mei/mei-mapping.model';
+import { emitMei, defaultMeiProfile } from '@monodi/core/mei';
 import { FileSystemService } from './file-system.service';
 
 @Injectable({

@@ -11,7 +11,7 @@ import { ToolsService } from '../tools.service';
 import { assertNever, compareNatural } from '../../utils';
 import { Subscription, combineLatest, finalize, firstValueFrom } from 'rxjs';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
-import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
+import { analyzeDocument, extractDocumentFolios } from '@monodi/core/document';
 import { ProjectSettings } from '../api.service';
 import { defaultSetup, NotationSetup, readSetup } from '../notation-set';
 import { buildIndex, indexDocument, TNeume, TranscriptionIndex } from '../notation-links';

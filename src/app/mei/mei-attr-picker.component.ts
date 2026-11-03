@@ -1,5 +1,5 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
-import { MeiAttrDef, isValidAttributeName } from './schema/mei-schema-catalog';
+import { MeiAttrDef, isValidAttributeName } from '@monodi/core/mei';
 import { groupInfo } from './schema/mei-attr-groups';
 
 type Kind = 'all' | 'values' | 'number' | 'text';

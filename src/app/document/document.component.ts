@@ -21,7 +21,7 @@ import { getCategoryDetails } from '../comment/comment-categories';
 import { getInterventionLabel, INTERVENTIONS } from '../comment/intervention-vocabulary';
 import { DragStateService } from '../dragger/drag-state.service';
 import { PageTitleService } from '../page-title.service';
-import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
+import { extractFolioFromString, extractDocumentFolios } from '@monodi/core/document';
 import { ManuscriptViewService } from '../manuscript-view.service';
 import { MeiExportService } from '../mei-export.service';
 import { SearchExecService } from '../search/search-exec.service';
@@ -40,8 +40,7 @@ import { FileSystemService } from '../file-system.service';
 import { getActiveMeiProfile } from '../mei/mei-annotation-context';
 import { AnnotatedPlace, AttrGroup, NoteSelection, PlaceGroup, annotatedPlaces, findFocusedNote, groupPlaces, selectionAnnotations } from '../mei/mei-selection';
 import { MeiViewPrefs, getMeiViewPrefs, setMeiViewPrefs, setMeiRuleMarks } from '../mei/mei-view-prefs';
-import { buildAnnotationIndex } from '../mei/mei-annotations';
-import { AnnotationTarget } from '../mei/mei-mapping.model';
+import { buildAnnotationIndex, AnnotationTarget } from '@monodi/core/mei';
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
 import { downloadBlob } from '../download';
 

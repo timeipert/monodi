@@ -1,5 +1,5 @@
 import { validateMeiProfile } from './mei-validation';
-import { defaultMeiProfile, MeiMappingProfileV2 } from './mei-mapping.model';
+import { defaultMeiProfile, MeiMappingProfileV2 } from '@monodi/core/mei';
 
 describe('MeiMapping Editor Validation', () => {
   let profile: MeiMappingProfileV2;

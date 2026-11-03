@@ -1,4 +1,5 @@
-import { ContainerKind, RootContainer, ZeileContainer } from '../types/model';
+import { ContainerKind } from '../document/model';
+import type { RootContainer, ZeileContainer } from '../document/model';
 
 /** Renders the content tree of a critical comment (grid, text, bracket, notes) as MEI elements. Shared by the header and the body of the MEI export. */
 export function generateCommentTreeDOM(

@@ -1,9 +1,9 @@
-import { Document as MonodiDocument, PublicationContributor, Source } from '../api.service';
-import { appendCommentAnnots } from './mei-comment-tree';
-import type { MeiHeaderContext } from './mei-header';
-import { HeaderWriter } from './mei-header-writer';
+import type { MonodiDocument, PublicationContributor, Source } from './meta';
+import { appendCommentAnnots } from './comment-tree';
+import type { MeiHeaderContext } from './header';
+import { HeaderWriter } from './header-writer';
 import { METADATA_MAPPING } from './metadata-mapping.generated';
-import { HeaderLevel, MappingEntry, MappingTarget } from './metadata-mapping.model';
+import type { HeaderLevel, MappingEntry, MappingTarget } from './metadata-mapping.model';
 
 /**
  * Header levels 2 (Standard) and 3 (Extended). Which entries are written, and where, comes from the shared mapping
@@ -59,7 +59,12 @@ class Builder {
   readonly siglum: string;
   readonly now: Date;
 
-  constructor(readonly dom: Document, readonly ctx: MeiHeaderContext) {
+  readonly dom: Document;
+  readonly ctx: MeiHeaderContext;
+
+  constructor(dom: Document, ctx: MeiHeaderContext) {
+    this.dom = dom;
+    this.ctx = ctx;
     this.w = new HeaderWriter(dom, 'meiHead', METADATA_MAPPING.aliases);
     this.doc = ctx.documentMeta;
     this.source = ctx.sourceMeta;

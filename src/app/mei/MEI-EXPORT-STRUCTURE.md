@@ -2,7 +2,7 @@
 
 State: 2026-11-02. This document is for people who change or check the MEI export of Monodi-Zero (the editor for the Corpus Monodicum transcriptions). It lists which MEI element each part of the Monodi data model becomes, which setting changes it, and how the result is checked. MEI is the Music Encoding Initiative's XML standard for music; "neume notation" is its part for chant notation (`syllable`, `neume`, `nc`). The metadata header is a different topic (see `mei-header.ts`); the attributes that a person adds to single notes are described in `MEI-ANNOTATIONS.md`.
 
-Start with the table, then the settings page: Settings → MEI Mapping → Export format → Structure. Each row below is a default of the MEI profile (`defaultMeiProfile()` in `mei-mapping.model.ts`); a stored profile keeps what a person changed and gets the new default only where it still holds the earlier one (`upgradeMeiProfile`). The structure rules that apply to all rows are in CM-hub, `docs/MEI-BODY-MAPPING.md`, which is not updated by this document.
+Start with the table, then the settings page: Settings → MEI Mapping → Export format → Structure. Each row below is a default of the MEI profile (`defaultMeiProfile()` in `packages/core/src/mei/mapping.model.ts`); a stored profile keeps what a person changed and gets the new default only where it still holds the earlier one (`upgradeMeiProfile`). The structure rules that apply to all rows are in CM-hub, `docs/MEI-BODY-MAPPING.md`, which is not updated by this document.
 
 | Monodi | MEI (default) | Setting |
 |---|---|---|
@@ -35,5 +35,5 @@ Start with the table, then the settings page: Settings → MEI Mapping → Expor
 
 ## How it is checked
 
-- Unit specs: `mei-conformant.spec.ts`, `mei-emitter.spec.ts`, `mei-mapping.model.spec.ts`.
+- Unit specs: `mei-conformant.spec.ts`, `mei-emitter.spec.ts` (in this folder, run by Karma because the emitter needs a browser DOM) and `packages/core/src/mei/mapping.model.test.ts` (run by `npm test` in `packages/core`). The emitter itself is in `packages/core/src/mei/emitter.ts`.
 - Schema check: export the fixtures with `node scripts/export-mei-batch.mjs --zip <monodi.zip> --out <mei.zip>` and run `xmllint --noout --relaxng <schema.rng> <file>` with the released `https://music-encoding.org/schema/5.0/mei-Neumes.rng` and with `src/app/mei/mei-all.rng`. State 2026-11-02: the 45 fixtures of `src/app/testdata` plus one document with every special case validate against both.

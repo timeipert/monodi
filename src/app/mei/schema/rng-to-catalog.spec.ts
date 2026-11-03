@@ -1,4 +1,4 @@
-import { checkAttribute, attributesOf, subsetCatalog, withExtensions, MeiSchemaCatalog } from './mei-schema-catalog';
+import { checkAttribute, attributesOf, subsetCatalog, withExtensions, MeiSchemaCatalog } from '@monodi/core/mei';
 import { rngTextToCatalog } from './rng-to-catalog';
 
 /** A miniature of the MEI neume schema: same constructs as mei-all.rng (att classes, model classes, data types, unions). */

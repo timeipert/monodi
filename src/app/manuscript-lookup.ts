@@ -20,7 +20,7 @@
  */
 
 import * as VM from './types/model';
-import { extractPattern, firstNoteUuid } from './transcription-analyzer-core';
+import { extractPattern, firstNoteUuid } from '@monodi/core/document';
 
 export interface NeumeAt {
   /** Pattern code of the whole neume, e.g. `[*u]dd`. */

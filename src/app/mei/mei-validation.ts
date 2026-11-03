@@ -1,4 +1,4 @@
-import { MeiMappingProfileV2, ENTITY_FIELDS, MeiEntityKey } from './mei-mapping.model';
+import { MeiMappingProfileV2, ENTITY_FIELDS, MeiEntityKey } from '@monodi/core/mei';
 
 export interface MeiValidationError {
   entity?: string;

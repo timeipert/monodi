@@ -1,10 +1,6 @@
-import { emitMei } from './mei-emitter';
-import { defaultMeiProfile } from './mei-mapping.model';
+import { emitMei, defaultMeiProfile, METADATA_MAPPING, HANDLED, NOT_YET_AVAILABLE, CHILD_ORDER, HeaderWriter, parsePath } from '@monodi/core/mei';
 import { emptyRootContainer } from '../types/model';
 import { Document as MonodiDocument, PublicationSettings, Source } from '../api.service';
-import { METADATA_MAPPING } from './metadata-mapping.generated';
-import { HANDLED, NOT_YET_AVAILABLE } from './mei-header-mapped';
-import { CHILD_ORDER, HeaderWriter, parsePath } from './mei-header-writer';
 import { HEADER_LEVEL2_GOLDEN } from './mei-header.golden';
 
 describe('MEI header levels', () => {

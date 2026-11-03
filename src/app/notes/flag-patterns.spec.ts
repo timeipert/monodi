@@ -1,6 +1,5 @@
 import { musicLanguage } from './language';
-import { applyFlag, findFlagMatches, FlagQuery, queryProblem } from './flag-patterns';
-import { describeNeume, extractPattern } from '../transcription-analyzer-core';
+import { applyFlag, findFlagMatches, FlagQuery, queryProblem, describeNeume, extractPattern } from '@monodi/core/document';
 import * as VM from '../types/model';
 
 /** A document with one syllable per entry; each entry is note text such as "c d  e". */

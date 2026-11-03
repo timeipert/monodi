@@ -1,6 +1,6 @@
 # Using packages/core in an app, and what the first merge found
 
-For maintainers who add the package to an app or change a module. State 2026-11-02. The rules for the code are in [README.md](../README.md).
+For maintainers who add the package to an app or change a module. State 2026-11-03. The rules for the code are in [README.md](../README.md).
 
 ## How an app uses it
 
@@ -26,8 +26,16 @@ link inside its own folder and depends on it as a local file:
   ["vendor/cm-core/src/neume-tree.ts"] }` in its `tsconfig.json`, and `"preserveSymlinks": true` in the `build` and
   the `test` options of `angular.json`. Without them the production build passes, but the development build, which
   the browser tests run against, contains the module empty. A Vite app needs none of this.
+- **Sub-paths** (2026-11-03): `@monodi/core/mei` and `@monodi/core/document` are folders with an `index.ts`
+  (`exports` in `packages/core/package.json`). An Angular app maps them with one more `paths` entry,
+  `"@monodi/core/*": ["vendor/cm-core/src/*/index.ts"]` (`apps/monodi/tsconfig.json`); Vite and esbuild follow
+  `exports`. The files of the package import each other **without file ending**, because the Angular `browser` builder
+  cannot resolve `./x.ts` (reasons in [README.md](../README.md#rules-for-the-code-here)). A web-worker `tsconfig` of
+  an app must have `lib` `es2019` or newer, because the package uses `Array.prototype.flatMap`
+  (`apps/monodi/tsconfig.worker.json` has `es2020`).
 - A test runner of the app must not pick up the tests of `vendor/cm-core`: `apps/neume-docs/ui/vite.config.js`
-  excludes `vendor/**`; Karma in `apps/monodi` takes only `*.spec.ts` and ignores the package's `*.test.ts`.
+  excludes `vendor/**`; Karma in `apps/monodi` takes only `*.spec.ts` and ignores the package's `*.test.ts`. The specs that need a browser
+  DOM stay in the app (see README.md).
 - Edit the code in `packages/core`, never in a `vendor/cm-core` of a mirror (a mirror is never edited, see
   `docs/sync.md`).
 

@@ -1,5 +1,4 @@
-import { emitMei } from './mei-emitter';
-import { defaultMeiProfile, MeiMappingProfileV2 } from './mei-mapping.model';
+import { emitMei, defaultMeiProfile, MeiMappingProfileV2 } from '@monodi/core/mei';
 import {
   emptyRootContainer, emptyFormteilContainer, emptyZeileContainer, emptySyllable,
   DocumentType, BaseNote, NoteType, SyllableType, LinePartKind, ContainerKind, FormteilDataName, ParatextType

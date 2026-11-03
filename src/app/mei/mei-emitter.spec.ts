@@ -1,6 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { emitMei } from './mei-emitter';
-import { defaultMeiProfile } from './mei-mapping.model';
+import { emitMei, defaultMeiProfile } from '@monodi/core/mei';
 import { 
   emptyRootContainer, 
   emptyFormteilContainer, 
@@ -14,7 +13,7 @@ import {
   ContainerKind,
   LinePartKind
 } from '../types/model';
-import { setNoteFlagDefs } from '../notes/note-flags';
+import { setNoteFlagDefs } from '@monodi/core/document';
 import { Document as MonodiDocument } from '../api.service';
 
 describe('MeiEmitter', () => {

@@ -1,5 +1,7 @@
-import * as VM from './types/model';
-import { analyzeDocument, extractPattern, firstNoteUuid, ANALYZER_VERSION } from './transcription-analyzer-core';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import * as VM from './model.ts';
+import { analyzeDocument, extractPattern, firstNoteUuid, ANALYZER_VERSION } from './pattern.ts';
 
 /**
  * The analyzer counts ONE pattern per neume (everything written without a gap),
@@ -22,42 +24,42 @@ const root = (...children: any[]): any => ({ kind: VM.ContainerKind.RootContaine
 
 describe('transcription analyzer', () => {
   it('is version 3: one pattern per neume, note flags as suffix', () => {
-    expect(ANALYZER_VERSION).toBe(3);
+    assert.equal(ANALYZER_VERSION, 3);
   });
 
   describe('extractPattern', () => {
     it('reads single notes and directions', () => {
-      expect(extractPattern(neume(group(note('G', 4))))).toBe('*');
-      expect(extractPattern(neume(group(note('G', 4)), group(note('A', 4))))).toBe('*u');
-      expect(extractPattern(neume(group(note('G', 4)), group(note('F', 4)), group(note('F', 4))))).toBe('*de');
+      assert.equal(extractPattern(neume(group(note('G', 4)))), '*');
+      assert.equal(extractPattern(neume(group(note('G', 4)), group(note('A', 4)))), '*u');
+      assert.equal(extractPattern(neume(group(note('G', 4)), group(note('F', 4)), group(note('F', 4)))), '*de');
     });
 
     it('brackets a ligature, and reads on across groups', () => {
-      expect(extractPattern(neume(group(note('G', 4), note('A', 4)), group(note('G', 4)), group(note('F', 4))))).toBe('[*u]dd');
+      assert.equal(extractPattern(neume(group(note('G', 4), note('A', 4)), group(note('G', 4)), group(note('F', 4)))), '[*u]dd');
     });
 
     it('marks note shapes', () => {
-      expect(extractPattern(neume(group(note('G', 4)), group(note('A', 4, { noteType: VM.NoteType.Liquescent }))))).toBe('*uL');
-      expect(extractPattern(neume(group(note('G', 4, { noteType: VM.NoteType.Oriscus }))))).toBe('*O');
+      assert.equal(extractPattern(neume(group(note('G', 4)), group(note('A', 4, { noteType: VM.NoteType.Liquescent })))), '*uL');
+      assert.equal(extractPattern(neume(group(note('G', 4, { noteType: VM.NoteType.Oriscus })))), '*O');
     });
 
     it('skips an empty group instead of losing the start of the neume', () => {
-      expect(extractPattern(neume(group(), group(note('G', 4)), group(note('A', 4))))).toBe('*u');
+      assert.equal(extractPattern(neume(group(), group(note('G', 4)), group(note('A', 4)))), '*u');
     });
 
     it('says nothing for an empty neume', () => {
-      expect(extractPattern(neume())).toBe('');
-      expect(extractPattern(undefined as any)).toBe('');
+      assert.equal(extractPattern(neume()), '');
+      assert.equal(extractPattern(undefined as any), '');
     });
   });
 
   describe('firstNoteUuid', () => {
     it('is the uuid of the first note of the first group', () => {
-      expect(firstNoteUuid(neume(group(note('G', 4), note('A', 4)), group(note('F', 4))))).toBe('G4');
+      assert.equal(firstNoteUuid(neume(group(note('G', 4), note('A', 4)), group(note('F', 4)))), 'G4');
     });
     it('is empty when no note has one', () => {
-      expect(firstNoteUuid(neume(group({ base: 'G', octave: 4 } as any)))).toBe('');
-      expect(firstNoteUuid(neume())).toBe('');
+      assert.equal(firstNoteUuid(neume(group({ base: 'G', octave: 4 } as any))), '');
+      assert.equal(firstNoteUuid(neume()), '');
     });
   });
 
@@ -67,10 +69,11 @@ describe('transcription analyzer', () => {
         root(syllable('Pa-', neume(group(note('G', 4), note('A', 4)), group(note('G', 4)), group(note('F', 4))))),
         'Aa 1', 'D1'
       );
-      expect(out.length).toBe(1);
-      expect(out[0]).toEqual(jasmine.objectContaining({
+      assert.equal(out.length, 1);
+      const { patternId, notesCount, uuid, documentId, sourceId, syllable: text } = out[0];
+      assert.deepEqual({ patternId, notesCount, uuid, documentId, sourceId, syllable: text }, {
         patternId: '[*u]dd', notesCount: 4, uuid: 'G4', documentId: 'D1', sourceId: 'Aa 1', syllable: 'Pa-'
-      }));
+      });
     });
 
     it('reports each neume of a syllable separately', () => {
@@ -78,8 +81,8 @@ describe('transcription analyzer', () => {
         root(syllable('ter', neume(group(note('G', 4))), neume(group(note('A', 4)), group(note('G', 4))))),
         'Aa 1', 'D1'
       );
-      expect(out.map(p => p.patternId)).toEqual(['*', '*d']);
-      expect(out.map(p => p.uuid)).toEqual(['G4', 'A4']);
+      assert.deepEqual(out.map(p => p.patternId), ['*', '*d']);
+      assert.deepEqual(out.map(p => p.uuid), ['G4', 'A4']);
     });
 
     it('follows folio and line changes', () => {
@@ -92,13 +95,13 @@ describe('transcription analyzer', () => {
         ),
         'Aa 1', 'D1'
       );
-      expect(out.map(p => [p.folio, p.line])).toEqual([['10v', '1'], ['10v', '2']]);
+      assert.deepEqual(out.map(p => [p.folio, p.line]), [['10v', '1'], ['10v', '2']]);
     });
 
     it('leaves out syllables that are not normal text', () => {
       const s = syllable('x', neume(group(note('G', 4))));
       s.syllableType = VM.SyllableType.EditorialEllipsis;
-      expect(analyzeDocument(root(s), 'Aa 1', 'D1')).toEqual([]);
+      assert.deepEqual(analyzeDocument(root(s), 'Aa 1', 'D1'), []);
     });
   });
 });

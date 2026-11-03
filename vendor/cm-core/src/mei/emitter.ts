@@ -1,32 +1,37 @@
-import { 
-  RootContainer, 
-  ContainerKind, 
-  LinePartKind, 
-  ZeileContainer, 
-  Syllable, 
-  Clef, 
-  Note, 
-  FormteilContainer, 
-  MiscContainer,
+import {
+  ContainerKind,
+  LinePartKind,
   NoteType,
   baseNoteIndexes,
-  allNotes,
+  allNotes
+} from '../document/model';
+import type {
+  RootContainer,
+  ZeileContainer,
+  Syllable,
+  Clef,
+  Note,
+  FormteilContainer,
+  MiscContainer,
   Spaced
-} from '../types/model';
-import { Document as MonodiDocument, Source, PublicationSettings } from '../api.service';
-import { generateCommentTreeDOM } from './mei-comment-tree';
-import { buildMeiHead } from './mei-header';
-import { flagDefsOf } from '../notes/note-flags';
-import { AnnotationIndex, applyAnnotationAttrs, buildAnnotationIndex, emptyIndex, firstNoteOf, mergedAttrs } from './mei-annotations';
-import { extractPattern } from '../transcription-analyzer-core';
-import { 
-  MeiMappingProfileV2, 
-  MeiEntityKey, 
-  MeiEntityRule,
+} from '../document/model';
+import type { MonodiDocument, Source, PublicationSettings } from './meta';
+import { generateCommentTreeDOM } from './comment-tree';
+import { buildMeiHead } from './header';
+import { flagDefsOf } from '../document/note-flags';
+import { applyAnnotationAttrs, buildAnnotationIndex, emptyIndex, firstNoteOf, mergedAttrs } from './annotations';
+import type { AnnotationIndex } from './annotations';
+import { extractPattern } from '../document/pattern';
+import {
   resolvePatternRule,
   syllableTypeRule,
   DEFAULT_STAFF
-} from './mei-mapping.model';
+} from './mapping.model';
+import type {
+  MeiMappingProfileV2,
+  MeiEntityKey,
+  MeiEntityRule
+} from './mapping.model';
 
 export function resolveFormteilFields(formteil: FormteilContainer): Record<string, string> {
   const res: Record<string, string> = { uuid: formteil.uuid };

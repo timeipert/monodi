@@ -1,10 +1,9 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
-import { AnnotationTarget } from './mei-mapping.model';
+import { AnnotationTarget, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute, isValidAttributeName } from '@monodi/core/mei';
 import { getActiveMeiProfile } from './mei-annotation-context';
 import { targetElements } from './mei-annotation-check';
 import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
-import { AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute, isValidAttributeName } from './schema/mei-schema-catalog';
 
 interface Row { name: string; value: string }
 

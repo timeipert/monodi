@@ -2,8 +2,7 @@ import { Component, Input, OnInit } from '@angular/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { UndoService } from '../undoService';
 import * as VM from '../types/model';
-import { FlagMatch, FlagQuery, applyFlag, findFlagMatches, queryProblem } from './flag-patterns';
-import { NoteFlagDef, getNoteFlagDefs } from './note-flags';
+import { FlagMatch, FlagQuery, applyFlag, findFlagMatches, queryProblem, NoteFlagDef, getNoteFlagDefs } from '@monodi/core/document';
 
 /** Rows drawn at most; the counts and the Apply button always cover every match. */
 const MAX_ROWS = 300;

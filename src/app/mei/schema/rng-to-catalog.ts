@@ -1,5 +1,5 @@
 /**
- * Builds a schema catalog (see mei-schema-catalog.ts) from a RelaxNG schema, as MEI publishes it
+ * Builds a schema catalog (see packages/core/src/mei/schema-catalog.ts) from a RelaxNG schema, as MEI publishes it
  * (`mei-all.rng`, `mei-Neumes.rng`, a project's own customization).
  *
  * The parser takes an already parsed XML `Document`, so it runs in the browser (`DOMParser`), in
@@ -13,7 +13,7 @@
  *     type, an XML Schema datatype, a list.
  * Schematron rules in the schema are not evaluated.
  */
-import { MeiAttrAlternative, MeiAttrDef, MeiAttrType, MeiElementDef, MeiSchemaCatalog } from './mei-schema-catalog';
+import { MeiAttrAlternative, MeiAttrDef, MeiAttrType, MeiElementDef, MeiSchemaCatalog } from '@monodi/core/mei';
 
 const MAX_TYPE_DEPTH = 8;
 

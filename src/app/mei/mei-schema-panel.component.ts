@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { MeiMappingProfileV2 } from './mei-mapping.model';
+import { MeiMappingProfileV2 } from '@monodi/core/mei';
 import { targetElements } from './mei-annotation-check';
 import { DEFAULT_SCHEMA_ID, MeiSchemaRegistry, SchemaInfo } from './schema/mei-schema-registry.service';
 

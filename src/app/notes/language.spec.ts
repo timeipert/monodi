@@ -1,5 +1,5 @@
 import { musicLanguage } from './language';
-import { extractPattern } from '../transcription-analyzer-core';
+import { extractPattern } from '@monodi/core/document';
 import { NoteType } from '../types/model';
 
 describe('MusicLanguage Parser', () => {

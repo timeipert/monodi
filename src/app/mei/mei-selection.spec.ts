@@ -1,7 +1,6 @@
-import { MeiAnnotationRule } from './mei-mapping.model';
+import { MeiAnnotationRule, defaultMeiProfile } from '@monodi/core/mei';
 import { annotatedPlaces, attrRows, groupPlaces, selectionAnnotations } from './mei-selection';
 import { getMeiViewPrefs, meiRuleMarks, setMeiRuleMarks, setMeiViewPrefs } from './mei-view-prefs';
-import { defaultMeiProfile } from './mei-mapping.model';
 import {
   emptyRootContainer, emptyFormteilContainer, emptyZeileContainer, emptySyllable,
   DocumentType, BaseNote, NoteType, RootContainer

@@ -1,7 +1,5 @@
 import * as VM from '../types/model';
-import { MeiMappingProfileV2 } from './mei-mapping.model';
-import { MeiSchemaCatalog, checkAttribute } from './schema/mei-schema-catalog';
-import { ruleProblem } from './mei-annotations';
+import { MeiMappingProfileV2, MeiSchemaCatalog, checkAttribute, ruleProblem } from '@monodi/core/mei';
 
 export interface AnnotationIssue {
   level: 'error' | 'warning';

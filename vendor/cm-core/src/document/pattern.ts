@@ -4,7 +4,7 @@
  * so that the worker bundle stays free of @angular/core / zone.js.
  */
 
-import * as VM from './types/model';
+import * as VM from './model';
 
 /**
  * Bumped when what one `AnalyzedPattern` stands for changes, so results cached

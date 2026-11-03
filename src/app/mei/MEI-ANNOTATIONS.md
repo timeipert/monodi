@@ -71,11 +71,11 @@ A rule has conditions and attributes to set. All conditions that are filled in m
 
 The rule's **target** is the element that receives the attributes: each matching note (`nc`), the neume of a matching note, or its syllable. Values may use `{pname}` (pitch letter), `{oct}`, `{syllable}` and `{index}` (position in the neume, 1-based). The panel shows how many places a rule matches in the preview document. A rule with an invalid regular expression or pattern, or with no attribute, is skipped at export and shown with a warning.
 
-Rules are evaluated once per document by `buildAnnotationIndex` (`mei-annotations.ts`) and merged by the emitter. They work in the headless export (`scripts/export-mei-batch.mjs`) because they are part of the profile.
+Rules are evaluated once per document by `buildAnnotationIndex` (`packages/core/src/mei/annotations.ts`) and merged by the emitter. They work in the headless export (`scripts/export-mei-batch.mjs`) because they are part of the profile.
 
 ## 4. Schemas
 
-The editor never evaluates a RelaxNG schema at edit time. It reads a **schema catalog** (`schema/mei-schema-catalog.ts`), produced from a RelaxNG file by `schema/rng-to-catalog.ts`. The parser follows attribute classes (`att.*`), content models (`model.*`) and data types, including unions such as `oct` (an integer 0–9 or the word `unknown`).
+The editor never evaluates a RelaxNG schema at edit time. It reads a **schema catalog** (`packages/core/src/mei/schema-catalog.ts`), produced from a RelaxNG file by `schema/rng-to-catalog.ts`. The parser follows attribute classes (`att.*`), content models (`model.*`) and data types, including unions such as `oct` (an integer 0–9 or the word `unknown`).
 
 | Catalog | Origin |
 |---|---|
@@ -108,15 +108,15 @@ node scripts/build-mei-catalog.mjs src/app/mei/mei-all.rng src/assets/mei/mei-5.
 
 | File | Role |
 |---|---|
-| `mei/schema/mei-schema-catalog.ts` | catalog types, `checkAttribute`, `attributesOf`, `subsetCatalog`, `withExtensions` (authoritative for what "valid" means) |
+| `packages/core/src/mei/schema-catalog.ts` | catalog types, `checkAttribute`, `attributesOf`, `subsetCatalog`, `withExtensions` (authoritative for what "valid" means) |
 | `mei/schema/rng-to-catalog.ts` | RelaxNG → catalog (browser, Node and tests) |
 | `mei/schema/mei-schema-registry.service.ts` | the available catalogs, loading, persistence |
-| `mei/mei-annotations.ts` | rule engine, merging, helpers for hand-set attributes |
+| `packages/core/src/mei/annotations.ts` | rule engine, merging, helpers for hand-set attributes |
 | `mei/mei-annotation-check.ts` | report of rule and annotation problems against a catalog |
 | `mei/mei-annotation-dialog.component.*` | the right-click dialog |
 | `mei/mei-rules-panel.component.*`, `mei/mei-schema-panel.component.*` | the settings tabs |
-| `mei/mei-emitter.ts` | applies the annotations (search for `annotations`) |
-| `notes/flag-patterns.ts` | `compileNeumeQuery`: pattern matching shared with the flag tool |
+| `packages/core/src/mei/emitter.ts` | applies the annotations (search for `annotations`) |
+| `packages/core/src/document/flag-patterns.ts` | `compileNeumeQuery`: pattern matching shared with the flag tool |
 
 ## 7. Open, state 2026-11-02
 

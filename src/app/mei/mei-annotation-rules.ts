@@ -1,4 +1,4 @@
-import { AnnotationTarget, MeiAnnotationRule } from './mei-mapping.model';
+import { AnnotationTarget, MeiAnnotationRule } from '@monodi/core/mei';
 
 const TARGETS: AnnotationTarget[] = ['nc', 'neume', 'syllable'];
 

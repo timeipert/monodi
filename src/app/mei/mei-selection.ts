@@ -4,9 +4,7 @@
  * Angular-free so that it can be tested directly; the sidebar only renders the result.
  */
 import * as VM from '../types/model';
-import { AnnotationTarget, MeiAnnotationRule, MeiMappingProfileV2 } from './mei-mapping.model';
-import { emitMei } from './mei-emitter';
-import { AnnotationIndex, AttrMap, accidentalName, buildAnnotationIndex, firstNoteOf, isAccidentalType } from './mei-annotations';
+import { AnnotationTarget, MeiAnnotationRule, MeiMappingProfileV2, emitMei, AnnotationIndex, AttrMap, accidentalName, buildAnnotationIndex, firstNoteOf, isAccidentalType } from '@monodi/core/mei';
 
 /** The note with the editor focus and the neume and syllable around it. */
 export interface NoteSelection {

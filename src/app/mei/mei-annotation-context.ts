@@ -1,4 +1,4 @@
-import { MeiMappingProfileV2 } from './mei-mapping.model';
+import { MeiMappingProfileV2 } from '@monodi/core/mei';
 
 /**
  * The MEI profile that is active in the open project. The editor's context menu reads it to know which

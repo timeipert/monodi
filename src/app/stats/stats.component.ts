@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { APIService, Source, Document } from '../api.service';
 import { UserService, User } from '../user.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
-import { analyzeDocument, AnalyzedPattern, ANALYZER_VERSION } from '../transcription-analyzer-core';
+import { analyzeDocument, AnalyzedPattern, ANALYZER_VERSION } from '@monodi/core/document';
 import { ActivatedRoute } from '@angular/router';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';

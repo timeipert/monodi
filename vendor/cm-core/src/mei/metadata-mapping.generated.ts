@@ -2,7 +2,7 @@
 // Source: CM-hub/config/metadata-mapping.yml (spec_version 1), people.csv and roles.csv.
 // Regenerate in the CM-hub repository: python -m cmhub.mapping --ts <path to this file>
 // Explanation: CM-hub/docs/METADATA-STANDARDS.md
-import { MetadataMapping } from './metadata-mapping.model';
+import type { MetadataMapping } from './metadata-mapping.model';
 
 export const METADATA_MAPPING: MetadataMapping = {
   "specVersion": 1,

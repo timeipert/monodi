@@ -213,7 +213,7 @@ export interface Note {
   octave: number;
   focus: boolean;
   isLatent?: boolean;
-  /** Keys of user-defined note flags (see notes/note-flags.ts), e.g. ['V']. */
+  /** Keys of user-defined note flags (see packages/core/src/document/note-flags.ts), e.g. ['V']. */
   flags?: string[];
   /**
    * MEI attributes set by hand on this note's `<nc>` (for example `{ tilt: 'n' }`). They win over every

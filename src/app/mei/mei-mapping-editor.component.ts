@@ -5,14 +5,12 @@ import { APIService, ProjectSettings, Document as MonodiDocument } from '../api.
 import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
-import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '../notes/note-flags';
-import { MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule } from './mei-mapping.model';
-import { emitMei } from './mei-emitter';
+import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '@monodi/core/document';
+import { MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule, emitMei, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from '@monodi/core/mei';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
 import { checkAnnotations } from './mei-annotation-check';
 import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
-import { AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from './schema/mei-schema-catalog';
 import { RootContainer, ContainerKind, LinePartKind } from '../types/model';
 import { downloadBlob } from '../download';
 

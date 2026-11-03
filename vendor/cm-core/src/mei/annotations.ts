@@ -8,10 +8,10 @@
  *   - attributes set by hand (`Note.meiAttrs`, `Note.meiNeumeAttrs`, `Syllable.meiAttrs`): they win.
  * Angular-free, so the dialog, the headless export and the tests use it directly.
  */
-import * as VM from '../types/model';
-import { AnnotationTarget, MeiAnnotationRule } from './mei-mapping.model';
-import { compileNeumeQuery, neumesOfSyllable, pickTargetNotes } from '../notes/flag-patterns';
-import { isValidAttributeName } from './schema/mei-schema-catalog';
+import * as VM from '../document/model';
+import type { AnnotationTarget, MeiAnnotationRule } from './mapping.model';
+import { compileNeumeQuery, neumesOfSyllable, pickTargetNotes } from '../document/flag-patterns';
+import { isValidAttributeName } from './schema-catalog';
 
 export type AttrMap = Record<string, string>;
 
@@ -28,8 +28,11 @@ export function emptyIndex(): AnnotationIndex {
   return { nc: new Map(), neume: new Map(), syllable: new Map() };
 }
 
-/** First note of a neume, or undefined when it has none. */
-export function firstNoteOf(neume: VM.NonSpaced): VM.Note | undefined {
+/**
+ * First note of a neume, or undefined when it has none. Generic so that a caller with its own note type (the app's
+ * `Note` has enums where the shared one has string literals) gets that type back.
+ */
+export function firstNoteOf<N extends VM.Note>(neume: { nonSpaced: { grouped: N[] }[] }): N | undefined {
   for (const g of neume.nonSpaced) if (g.grouped.length > 0) return g.grouped[0];
   return undefined;
 }

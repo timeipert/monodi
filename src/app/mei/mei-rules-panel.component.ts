@@ -1,12 +1,10 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output } from '@angular/core';
 import * as VM from '../types/model';
-import { AnnotationTarget, MeiAnnotationRule, MeiMappingProfileV2 } from './mei-mapping.model';
+import { AnnotationTarget, MeiAnnotationRule, MeiMappingProfileV2, conditionProblem, previewRule, ruleProblem, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute } from '@monodi/core/mei';
 import { newAnnotationRule } from './mei-annotation-rules';
-import { conditionProblem, previewRule, ruleProblem } from './mei-annotations';
 import { targetElements } from './mei-annotation-check';
 import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
-import { AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute } from './schema/mei-schema-catalog';
-import { getNoteFlagDefs } from '../notes/note-flags';
+import { getNoteFlagDefs } from '@monodi/core/document';
 
 export const NOTE_TYPES = ['Normal', 'Oriscus', 'Quilisma', 'Strophicus', 'Liquescent', 'Ascending', 'Descending', 'Flat', 'Natural', 'Sharp'];
 

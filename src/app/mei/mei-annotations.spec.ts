@@ -1,6 +1,4 @@
-import { emitMei } from './mei-emitter';
-import { defaultMeiProfile, MeiAnnotationRule } from './mei-mapping.model';
-import { previewRule, ruleProblem, setHandAttr } from './mei-annotations';
+import { emitMei, defaultMeiProfile, MeiAnnotationRule, previewRule, ruleProblem, setHandAttr } from '@monodi/core/mei';
 import {
   emptyRootContainer, emptyFormteilContainer, emptyZeileContainer, emptySyllable,
   DocumentType, BaseNote, NoteType, copyUuids, Spaced, Syllable, RootContainer
