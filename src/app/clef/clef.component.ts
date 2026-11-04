@@ -153,16 +153,17 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
     }
   }
 
+  /** Asks the neighbour in `direction` to take the focus; at the start or end of the document the focus stays here. */
   requestFocusShift(level: Focus | undefined, focusLast: boolean, direction: number) {
-    this.request.emit({
+    const moved = this.focusService.shiftFocus(() => this.request.emit({
       kind: 'FocusShiftRequested',
       change: {
         focusLast: focusLast,
         preferredLevel: level
       },
       direction: direction
-    });
-    this.model.focus = false;
+    }));
+    if (moved) this.model.focus = false;
   }
 
   startComment(): void {

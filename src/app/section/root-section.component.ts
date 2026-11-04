@@ -11,6 +11,7 @@ import { ResolveCommentSpansRequested, CommentDeletionRequested, LineFocusShiftR
 import { UndoService } from '../undoService';
 import { DragStateService } from '../dragger/drag-state.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
+import { FocusService } from '../focus.service';
 
 @Component({
     selector: 'app-root-section',
@@ -26,7 +27,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
 
   private mapDropSub = new Subscription();
 
-  constructor(private toaster: ToastrService, private cdr: ChangeDetectorRef, undoService: UndoService, private dragState: DragStateService, private navService: NavigationService) {
+  constructor(private toaster: ToastrService, private cdr: ChangeDetectorRef, undoService: UndoService, private dragState: DragStateService, private navService: NavigationService, private focusService: FocusService) {
     super("Edition unit", {
       StaleCommentRemovealRequested: (e: any, oldIndex: number) => { Model.removeStaleComments(this.data); },
       NewCommentRequested: (e: NewCommentRequested, oldIndex: number) => {
@@ -258,8 +259,9 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
 
     if (nextIndex >= 0 && nextIndex < childrenArray.length && childrenArray[nextIndex]) {
       childrenArray[nextIndex].focus({ focusLast: (e.direction < 0) });
-    } else if (index >= 0 && index < childrenArray.length && childrenArray[index]) {
-      childrenArray[index].focus({ focusLast: (e.direction > 0) });
+    } else {
+      // Past the first or last line: nobody takes the focus, the requester keeps it (see FocusService.shiftFocus).
+      this.focusService.rejectFocusShift();
     }
   }
 

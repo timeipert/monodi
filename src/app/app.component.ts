@@ -80,6 +80,12 @@ export class AppComponent implements AfterViewInit {
     return `${Math.floor(m / 60)}h ${m % 60}min remaining`;
   }
   showBackupReminder = false;
+
+  /** True on the start page (route `/`, also the fallback for unknown routes). */
+  get onStartPage(): boolean {
+    const path = this.router.url.split(/[?#]/)[0];
+    return path === '/' || path === '';
+  }
   /** Mobile/tablet navbar collapse state (driven by ng-bootstrap's ngbCollapse). */
   isNavCollapsed = true;
 

@@ -225,7 +225,7 @@
               <div class="alert alert-danger py-2 small">Their <strong>{{ cascadingDocuments }}</strong> document(s) are deleted with them.</div>
             }
           }
-          <p class="mb-2 small"><strong>This cannot be undone.</strong>{{ ' ' }}@if (hasUnbackedChanges) {You have changes that are not in any backup yet.{{ ' ' }}}<a routerLink="/settings" [queryParams]="{ tab: 'workspace' }" (click)="closeDelete()">Export a backup first</a>.</p>
+          <p class="mb-2 small"><strong>This cannot be undone.</strong>{{ ' ' }}@if (hasUnbackedChanges) {You have changes that are not in any backup yet.{{ ' ' }}}<a routerLink="/import-export" (click)="closeDelete()">Export a backup first</a>.</p>
           @if (requiredTyping; as needed) {
             <label class="form-label small mb-1" for="mg-typed">Type <strong>{{ needed }}</strong> to confirm</label>
             <input id="mg-typed" type="text" class="form-control form-control-sm" [(ngModel)]="typedCount" autocomplete="off"

@@ -65,6 +65,16 @@ export class BackupReminderService {
     this.evaluate();
   }
 
+  /** Time (ms since 1970) of the last full backup, or 0 if none was made in this browser. */
+  lastBackupAt(): number {
+    return this.getNum(K_LAST_BACKUP);
+  }
+
+  /** Time (ms since 1970) of the last write to the workspace, or 0 if none was recorded. */
+  lastChangeAt(): number {
+    return this.getNum(K_LAST_CHANGE);
+  }
+
   hasUnbackedChanges(): boolean {
     const changed = this.getNum(K_LAST_CHANGE);
     return changed > 0 && changed > this.getNum(K_LAST_BACKUP);

@@ -25,6 +25,31 @@ export class FocusService {
   }
 
   /**
+   * Set by the root section when a focus-shift request (arrow key at the edge of a syllable, box, clef or
+   * line change) ran off the start or end of the document and no element could take the focus.
+   * Read through `shiftFocus`; nothing else should touch it.
+   */
+  private focusShiftRejected = false;
+
+  /**
+   * Sends a focus-shift request up the section tree (`emit` must emit it synchronously) and says whether an
+   * element took the focus. `false` means the request ran off the start or end of the document: the caller
+   * keeps its own focus instead of clearing it, so the cursor stays on the first or last note.
+   * Nested calls are fine (an empty syllable that passes the request on): a rejection anywhere in the
+   * chain rejects the outer request too.
+   */
+  shiftFocus(emit: () => void): boolean {
+    this.focusShiftRejected = false;
+    emit();
+    return !this.focusShiftRejected;
+  }
+
+  /** The root section calls this when a focus-shift request found no target (see `shiftFocus`). */
+  rejectFocusShift(): void {
+    this.focusShiftRejected = true;
+  }
+
+  /**
    * Opens the MEI attribute dialog for a note, its neume or its syllable. Each syllable editor
    * (notes.component) registers itself under the uuid of its syllable, so the MEI tab of the document
    * sidebar can edit the focused note without knowing the editor.

@@ -83,7 +83,8 @@
   </nav>
 
   <!-- Backup reminder: data is local-first and lost if browser storage is cleared -->
-  @if (showBackupReminder) {
+  <!-- The start page shows the backup state in its own card, so the banner would repeat it there. -->
+  @if (showBackupReminder && !onStartPage) {
     <div class="backup-reminder border-bottom px-3 py-2">
       <div class="d-flex align-items-start gap-2 flex-wrap">
         <i class="bi bi-shield-exclamation fs-5 text-warning flex-shrink-0"></i>

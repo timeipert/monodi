@@ -193,7 +193,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       this.user = u;
       this.updateList();
     }));
-    // Settings → Workspace tab cards land here with a `ws=` query param
+    // The Import / Export page lands here with a `ws=` query param
     // and we kick off the matching action automatically. Once consumed we
     // strip the param so a back-button trip doesn't re-fire it.
     this.subs.push(this.route.queryParamMap.subscribe(params => {
@@ -206,7 +206,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     }));
   }
 
-  /** Triggered by `?ws=<action>` arriving from the Settings → Workspace tab. */
+  /** Triggered by `?ws=<action>` arriving from the Import / Export page. */
   private handleWorkspaceAction(action: string): void {
     switch (action) {
       case 'import-zip':

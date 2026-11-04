@@ -1,175 +1,192 @@
 @if (!loading) {
   <div class="welcome-root">
-    <!-- Dynamic Dashboard View when workspace has data -->
+    <!-- Start page of a workspace that holds sources: what is needed most, no brand header (the navigation bar already shows it). -->
     @if (hasData) {
       <header class="dashboard-header">
         <div class="dashboard-header-inner">
-          <div class="brand-group">
-            <h1 class="brand-title">Monodi<span class="brand-zero">Zero</span></h1>
-            <p class="brand-tagline">Scholarly Chant Edition Workspace</p>
+          <div>
+            <h1 class="dashboard-title">Workspace</h1>
+            <p class="dashboard-summary">
+              {{ sourcesCount }} {{ sourcesCount === 1 ? 'source' : 'sources' }} ·
+              {{ documentsCount }} {{ documentsCount === 1 ? 'document' : 'documents' }}
+              @if (lastEditAt) { · last edit {{ lastEditAt | date:'yyyy-MM-dd HH:mm' }} }
+            </p>
           </div>
+          <form class="dashboard-search" (ngSubmit)="quickSearch()" role="search">
+            <i class="bi bi-search"></i>
+            <input type="search" name="q" [(ngModel)]="quickQuery" class="form-control" autocomplete="off"
+              placeholder="Search chants: initium, feast, genre, folio …" aria-label="Search documents">
+            <button type="submit" class="btn btn-sm btn-primary">Search</button>
+          </form>
         </div>
       </header>
       <main class="dashboard-content py-4">
         <div class="container-xl">
-          <!-- Metrics Cards Grid -->
-          <div class="row g-3 mb-4">
-            <div class="col-md-3">
-              <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/sources']" style="cursor: pointer;">
-                <div>
-                  <div class="card-icon-wrapper text-indigo">
-                    <i class="bi bi-folder-fill"></i>
+          <!-- Continue + backup state -->
+          <div class="row g-3 mb-3">
+            <div class="col-lg-8">
+              <div class="dashboard-card h-100 p-4 d-flex flex-column justify-content-between gap-3">
+                @if (continueDoc) {
+                  <div>
+                    <div class="card-metric-label">Continue where you left off</div>
+                    <div class="continue-title">{{ continueDoc.textinitium || continueDoc.dokumenten_id || 'Untitled document' }}</div>
+                    <div class="doc-item-details">
+                      <span class="doc-badge">{{ getSourceName(continueDoc.quelle_id) }}</span>
+                      @if (continueDoc.dokumenten_id && continueDoc.textinitium) { <span class="doc-time">{{ continueDoc.dokumenten_id }}</span> }
+                      <span class="doc-time"><i class="bi bi-clock me-1"></i>{{ continueDoc.timestamp | date:'yyyy-MM-dd HH:mm' }}</span>
+                    </div>
                   </div>
-                  <h4 class="card-metric-label">Sources</h4>
-                  <div class="card-metric-value">{{ sourcesCount }}</div>
-                </div>
-                <div class="card-link text-indigo mt-3 small">
-                  Manage sources <i class="bi bi-arrow-right ms-1"></i>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/search']" style="cursor: pointer;">
-                <div>
-                  <div class="card-icon-wrapper text-teal">
-                    <i class="bi bi-file-earmark-music-fill"></i>
+                  <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary" [routerLink]="['/document', continueDoc.quelle_id, continueDoc.id]">
+                      <i class="bi bi-pencil-square me-1"></i>Continue editing
+                    </a>
+                    <a class="btn btn-outline-secondary" [routerLink]="['/source', continueDoc.quelle_id]">
+                      <i class="bi bi-folder2-open me-1"></i>Open source
+                    </a>
                   </div>
-                  <h4 class="card-metric-label">Chant Documents</h4>
-                  <div class="card-metric-value">{{ documentsCount }}</div>
-                </div>
-                <div class="card-link text-teal mt-3 small">
-                  Search documents <i class="bi bi-arrow-right ms-1"></i>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dashboard-card h-100 p-3">
-                <div class="card-icon-wrapper text-amber">
-                  <i class="bi bi-database-fill"></i>
-                </div>
-                <h4 class="card-metric-label">IndexedDB Storage</h4>
-                <div class="card-metric-value" style="font-size: 1.25rem; line-height: 1.8;">{{ storageUsed }} <span class="small text-muted" style="font-size: 0.8rem;">used</span></div>
-                <div class="progress mt-2" style="height: 6px;" [attr.title]="'Quota: ' + storageQuota">
-                  <div class="progress-bar bg-amber" role="progressbar" [style.width.%]="storagePct"></div>
-                </div>
-                <div class="d-flex justify-content-between text-muted small mt-2" style="font-size: 0.75rem;">
-                  <span>{{ storagePct }}% of quota</span>
-                  @if (api.storagePersisted === true) {
-                    <span class="text-success"><i class="bi bi-shield-fill-check me-1"></i>Protected</span>
-                  }
-                  @if (api.storagePersisted === false) {
-                    <span class="text-warning"><i class="bi bi-shield-fill-exclamation me-1"></i>Not Protected</span>
-                  }
-                  @if (api.storagePersisted === null) {
-                    <span class="text-secondary"><i class="bi bi-question-circle me-1"></i>Unknown</span>
-                  }
-                </div>
-                @if (api.storagePersisted !== true) {
-                  <button class="btn btn-sm btn-outline-warning w-100 mt-3 py-1" style="font-size: 0.75rem;" (click)="requestPersistence()">
-                    <i class="bi bi-shield-lock-fill me-1"></i>Enable Protection
-                  </button>
+                } @else {
+                  <div>
+                    <div class="card-metric-label">Get started</div>
+                    <div class="continue-title">Open a source and pick a document</div>
+                    <p class="text-muted small mb-0">Documents opened here will appear on this page for quick access.</p>
+                  </div>
+                  <div><a class="btn btn-primary" [routerLink]="['/sources']"><i class="bi bi-folder2-open me-1"></i>Go to sources</a></div>
                 }
               </div>
             </div>
-            <div class="col-md-3">
-              <div class="dashboard-card h-100 d-flex flex-column justify-content-between p-3" [routerLink]="['/settings']" [queryParams]="{ tab: 'github' }" style="cursor: pointer;">
+            <div class="col-lg-4">
+              <!-- Backup state: data lives only in this browser -->
+              <div class="dashboard-card h-100 p-4 d-flex flex-column justify-content-between gap-3 backup-card" [attr.data-state]="backupState">
                 <div>
-                  <div class="card-icon-wrapper" [ngClass]="isGithubConnected ? 'text-success' : 'text-secondary'">
-                    <i class="bi bi-github"></i>
-                  </div>
-                  <h4 class="card-metric-label">GitHub connection</h4>
-                  <div class="card-metric-value" style="font-size: 1.1rem; line-height: 1.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" [title]="githubRepo || 'Not configured'">
-                    {{ isGithubConnected ? 'Connected' : 'Not Connected' }}
-                  </div>
+                  <div class="card-metric-label">Backup</div>
+                  @switch (backupState) {
+                    @case ('dirty') {
+                      <div class="backup-headline text-warning-emphasis"><i class="bi bi-shield-exclamation me-2"></i>Changes not backed up</div>
+                      <p class="small text-muted mb-0">
+                        @if (lastBackupAt) { Last backup {{ lastBackupAt | date:'yyyy-MM-dd HH:mm' }}. } @else { No backup made yet. }
+                        Everything lives in this browser only.
+                      </p>
+                    }
+                    @case ('clean') {
+                      <div class="backup-headline text-success"><i class="bi bi-shield-check me-2"></i>Backed up</div>
+                      <p class="small text-muted mb-0">Last backup {{ lastBackupAt | date:'yyyy-MM-dd HH:mm' }}; nothing changed since.</p>
+                    }
+                    @default {
+                      <div class="backup-headline"><i class="bi bi-shield me-2"></i>No backup yet</div>
+                      <p class="small text-muted mb-0">Everything lives in this browser only. Export a backup or push to GitHub.</p>
+                    }
+                  }
                 </div>
-                <div class="text-muted small mt-3 overflow-hidden text-nowrap text-truncate" style="font-size: 0.75rem;">
-                  @if (isGithubConnected) {
-                    <span><i class="bi bi-link-45deg me-1"></i>{{ githubRepo }}</span>
-                  }
-                  @if (!isGithubConnected) {
-                    <span><i class="bi bi-exclamation-circle me-1"></i>Local-only mode</span>
-                  }
+                <div>
+                  <a class="btn btn-sm" [ngClass]="backupState === 'clean' ? 'btn-outline-secondary' : 'btn-warning'" [routerLink]="['/import-export']">
+                    <i class="bi bi-download me-1"></i>{{ backupState === 'clean' ? 'Import / Export' : 'Back up now' }}
+                  </a>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- Everyday actions -->
+          <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+              <a class="dashboard-card action-tile" [routerLink]="newDocumentRoute">
+                <span class="card-icon-wrapper text-indigo"><i class="bi bi-file-earmark-plus-fill"></i></span>
+                <span class="action-title">New document</span>
+                <span class="action-hint">in {{ newDocumentSourceName }}</span>
+              </a>
+            </div>
+            <div class="col-6 col-lg-3">
+              <a class="dashboard-card action-tile" [routerLink]="['/source']">
+                <span class="card-icon-wrapper text-teal"><i class="bi bi-folder-plus"></i></span>
+                <span class="action-title">New source</span>
+                <span class="action-hint">a manuscript</span>
+              </a>
+            </div>
+            <div class="col-6 col-lg-3">
+              <a class="dashboard-card action-tile" [routerLink]="['/metadata']">
+                <span class="card-icon-wrapper text-amber"><i class="bi bi-table"></i></span>
+                <span class="action-title">Metadata table</span>
+                <span class="action-hint">edit many documents at once</span>
+              </a>
+            </div>
+            <div class="col-6 col-lg-3">
+              <a class="dashboard-card action-tile" [routerLink]="['/import-export']">
+                <span class="card-icon-wrapper text-secondary"><i class="bi bi-arrow-down-up"></i></span>
+                <span class="action-title">Import / Export</span>
+                <span class="action-hint">PDF edition, ZIP, backup</span>
+              </a>
+            </div>
+          </div>
+
           <!-- Detail panels -->
           <div class="row g-4">
-            <!-- Recent documents -->
             <div class="col-lg-7">
-              <div class="dashboard-card p-4">
+              <div class="dashboard-card p-4 h-100">
                 <h3 class="panel-section-title mb-3">
                   <i class="bi bi-clock-history text-indigo me-2"></i>Last used documents
                 </h3>
                 @if (recentDocuments.length > 0) {
                   <div class="recent-docs-list">
-                    @for (doc of recentDocuments; track doc) {
-                      <div class="recent-doc-item" [routerLink]="['/document', doc.quelle_id, doc.id]">
+                    @for (doc of recentDocuments; track doc.id) {
+                      <a class="recent-doc-item" [routerLink]="['/document', doc.quelle_id, doc.id]">
                         <div class="doc-item-icon">
                           <i class="bi bi-file-earmark-music"></i>
                         </div>
                         <div class="doc-item-body">
-                          <div class="doc-item-title">{{ doc.textinitium || doc.dokumenten_id || 'Untitled Document' }}</div>
+                          <div class="doc-item-title">{{ doc.textinitium || doc.dokumenten_id || 'Untitled document' }}</div>
                           <div class="doc-item-details">
-                            <span class="doc-badge">Source: {{ getSourceName(doc.quelle_id) }}</span>
-                            <span class="doc-time"><i class="bi bi-clock me-1"></i>{{ doc.timestamp | date:'short' }}</span>
+                            <span class="doc-badge">{{ getSourceName(doc.quelle_id) }}</span>
+                            <span class="doc-time"><i class="bi bi-clock me-1"></i>{{ doc.timestamp | date:'yyyy-MM-dd HH:mm' }}</span>
                           </div>
                         </div>
                         <div class="doc-item-arrow">
                           <i class="bi bi-chevron-right"></i>
                         </div>
-                      </div>
+                      </a>
                     }
                   </div>
                 } @else {
                   <div class="text-center py-4 my-2 border rounded border-dashed text-muted">
                     <i class="bi bi-file-earmark-plus display-6 mb-2 d-block text-secondary"></i>
-                    <p class="mb-0 small">No recently accessed documents.</p>
-                    <a [routerLink]="['/sources']" class="btn btn-sm btn-outline-indigo mt-3">Open a Source</a>
+                    <p class="mb-0 small">No recently opened documents.</p>
+                    <a [routerLink]="['/sources']" class="btn btn-sm btn-outline-indigo mt-3">Open a source</a>
                   </div>
                 }
               </div>
             </div>
-            <!-- Searches & Quick actions -->
             <div class="col-lg-5">
-              <!-- Recent searches -->
+              <!-- Sources: most recently used first -->
               <div class="dashboard-card p-4 mb-4">
+                <h3 class="panel-section-title mb-3 justify-content-between">
+                  <span><i class="bi bi-folder-fill text-indigo me-2"></i>Sources</span>
+                  <a [routerLink]="['/sources']" class="small fw-normal text-decoration-none">All {{ sourcesCount }} <i class="bi bi-arrow-right"></i></a>
+                </h3>
+                <div class="source-list">
+                  @for (s of topSources; track s.id) {
+                    <a class="source-row" [routerLink]="['/source', s.id]">
+                      <span class="source-sigle">{{ s.sigle }}</span>
+                      <span class="source-count">{{ s.docCount }} {{ s.docCount === 1 ? 'document' : 'documents' }}</span>
+                      <i class="bi bi-chevron-right source-arrow"></i>
+                    </a>
+                  }
+                </div>
+              </div>
+              <!-- Recent searches -->
+              <div class="dashboard-card p-4">
                 <h3 class="panel-section-title mb-3">
                   <i class="bi bi-search text-teal me-2"></i>Last searches
                 </h3>
                 @if (recentSearches.length > 0) {
-                  <div class="recent-searches-list">
-                    <div class="d-flex flex-wrap gap-2">
-                      @for (s of recentSearches; track s) {
-                        <a [routerLink]="['/search']" [queryParams]="{ q: s }" class="search-tag-pill">
-                          <i class="bi bi-search me-1" style="font-size: 0.75rem;"></i>{{ s }}
-                        </a>
-                      }
-                    </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    @for (s of recentSearches; track s) {
+                      <a [routerLink]="['/search']" [queryParams]="{ q: s }" class="search-tag-pill">
+                        <i class="bi bi-search me-1" style="font-size: 0.75rem;"></i>{{ s }}
+                      </a>
+                    }
                   </div>
                 } @else {
-                  <div class="text-center py-3 text-muted">
-                    <p class="mb-0 small">No recent searches yet.</p>
-                    <a [routerLink]="['/search']" class="btn btn-sm btn-outline-teal mt-2">Go to Search</a>
-                  </div>
+                  <p class="mb-0 small text-muted">No searches yet. Use the search field at the top.</p>
                 }
-              </div>
-              <!-- Quick actions -->
-              <div class="dashboard-card p-4">
-                <h3 class="panel-section-title mb-3">
-                  <i class="bi bi-lightning-charge-fill text-amber me-2"></i>Quick Actions
-                </h3>
-                <div class="d-grid gap-2">
-                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-zip' }" class="btn btn-outline-secondary text-start p-2 fs-7">
-                    <i class="bi bi-box-arrow-in-down me-2 text-primary"></i>Import ZIP Workspace
-                  </a>
-                  <a [routerLink]="['/source']" class="btn btn-outline-secondary text-start p-2 fs-7">
-                    <i class="bi bi-folder-plus me-2 text-success"></i>Create New Source
-                  </a>
-                  <a [routerLink]="['/manual']" class="btn btn-outline-secondary text-start p-2 fs-7">
-                    <i class="bi bi-book me-2 text-info"></i>View User Manual
-                  </a>
-                </div>
               </div>
             </div>
           </div>

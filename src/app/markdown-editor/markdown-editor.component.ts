@@ -66,11 +66,13 @@ type Mode = 'edit' | 'split' | 'preview';
     }
   </div>`,
   styles: [`
-    .md-input { min-height: 22rem; height: 100%; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88rem; line-height: 1.5; }
+    /* The writing area and the preview share one height that follows the window: about the viewport minus the page header, source tabs and the editor toolbar (the textarea starts about 22rem down). */
+    .md-editor { --md-height: clamp(24rem, calc(100vh - 24rem), 70rem); }
+    .md-input { height: var(--md-height); min-height: 24rem; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88rem; line-height: 1.5; }
     .md-panes { display: block; }
     .md-panes.md-split { display: grid; grid-template-columns: 1fr 1fr; }
     .md-split .md-preview { border-left: 1px solid #dee2e6; }
-    .md-preview { min-height: 22rem; max-height: 60vh; overflow: auto; }
+    .md-preview { height: var(--md-height); overflow: auto; }
     .md-preview:empty::before { content: 'Nothing to preview yet.'; color: #9ca3af; }
     .md-preview h2 { font-size: 1.35rem; margin-top: 1.1rem; }
     .md-preview h3 { font-size: 1.15rem; margin-top: 1rem; }

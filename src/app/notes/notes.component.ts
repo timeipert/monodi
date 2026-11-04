@@ -821,8 +821,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     else if (e.key === 'ArrowLeft') {
       const focused = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
       if (focused && focused.isLatent) {
-        this.discardLatentNote(this.focusedVoiceIndex);
-        this.requestFocusShift(undefined, true, -1);
+        // A latent note is only a placeholder: drop it once the focus has moved on, keep it at the start of the document.
+        const voiceIndex = this.focusedVoiceIndex;
+        if (this.requestFocusShift(undefined, true, -1)) this.discardLatentNote(voiceIndex);
       } else {
         this.focusOther(VM.getLeftOf, () => this.requestFocusShift(undefined, true, -1));
       }
@@ -934,16 +935,18 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     });
   }
 
-  requestFocusShift(level: Focus | undefined, focusLast: boolean, direction: number) {
-    this.request.emit({
+  /** Asks the neighbour in `direction` to take the focus. Returns false at the start or end of the document: the focus then stays on this note. */
+  requestFocusShift(level: Focus | undefined, focusLast: boolean, direction: number): boolean {
+    const moved = this.focusService.shiftFocus(() => this.request.emit({
       kind: 'FocusShiftRequested',
       change: {
         focusLast: focusLast,
         preferredLevel: level
       },
       direction: direction
-    });
-    this.withFocus(n => { n.focus = false; });
+    }));
+    if (moved) this.withFocus(n => { n.focus = false; });
+    return moved;
   }
 
   insertNear(): void {

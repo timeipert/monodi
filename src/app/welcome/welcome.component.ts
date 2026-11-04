@@ -1,12 +1,26 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
 import { PageTitleService } from '../page-title.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
-import { GithubService } from '../github.service';
-import { ToastrService } from 'ngx-toastr';
+import { BackupReminderService } from '../backup-reminder.service';
 import { forkJoin, take } from 'rxjs';
 
+/** How many sources the dashboard lists. */
+const MAX_TOP_SOURCES = 6;
+
+/** A source as listed on the start page. */
+interface SourceRow { id: string; sigle: string; docCount: number; }
+
+/** Backup situation of this browser's workspace: never backed up, changed since the last backup, or in sync. */
+type BackupState = 'none' | 'dirty' | 'clean';
+
+/**
+ * Start page. Without sources it is a short introduction for newcomers; with sources it is a
+ * workspace dashboard: continue the last document, search, see the backup state, jump to the
+ * everyday actions, and open recent documents and sources.
+ */
 @Component({
     selector: 'app-welcome',
     templateUrl: './welcome.component.html',
@@ -16,30 +30,40 @@ import { forkJoin, take } from 'rxjs';
 export class WelcomeComponent implements OnInit {
   sourcesCount = 0;
   documentsCount = 0;
-  storageUsed = '0 B';
-  storageQuota = '0 B';
-  storagePct = 0;
-  isGithubConnected = false;
-  githubRepo = '';
   recentDocuments: any[] = [];
   recentSearches: string[] = [];
   sourceNamesMap: { [id: string]: string } = {};
+  topSources: SourceRow[] = [];
   hasData = false;
   loading = true;
+
+  /** Text of the search field at the top of the dashboard. */
+  quickQuery = '';
+  /** Time of the last recorded edit (ms since 1970); 0 when unknown. */
+  lastEditAt = 0;
+  lastBackupAt = 0;
+  backupState: BackupState = 'none';
+  /** Route of the "New document" tile: the source of the last opened document, else the first source. */
+  newDocumentRoute: any[] = ['/sources'];
+  newDocumentSourceName = 'a source';
 
   constructor(
     private pageTitle: PageTitleService,
     private modalService: NgbModal,
     public api: APIService,
     private userService: UserService,
-    public github: GithubService,
-    private toastr: ToastrService,
-    private cdRef: ChangeDetectorRef
+    private backup: BackupReminderService,
+    private router: Router,
   ) { }
 
   ngOnInit() {
     this.pageTitle.reset(); // Just "Monodi" on the home page
     this.loadDashboardData();
+  }
+
+  /** The most recently opened document, shown in the "Continue" card. */
+  get continueDoc(): any | undefined {
+    return this.recentDocuments[0];
   }
 
   loadDashboardData() {
@@ -52,26 +76,22 @@ export class WelcomeComponent implements OnInit {
           docsRes: this.api.listDocuments(user.token)
         }).subscribe({
           next: (res) => {
-            if (res.sourcesRes.kind === 'SourcesRetrieved') {
-              this.sourcesCount = res.sourcesRes.sources.length;
-              this.sourceNamesMap = {};
-              for (const s of res.sourcesRes.sources) {
-                if (s.id) {
-                  this.sourceNamesMap[s.id] = s.quellensigle || s.id;
-                }
-              }
-            }
-            if (res.docsRes.kind === 'DocumentsRetrieved') {
-              this.documentsCount = res.docsRes.documents.length;
+            const sources = res.sourcesRes.kind === 'SourcesRetrieved' ? res.sourcesRes.sources : [];
+            const docs = res.docsRes.kind === 'DocumentsRetrieved' ? res.docsRes.documents : [];
+            this.sourcesCount = sources.length;
+            this.documentsCount = docs.length;
+            this.sourceNamesMap = {};
+            for (const s of sources) {
+              if (s.id) this.sourceNamesMap[s.id] = s.quellensigle || s.id;
             }
 
             this.hasData = this.sourcesCount > 0;
 
             if (this.hasData) {
               this.loadRecentSearches();
-              this.loadRecentDocuments(res.docsRes.kind === 'DocumentsRetrieved' ? res.docsRes.documents : []);
-              this.loadStorageStats();
-              this.loadGithubStatus();
+              this.loadRecentDocuments(docs);
+              this.buildSourceList(sources, docs);
+              this.loadBackupState();
             }
 
             this.loading = false;
@@ -106,55 +126,39 @@ export class WelcomeComponent implements OnInit {
     }
   }
 
-  loadStorageStats() {
-    if ('storage' in navigator && typeof navigator.storage.estimate === 'function') {
-      navigator.storage.estimate().then(est => {
-        if (est.usage !== undefined && est.quota !== undefined) {
-          this.storageUsed = this.formatBytes(est.usage);
-          this.storageQuota = this.formatBytes(est.quota);
-          this.storagePct = Math.min(100, Math.round((est.usage / est.quota) * 100));
-        }
-      }).catch(err => {
-        console.warn('Storage estimate failed:', err);
-      });
+  /** Sources ordered by last use (from the recent documents), then by number of documents. */
+  private buildSourceList(sources: any[], docs: any[]) {
+    const counts = new Map<string, number>();
+    for (const d of docs) counts.set(d.quelle_id, (counts.get(d.quelle_id) ?? 0) + 1);
+    const lastUse = new Map<string, number>();
+    this.recentDocuments.forEach((d, i) => { if (!lastUse.has(d.quelle_id)) lastUse.set(d.quelle_id, i); });
+    const rows: SourceRow[] = sources
+      .filter(s => !!s.id)
+      .map(s => ({ id: s.id as string, sigle: s.quellensigle || (s.id as string), docCount: counts.get(s.id as string) ?? 0 }));
+    rows.sort((a, b) =>
+      (lastUse.get(a.id) ?? Infinity) - (lastUse.get(b.id) ?? Infinity)
+      || b.docCount - a.docCount
+      || a.sigle.localeCompare(b.sigle));
+    this.topSources = rows.slice(0, MAX_TOP_SOURCES);
+
+    const target = this.continueDoc ? rows.find(r => r.id === this.continueDoc.quelle_id) : undefined;
+    const source = target ?? rows[0];
+    if (source) {
+      this.newDocumentRoute = ['/document', source.id];
+      this.newDocumentSourceName = source.sigle;
     }
   }
 
-  loadGithubStatus() {
-    this.isGithubConnected = this.github.isConnected;
-    this.githubRepo = this.isGithubConnected ? `${this.github.config?.owner}/${this.github.config?.repo}` : '';
+  private loadBackupState() {
+    this.lastEditAt = this.backup.lastChangeAt();
+    this.lastBackupAt = this.backup.lastBackupAt();
+    this.backupState = this.backup.hasUnbackedChanges() ? 'dirty' : this.lastBackupAt > 0 ? 'clean' : 'none';
   }
 
-  formatBytes(bytes?: number): string {
-    if (bytes === undefined || bytes === null) return '0 B';
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  async requestPersistence() {
-    if (navigator.storage && navigator.storage.persist) {
-      try {
-        const persisted = await navigator.storage.persist();
-        this.api.storagePersisted = persisted;
-        if (persisted) {
-          this.toastr.success('Workspace storage is now protected from eviction.', 'Storage Protected');
-        } else {
-          this.toastr.warning(
-            'Browser rejected persistence request. To protect data, bookmark this app, grant notifications, or add it to your home screen.',
-            'Eviction Protection Rejected'
-          );
-        }
-        this.loadStorageStats();
-        this.cdRef.markForCheck();
-      } catch (err) {
-        this.toastr.error('Failed to request storage persistence: ' + err, 'Request Failed');
-      }
-    } else {
-      this.toastr.error('Storage Persistence API is not supported by your browser.', 'Unsupported');
-    }
+  /** Opens the search page with the typed text (the search page reads it from `?q=`). */
+  quickSearch() {
+    const q = this.quickQuery.trim();
+    this.router.navigate(['/search'], q ? { queryParams: { q } } : {});
   }
 
   openCredits(content: any) {

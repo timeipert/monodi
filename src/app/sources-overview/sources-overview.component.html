@@ -4,18 +4,16 @@
       <h2 class="page-title">Sources</h2>
     </div>
     <div class="d-flex gap-2 align-items-center">
-      <!-- Workspace-level actions (import / export / HTML edition) moved to
-      Settings → Workspace tab. The file inputs and dialog state still
-      live on this page; they're triggered via `?ws=<action>` query
-      params when the user clicks a card in Settings. -->
+      <!-- Import / export / HTML edition live on the Import / Export page (route /import-export). The file
+      inputs and dialog state stay on this page; the Import / Export page triggers them with `?ws=<action>`. -->
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
       <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
       <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
       <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" style="display: none" multiple accept=".json,application/json,.zip,.png,.jpg,.jpeg,.webp,.gif,.svg" />
-      <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
+      <a [routerLink]="['/import-export']"
         class="btn btn-sm btn-outline-secondary"
-        title="Import, export, storage usage & cleanup in Settings → Workspace">
-        <i class="bi bi-gear me-1"></i>Workspace
+        title="Import data; export a PDF edition, ZIP, spreadsheet or backup">
+        <i class="bi bi-arrow-down-up me-1"></i>Import / Export
       </a>
       <button class="btn btn-sm btn-primary" title="Add a new source (manuscript)" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>New source</button>
     </div>
@@ -65,7 +63,7 @@
             <button class="btn btn-primary" [routerLink]="['/source']">
               <i class="bi bi-plus-lg me-1"></i>New source
             </button>
-            <a class="btn btn-outline-secondary" [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }">
+            <a class="btn btn-outline-secondary" [routerLink]="['/import-export']">
               <i class="bi bi-box-arrow-in-down me-1"></i>Import existing data
             </a>
           </div>
