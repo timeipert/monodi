@@ -46,7 +46,12 @@ function monodiSource(meta: any): any {
   for (const [k, v] of Object.entries(meta ?? {})) {
     if (SOURCE_KEYS.includes(k)) out[k] = v;
     else if (k === 'manifest') out.iiifManifestUrl = v;
-    else out.custom[k] = typeof v === 'string' ? v : JSON.stringify(v);
+    else if (k === 'additionalData') {
+      // the CM columns of the source (CM-hub writes them here for the export): one `custom` entry each, as for a document; no e-mail address in an export
+      for (const [ck, cv] of Object.entries((v as Record<string, unknown>) ?? {})) {
+        if (cv !== null && cv !== undefined && String(cv).trim() !== '' && !String(cv).includes('@')) out.custom[ck] = String(cv);
+      }
+    } else out.custom[k] = typeof v === 'string' ? v : JSON.stringify(v);
   }
   for (const k of SOURCE_KEYS) if (out[k] === undefined) out[k] = '';
   return out;

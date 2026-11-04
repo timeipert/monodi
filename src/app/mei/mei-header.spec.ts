@@ -102,6 +102,18 @@ describe('MEI header levels', () => {
     expect(m.querySelector('biblList[type="local-images"]')).toBeNull();           // level 3, and no data
   });
 
+  it('reads the CM columns and the Cantus siglum from `custom` too, which is where Monodi-Zero and the headless export keep the keys of a source it does not know', () => {
+    const custom = { cantus_siglum: 'X-Custom', Online_catalogue: 'https://example.org/c2', Manifest2: 'https://example.org/m3.json' };
+    const only = { quellensigle: 'Ex 1', bibliothek: 'L', bibliotheksort: 'P', bibliothekssignatur: 'S', datierung: 'D', custom } as unknown as Source;
+    const root = emptyRootContainer();
+    const profile = defaultMeiProfile();
+    profile.headerLevel = 2;
+    const d = new DOMParser().parseFromString(emitMei(root, profile, documentMeta, 'Ex 1', { sourceMeta: only, publication, now, appVersion: '0.9.1' }), 'application/xml');
+    expect(q(d, 'manifestation identifier[type="cantus"]')!.textContent).toBe('X-Custom');
+    expect(q(d, 'manifestation relation')!.getAttribute('target')).toBe('https://example.org/m3.json');
+    expect(q(d, 'biblList[type="catalogue-online"] ref')!.getAttribute('target')).toBe('https://example.org/c2');
+  });
+
   it('level 1 writes none of these fields, a source without them writes nothing for them', () => {
     expect(q(emit(1), 'manifestation')).toBeNull();
     const bare = new DOMParser().parseFromString(emitMei(emptyRootContainer(), (() => { const p = defaultMeiProfile(); p.headerLevel = 2; return p; })(), documentMeta, 'Ex 1',

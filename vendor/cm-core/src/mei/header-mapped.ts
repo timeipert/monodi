@@ -44,10 +44,18 @@ function slug(sig: string): string {
   return sig.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
-/** A CM column of the source (for example `Online catalogue`): Monodi keeps the CM columns in `additionalData` with `_` for spaces. */
+/**
+ * A CM column of the source (for example `Online catalogue`, or `cantus_siglum`). Monodi-Zero keeps the keys of a source that it does
+ * not know in `custom` (the headless export does the same, and also copies `additionalData` there); the raw JSON has them in
+ * `additionalData` with `_` for spaces. All of these places are read.
+ */
 function cmColumn(b: Builder, column: string): string {
-  const extra = (b.source?.additionalData ?? b.source?.custom ?? {}) as Record<string, string>;
-  return (extra[column] ?? extra[column.replace(/ /g, '_')] ?? '').trim();
+  const key = column.replace(/ /g, '_');
+  for (const place of [b.source?.custom, b.source?.additionalData] as (Record<string, string> | null | undefined)[]) {
+    const value = (place?.[column] ?? place?.[key] ?? '').toString().trim();
+    if (value) return value;
+  }
+  return '';
 }
 
 /** The lines of a cell with several values (separated by a line break or `;`). */
@@ -147,7 +155,7 @@ const GENERIC: Record<string, (b: Builder) => Value | undefined> = {
   'src.library': b => ({ texts: nonEmpty(b.source?.bibliothek) }),
   'src.library_place': b => ({ texts: nonEmpty(b.source?.bibliotheksort) }),
   'src.shelfmark': b => ({ texts: nonEmpty(b.source?.bibliothekssignatur) }),
-  'src.cantus_siglum': b => ({ texts: nonEmpty(b.source?.cantus_siglum) }),
+  'src.cantus_siglum': b => ({ texts: nonEmpty(b.source?.cantus_siglum, cmColumn(b, 'cantus_siglum')) }),
   'src.type': b => ({ texts: nonEmpty(b.source?.quellentyp, cmColumn(b, 'Quellentyp 2')) }),
   'src.order': b => ({ texts: nonEmpty(b.source?.ordenstradition) }),
   // The language of the chants is a project value; it is written only for a document whose source is known, so that no empty manifestation appears.
