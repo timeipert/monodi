@@ -23,6 +23,7 @@ export interface SvgJob {
   settings?: { [key: string]: any } | null;
   pageWidthPt?: number;
   pageHeightPt?: number;
+  apparatus?: boolean;
 }
 
 export async function renderOne(job: SvgJob): Promise<{ svg?: string; pages?: number; systems?: number; error?: string }> {
@@ -30,7 +31,7 @@ export async function renderOne(job: SvgJob): Promise<{ svg?: string; pages?: nu
     const source = monodiSource(job.source);
     const out = await renderChantSvg(
       { document: monodiDocument(job.document), cont: job.root, source, sigle: source.quellensigle || '' },
-      { settings: job.settings, pageWidthPt: job.pageWidthPt, pageHeightPt: job.pageHeightPt });
+      { settings: job.settings, pageWidthPt: job.pageWidthPt, pageHeightPt: job.pageHeightPt, apparatus: job.apparatus });
     return out;
   } catch (e: any) {
     return { error: String(e?.stack ?? e) };

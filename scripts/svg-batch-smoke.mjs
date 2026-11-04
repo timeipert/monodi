@@ -15,22 +15,23 @@ const uuid = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
 const note = (base, octave, extra = {}) => ({ uuid: uuid(), noteType: 'Normal', base, octave, liquescent: false, focus: false, ...extra });
 const syllable = (text, groups) => ({ kind: 'Syllable', uuid: uuid(), text, syllableType: 'Normal', notes: { spaced: groups.map((g) => ({ nonSpaced: [{ grouped: g }] })) } });
 const lineChange = () => ({ kind: 'LineChange', uuid: uuid(), focus: false });
-const root = (children) => ({ kind: 'RootContainer', uuid: uuid(), comments: [], documentType: 'Level2', children });
+const root = (children, comments = []) => ({ kind: 'RootContainer', uuid: uuid(), comments, documentType: 'Level2', children });
 const formteil = (children) => ({ kind: 'FormteilContainer', uuid: uuid(), data: [], children });
 const paratext = (text) => ({ kind: 'ParatextContainer', uuid: uuid(), text, retro: false, paratextType: 'Gesang' });
 const zeile = (children) => ({ kind: 'ZeileContainer', uuid: uuid(), children });
 
+const firstNote = note('G', 4);
 const withNotes = root([formteil([
   paratext('ALLELUIA'),
   zeile([
-    syllable('Al-', [[note('G', 4)]]),
+    syllable('Al-', [[firstNote]]),
     syllable('le-', [[note('A', 4), note('B', 4), note('C', 5)]]),     // a neume with a bracket
     syllable('lu-', [[note('A', 3)], [note('C', 6, { noteType: 'Ascending' })]]),   // ledger lines below and above, a virga
     lineChange(),                                                                   // a tick in the line, not a new system
     syllable('ia', [[note('D', 5, { liquescent: true })], [note('E', 4, { noteType: 'Quilisma' })]]),
   ]),
   zeile([syllable('Amen', [[note('G', 4)]])]),                                      // a second line of notation: a second system
-])]);
+])], [{ startUUID: firstNote.uuid, endUUID: firstNote.uuid, commentType: 'text', text: 'korrigiert aus Alleluya' }]);   // one comment: an apparatus
 const withoutNotes = root([formteil([])]);   // nothing to draw: no picture, listed in report.json
 
 const tmp = mkdtempSync(join(tmpdir(), 'svg-smoke-'));
@@ -59,13 +60,20 @@ try {
   check(svg.includes('fill="currentColor"') && svg.includes('stroke="currentColor"'), 'colours come from CSS (currentColor)');
   check(/<path d="M[\d.]+ [\d.]+V[\d.]+"/.test(svg), 'the line change is a tick below the staff');
   check(!/<style|class=|NaN|undefined/.test(svg), 'no style block, no class, no NaN');
-  check((svg.match(/<use href="#s/g) ?? []).length === 2, 'one staff per line of notation');
+  check((svg.match(/<use href="#s/g) ?? []).length === 2, 'one staff per line of notation (the apparatus has none: a text comment)');
+  check(/>CRITICAL APPARATUS<\/text>/i.test(svg) && svg.includes('>Alleluya</text>'), 'the critical apparatus follows the last system');
   check((svg.match(/<use href="#g/g) ?? []).length >= 4, 'every note head is a <use> of a shared outline');
   check(/<path id="g\w+" fill-rule="evenodd"/.test(svg), 'outlines are defined once in <defs>');
   check(['ALLELUIA', 'Al–', 'le–', 'lu–', 'ia', 'Amen'].every((t) => svg.includes('>' + t + '</text>')), 'rubric and lyrics are plain <text>');
-  check(Buffer.byteLength(svg) < 6000, `compact (${Buffer.byteLength(svg)} bytes)`);
+  check(Buffer.byteLength(svg) < 8000, `compact (${Buffer.byteLength(svg)} bytes)`);
   const report = JSON.parse(readFileSync(join(out, 'report.json'), 'utf8'));
   check(report.written === 1 && report.errors === 1 && report.files[0].file === 'Smoke 1/c-1/c-1.svg' && report.files[0].systems === 2, 'report.json lists the picture and the chant without a line of notation');
+
+  // without the apparatus
+  const bare = join(tmp, 'bare');
+  execFileSync('node', [script, '--dir', input, '--out', bare, '--no-apparatus', '--quiet'], { stdio: 'pipe' });
+  const bareSvg = readFileSync(join(bare, 'Smoke 1', 'c-1', 'c-1.svg'), 'utf8');
+  check(!/APPARATUS/i.test(bareSvg) && !bareSvg.includes('>Alleluya</text>') && bareSvg.length < svg.length, '--no-apparatus leaves it out');
 
   // to a ZIP, from a ZIP
   const zin = new JSZip();

@@ -80,4 +80,50 @@ describe('renderChantSvg', () => {
       expect(out.svg).not.toMatch(/NaN|undefined|Infinity/);
     }
   });
+  describe('critical apparatus', () => {
+    const withComments = FIXTURES.find((f) => f.name === 'x15-apparatus-forms')!;
+    const staffYs = (svg: string) => [...svg.matchAll(/<use href="#s\w+" transform="matrix\([^ ]+ 0 0 1 [\d.]+ ([\d.]+)\)"\/>/g)].map((m) => +m[1]);
+    const textMatches = (svg: string, re: RegExp) => [...svg.matchAll(/<text x="[\d.]+" y="([\d.]+)"[^>]*>([^<]*)<\/text>/g)].filter((m) => re.test(m[2])).map((m) => +m[1]);
+
+    it('the fixture has comments (otherwise the checks below prove nothing)', () => {
+      expect((withComments.doc.comments ?? []).length).toBeGreaterThan(0);
+    });
+
+    it('is part of the picture by default, below the last system of the edition', async () => {
+      const without = await renderChantSvg(jobOf(withComments.doc), { settings: SETTINGS, apparatus: false });
+      const withIt = await renderChantSvg(jobOf(withComments.doc), { settings: SETTINGS });
+      const dflt = await renderChantSvg(jobOf(withComments.doc), { settings: SETTINGS, apparatus: true });
+      expect(withIt.svg).toBe(dflt.svg);
+      const title = textMatches(withIt.svg, /^CRITICAL APPARATUS$/i);
+      expect(title.length).toBe(1);
+      expect(textMatches(without.svg, /^CRITICAL APPARATUS$/i).length).toBe(0);
+      // the edition is the same picture in both; the apparatus starts below its last staff
+      const lastStaff = Math.max(...staffYs(without.svg));
+      expect(title[0]).toBeGreaterThan(lastStaff);
+      expect(staffYs(withIt.svg).length).toBeGreaterThan(staffYs(without.svg).length);   // the comment cells hold small staves with notes
+      const h = (s: string) => +/viewBox="0 0 \d+ (\d+)"/.exec(s)![1];
+      expect(h(withIt.svg)).toBeGreaterThan(h(without.svg));
+      // several text sizes and italics: the readings
+      expect(withIt.svg).toMatch(/font-style="italic"/);
+      expect(new Set([...withIt.svg.matchAll(/font-size="([\d.]+)"/g)].map((m) => m[1])).size).toBeGreaterThan(1);
+    });
+
+    it('stays one themable SVG without ids (other than shape ids), classes or styles', async () => {
+      const out = await renderChantSvg(jobOf(withComments.doc), { settings: SETTINGS });
+      expect(out.svg).not.toContain('<style');
+      expect(out.svg).not.toContain('class=');
+      expect(out.svg).not.toMatch(/ id="(?![gs][0-9a-z]+")/);
+      expect(out.svg).not.toMatch(/NaN|undefined|Infinity/);
+      expect(out.svg).not.toContain('#1e1e1e');   // dark text is currentColor
+      expect(out.svg.match(/<svg /g)?.length).toBe(1);
+    });
+
+    it('a chant without comments has no apparatus either way', async () => {
+      const plain = real.find((f) => (f.doc.comments ?? []).length === 0);
+      expect(plain).toBeDefined();
+      const a = await renderChantSvg(jobOf(plain!.doc), { settings: SETTINGS, apparatus: true });
+      const b = await renderChantSvg(jobOf(plain!.doc), { settings: SETTINGS, apparatus: false });
+      expect(a.svg).toBe(b.svg);
+    });
+  });
 });

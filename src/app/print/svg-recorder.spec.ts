@@ -142,7 +142,7 @@ describe('SvgRecorder', () => {
     expect(svg).toContain('fill="none" stroke="currentColor" stroke-width=".72" stroke-linejoin="round"');
   });
 
-  it('the notation colour and black are currentColor, any other colour stays explicit', () => {
+  it('the notation colour, black and other dark colours are currentColor, lighter colours stay explicit', () => {
     const { doc, rec } = setup();
     doc.setDrawColor(140, 140, 140);
     doc.setLineWidth(0.5);
@@ -151,6 +151,8 @@ describe('SvgRecorder', () => {
     doc.text('black', 20, 20);
     doc.setTextColor(0x33, 0x33, 0x33);
     doc.text('notation', 20, 40);
+    doc.setTextColor(30, 30, 30);
+    doc.text('dark', 20, 50);
     doc.setTextColor(150, 150, 150);
     doc.text('grey', 20, 60);
     const svg = rec.toSvg();
@@ -169,15 +171,15 @@ describe('SvgRecorder', () => {
     expect(svg).toContain('x="4');
   });
 
-  it('pages are stacked below each other, without the margins', () => {
+  it('pages are stacked below each other, without their margins and empty rests', () => {
     const { doc, rec } = setup();
     doc.text('one', 10, 100);
     doc.addPage();
     doc.text('two', 10, 100);
-    const svg = rec.toSvg({ padding: 0, trimPerPage: 60 });
+    const svg = rec.toSvg({ padding: 0, pageGap: 12 });
     const ys = [...svg.matchAll(/<text x="[\d.]+" y="([\d.]+)"/g)].map((m) => +m[1]);
     expect(ys.length).toBe(2);
-    // the second page's baseline is 600 - 60 pt below the first one's
-    expect(ys[1] - ys[0]).toBe(-60);
+    // the ink of the second page (a 10 pt text: 10 pt from top to bottom) starts 12 pt below the ink of the first
+    expect(ys[1] - ys[0]).toBe(22);
   });
 });

@@ -15,8 +15,8 @@ import type { PathOp } from './svg-path';
  *  - an outline that is drawn at least twice (note heads, clefs) is defined once in `<defs>` and placed with `<use x y>`;
  *    its `id` is derived from its shape, so two SVGs inlined in one page never clash;
  *  - text is plain `<text>`.
- * The notation colour of the export (setting `notationColor`) and black become `currentColor`; other colours (the grey of
- * comment brackets) stay explicit.
+ * The notation colour of the export (setting `notationColor`), black and other dark colours (up to #333333 in every channel)
+ * become `currentColor`; lighter colours (the grey of comment brackets) stay explicit.
  */
 
 export interface SvgOptions {
@@ -24,8 +24,8 @@ export interface SvgOptions {
   notationColor?: string;
   /** Space around the drawing in pt. */
   padding?: number;
-  /** Vertical space per page that is not content (top + bottom margin): pages are stacked without it. */
-  trimPerPage?: number;
+  /** Pages are stacked: the ink of a page starts this far (pt) below the ink of the page before. Default 12. */
+  pageGap?: number;
 }
 
 type Style = { color: string; width: number };
@@ -174,10 +174,12 @@ function shortHash(s: string): string {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const attr = (s: string) => esc(s).replace(/"/g, '&quot;');
 
-/** `#rrggbb` as drawn: notation colour and black → null (= currentColor). */
+/** `#rrggbb` as drawn: the notation colour, black and the other dark colours of the export (titles, running text) → null (= currentColor); greys stay explicit. */
 function themed(hex: string, notation: string): string | null {
   const h = (hex || '').toLowerCase();
-  return h === notation || h === '#000000' || h === '#000' ? null : h;
+  if (h === notation) return null;
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/.exec(h);
+  return m && Math.max(parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)) <= 0x33 ? null : h;
 }
 
 const FAMILIES: { [pdf: string]: string } = {
@@ -189,10 +191,36 @@ function buildSvg(itemsIn: Item[], opts: SvgOptions): string {
   if (itemsIn.length === 0) return '';
   const notation = (opts.notationColor ?? '#333333').toLowerCase();
   const pad = opts.padding ?? 4;
-  const trim = opts.trimPerPage ?? 0;
-  // stack pages: each page's content area follows the previous one
+  const gap = opts.pageGap ?? 12;
+
+  const boundsOf = (it: Item, grow: (x: number, y: number) => void): void => {
+    if (it.t === 'line') { const h = it.width / 2; grow(it.x1 - h, it.y1 - h); grow(it.x2 + h, it.y2 + h); }
+    else if (it.t === 'rect') { grow(it.x, it.y); grow(it.x + it.w, it.y + it.h); }
+    else if (it.t === 'path') { const h = it.stroke ? it.width / 2 : 0; for (let k = 0; k < it.ops.length; k++) for (let j = 0; j < it.ops[k].c.length; j += 2) { grow(it.ops[k].c[j] - h, it.ops[k].c[j + 1] - h); grow(it.ops[k].c[j] + h, it.ops[k].c[j + 1] + h); } }
+    else {
+      const left = it.anchor === 'middle' ? it.x - it.width / 2 : it.anchor === 'end' ? it.x - it.width : it.x;
+      grow(left, it.y - it.size * 0.75); grow(left + it.width, it.y + it.size * 0.25);
+    }
+  };
+
+  // stack pages: the ink of each page starts `gap` below the ink of the page before (the page margins and the empty rest of a page are left out)
+  const pageTop = new Map<number, number>(), pageBottom = new Map<number, number>();
+  for (const it of itemsIn) {
+    boundsOf(it, (_x, y) => {
+      pageTop.set(it.page, Math.min(pageTop.get(it.page) ?? Infinity, y));
+      pageBottom.set(it.page, Math.max(pageBottom.get(it.page) ?? -Infinity, y));
+    });
+  }
+  const offset = new Map<number, number>();
+  let bottom = 0, first = true;
+  for (const pg of [...pageTop.keys()].sort((a, b) => a - b)) {
+    const dy = first ? 0 : bottom + gap - pageTop.get(pg)!;
+    offset.set(pg, dy);
+    bottom = pageBottom.get(pg)! + dy;
+    first = false;
+  }
   const items = itemsIn.map((it) => {
-    const dy = -(it.page - 1) * trim;
+    const dy = offset.get(it.page) ?? 0;
     if (!dy) return it;
     switch (it.t) {
       case 'line': return { ...it, y1: it.y1 + dy, y2: it.y2 + dy };
@@ -205,15 +233,7 @@ function buildSvg(itemsIn: Item[], opts: SvgOptions): string {
   // bounding box
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const grow = (x: number, y: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
-  for (const it of items) {
-    if (it.t === 'line') { const h = it.width / 2; grow(it.x1 - h, it.y1 - h); grow(it.x2 + h, it.y2 + h); }
-    else if (it.t === 'rect') { grow(it.x, it.y); grow(it.x + it.w, it.y + it.h); }
-    else if (it.t === 'path') { const h = it.stroke ? it.width / 2 : 0; for (let k = 0; k < it.ops.length; k++) for (let j = 0; j < it.ops[k].c.length; j += 2) { grow(it.ops[k].c[j] - h, it.ops[k].c[j + 1] - h); grow(it.ops[k].c[j] + h, it.ops[k].c[j + 1] + h); } }
-    else {
-      const left = it.anchor === 'middle' ? it.x - it.width / 2 : it.anchor === 'end' ? it.x - it.width : it.x;
-      grow(left, it.y - it.size * 0.75); grow(left + it.width, it.y + it.size * 0.25);
-    }
-  }
+  for (const it of items) boundsOf(it, grow);
   const ox = Math.floor(x0 - pad), oy = Math.floor(y0 - pad);
   const W = Math.ceil(x1 + pad) - ox, H = Math.ceil(y1 + pad) - oy;
   const X = (v: number) => v - ox, Y = (v: number) => v - oy;

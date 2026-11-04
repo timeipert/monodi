@@ -22,15 +22,22 @@ the same systems, clefs, staff lines, neume outlines, brackets, lyrics, rubrics 
 4. `scripts/export-svg-batch.mjs` reads a Monodi ZIP or folder and writes one SVG per chant. `scripts/lib/svg-batch-entry.ts`
    is bundled with esbuild and runs in Node; font files are read from `src/assets/font`.
 
-Pages: a chant longer than the page height (default 14400 pt) continues on a second page; the recorder stacks the pages
-below each other without their margins.
+Critical apparatus: the collected comments and readings (reading lines, bracketed lemmata, small staves with notes in
+the comment cells) follow the last system under the heading "Critical apparatus", as in the PDF of the chant
+(`apparatus: true`, the default of `renderChantSvg`; `--no-apparatus` of the script leaves it out). The title pages of
+the parts of a volume ("Edition", "Critical apparatus") are not drawn (`pdfPartStyle: 'compact'`). Links of the PDF
+(references in the comments) are not part of the SVG.
+
+Pages: a chant longer than the page height (default 14400 pt) continues on a second page, and the apparatus starts a new page;
+the recorder stacks the pages below each other: the ink of a page starts 12 pt below the ink of the page before, so
+margins and the empty rest of a page are left out.
 
 ## The SVG
 
 | Aspect | Choice |
 |---|---|
 | Units | pt, as in the PDF; `viewBox` fits the drawing, `width` and `height` in pt (scale with CSS `max-width: 100%; height: auto`). |
-| Colour | `fill="currentColor"` on the root; staff lines, brackets and note heads use `currentColor`. The notation colour of the settings (`#333333` by default) and black become `currentColor`; the grey of comment brackets stays an explicit colour. |
+| Colour | `fill="currentColor"` on the root; staff lines, brackets and note heads use `currentColor`. The notation colour of the settings (`#333333` by default), black and other dark colours (up to `#333333` in every channel) become `currentColor`; the grey of comment brackets stays an explicit colour. |
 | Staff | one `<use>` per staff (five equally spaced lines, defined once with `<path id="s…">` and stretched by a `matrix`). |
 | Note heads, clef, flags | an outline drawn twice or more is defined once in `<defs>` (`id="g…"`, derived from the shape, so two SVGs inlined in one page never clash) and placed with `<use x y>`; a single outline is inline. |
 | Brackets, ledger lines, ticks | merged into a few `<path>` elements. |
@@ -42,7 +49,7 @@ below each other without their margins.
 
 ```
 node scripts/export-svg-batch.mjs --zip <monodi.zip> --out <svg.zip>
-node scripts/export-svg-batch.mjs --dir <folder> --out <folder> [--settings <json>] [--page-width <pt>] [--only <text>] [--limit <n>]
+node scripts/export-svg-batch.mjs --dir <folder> --out <folder> [--settings <json>] [--page-width <pt>] [--no-apparatus] [--only <text>] [--limit <n>]
 ```
 
 `report.json` in the output lists every picture (size, gzip size, pages, systems) and every chant without a picture
@@ -64,4 +71,4 @@ structure and the report. Unit tests: `src/app/print/svg-recorder.spec.ts` (the 
 1. Text is `<text>`, not outlines: a page without Crimson Text shows another font with other widths. Options: ship the
    font with the page (recommended), or convert the text to outlines (larger files). Decided by: the dataset maintainer.
 2. The picture is the chant as the PDF sets it (a line change inside a line is a tick, not a new system; the comment
-   brackets are drawn, the apparatus is not). Changes to the look belong in the PDF export, so that PDF and picture stay equal.
+   brackets are drawn). Changes to the look belong in the PDF export, so that PDF and picture stay equal.

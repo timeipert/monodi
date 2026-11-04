@@ -1,7 +1,7 @@
 // Headless SVG export: one compact SVG picture per chant, drawn by Monodi-Zero's own PDF export.
 //
 //   node scripts/export-svg-batch.mjs (--zip <monodi.zip> | --dir <folder>) --out <svg.zip | folder>
-//        [--settings <json>] [--page-width <pt>] [--limit <n>] [--only <text>] [--quiet]
+//        [--settings <json>] [--page-width <pt>] [--no-apparatus] [--limit <n>] [--only <text>] [--quiet]
 //
 // What it is for: the static pages of the Corpus Monodicum dataset show the notation of each chant. The picture is the
 // chant as the PDF export of Monodi-Zero sets it (same systems, clefs, staff lines, neume outlines, lyrics, rubrics, spacing):
@@ -17,6 +17,8 @@
 // SVG:    viewBox in pt, `fill="currentColor"`, staff lines and outlines in `currentColor`, so the page's CSS colour themes it;
 //         outlines used twice or more are defined once in <defs> and placed with <use>; text is plain <text> in the font family
 //         "Crimson Text" (the PDF font) with Georgia/serif as fallback. Load Crimson Text in the page for the exact spacing.
+// Apparatus: the critical apparatus (the collected comments and readings) follows the last system, as in the PDF of the chant;
+//         --no-apparatus leaves it out.
 // Settings: --settings is a JSON file of print settings (same keys as the PDF settings of Monodi-Zero: pdfScale, pdfFontSize,
 //         clefDisplayMode, notationColor …). Default: the print-edition defaults. --page-width: width of the page in pt (default
 //         595.28); systems wrap at its right margin as in the PDF.
@@ -40,11 +42,12 @@ const limit = Number(opt('limit', '0'));
 const only = opt('only');
 const quiet = args.includes('--quiet');
 if ((!zipPath && !dirPath) || !outPath) {
-  console.error('usage: node scripts/export-svg-batch.mjs (--zip <monodi.zip> | --dir <folder>) --out <svg.zip | folder> [--settings <json>] [--page-width <pt>] [--limit <n>] [--only <text>]');
+  console.error('usage: node scripts/export-svg-batch.mjs (--zip <monodi.zip> | --dir <folder>) --out <svg.zip | folder> [--settings <json>] [--page-width <pt>] [--no-apparatus] [--limit <n>] [--only <text>] [--quiet]');
   process.exit(2);
 }
 console.debug = () => {};   // the PDF export logs its timings for every document
 const settings = opt('settings') ? JSON.parse(readFileSync(opt('settings'), 'utf8')) : null;
+const apparatus = !args.includes('--no-apparatus');
 const pageWidthPt = opt('page-width') ? Number(opt('page-width')) : undefined;
 
 // 1. bundle the renderer for Node
@@ -92,7 +95,7 @@ try {
   const errors = [];
   const started = Date.now();
   for (const [i, { meta, dataPath }] of jobs.entries()) {
-    const result = await renderOne({ root: JSON.parse(await files.get(dataPath)()), document: meta, source: sources.get(meta.quelle_id) ?? {}, settings, pageWidthPt });
+    const result = await renderOne({ root: JSON.parse(await files.get(dataPath)()), document: meta, source: sources.get(meta.quelle_id) ?? {}, settings, pageWidthPt, apparatus });
     if (result.svg) {
       const file = `${meta.quelle_id}/${meta.id}/${meta.id}.svg`;
       output.set(file, result.svg);
