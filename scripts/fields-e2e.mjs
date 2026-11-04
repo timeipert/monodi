@@ -46,6 +46,26 @@ const norm = (s) => s.replace(/\s+/g, ' ').trim();
 const text = (sel) => page.$eval(sel, (e) => e.textContent).then(norm);
 const heads = () => page.$$eval('.mg-head', (h) => h.map((e) => e.textContent.trim()));
 
+// The messages of the steps before sit over the toolbar for a few seconds (the "Relations" button included): a click
+// on a covered button lands on the message, the dialog never opens and the test times out. So wait for them to go.
+const noToast = () => page.waitForFunction(() => !document.querySelector('.toast-message'), { timeout: 20000 });
+// Open the relations dialog and wait until its fields table is there; on a timeout report what the page showed.
+const openRelations = async () => {
+  await noToast();
+  await page.click('[data-testid=mg-relations]');
+  try {
+    await page.waitForSelector('[data-testid=relations-roles]', { timeout: 20000 });
+  } catch (e) {
+    const state = await page.evaluate(() => ({
+      dialog: !!document.querySelector('[data-testid=relations-dialog]'),
+      toasts: [...document.querySelectorAll('.toast-message')].map((t) => t.textContent.trim()),
+      error: document.querySelector('[data-testid=relations-error]')?.textContent.trim() ?? null,
+      body: document.body.innerText.replace(/\s+/g, ' ').slice(0, 300),
+    }));
+    throw new Error('the relations dialog did not show its fields: ' + JSON.stringify(state) + ' (earlier problems: ' + problems.join(' | ') + ')');
+  }
+};
+
 try {
   await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });
   await seedWorkspace(page, docs, {});
@@ -71,8 +91,7 @@ try {
   expect((await heads()).some((h) => /Bezugsgesang/.test(h)) && (await heads()).some((h) => /SpielName/.test(h)), 'the fields are columns now: ' + (await heads()).join('|'));
 
   // ── a role reads a field that is already there ──
-  await page.click('[data-testid=mg-relations]');
-  await page.waitForSelector('[data-testid=relations-roles]', { timeout: 20000 });
+  await openRelations();
   expect(/0 documents have a related document, 0 units/.test(await text('[data-testid=relations-summary]')), 'before: nothing is read from the built-in fields: ' + await text('[data-testid=relations-summary]'));
   const optionsOfTarget = await page.$$eval('[data-testid=relations-role-target] option', (o) => o.map((x) => x.textContent.replace(/\s+/g, ' ').trim()));
   expect(optionsOfTarget.some((o) => /^Bezugsgesang — 2 documents/.test(o)), 'the options say how many documents have a value: ' + optionsOfTarget.join(' | '));
@@ -89,8 +108,7 @@ try {
 
   // ── fill a column from another: Spiel 1 -> play-1 in Position in unit (a column that exists) ──
   // the unit position is not a good target for text, so the built-in Unit ID column is added first
-  await page.click('[data-testid=mg-relations]');
-  await page.waitForSelector('[data-testid=relations-roles]', { timeout: 20000 });
+  await openRelations();
   await page.click('[data-testid=relations-reset-roles]');
   await page.click('[data-testid=relations-save-roles]');
   await page.waitForSelector('[data-testid=relations-add-fields]', { timeout: 10000 });
