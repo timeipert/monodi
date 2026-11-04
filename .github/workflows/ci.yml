@@ -57,6 +57,10 @@ jobs:
       - name: Run unit tests
         run: npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox
 
+      # The headless SVG export of the chant pictures (scripts/export-svg-batch.mjs) runs the PDF export in Node.
+      - name: Smoke test of the SVG export
+        run: node scripts/svg-batch-smoke.mjs
+
   # Real-browser tests against the dev server (headless Chrome, seeded workspace; the Angular warnings they look for
   # only exist in development mode). Two groups, each with its own dev server, run at the same time.
   e2e:

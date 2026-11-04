@@ -21,6 +21,7 @@
     "check:templates": "node scripts/check-templates.mjs",
     "check:mei-header": "node scripts/check-mei-header.mjs",
     "test:pdf-perf": "node scripts/pdf-perf.mjs",
+    "test:svg-batch": "node scripts/svg-batch-smoke.mjs",
     "fixtures": "node scripts/extract-fixtures.mjs && node scripts/make-extreme-fixtures.mjs && node scripts/gen-testdata-index.mjs",
     "build:electron": "ng build --configuration production,electron",
     "electron:start": "npm run build:electron && electron .",

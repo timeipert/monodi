@@ -148,8 +148,16 @@ export interface PdfExportOptions {
   cover?: { template: TitleTemplate; group?: string; groupField?: string; groupParts?: string[] };
   /** The cover and the title page / contents count as pages: the edition begins at page 3, as in a printed volume. Default: the edition is numbered from 1. */
   countFrontPages?: boolean;
-  /** 'save' (default) starts the download; 'blob' hands the PDF back in the stats (volumes that are zipped, the cover preview). */
-  output?: 'save' | 'blob';
+  /** 'save' (default) starts the download; 'blob' hands the PDF back in the stats (volumes that are zipped, the cover preview); 'none' only draws (the SVG renderer reads the drawing calls and needs no file). */
+  output?: 'save' | 'blob' | 'none';
+  /** The document's own heading (title, metadata line) at its start. Default: yes. The SVG renderer leaves it out: a page that shows the picture has the title already. */
+  heading?: boolean;
+  /** The running head (source line and rule) on every page. Default: yes. The SVG renderer leaves it out. */
+  runningHead?: boolean;
+  /** One page of exactly this size in pt instead of the configured format (the SVG renderer asks for a tall page so that a chant stays in one piece). */
+  pageSizePt?: [number, number];
+  /** Lets the caller wrap the jsPDF document, for example to record its drawing calls (see print/svg-recorder.ts). */
+  wrapDocument?: (doc: jsPDF) => jsPDF;
   fileName?: string;
   onProgress?: (message: string, done: number, total: number) => void;
 }
@@ -321,9 +329,10 @@ export class PdfExportService {
   }
 
   /** The jsPDF document in the page format and font of the settings. */
-  private async newDocument(opts: Pick<PdfExportOptions, 'settings' | 'pageFormat'>): Promise<{ doc: jsPDF; s: any; fontFamily: string }> {
+  private async newDocument(opts: Pick<PdfExportOptions, 'settings' | 'pageFormat' | 'pageSizePt' | 'wrapDocument'>): Promise<{ doc: jsPDF; s: any; fontFamily: string }> {
     const s: any = { ...(opts.settings || {}), ...(opts.pageFormat ? { pdfFormat: opts.pageFormat, pdfOrientation: 'portrait' } : {}) };
-    const doc = new jsPDF({ unit: 'pt', format: pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait'), compress: true });
+    const real = new jsPDF({ unit: 'pt', format: opts.pageSizePt ?? pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait'), compress: true });
+    const doc = opts.wrapDocument ? opts.wrapDocument(real) : real;
     const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
     const fontFamily = embeddedFamily(fontSetting) || fontSetting;
     if (embeddedFamily(fontFamily)) await registerEmbeddedFont(doc, fontFamily);
@@ -778,7 +787,7 @@ export class PdfExportService {
             }
 
           };
-          if (!(useTitlePage && !multi)) defer(dryRun(drawHead), drawHead);
+          if (!(useTitlePage && !multi) && opts.heading !== false) defer(dryRun(drawHead), drawHead);
             // DOM Traversal for Structural Layout
             doc.setFontSize(12);
         
@@ -2236,7 +2245,7 @@ export class PdfExportService {
         // footer. 'classic' keeps the old footer ("Page n of m") and headline from page 2.
         const totalPages = doc.getNumberOfPages();
         const printStyle = (s.pdfPageStyle ?? PRINT_PDF_DEFAULTS.pdfPageStyle) !== 'classic';
-        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        for (let pageNum = 1; pageNum <= (opts.runningHead === false ? 0 : totalPages); pageNum++) {
           doc.setPage(pageNum);
           doc.setTextColor(0, 0, 0);
           if (pageNum <= titlePageCount) continue;          // title page(s): no running head, no number
@@ -2336,7 +2345,8 @@ export class PdfExportService {
         stats.pages = doc.getNumberOfPages();
         stats.frontPages = titlePageCount;
         const tSave = performance.now();
-        if (opts.output === 'blob') stats.blob = doc.output('blob');
+        if (opts.output === 'none') { /* the caller reads the drawing calls */ }
+        else if (opts.output === 'blob') stats.blob = doc.output('blob');
         else doc.save(opts.fileName || (multi ? 'Documents.pdf' : 'Document_' + (jobs[0].document.dokumenten_id || 'Export') + '.pdf'));
         stats.timings['save'] = performance.now() - tSave;
         stats.timings['total'] = performance.now() - t0;
