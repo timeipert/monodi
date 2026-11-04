@@ -92,7 +92,20 @@ async function typeSigle(text) {
   await page.$eval('[data-testid=sigle-input]', (e) => e.select());
   await page.keyboard.type(text);
 }
-const preview = async (kind) => { await page.waitForSelector(`[data-testid=sigle-preview][data-kind=${kind}]`, { timeout: 10000 }); return page.$eval('[data-testid=sigle-preview]', (e) => e.textContent.replace(/\s+/g, ' ').trim()); };
+// The preview is read once it has stopped changing: typing "Cc 1b" updates it key by key, and the preview of "C" (kind
+// "rename" too) must not be taken for the one of the whole text. On a slow runner that race made this test fail at random.
+const preview = async (kind) => {
+  await page.waitForSelector(`[data-testid=sigle-preview][data-kind=${kind}]`, { timeout: 10000 });
+  const read = () => page.$eval('[data-testid=sigle-preview]', (e) => e.textContent.replace(/\s+/g, ' ').trim());
+  let last = await read();
+  for (let i = 0; i < 20; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const now = await read();
+    if (now === last) return now;
+    last = now;
+  }
+  return last;
+};
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 try {
