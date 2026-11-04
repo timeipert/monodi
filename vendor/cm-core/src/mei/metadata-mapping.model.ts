@@ -57,6 +57,8 @@ export interface MappingProjectDefaults {
   seriesTitle: string;
   documentBaseUri: string;
   language: string;
+  /** Language of the chants (TEI textLang/@mainLang, MEI langUsage/language/@xml:lang), for example "la". */
+  defaultTextLanguage: string;
   licenseUri: string;
   licenseLabel: string;
 }

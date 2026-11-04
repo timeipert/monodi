@@ -90,22 +90,54 @@ export const HEADER_LEVEL2_GOLDEN = `<meiHead xmlns="http://www.music-encoding.o
   </workList>
   <manifestationList>
     <manifestation>
+      <identifier type="siglum">Ex 1</identifier>
+      <identifier type="cantus">X-Ex 1</identifier>
       <titleStmt>
         <title>Ex 1</title>
       </titleStmt>
       <creation>
+        <geogName role="origin">Origintown</geogName>
+        <geogName role="origin-region">Originland</geogName>
+        <corpName role="origin-institution">Example Abbey</corpName>
         <date>13. Jh.</date>
       </creation>
+      <langUsage>
+        <language xml:lang="la"/>
+      </langUsage>
+      <biblList type="catalogue-online">
+        <bibl>
+          <ref target="https://example.org/catalogue">https://example.org/catalogue</ref>
+        </bibl>
+        <bibl>see also the print catalogue</bibl>
+      </biblList>
+      <biblList type="catalogue">
+        <bibl>Catalogue 1</bibl>
+        <bibl>Catalogue 2</bibl>
+      </biblList>
+      <biblList type="literature">
+        <bibl>Study A</bibl>
+      </biblList>
+      <classification>
+        <termList>
+          <term type="quellentyp">Graduale</term>
+          <term type="ordenstradition">Secular</term>
+        </termList>
+      </classification>
       <itemList>
         <item>
           <identifier type="shelfmark">Cod. 1</identifier>
           <physLoc>
             <repository>
-              <corpName>Example Library, Exampletown</corpName>
+              <geogName role="settlement">Exampletown</geogName>
+              <corpName>Example Library</corpName>
             </repository>
           </physLoc>
         </item>
       </itemList>
+      <relationList>
+        <relation rel="hasReproduction" target="https://example.org/manifest.json" label="IIIF manifest"/>
+        <relation rel="hasReproduction" target="https://example.org/manifest2.json" label="IIIF manifest"/>
+      </relationList>
     </manifestation>
   </manifestationList>
   <revisionDesc>

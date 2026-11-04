@@ -44,6 +44,17 @@ function slug(sig: string): string {
   return sig.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
+/** A CM column of the source (for example `Online catalogue`): Monodi keeps the CM columns in `additionalData` with `_` for spaces. */
+function cmColumn(b: Builder, column: string): string {
+  const extra = (b.source?.additionalData ?? b.source?.custom ?? {}) as Record<string, string>;
+  return (extra[column] ?? extra[column.replace(/ /g, '_')] ?? '').trim();
+}
+
+/** The lines of a cell with several values (separated by a line break or `;`). */
+function cellLines(value: string): string[] {
+  return value.split(/[\n;]+/).map(x => x.trim()).filter(x => x.length > 0);
+}
+
 function nonEmpty(...values: (string | undefined | null)[]): string[] {
   return values.map(v => (v ?? '').trim()).filter(v => v.length > 0);
 }
@@ -132,13 +143,46 @@ const GENERIC: Record<string, (b: Builder) => Value | undefined> = {
       .map(([k, v]) => ({ text: v.trim(), attrs: { type: k.replace(/'/g, '') } }))
   }),
   'src.siglum': b => ({ texts: nonEmpty(b.siglum) }),
-  'src.library': b => ({ texts: [nonEmpty(b.source?.bibliothek, b.source?.bibliotheksort).join(', ')].filter(x => x) }),
+  // Library and place are two values (corpName and geogName[@role='settlement']); before 2026-11-04 the Standard level wrote them as one text.
+  'src.library': b => ({ texts: nonEmpty(b.source?.bibliothek) }),
+  'src.library_place': b => ({ texts: nonEmpty(b.source?.bibliotheksort) }),
   'src.shelfmark': b => ({ texts: nonEmpty(b.source?.bibliothekssignatur) }),
-  'src.date_text': b => ({ texts: nonEmpty(b.source?.datierung) })
+  'src.cantus_siglum': b => ({ texts: nonEmpty(b.source?.cantus_siglum) }),
+  'src.type': b => ({ texts: nonEmpty(b.source?.quellentyp, cmColumn(b, 'Quellentyp 2')) }),
+  'src.order': b => ({ texts: nonEmpty(b.source?.ordenstradition) }),
+  // The language of the chants is a project value; it is written only for a document whose source is known, so that no empty manifestation appears.
+  'src.language': b => {
+    const lang = (METADATA_MAPPING.project.defaultTextLanguage ?? '').trim();
+    return lang && b.source ? { attr: lang } : undefined;
+  },
+  'src.origin_place': b => ({ texts: nonEmpty(b.source?.herkunftsort) }),
+  'src.origin_region': b => ({ texts: nonEmpty(b.source?.herkunftsregion) }),
+  'src.origin_institution': b => ({ texts: nonEmpty(b.source?.herkunftsinstitution) }),
+  'src.date_text': b => ({ texts: nonEmpty(b.source?.datierung) }),
+  'src.local_images': b => ({ texts: cellLines(cmColumn(b, 'Local images')) }),
+  'src.print_catalogue': b => ({ texts: cellLines(cmColumn(b, 'Print catalogue not included in previous')) }),
+  'src.literature': b => ({ texts: cellLines(cmColumn(b, 'Other important literature')) })
 };
 
 /** Entries with their own handler. */
 const SPECIAL: Record<string, Handler> = {
+  // The IIIF manifests of the source: one relation each (a manuscript has one or two).
+  'src.iiif': (b, _e, targets) => {
+    if (!targets.length) return;
+    const urls = Array.from(new Set(nonEmpty(b.source?.iiifManifestUrl, cmColumn(b, 'Manifest'), cmColumn(b, 'Manifest2'))));
+    if (!urls.length) return;
+    const list = b.w.ensure('{manifestation}/relationList', false);
+    urls.forEach(u => list.appendChild(b.w.el('relation', undefined, { rel: 'hasReproduction', target: u, label: 'IIIF manifest' })));
+  },
+  // Online catalogues: a link is a `ref`, free text of the sheet (a remark) stays text.
+  'src.online_catalogue': (b, _e, targets) => {
+    if (!targets.length) return;
+    Array.from(new Set(cellLines(cmColumn(b, 'Online catalogue')))).forEach(line => {
+      const bibl = b.w.ensure("{manifestation}/biblList[@type='catalogue-online']/bibl", true);
+      if (/^https?:\/\//.test(line)) bibl.appendChild(b.w.el('ref', line, { target: line }));
+      else bibl.textContent = line;
+    });
+  },
   'doc.critical_comments': (b, _e, targets) => {
     if (!targets.length || !b.ctx.root.comments?.length) return;
     const notesStmt = b.w.ensure('fileDesc/notesStmt', false);

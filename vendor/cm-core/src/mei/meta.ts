@@ -61,4 +61,15 @@ export interface Source {
   bibliothek: string;
   bibliothekssignatur: string;
   datierung: string;
+  // Read by the source entries of the header from the Standard level on. All optional: a source without them writes nothing for them.
+  herkunftsregion?: string;
+  herkunftsort?: string;
+  herkunftsinstitution?: string;
+  quellentyp?: string;
+  ordenstradition?: string;
+  cantus_siglum?: string;
+  iiifManifestUrl?: string;
+  /** Columns of the CM tables that Monodi keeps with the source (keys with `_` for spaces, for example `Online_catalogue`), or `custom` of the app's type. */
+  additionalData?: { [key: string]: string } | null;
+  custom?: { [key: string]: string };
 }

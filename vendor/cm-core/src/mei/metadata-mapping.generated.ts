@@ -28,6 +28,7 @@ export const METADATA_MAPPING: MetadataMapping = {
     "seriesTitle": "Corpus Monodicum",
     "documentBaseUri": "https://corpus-monodicum.de/d/",
     "language": "en",
+    "defaultTextLanguage": "la",
     "licenseUri": "https://creativecommons.org/licenses/by-nc/4.0/",
     "licenseLabel": "CC BY-NC 4.0"
   },
@@ -48,6 +49,29 @@ export const METADATA_MAPPING: MetadataMapping = {
         },
         {
           "path": "{manifestation}/titleStmt/title",
+          "level": 2
+        },
+        {
+          "path": "{manifestation}/identifier[@type='siglum']",
+          "level": 2
+        }
+      ],
+      "level": 1,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.library_place",
+      "entity": "source",
+      "monodi": [
+        "bibliotheksort"
+      ],
+      "cm": [
+        "Bibliotheksort"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/itemList/item/physLoc/repository/geogName[@role='settlement']",
           "level": 2
         }
       ],
@@ -94,6 +118,135 @@ export const METADATA_MAPPING: MetadataMapping = {
       "verify": true
     },
     {
+      "id": "src.cantus_siglum",
+      "entity": "source",
+      "monodi": [],
+      "cm": [
+        "cantus_siglum"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/identifier[@type='cantus']",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.type",
+      "entity": "source",
+      "monodi": [
+        "quellentyp"
+      ],
+      "cm": [
+        "Quellentyp",
+        "Quellentyp 2"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/classification/termList/term[@type='quellentyp']",
+          "level": 2
+        }
+      ],
+      "level": 1,
+      "inBaseline": false,
+      "verify": true
+    },
+    {
+      "id": "src.order",
+      "entity": "source",
+      "monodi": [
+        "ordenstradition"
+      ],
+      "cm": [
+        "Ordenstradition"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/classification/termList/term[@type='ordenstradition']",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": true
+    },
+    {
+      "id": "src.language",
+      "entity": "source",
+      "monodi": [],
+      "cm": [],
+      "targets": [
+        {
+          "path": "{manifestation}/langUsage/language/@xml:lang",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.origin_place",
+      "entity": "source",
+      "monodi": [
+        "herkunftsort"
+      ],
+      "cm": [
+        "Herkunftsort raw",
+        "Herkunftsort"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/creation/geogName[@role='origin']",
+          "level": 2
+        }
+      ],
+      "level": 1,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.origin_region",
+      "entity": "source",
+      "monodi": [
+        "herkunftsregion"
+      ],
+      "cm": [
+        "Herkunftsregion"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/creation/geogName[@role='origin-region']",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.origin_institution",
+      "entity": "source",
+      "monodi": [
+        "herkunftsinstitution"
+      ],
+      "cm": [
+        "Herkunftsinstitution"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/creation/corpName[@role='origin-institution']",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
       "id": "src.date_text",
       "entity": "source",
       "monodi": [
@@ -134,6 +287,94 @@ export const METADATA_MAPPING: MetadataMapping = {
       "level": 2,
       "inBaseline": false,
       "verify": true
+    },
+    {
+      "id": "src.iiif",
+      "entity": "source",
+      "monodi": [
+        "iiifManifestUrl"
+      ],
+      "cm": [
+        "Manifest",
+        "Manifest2"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/relationList/relation[@rel='hasReproduction']/@target",
+          "level": 2
+        }
+      ],
+      "level": 1,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.local_images",
+      "entity": "source",
+      "monodi": [],
+      "cm": [
+        "Local images"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/biblList[@type='local-images']/bibl",
+          "level": 3
+        }
+      ],
+      "level": 3,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.online_catalogue",
+      "entity": "source",
+      "monodi": [],
+      "cm": [
+        "Online catalogue"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/biblList[@type='catalogue-online']/bibl",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.print_catalogue",
+      "entity": "source",
+      "monodi": [],
+      "cm": [
+        "Print catalogue not included in previous"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/biblList[@type='catalogue']/bibl",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": false
+    },
+    {
+      "id": "src.literature",
+      "entity": "source",
+      "monodi": [],
+      "cm": [
+        "Other important literature"
+      ],
+      "targets": [
+        {
+          "path": "{manifestation}/biblList[@type='literature']/bibl",
+          "level": 2
+        }
+      ],
+      "level": 2,
+      "inBaseline": false,
+      "verify": false
     },
     {
       "id": "doc.id",

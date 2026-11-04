@@ -11,7 +11,15 @@ describe('MEI header levels', () => {
     festtag: 'Nativitas', feier: 'Mass', textinitium: 'Hodie', bibliographischerverweis: 'AH 47, 12', druckausgabe: 'Edition 1',
     zeilenstart: '12', foliostart: '1v', kommentar: 'A comment.', editionsstatus: 'ediert', custom: { melody: 'M 7' }
   };
-  const sourceMeta = { quellensigle: 'Ex 1', bibliothek: 'Example Library', bibliotheksort: 'Exampletown', bibliothekssignatur: 'Cod. 1', datierung: '13. Jh.' } as Source;
+  const sourceMeta = {
+    quellensigle: 'Ex 1', bibliothek: 'Example Library', bibliotheksort: 'Exampletown', bibliothekssignatur: 'Cod. 1', datierung: '13. Jh.',
+    herkunftsort: 'Origintown', herkunftsregion: 'Originland', herkunftsinstitution: 'Example Abbey', quellentyp: 'Graduale', ordenstradition: 'Secular',
+    cantus_siglum: 'X-Ex 1', iiifManifestUrl: 'https://example.org/manifest.json',
+    additionalData: {
+      Manifest2: 'https://example.org/manifest2.json', Online_catalogue: 'https://example.org/catalogue\nsee also the print catalogue',
+      Print_catalogue_not_included_in_previous: 'Catalogue 1; Catalogue 2', Other_important_literature: 'Study A'
+    }
+  } as unknown as Source;       // the raw Monodi JSON of a source, which has more fields than the app's type
   const publication: PublicationSettings = {
     publisher: 'Example Project', address: ['Street 1', '12345 Town'], funderName: 'Example Academy', seriesTitle: 'Example Series',
     documentBaseUri: 'https://example.org/d/', language: 'en', licenseUri: 'https://creativecommons.org/licenses/by/4.0/', licenseLabel: 'CC BY 4.0',
@@ -63,13 +71,43 @@ describe('MEI header levels', () => {
     expect(q(d, 'locus')!.textContent).toBe('f. 1v, l. 12');
     expect(Array.from(d.querySelectorAll('term[type="genre"]')).map(t => t.textContent)).toEqual(['Tropus', 'Introitus-Tropus']);
     expect(q(d, 'term[type="melody"]')!.textContent).toBe('M 7');
-    expect(Array.from(d.querySelectorAll('biblList > bibl')).map(b => b.getAttribute('type'))).toEqual([null, 'printed-edition']);
+    expect(Array.from(d.querySelectorAll('work > biblList > bibl')).map(b => b.getAttribute('type'))).toEqual([null, 'printed-edition']);
     expect(q(d, 'item > identifier')!.textContent).toBe('Cod. 1');
-    expect(q(d, 'repository corpName')!.textContent).toBe('Example Library, Exampletown');
+    expect(q(d, 'repository corpName')!.textContent).toBe('Example Library');
+    expect(q(d, 'repository geogName[role="settlement"]')!.textContent).toBe('Exampletown');
     expect(q(d, 'application')!.getAttribute('version')).toBe('0.9.1');
     expect(q(d, 'revisionDesc change')!.getAttribute('isodate')).toBe('2026-10-24');
     expect(d.querySelectorAll('sourceDesc > source').length).toBe(2);   // own source and the witness "Wit A"
     expect(q(d, 'sourceDesc > source')!.getAttribute('xml:id')).toBe('wit-ex-1');
+  });
+
+  it('level 2 writes the descriptive fields of the source into the manifestation (the source file of a dataset has the same fields)', () => {
+    const m = q(emit(2), 'manifestationList > manifestation')!;
+    const text = (sel: string) => m.querySelector(sel)?.textContent;
+    expect(text('identifier[type="siglum"]')).toBe('Ex 1');
+    expect(text('identifier[type="cantus"]')).toBe('X-Ex 1');
+    expect(text('classification term[type="quellentyp"]')).toBe('Graduale');
+    expect(text('classification term[type="ordenstradition"]')).toBe('Secular');
+    expect(m.querySelector('langUsage language')!.getAttribute('xml:lang')).toBe('la');
+    expect(text('creation geogName[role="origin"]')).toBe('Origintown');
+    expect(text('creation geogName[role="origin-region"]')).toBe('Originland');
+    expect(text('creation corpName[role="origin-institution"]')).toBe('Example Abbey');
+    expect(Array.from(m.querySelectorAll('relationList > relation')).map(r => [r.getAttribute('rel'), r.getAttribute('target')])).toEqual([
+      ['hasReproduction', 'https://example.org/manifest.json'], ['hasReproduction', 'https://example.org/manifest2.json']]);
+    const online = m.querySelectorAll('biblList[type="catalogue-online"] > bibl');
+    expect(online[0].querySelector('ref')!.getAttribute('target')).toBe('https://example.org/catalogue');
+    expect(online[1].textContent).toBe('see also the print catalogue');            // free text of the sheet is not a link
+    expect(Array.from(m.querySelectorAll('biblList[type="catalogue"] > bibl')).map(b => b.textContent)).toEqual(['Catalogue 1', 'Catalogue 2']);
+    expect(text('biblList[type="literature"] > bibl')).toBe('Study A');
+    expect(m.querySelector('biblList[type="local-images"]')).toBeNull();           // level 3, and no data
+  });
+
+  it('level 1 writes none of these fields, a source without them writes nothing for them', () => {
+    expect(q(emit(1), 'manifestation')).toBeNull();
+    const bare = new DOMParser().parseFromString(emitMei(emptyRootContainer(), (() => { const p = defaultMeiProfile(); p.headerLevel = 2; return p; })(), documentMeta, 'Ex 1',
+      { sourceMeta: { quellensigle: 'Ex 1', bibliothek: '', bibliotheksort: '', bibliothekssignatur: '', datierung: '' } as unknown as Source, publication, now, appVersion: '0.9.1' }), 'application/xml');
+    expect(bare.querySelector('relationList, classification, langUsage')).not.toBeNull();     // the language is a project value, not a source value
+    expect(bare.querySelector('biblList[type="literature"], creation geogName, relation')).toBeNull();
   });
 
   it('level 2 equals the golden header, which is validated against the bundled MEI 5.0 schema (npm run check:mei-header)', () => {
