@@ -88,6 +88,34 @@ describe('MEI import', () => {
     });
   }
 
+  it('writes a note head with a stem as a plica in premensural notation and as tilt in neume notation, and reads both back', () => {
+    const first = importMei(TRIAL_NEUMES_XML);
+    const s = syllablesOf(first);
+    s[1].notes.spaced[0].nonSpaced[0].grouped[0].noteType = 'Ascending' as any;
+    s[2].notes.spaced[0].nonSpaced[0].grouped[0].noteType = 'Descending' as any;
+    for (const [id, written] of [['premensural-staves', /<plica dir="up"\/>[\s\S]*<plica dir="down"\/>/], ['neumes-staves', /tilt="n"[\s\S]*tilt="s"/]] as const) {
+      const profile = MEI_PRESETS.find(p => p.id === id)!.build();
+      const xml = emitMei(first.root, profile);
+      expect(xml).toMatch(written);
+      if (id === 'premensural-staves') expect(xml).not.toContain('tilt=');
+      const back = syllablesOf(importMei(xml));
+      expect(back[1].notes.spaced[0].nonSpaced[0].grouped[0].noteType).toBe('Ascending' as any);
+      expect(back[2].notes.spaced[0].nonSpaced[0].grouped[0].noteType).toBe('Descending' as any);
+      expect(back[1].notes.spaced[0].nonSpaced[0].grouped[0].meiAttrs?.['tilt']).toBeUndefined();
+    }
+  });
+
+  it('keeps con="l" and con="e" as attributes of the note; con="g" becomes a break between groups', () => {
+    const xml = `<mei xmlns="http://www.music-encoding.org/ns/mei"><music><body><mdiv><score><scoreDef><staffGrp>
+      <staffDef n="1" notationtype="neume" lines="5"/></staffGrp></scoreDef><section>
+      <staff n="1"><layer n="1"><syllable><syl>a</syl><neume><nc pname="c" oct="4"/><nc pname="d" oct="4" con="l"/><nc pname="e" oct="4" con="e"/><nc pname="f" oct="4" con="g"/></neume></syllable></layer></staff>
+      </section></score></mdiv></body></music></mei>`;
+    const groups = syllablesOf(importMei(xml))[0].notes.spaced[0].nonSpaced;
+    expect(groups.length).toBe(2);
+    expect(groups[0].grouped.map(n => n.meiAttrs?.['con'] ?? null)).toEqual([null, 'l', 'e']);
+    expect(groups[1].grouped[0].meiAttrs?.['con']).toBeUndefined();
+  });
+
   it('reads several lines: a new line starts where the staff number is not larger than the one before', () => {
     const xml = `<mei xmlns="http://www.music-encoding.org/ns/mei"><music><body><mdiv><score><scoreDef><staffGrp>
       <staffDef n="1" notationtype="neume" lines="5"/></staffGrp></scoreDef><section>

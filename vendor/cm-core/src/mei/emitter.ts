@@ -1054,7 +1054,17 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         previousPitch = pitch;
 
         for (const fd of flagDefs) applyRuleAttributes(nc, fd.mei);
-        if (conformant && STEM_TILT[note.noteType]) nc.setAttribute('tilt', STEM_TILT[note.noteType]);
+        if (conformant && STEM_TILT[note.noteType]) {
+          if (premensural) {
+            // Mensural notation has no tilt on a note; a note head with a stroke up or down is a plica (MEI 5.0 `<plica dir>`,
+            // drawn by Verovio as stems at the sides of the note head). See MEI-EXPORT-STRUCTURE.md, "Note heads with a stem".
+            const plica = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'plica');
+            plica.setAttribute('dir', STEM_TILT[note.noteType] === 'n' ? 'up' : 'down');
+            nc.appendChild(plica);
+          } else {
+            nc.setAttribute('tilt', STEM_TILT[note.noteType]);
+          }
+        }
 
         // Pattern rule: the rule's nc entry for this note position (never pname/oct).
         applyRuleAttributes(nc, patternRule?.nc[flatIndex]);

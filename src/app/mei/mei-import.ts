@@ -133,9 +133,18 @@ function noteFrom(el: Element, reading: Reading): Note | null {
     else if (c.localName === 'quilisma') noteType = NoteType.Quilisma;
     else if (c.localName === 'strophicus') noteType = NoteType.Strophicus;
     else if (c.localName === 'liquescent') liquescent = true;
+    // premensural export: a note head with a stroke up or down is written as a plica
+    else if (c.localName === 'plica' && noteType === NoteType.Normal) {
+      if (c.getAttribute('dir') === 'up') noteType = NoteType.Ascending;
+      else if (c.getAttribute('dir') === 'down') noteType = NoteType.Descending;
+    }
   }
   const meiAttrs: Record<string, string> = {};
-  for (const a of Array.from(el.attributes)) if (!STRUCTURAL.has(a.name) && a.name !== 'intm') meiAttrs[a.name] = a.value;
+  // `con="g"` is the break between two groups of a neume (a field of Monodi); `con="l"` and `con="e"` stay attributes of the note.
+  for (const a of Array.from(el.attributes)) {
+    if (a.name === 'con' ? a.value === 'g' : STRUCTURAL.has(a.name) || a.name === 'intm') continue;
+    meiAttrs[a.name] = a.value;
+  }
   // The export writes a note head with a stroke up or down as `tilt="n"` or `tilt="s"` (direction of the pen stroke): read it back
   // as that note type, so the export writes it again. Any other tilt stays an attribute of the note.
   if (noteType === NoteType.Normal && (meiAttrs['tilt'] === 'n' || meiAttrs['tilt'] === 's')) {

@@ -26,7 +26,7 @@ import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFl
 import { MeiAnnotationDialogComponent } from '../mei/mei-annotation-dialog.component';
 import { accidentalName, firstNoteOf, isAccidentalType, setHandAttr, AnnotationTarget } from '@monodi/core/mei';
 import { getMeiViewPrefs, meiRuleMarks, meiViewChanges$ } from '../mei/mei-view-prefs';
-import { attributeGlyphs } from '../mei/mei-attribute-glyphs';
+import { attributeGlyphs, linkedPairs, linkPath } from '../mei/mei-attribute-glyphs';
 import type { AttrGlyph } from '../mei/mei-attribute-glyphs';
 import { getSpreadVoices, voiceSpreadChanges$ } from './voice-spread-prefs';
 import { generatedAttrs } from '../mei/mei-selection';
@@ -1177,19 +1177,101 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     return flagDefsOf(n.flags);
   }
 
-  /**
-   * The MEI attributes of a note as they are drawn in the staff: a small drawing for every attribute that has a shape in MEI neume
-   * notation (tilt, curve, rellen, con, angled, hooked, ligated; see `mei-attribute-glyphs.ts`), in the colour of its source (red: set
-   * by hand, amber: written by an annotation rule; a hand-set value wins). Off when the person turned the marks off.
-   */
-  meiGlyphs(n: VM.Note): (AttrGlyph & { source: 'hand' | 'rule' })[] {
-    if (!getMeiViewPrefs().markInStaff) return [];
+  /** Colours of the MEI drawings in the staff: dark blue for an attribute set by hand, light blue for one written by an annotation rule. */
+  static readonly MEI_GLYPH_COLOR = { hand: '#1f5fbf', rule: '#7ea6e0' } as const;
+
+  /** The MEI attributes of a note, hand-set values over rule values, with the source of each. */
+  private meiAttrsOf(n: VM.Note): { attrs: Record<string, string>; hand: Record<string, string> } {
     const hand = n.meiAttrs ?? {};
     const rule = meiRuleMarks.noteAttrs.get(n.uuid) ?? {};
+    return { attrs: { ...rule, ...hand }, hand };
+  }
+
+  /** The centre of a note head in the staff, and the scale of its glyph (a liquescent head is drawn at 2/3 size, see Drawables.ts). */
+  headCenter(d: Drawable): { x: number; y: number; scale: number } {
+    const liq = (d as DNote).ref?.liquescent;
+    return liq ? { x: d.x + 4, y: d.y + 20, scale: 2 / 3 } : { x: d.x + 6, y: d.y + 30, scale: 1 };
+  }
+
+  /** SVG transform that puts a drawing of mei-attribute-glyphs.ts on the head of a note. */
+  meiGlyphTransform(d: Drawable): string {
+    const c = this.headCenter(d);
+    return `translate(${c.x} ${c.y})` + (c.scale !== 1 ? ` scale(${Math.round(c.scale * 1000) / 1000})` : '');
+  }
+
+  /**
+   * The MEI attributes of a note as they are drawn in the staff: a small drawing for every attribute that changes the shape of a neume
+   * component (tilt, curve, rellen, con, angled, hooked, ligated; see `mei-attribute-glyphs.ts`, modelled on Verovio), in the colour of
+   * its source (MEI_GLYPH_COLOR; a hand-set value wins). A ligature or an extended connection with a partner note is drawn as a band by
+   * meiLinks, not here. Off when the person turned the marks off.
+   */
+  meiGlyphs(n: VM.Note, voiceIndex = 0): (AttrGlyph & { source: 'hand' | 'rule' })[] {
+    if (!getMeiViewPrefs().markInStaff) return [];
+    const { attrs, hand } = this.meiAttrsOf(n);
+    const linked = this.meiLinkedNotes(voiceIndex);
     const out: (AttrGlyph & { source: 'hand' | 'rule' })[] = [];
-    for (const g of attributeGlyphs({ ...rule, ...hand }).glyphs) out.push({ ...g, source: g.attr in hand ? 'hand' : 'rule' });
+    for (const g of attributeGlyphs(attrs, { noteType: n.noteType }).glyphs) {
+      if (g.link === 'next' && (linked.from.has(n.uuid) || linked.to.has(n.uuid))) continue;
+      if (g.link === 'previous' && linked.conTo.has(n.uuid)) continue;
+      out.push({ ...g, source: g.attr in hand ? 'hand' : 'rule' });
+    }
     return out;
   }
+
+  private meiLinksCache: { key: string; links: { d: string; source: 'hand' | 'rule'; title: string; key: string }[]; from: Set<string>; to: Set<string>; conTo: Set<string> }[] = [];
+
+  /** The notes of a voice in a band of meiLinks: first (`from`) and second (`to`) component of a ligature, and `conTo` for con="e". */
+  private meiLinkedNotes(voiceIndex: number): { from: Set<string>; to: Set<string>; conTo: Set<string> } {
+    return this.meiLinkData(voiceIndex);
+  }
+
+  /**
+   * The oblique bands between note heads of one voice: two ligated components in a row (`ligated`), and a component with `con="e"` and
+   * the one before it, as Verovio joins them (see linkedPairs). Recomputed when the drawables or the attributes change.
+   */
+  meiLinks(voiceIndex: number): { d: string; source: 'hand' | 'rule'; title: string; key: string }[] {
+    if (!getMeiViewPrefs().markInStaff) return [];
+    return this.meiLinkData(voiceIndex).links;
+  }
+
+  private meiLinkData(voiceIndex: number) {
+    const drawables = this.getDrawables(voiceIndex).filter(d => d instanceof DNote) as DNote[];
+    const attrsOf = (d: DNote) => this.meiAttrsOf(d.ref).attrs;
+    const key = drawables.map(d => `${d.ref.uuid}:${d.x}:${d.y}:${JSON.stringify(attrsOf(d))}`).join('|');
+    const cached = this.meiLinksCache[voiceIndex];
+    if (cached && cached.key === key) return cached;
+    const neumeOf = new Map<string, number>();
+    const voice = this.getVoices()[voiceIndex];
+    (voice?.spaced ?? []).forEach((s, i) => s.nonSpaced.forEach(g => g.grouped.forEach(note => neumeOf.set(note.uuid, i))));
+    // from / to: first and second component of a ligature; conTo: a component joined to the previous one by con="e"
+    const from = new Set<string>(), to = new Set<string>(), conTo = new Set<string>();
+    const links = linkedPairs(drawables, attrsOf, d => neumeOf.get(d.ref.uuid) ?? -1).map(([a, b]) => {
+      const ca = this.headCenter(a), cb = this.headCenter(b);
+      const viaCon = attrsOf(b)['con'] === 'e' && !(attrsOf(a)['ligated'] && attrsOf(b)['ligated']);
+      const attr = viaCon ? 'con' : 'ligated';
+      if (viaCon) conTo.add(b.ref.uuid); else { from.add(a.ref.uuid); to.add(b.ref.uuid); }
+      const hand = viaCon ? 'con' in (b.ref.meiAttrs ?? {}) : 'ligated' in (a.ref.meiAttrs ?? {});
+      return {
+        d: linkPath(ca, cb), source: (hand ? 'hand' : 'rule') as 'hand' | 'rule', key: `${a.ref.uuid}-${b.ref.uuid}`,
+        title: attr === 'con' ? 'con="e": extended connection to the previous component' : 'ligated: oblique ligature of two components'
+      };
+    });
+    const data = { key, links, from, to, conTo };
+    this.meiLinksCache[voiceIndex] = data;
+    return data;
+  }
+
+  /** The lowest point (staff units) of the MEI drawings on a note, for the height of the read-only staff. */
+  private meiGlyphBottom(d: DNote, voiceIndex: number): number {
+    const glyphs = this.meiGlyphs(d.ref, voiceIndex);
+    if (glyphs.length === 0) return 0;
+    const c = this.headCenter(d);
+    let bottom = 0;
+    for (const g of glyphs) for (const m of g.d.matchAll(/[ML]\s*-?[\d.]+\s+(-?[\d.]+)|V\s*(-?[\d.]+)/g)) bottom = Math.max(bottom, Number(m[1] ?? m[2]));
+    return c.y + bottom * c.scale + 1;
+  }
+
+  meiGlyphColor(source: 'hand' | 'rule'): string { return NotesComponent.MEI_GLYPH_COLOR[source]; }
 
   /**
    * Dot above a note in the staff for MEI attributes that have no shape (for example `name` or `lig`), on the note or on the neume it
@@ -1198,10 +1280,10 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
    */
   meiMarker(n: VM.Note): { kind: 'note' | 'syllable'; source: 'hand' | 'rule' } | null {
     if (!getMeiViewPrefs().markInStaff) return null;
-    const hand = attributeGlyphs(n.meiAttrs).withoutShape;
+    const hand = attributeGlyphs(n.meiAttrs, { noteType: n.noteType }).withoutShape;
     if (hand.length > 0 || Object.keys(n.meiNeumeAttrs ?? {}).length > 0) return { kind: 'note', source: 'hand' };
     if (meiRuleMarks.notes.has(n.uuid)) {
-      const ruleOnly = attributeGlyphs(meiRuleMarks.noteAttrs.get(n.uuid)).withoutShape;
+      const ruleOnly = attributeGlyphs(meiRuleMarks.noteAttrs.get(n.uuid), { noteType: n.noteType }).withoutShape;
       if (ruleOnly.length > 0 || !meiRuleMarks.noteAttrs.has(n.uuid)) return { kind: 'note', source: 'rule' };
     }
     if (n === firstNoteOfSyllable(this.model)) {
@@ -1329,7 +1411,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   readOnlyPadBottomFor(voiceIndex: number): number {
     let lowest = 0;
     for (const d of this.getDrawables(voiceIndex)) {
-      if (d instanceof DNote) lowest = Math.max(lowest, d.y + (d.ref.noteType === VM.NoteType.Descending ? 43 : 36));
+      if (d instanceof DNote) lowest = Math.max(lowest, d.y + (d.ref.noteType === VM.NoteType.Descending ? 43 : 36), this.meiGlyphBottom(d, voiceIndex));
       else if (d instanceof DHelperLine) lowest = Math.max(lowest, d.y + 1);
     }
     return Math.max(this.readOnlyPadBottom, this.focusService.docPadBottom, Math.ceil(lowest + 2 - 85));

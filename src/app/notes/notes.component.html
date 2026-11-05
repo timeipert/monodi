@@ -34,6 +34,10 @@
           }
           @if (isNormal()) {
             <g [attr.transform]="'translate(' + (showClef ? 44 : 12) + ', 0)'">
+              @for (link of meiLinks(i); track link.key) {
+                <path class="mei-link" [attr.d]="link.d" [attr.fill]="meiGlyphColor(link.source)" fill-opacity="0.55"
+                  style="pointer-events: none;"><title>{{ link.title }} ({{ link.source === 'hand' ? 'set by hand' : 'written by a rule' }})</title></path>
+              }
               @for (drawable of getDrawables(i); track refOfDrawable($index, drawable)) {
                 <g
                   [style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
@@ -83,9 +87,9 @@
                     }
                   }
                   @if (isNote(drawable)) {
-                    @for (g of meiGlyphs(drawable.ref); track g.attr) {
-                      <path [attr.d]="g.d" [attr.transform]="'translate(' + (drawable.x + (drawable.ref.liquescent ? 4 : 6)) + ' ' + (drawable.y + 30) + ')'"
-                        fill="none" [attr.stroke]="g.source === 'hand' ? '#a00' : '#b7791f'" stroke-width="1.8" stroke-linecap="round"
+                    @for (g of meiGlyphs(drawable.ref, i); track g.attr) {
+                      <path class="mei-glyph" [attr.d]="g.d" [attr.transform]="meiGlyphTransform(drawable)"
+                        fill="none" [attr.stroke]="meiGlyphColor(g.source)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"
                         style="pointer-events: none;"><title>{{ g.title }} ({{ g.source === 'hand' ? 'set by hand' : 'written by a rule' }})</title></path>
                     }
                   }

@@ -4,7 +4,8 @@ import { AnnotationTarget, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf
 import { getActiveMeiProfile } from './mei-annotation-context';
 import { targetElements } from './mei-annotation-check';
 import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
-import { glyphFor } from './mei-attribute-glyphs';
+import { glyphFor, linkPath } from './mei-attribute-glyphs';
+import { GLYPH_PATHS } from '../notes/glyph-paths';
 
 /** The shapes of a neume component that can be picked by looking at them (see `mei-attribute-glyphs.ts`). */
 const SHAPE_GROUPS: { attr: string; label: string; values: string[] }[] = [
@@ -141,6 +142,20 @@ export class MeiAnnotationDialogComponent implements OnInit {
 
   /** Path data of the drawing for a shape, relative to the centre of the note head. */
   shapePath(attr: string, value: string): string { return glyphFor(attr, value)?.d ?? ''; }
+
+  /** The outline of Monodi's normal note head, centred on the origin (the head glyph is drawn at 24..36 × 0..60, centre 30, 30). */
+  readonly headPath = GLYPH_PATHS['Normal'];
+
+  /**
+   * For a shape that joins two heads (`ligated`, `con="e"`): the place of the other head in the button (relative to the first) and the
+   * band between them, as the staff draws it; null for the other shapes.
+   */
+  shapeLink(attr: string, value: string): { x: number; y: number; band: string } | null {
+    const link = glyphFor(attr, value)?.link;
+    if (link === 'next') return { x: 13, y: 5, band: linkPath({ x: 0, y: 0 }, { x: 13, y: 5 }) };
+    if (link === 'previous') return { x: -13, y: -5, band: linkPath({ x: -13, y: -5 }, { x: 0, y: 0 }) };
+    return null;
+  }
 
   shapeLabel(attr: string, value: string): string { return value === 'true' ? attr : `${attr}="${value}"`; }
 
