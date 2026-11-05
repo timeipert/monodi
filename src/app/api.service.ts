@@ -15,7 +15,7 @@ import { ensureSchemaVersion } from './schema';
 import { NoteFlagDef, sanitizeNoteFlags, setNoteFlagDefs } from '@monodi/core/document';
 import { sanitizeAnnotationRules } from './mei/mei-annotation-rules';
 import { setActiveMeiProfile } from './mei/mei-annotation-context';
-import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule, upgradeMeiProfile } from '@monodi/core/mei';
+import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule, upgradeMeiProfile, withBuiltInProfiles } from '@monodi/core/mei';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
 import { PushCache } from './push-cache';
@@ -773,6 +773,8 @@ export interface ProjectSettings {
   pdfContinuationIndent?: number;
   meiMappings?: MeiMappingSettings;
   meiProfiles?: MeiMappingProfileV2[];
+  /** Ids of built-in MEI profiles (`MEI_PRESETS`) that the person deleted; they are not added again at the next start. */
+  removedMeiPresets?: string[];
   activeMeiProfileId?: string;
   /** User-defined note flags (virga etc.), see packages/core/src/document/note-flags.ts. */
   noteFlags?: NoteFlagDef[];
@@ -1138,6 +1140,10 @@ export function sanitizeSettings(settings: any): ProjectSettings {
       }
     }
   }
+
+  // The built-in profiles (neumes / premensural, one staff per voice) are there from the start.
+  settings.removedMeiPresets = Array.isArray(settings.removedMeiPresets) ? settings.removedMeiPresets.filter((x: any) => typeof x === 'string') : [];
+  settings.meiProfiles = withBuiltInProfiles(settings.meiProfiles ?? [], settings.removedMeiPresets);
 
   settings.noteFlags = sanitizeNoteFlags(settings.noteFlags);
   setNoteFlagDefs(settings.noteFlags);

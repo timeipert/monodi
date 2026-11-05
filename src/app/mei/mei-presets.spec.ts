@@ -1,4 +1,4 @@
-import { emitMei, MEI_PRESETS, MeiMappingProfileV2 } from '@monodi/core/mei';
+import { emitMei, MEI_PRESETS, MeiMappingProfileV2, defaultMeiProfile, withBuiltInProfiles } from '@monodi/core/mei';
 import { emptyRootContainer, emptyFormteilContainer, emptyZeileContainer, DocumentType, BaseNote, NoteType, SyllableType, LinePartKind } from '../types/model';
 import { TRIAL_NEUMES_XML, TRIAL_PREMENSURAL_XML } from './mei-trial-files';
 
@@ -141,5 +141,20 @@ describe('MEI presets for two voices', () => {
   it('the neume preset output uses the notationtype of the staves', () => {
     expect(Array.from(emitPreset('neumes-staves').getElementsByTagNameNS(NS, 'staffDef')).map(e => e.getAttribute('notationtype'))).toEqual(['neume', 'neume']);
     expect(Array.from(emitPreset('premensural-staves').getElementsByTagNameNS(NS, 'staffDef')).map(e => e.getAttribute('notationtype'))).toEqual(['premensural', 'premensural']);
+  });
+
+  it('the built-in profiles are added to a project without being created first, once, and not again after a deletion', () => {
+    const own = defaultMeiProfile();
+    const list = withBuiltInProfiles([own]);
+    expect(list.map(p => p.id)).toEqual(['default', 'neumes-staves', 'premensural-staves']);
+    expect(list[1].presetId).toBe('neumes-staves');
+    expect(list[2].notation).toBe('premensural');
+    expect(withBuiltInProfiles(list).length).toBe(3);                                           // not added twice
+    expect(withBuiltInProfiles([own], ['premensural-staves']).map(p => p.id)).toEqual(['default', 'neumes-staves']);
+    const edited = withBuiltInProfiles([own])[1];
+    edited.voiceLabels = ['mine'];
+    expect(withBuiltInProfiles([own, edited])[1].voiceLabels).toEqual(['mine']);                // a changed one is kept as it is
+    const copy = { ...edited, id: 'copy', presetId: undefined };
+    expect(withBuiltInProfiles([own, copy]).filter(p => p.presetId === 'neumes-staves').length).toBe(1);
   });
 });

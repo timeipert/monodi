@@ -26,6 +26,8 @@ import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFl
 import { MeiAnnotationDialogComponent } from '../mei/mei-annotation-dialog.component';
 import { accidentalName, firstNoteOf, isAccidentalType, setHandAttr, AnnotationTarget } from '@monodi/core/mei';
 import { getMeiViewPrefs, meiRuleMarks, meiViewChanges$ } from '../mei/mei-view-prefs';
+import { attributeGlyphs } from '../mei/mei-attribute-glyphs';
+import type { AttrGlyph } from '../mei/mei-attribute-glyphs';
 import { getSpreadVoices, voiceSpreadChanges$ } from './voice-spread-prefs';
 import { generatedAttrs } from '../mei/mei-selection';
 import { getActiveMeiProfile } from '../mei/mei-annotation-context';
@@ -1176,14 +1178,32 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   /**
-   * Mark above a note in the staff: a filled dot for attributes on the note or on the neume it starts, an open ring on the
-   * first note of a syllable with attributes of its own. The colour tells the source: red when set by hand, amber when only
-   * an annotation rule writes them. Off when the person turned the marks off.
+   * The MEI attributes of a note as they are drawn in the staff: a small drawing for every attribute that has a shape in MEI neume
+   * notation (tilt, curve, rellen, con, angled, hooked, ligated; see `mei-attribute-glyphs.ts`), in the colour of its source (red: set
+   * by hand, amber: written by an annotation rule; a hand-set value wins). Off when the person turned the marks off.
+   */
+  meiGlyphs(n: VM.Note): (AttrGlyph & { source: 'hand' | 'rule' })[] {
+    if (!getMeiViewPrefs().markInStaff) return [];
+    const hand = n.meiAttrs ?? {};
+    const rule = meiRuleMarks.noteAttrs.get(n.uuid) ?? {};
+    const out: (AttrGlyph & { source: 'hand' | 'rule' })[] = [];
+    for (const g of attributeGlyphs({ ...rule, ...hand }).glyphs) out.push({ ...g, source: g.attr in hand ? 'hand' : 'rule' });
+    return out;
+  }
+
+  /**
+   * Dot above a note in the staff for MEI attributes that have no shape (for example `name` or `lig`), on the note or on the neume it
+   * starts; an open ring on the first note of a syllable with attributes of its own. A note whose attributes all have a drawing gets no dot.
+   * The colour tells the source: red when set by hand, amber when only an annotation rule writes them.
    */
   meiMarker(n: VM.Note): { kind: 'note' | 'syllable'; source: 'hand' | 'rule' } | null {
     if (!getMeiViewPrefs().markInStaff) return null;
-    if (Object.keys(n.meiAttrs ?? {}).length > 0 || Object.keys(n.meiNeumeAttrs ?? {}).length > 0) return { kind: 'note', source: 'hand' };
-    if (meiRuleMarks.notes.has(n.uuid)) return { kind: 'note', source: 'rule' };
+    const hand = attributeGlyphs(n.meiAttrs).withoutShape;
+    if (hand.length > 0 || Object.keys(n.meiNeumeAttrs ?? {}).length > 0) return { kind: 'note', source: 'hand' };
+    if (meiRuleMarks.notes.has(n.uuid)) {
+      const ruleOnly = attributeGlyphs(meiRuleMarks.noteAttrs.get(n.uuid)).withoutShape;
+      if (ruleOnly.length > 0 || !meiRuleMarks.noteAttrs.has(n.uuid)) return { kind: 'note', source: 'rule' };
+    }
     if (n === firstNoteOfSyllable(this.model)) {
       if (this.model.meiAttrs && Object.keys(this.model.meiAttrs).length > 0) return { kind: 'syllable', source: 'hand' };
       if (meiRuleMarks.syllables.has(this.model.uuid)) return { kind: 'syllable', source: 'rule' };

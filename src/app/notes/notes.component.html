@@ -82,6 +82,13 @@
                       }
                     }
                   }
+                  @if (isNote(drawable)) {
+                    @for (g of meiGlyphs(drawable.ref); track g.attr) {
+                      <path [attr.d]="g.d" [attr.transform]="'translate(' + (drawable.x + (drawable.ref.liquescent ? 4 : 6)) + ' ' + (drawable.y + 30) + ')'"
+                        fill="none" [attr.stroke]="g.source === 'hand' ? '#a00' : '#b7791f'" stroke-width="1.8" stroke-linecap="round"
+                        style="pointer-events: none;"><title>{{ g.title }} ({{ g.source === 'hand' ? 'set by hand' : 'written by a rule' }})</title></path>
+                    }
+                  }
                   @if (isNote(drawable) && meiMarker(drawable.ref); as mk) {
                     <circle [attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 4" r="3"
                       [attr.fill]="mk.kind === 'note' ? (mk.source === 'hand' ? '#a00' : '#b7791f') : 'none'"

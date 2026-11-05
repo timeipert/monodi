@@ -1,4 +1,5 @@
 import { importMei } from '../mei/mei-import';
+import { documentIdFromFileName, newImportedDocument } from '../mei/mei-import-document';
 import type { MeiImportFormat, MeiImportResult } from '../mei/mei-import';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { ChangeDetectorRef, Component, OnInit, ViewChild, TemplateRef } from '@angular/core';
@@ -390,10 +391,6 @@ export class SourceComponent implements OnInit {
     }
   }
 
-  get meiImportLineCount(): number { return this.meiImportResult ? (this.meiImportResult.root.children[0] as any).children.length : 0; }
-  get meiImportVoiceCount(): number { return this.meiImportResult ? Math.max(1, ...(this.meiImportResult.root.children[0] as any).children.map((z: any) => z.voiceCount ?? 1)) : 0; }
-  get meiImportSyllableCount(): number { return this.meiImportResult ? (this.meiImportResult.root.children[0] as any).children.reduce((n: number, z: any) => n + z.children.length, 0) : 0; }
-
   openMeiImport(): void {
     this.meiImportFormat = 'auto';
     this.meiImportDocId = '';
@@ -406,7 +403,7 @@ export class SourceComponent implements OnInit {
   onMeiFilePicked(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    if (!this.meiImportDocId) this.meiImportDocId = file.name.replace(/\.[^.]+$/, '');
+    if (!this.meiImportDocId) this.meiImportDocId = documentIdFromFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
       this.meiImportText = String(reader.result ?? '');
@@ -431,14 +428,7 @@ export class SourceComponent implements OnInit {
   doMeiImport(): void {
     const result = this.meiImportResult;
     if (!this.user || !this.source || !this.source.id || !result) return;
-    const doc: Document = {
-      id: '',
-      quelle_id: this.source.id,
-      dokumenten_id: this.meiImportDocId.trim() || result.title,
-      gattung1: '', gattung2: '', festtag: '', feier: '', textinitium: '', bibliographischerverweis: '', druckausgabe: '',
-      zeilenstart: '', foliostart: '', kommentar: '', editionsstatus: '',
-      custom: {},
-    };
+    const doc = newImportedDocument(this.source.id, this.meiImportDocId.trim() || result.title);
     this.api.createDocument(this.user.token, { document: doc, notes: result.root }).subscribe(res => {
       switch (res.kind) {
         case 'LoginRequired': this.userService.logout(); break;

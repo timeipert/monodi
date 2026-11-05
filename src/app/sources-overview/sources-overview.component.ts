@@ -1,3 +1,6 @@
+import { importMei } from '../mei/mei-import';
+import type { MeiImportFormat, MeiImportResult } from '../mei/mei-import';
+import { documentIdFromFileName, newImportedDocument, newImportedSource } from '../mei/mei-import-document';
 import { FocusService } from '../focus.service';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { sanitizeNotationColor } from '../notation-color';
@@ -233,6 +236,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       case 'import-csv':
         document.getElementById('importCsvFile')?.click();
         break;
+      case 'import-mei':
+        this.openMeiImport();
+        break;
       case 'import-annotations':
         document.getElementById('importAnnotationsFile')?.click();
         break;
@@ -432,6 +438,85 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   }
 
 
+
+  // --- MEI import (several files at once) ---
+  showMeiImportDialog = false;
+  meiImportFormat: MeiImportFormat = 'auto';
+  /** Source the documents are created in; `new` creates one with the siglum below. */
+  meiImportSourceId = '';
+  meiImportNewSigle = '';
+  meiImportFiles: { name: string; text: string; documentId: string; result?: MeiImportResult; error?: string }[] = [];
+  meiImportBusy = false;
+
+  openMeiImport(): void {
+    this.meiImportFormat = 'auto';
+    this.meiImportSourceId = '';
+    this.meiImportNewSigle = '';
+    this.meiImportFiles = [];
+    this.meiImportBusy = false;
+    this.showMeiImportDialog = true;
+    this.cdRef.markForCheck();
+  }
+
+  closeMeiImport(): void { this.showMeiImportDialog = false; }
+
+  async onMeiFilesPicked(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    for (const f of files) {
+      this.meiImportFiles.push({ name: f.name, text: await f.text(), documentId: documentIdFromFileName(f.name) });
+    }
+    input.value = '';
+    this.previewMeiImport();
+  }
+
+  /** Reads every chosen file with the chosen format; shows what was found or why a file cannot be read. */
+  previewMeiImport(): void {
+    for (const f of this.meiImportFiles) {
+      f.result = undefined; f.error = undefined;
+      try { f.result = importMei(f.text, this.meiImportFormat); }
+      catch (e) { f.error = e instanceof Error ? e.message : String(e); }
+    }
+    this.cdRef.markForCheck();
+  }
+
+  removeMeiFile(index: number): void { this.meiImportFiles.splice(index, 1); }
+
+  get meiImportReady(): boolean {
+    const ok = this.meiImportFiles.filter(f => f.result);
+    const target = this.meiImportSourceId === 'new' ? this.meiImportNewSigle.trim() !== '' : this.meiImportSourceId !== '';
+    return ok.length > 0 && target && !this.meiImportBusy;
+  }
+
+  async confirmMeiImport(): Promise<void> {
+    if (!this.user || !this.meiImportReady) return;
+    this.meiImportBusy = true;
+    try {
+      let sourceId = this.meiImportSourceId;
+      if (sourceId === 'new') {
+        const created = await firstValueFrom(this.api.createSource(this.user.token, newImportedSource(this.meiImportNewSigle.trim())));
+        if (created.kind !== 'SourceCreated') throw new Error('The source could not be created.');
+        sourceId = created.id;
+      }
+      let made = 0;
+      let warnings = 0;
+      for (const f of this.meiImportFiles) {
+        if (!f.result) continue;
+        const doc = newImportedDocument(sourceId, f.documentId.trim() || f.result.title || documentIdFromFileName(f.name));
+        const res = await firstValueFrom(this.api.createDocument(this.user.token, { document: doc, notes: f.result.root }));
+        if (res.kind === 'DocumentCreated') { made++; warnings += f.result.warnings.length; }
+      }
+      this.updateList();
+      this.showMeiImportDialog = false;
+      this.toastr.success(`${made} document(s) created from MEI.`);
+      if (warnings > 0) this.toastr.warning(`${warnings} note(s) about things the import could not carry over; see the dialog next time before importing.`, 'MEI import');
+    } catch (e) {
+      this.toastr.error('MEI import failed: ' + (e instanceof Error ? e.message : e));
+    } finally {
+      this.meiImportBusy = false;
+      this.cdRef.markForCheck();
+    }
+  }
 
   closeCsvExportDialog() {
     this.showCsvExportDialog = false;

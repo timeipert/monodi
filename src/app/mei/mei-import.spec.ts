@@ -1,7 +1,10 @@
-import { emitMei, MEI_PRESETS } from '@monodi/core/mei';
+import { defaultMeiProfile, emitMei, MEI_PRESETS } from '@monodi/core/mei';
 import { importMei, detectMeiFormat } from './mei-import';
 import { TRIAL_NEUMES_XML, TRIAL_PREMENSURAL_XML } from './mei-trial-files';
-import { ContainerKind } from '../types/model';
+import {
+  BaseNote, ContainerKind, DocumentType, LinePartKind, NoteType, SyllableType,
+  emptyFormteilContainer, emptyRootContainer, emptyZeileContainer
+} from '../types/model';
 import type { FormteilContainer, Syllable, ZeileContainer } from '../types/model';
 
 /**
@@ -95,5 +98,72 @@ describe('MEI import', () => {
     expect(linesOf(r).length).toBe(2);
     expect(linesOf(r).map(z => (z.children[0] as Syllable).text)).toEqual(['a', 'b']);
     expect(linesOf(r)[0].kind).toBe(ContainerKind.ZeileContainer);
+  });
+
+  describe('round trip of the default export', () => {
+    const note = (uuid: string, base: BaseNote, octave: number, noteType: NoteType = NoteType.Normal, liquescent = false): any =>
+      ({ uuid, base, octave, noteType, liquescent, focus: false });
+    const neume = (...notes: any[]) => ({ nonSpaced: [{ grouped: notes }] });
+    const syllable = (uuid: string, text: string, spaced: any[], extra: any = {}): any =>
+      ({ kind: LinePartKind.Syllable, uuid, text, syllableType: SyllableType.Normal, notes: { spaced }, ...extra });
+
+    function richDocument() {
+      const root = emptyRootContainer();
+      const formteil = emptyFormteilContainer(DocumentType.Level1, []);
+      formteil.data = [{ name: 'Signatur' as any, data: 'Ad 1' }];
+      const line1 = emptyZeileContainer(2);
+      line1.children = [
+        { kind: LinePartKind.Clef, uuid: 'c1', focus: false, base: BaseNote.C, octave: 5, shape: 'c' } as any,
+        syllable('s1', 'Ky-', [neume(note('n1', BaseNote.G, 4), note('n2', BaseNote.A, 4, NoteType.Ascending), note('n3', BaseNote.B, 4, NoteType.Oriscus))],
+                 { additionalMelodies: [{ spaced: [neume(note('v1', BaseNote.C, 4), note('v2', BaseNote.D, 4))] }] }),
+        { kind: LinePartKind.LineChange, uuid: 'lc1', focus: false } as any,
+        syllable('s2', 'ri-', [neume(note('n4', BaseNote.B, 4, NoteType.Flat), note('n5', BaseNote.C, 5)), neume(note('n6', BaseNote.A, 4, NoteType.Normal, true))]),
+        { kind: LinePartKind.FolioChange, uuid: 'fc1', focus: false, text: 'f. 3r' } as any,
+        syllable('s3', 'e', [neume(note('n7', BaseNote.G, 4, NoteType.Quilisma))], { meiAttrs: { type: 'first' } })
+      ];
+      const line2 = emptyZeileContainer(1);
+      const virga = { ...note('n8', BaseNote.D, 4), meiAttrs: { tilt: 'ne', name: 'virga' } };
+      line2.children = [
+        syllable('s4', '...', [], { syllableType: SyllableType.SourceEllipsis }),
+        syllable('s5', 'son', [neume(virga, note('n9', BaseNote.D, 4), note('n10', BaseNote.E, 4))])
+      ];
+      const line3 = emptyZeileContainer(1);
+      (line3 as any).notation = 'adiastematic';
+      line3.children = [syllable('s6', 'lei', [neume(note('a1', BaseNote.G, 4), note('a2', BaseNote.A, 4), note('a3', BaseNote.G, 4))])];
+      formteil.children = [line1, line2, line3];
+      root.children = [formteil];
+      return root;
+    }
+    /** The export without ids (they are made of uuids, which the import makes up anew). */
+    const stable = (xml: string) => xml.replace(/ xml:id="[^"]*"/g, '').replace(/ (synch|corresp|sameas)="[^"]*"/g, '');
+
+    it('an export read back and exported again gives the same MEI (clef, line and folio change, accidental, strokes, ellipsis, adiastematic line, second voice)', () => {
+      const first = emitMei(richDocument(), defaultMeiProfile());
+      const result = importMei(first);
+      expect(result.warnings).toEqual([]);
+      expect(result.stats.lines).toBe(3);
+      expect(stable(emitMei(result.root, defaultMeiProfile()))).toBe(stable(first));
+    });
+
+    it('carries the details over: text, signature, voices, hand-set attributes, syllable type, adiastematic line', () => {
+      const r = importMei(emitMei(richDocument(), defaultMeiProfile()));
+      const formteil = r.root.children[0] as FormteilContainer;
+      expect((formteil.data as any)[0].data).toBe('Ad 1');
+      const [l1, l2, l3] = formteil.children as ZeileContainer[];
+      const kinds = l1.children.map(c => c.kind);
+      expect(kinds).toEqual([LinePartKind.Clef, LinePartKind.Syllable, LinePartKind.LineChange, LinePartKind.Syllable, LinePartKind.FolioChange, LinePartKind.Syllable]);
+      const s1 = l1.children[1] as Syllable;
+      expect(s1.notes.spaced[0].nonSpaced[0].grouped.map(n => n.noteType)).toEqual([NoteType.Normal, NoteType.Ascending, NoteType.Oriscus]);
+      expect(s1.additionalMelodies![0].spaced[0].nonSpaced[0].grouped.map(n => n.base + n.octave)).toEqual(['C4', 'D4']);
+      const s2 = l1.children[3] as Syllable;
+      expect(s2.notes.spaced[0].nonSpaced[0].grouped.map(n => n.noteType)).toEqual([NoteType.Flat, NoteType.Normal]);
+      expect(s2.notes.spaced[1].nonSpaced[0].grouped[0].liquescent).toBeTrue();
+      expect((l1.children[4] as any).text).toBe('f. 3r');
+      expect((l1.children[5] as Syllable).meiAttrs).toEqual({ type: 'first' });
+      expect((l2.children[0] as Syllable).syllableType).toBe(SyllableType.SourceEllipsis);
+      expect(((l2.children[1] as Syllable).notes.spaced[0].nonSpaced[0].grouped[0]).meiAttrs).toEqual({ tilt: 'ne', name: 'virga' });
+      expect(l3.notation).toBe('adiastematic');
+      expect((l3.children[0] as Syllable).notes.spaced[0].nonSpaced[0].grouped.length).toBe(3);
+    });
   });
 });

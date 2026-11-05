@@ -399,7 +399,7 @@
       @if (meiImportResult; as r) {
         <div class="alert alert-info py-2 small">
           Read as <strong>{{ r.format === 'neume' ? 'neume' : 'premensural' }}</strong> notation:
-          {{ meiImportSyllableCount }} syllables in {{ meiImportLineCount }} line(s) and {{ meiImportVoiceCount }} voice(s).
+          {{ r.stats.syllables }} syllables with {{ r.stats.notes }} notes in {{ r.stats.lines }} line(s) and {{ r.stats.voices }} voice(s).
         </div>
         @if (r.warnings.length > 0) {
           <div class="alert alert-warning py-2 small">

@@ -943,6 +943,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     const name = window.prompt('Enter name for the new profile:', preset.name);
     if (!name || name.trim().length === 0) return;
     const newProfile = preset.build();
+    delete newProfile.presetId;              // a copy of a person, not the built-in profile
     newProfile.id = uuidv4();
     newProfile.name = name.trim();
     this.settings.meiProfiles = this.settings.meiProfiles || [];
@@ -999,6 +1000,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       // Deep copy the active profile
       const duplicatedProfile: MeiMappingProfileV2 = JSON.parse(JSON.stringify(this.activeProfile));
       duplicatedProfile.id = uuidv4();
+      delete duplicatedProfile.presetId;     // a copy is the person's own profile, not the built-in one
       duplicatedProfile.name = name.trim();
       
       this.settings.meiProfiles?.push(duplicatedProfile);
@@ -1024,7 +1026,9 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     if (window.confirm(`Are you sure you want to delete the profile "${this.activeProfile.name}"?`)) {
       const idx = this.settings.meiProfiles.findIndex(p => p.id === this.settings.activeMeiProfileId);
       if (idx !== -1) {
-        this.settings.meiProfiles.splice(idx, 1);
+        const [removed] = this.settings.meiProfiles.splice(idx, 1);
+        // A built-in profile that is deleted stays deleted: remember it, or the next start would add it again.
+        if (removed.presetId) this.settings.removedMeiPresets = [...(this.settings.removedMeiPresets ?? []), removed.presetId];
         
         if (this.settings.meiProfiles.length === 0) {
           // Recreate default
@@ -1088,6 +1092,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
         
         const newProfile: MeiMappingProfileV2 = parsed;
         newProfile.id = uuidv4();
+        delete newProfile.presetId;
         
         const promptName = window.prompt("Enter name for the imported profile:", newProfile.name || "Imported Profile");
         if (promptName && promptName.trim().length > 0) {

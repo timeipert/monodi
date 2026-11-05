@@ -257,6 +257,77 @@
   </div>
 }
 
+@if (showMeiImportDialog) {
+  <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2"><i class="bi bi-filetype-xml text-secondary"></i><span>Import MEI</span></h5>
+          <button type="button" class="btn-close" aria-label="Close" (click)="closeMeiImport()"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="text-muted small mb-3">
+            MEI is the XML format of the Music Encoding Initiative. Every file becomes one document. The staves of a section are read as the
+            voices of one line; attributes that Monodi has no field for (for example <code>name</code> or <code>lig</code>) are kept as MEI
+            attributes of the notes.
+          </p>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-semibold" for="meiImportSource">Source</label>
+              <select id="meiImportSource" class="form-select form-select-sm" [(ngModel)]="meiImportSourceId">
+                <option value="" disabled>Choose the source …</option>
+                @for (s of sources; track s.id) { <option [value]="s.id">{{ s.quellensigle }}</option> }
+                <option value="new">New source …</option>
+              </select>
+              @if (meiImportSourceId === 'new') {
+                <input class="form-control form-control-sm mt-2" [(ngModel)]="meiImportNewSigle" placeholder="Siglum of the new source" aria-label="Siglum of the new source">
+              }
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-semibold" for="meiImportFormatSel">Format</label>
+              <select id="meiImportFormatSel" class="form-select form-select-sm" [(ngModel)]="meiImportFormat" (ngModelChange)="previewMeiImport()">
+                <option value="auto">Detect from each file</option>
+                <option value="neume">Neumes: syllable / neume / nc</option>
+                <option value="premensural">Premensural: ligature / note / verse</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="meiImportFilesInput">Files</label>
+            <input id="meiImportFilesInput" type="file" class="form-control form-control-sm" multiple accept=".mei,.xml,application/xml,text/xml" (change)="onMeiFilesPicked($event)">
+          </div>
+          @for (f of meiImportFiles; track f; let i = $index) {
+            <div class="border rounded p-2 mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-file-earmark-code text-muted"></i>
+                <span class="small text-truncate flex-grow-1" [title]="f.name">{{ f.name }}</span>
+                <input class="form-control form-control-sm" style="max-width: 16rem;" [(ngModel)]="f.documentId" placeholder="Document ID" [attr.aria-label]="'Document ID for ' + f.name">
+                <button type="button" class="btn btn-sm btn-outline-secondary" title="Remove this file" (click)="removeMeiFile(i)"><i class="bi bi-x-lg"></i></button>
+              </div>
+              @if (f.error) { <div class="small text-danger mt-1">{{ f.error }}</div> }
+              @if (f.result; as r) {
+                <div class="small text-muted mt-1">
+                  {{ r.format === 'neume' ? 'Neume' : 'Premensural' }} notation: {{ r.stats.syllables }} syllables with {{ r.stats.notes }} notes in
+                  {{ r.stats.lines }} line(s) and {{ r.stats.voices }} voice(s)@if (r.voiceLabels.join('') !== '') { ({{ r.voiceLabels.join(', ') }}) }.
+                </div>
+                @if (r.warnings.length > 0) {
+                  <ul class="small text-warning-emphasis mb-0 mt-1">@for (w of r.warnings; track w) { <li>{{ w }}</li> }</ul>
+                }
+              }
+            </div>
+          }
+        </div>
+        <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeMeiImport()"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" [disabled]="!meiImportReady" (click)="confirmMeiImport()">
+            <i class="bi bi-box-arrow-in-down me-1"></i>Import {{ meiImportFiles.length }} file(s)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
 @if (showCsvExportDialog) {
   <div class="modal fade show d-block" tabindex="-1"
     style="background: rgba(0,0,0,0.5);">

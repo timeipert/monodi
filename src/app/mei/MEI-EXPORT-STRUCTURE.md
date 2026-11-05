@@ -24,7 +24,7 @@ Start with the table, then the settings page: Settings → MEI Mapping → Expor
 
 ## Presets for two voices (state 2026-11-05)
 
-Settings → MEI Mapping → Manage → *New from preset* creates a profile from one of two presets (`MEI_PRESETS` in `packages/core/src/mei/mapping.model.ts`). Both write one staff per voice, the text in the last voice, `syl/@sameas` in the other voices, a bracket around the staves, no `<sb>` before the first staff and no `@wordpos`; the names of the voices are entered under Structure → Voices.
+The two presets (`MEI_PRESETS` in `packages/core/src/mei/mapping.model.ts`) are built-in profiles: they are in the profile list of every project from the start (`withBuiltInProfiles`, added when the settings are loaded), next to the default profile, and need not be created. They are ordinary profiles that can be edited and duplicated; one that is deleted stays deleted (`removedMeiPresets` in the settings). Settings → MEI Mapping → Manage → *New from preset* makes an additional copy. Both write one staff per voice, the text in the last voice, `syl/@sameas` in the other voices, a bracket around the staves, no `<sb>` before the first staff and no `@wordpos`; the names of the voices are entered under Structure → Voices.
 
 | Preset | Body | Setting `notation` |
 |---|---|---|
@@ -37,13 +37,14 @@ Checked with `mei-presets.spec.ts`: one Monodi document (five syllables, two voi
 
 ## Import of MEI files (state 2026-11-05)
 
-The reverse direction is `mei-import.ts` (`importMei`). It is offered on the page of a source: *Import MEI* → choose the file, the format (*Detect from the file*, *Neumes* or *Premensural*) and a document ID; the dialog shows what was found and the warnings before the document is created.
+The reverse direction is `mei-import.ts` (`importMei`). It is offered in two places: the Import / Export page (*MEI*) opens a dialog on the Sources page for several files at once — the source (an existing one or a new siglum), the format (*Detect from each file*, *Neumes* or *Premensural*) and a document ID per file; the page of a source has *Import MEI* for one file in that source. Both show what was found (lines, voices, syllables, notes) and the warnings before any document is created.
 
 - **Neumes**: `syllable` with `syl` and `neume` of `nc`. **Premensural**: a `ligature` of `note`s or a single `note`; a syllable starts at the element that has a `verse` with a `syl`, elements without one continue it.
 - **Voices**: the staves of a section with increasing `@n` are the voices of one line; the first is the first voice, the others are `additionalMelodies`. Alignment follows `neume/@synch`, `syl/@sameas` and `syllable/@corresp` where the file has them, otherwise the position. The text is taken from whichever voice has it (`syl/@sameas` resolves to the `syl` it names).
 - **Attributes without a field in Monodi** (`name`, `lig`, ...) become hand-set MEI attributes of the notes (`meiAttrs`), on a `ligature` or `neume` of the neume's first note (`meiNeumeAttrs`); the export writes them again.
-- **Not read**: a second `layer` of a staff, elements other than syllable, neume, ligature, note, ligature notes without pitch (for example the empty `<note/>` in the premensural trial file; reported as a warning).
-- Checked with `mei-import.spec.ts`: both trial files, and a round trip (import, export with the preset, import) for both presets.
+- **Also read**: line changes (`sb`) and folio changes (`pb`) of the first voice, clefs, accidentals (`accid`), a note head with a stroke (`tilt="n"` / `tilt="s"` → ascending / descending), ornaments inside an `nc`, the type of a syllable (`@type`, `<supplied>`), the label of a section (signature), lines of adiastematic notation (`staff/@type="adiastematic"`: the contour `@intm` becomes pitches one step apart, starting at G4), and every further `layer` of a staff as a voice of its own.
+- **Not read**: elements other than those above, notes without pitch outside an adiastematic line (for example the empty `<note/>` in the premensural trial file; reported as a warning). An accidental stands in the neume that follows it.
+- Checked with `mei-import.spec.ts`: both trial files, a round trip (import, export with the preset, import) for both presets, and a round trip of a document with a clef, line and folio changes, an accidental, strokes, an ornament, an ellipsis, an adiastematic line and a second voice (export, import, export gives the same MEI apart from the ids).
 
 ## Why these forms
 

@@ -790,7 +790,7 @@ export class DocumentComponent implements OnInit, DoCheck {
     const idx = buildAnnotationIndex(this.cont, rules, this.sourceSigle);
     const notes = new Set<string>([...idx.nc.keys(), ...idx.neume.keys()]);
     const sylls = new Set<string>(idx.syllable.keys());
-    setMeiRuleMarks(notes, sylls);
+    setMeiRuleMarks(notes, sylls, new Map([...idx.nc].map(([uuid, attrs]) => [uuid, { ...attrs }])));
   }
 
   meiOpenGroups = new Set<string>();

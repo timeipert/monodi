@@ -4,6 +4,18 @@ import { AnnotationTarget, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf
 import { getActiveMeiProfile } from './mei-annotation-context';
 import { targetElements } from './mei-annotation-check';
 import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
+import { glyphFor } from './mei-attribute-glyphs';
+
+/** The shapes of a neume component that can be picked by looking at them (see `mei-attribute-glyphs.ts`). */
+const SHAPE_GROUPS: { attr: string; label: string; values: string[] }[] = [
+  { attr: 'tilt', label: 'Tilt (direction of the stroke)', values: ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'] },
+  { attr: 'curve', label: 'Curve', values: ['a', 'c'] },
+  { attr: 'rellen', label: 'Length of the stroke', values: ['s', 'l'] },
+  { attr: 'con', label: 'Connection to the previous note', values: ['g', 'l', 'e'] },
+  { attr: 'angled', label: 'Angled', values: ['true'] },
+  { attr: 'hooked', label: 'Hooked', values: ['true'] },
+  { attr: 'ligated', label: 'Ligated', values: ['true'] }
+];
 
 interface Row { name: string; value: string }
 
@@ -110,6 +122,27 @@ export class MeiAnnotationDialogComponent implements OnInit {
   remove(i: number): void {
     this.rows.splice(i, 1);
   }
+
+  /** The shape groups the element has attributes for (only a note, `nc`, has them). */
+  get shapeGroups() {
+    return this.target === 'nc' ? SHAPE_GROUPS.filter(g => this.available.some(a => a.name === g.attr)) : [];
+  }
+
+  shapeValue(attr: string): string | undefined {
+    return this.rows.find(r => r.name === attr)?.value.trim() || undefined;
+  }
+
+  /** Picks a shape; picking the one that is set removes it. */
+  setShape(attr: string, value: string): void {
+    const row = this.rows.find(r => r.name === attr);
+    if (row && row.value.trim() === value) { this.rows.splice(this.rows.indexOf(row), 1); return; }
+    if (row) row.value = value; else this.rows.push({ name: attr, value });
+  }
+
+  /** Path data of the drawing for a shape, relative to the centre of the note head. */
+  shapePath(attr: string, value: string): string { return glyphFor(attr, value)?.d ?? ''; }
+
+  shapeLabel(attr: string, value: string): string { return value === 'true' ? attr : `${attr}="${value}"`; }
 
   get elementDoc(): string { return this.catalog?.elements[this.element]?.doc ?? ''; }
   get elementChildren(): string[] { return this.catalog?.elements[this.element]?.children ?? []; }

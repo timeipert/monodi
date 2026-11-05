@@ -37,6 +37,7 @@ const SIDES: IoSide[] = [
         actions: [
           { id: 'import-workspace', ws: 'import-workspace', icon: 'bi-archive', color: 'text-secondary', title: 'Backup', hint: 'Restore your workspace', badge: '.monodijson' },
           { id: 'import-zip', ws: 'import-zip', icon: 'bi-file-earmark-zip', color: 'text-secondary', title: 'ZIP', hint: 'monodi+ or OMMR4all', badge: 'ZIP' },
+          { id: 'import-mei', ws: 'import-mei', icon: 'bi-filetype-xml', color: 'text-secondary', title: 'MEI', hint: 'Neume or premensural notation, several files at once', badge: 'MEI' },
           { id: 'import-csv', ws: 'import-csv', icon: 'bi-filetype-csv', color: 'text-secondary', title: 'Spreadsheet', hint: 'Each row becomes a document', badge: 'CSV' },
           { id: 'import-annotations', ws: 'import-annotations', icon: 'bi-images', color: 'text-secondary', title: 'Annotations', hint: 'Neumen-Editor or Neume Viewer', badge: 'JSON' },
         ],

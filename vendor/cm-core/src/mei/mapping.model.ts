@@ -144,6 +144,8 @@ export interface MeiMappingProfileV2 {
   version: 2;
   id: string;
   name: string;
+  /** Set on the profiles that are built in (see `MEI_PRESETS`): the id of the preset. A copy made by a person has none. */
+  presetId?: string;
   skeleton: string[];                 // element chain inside <mei> around the content, e.g. ['music','body','mdiv','score']
   emitHeader: boolean;                // emit the meiHead block
   /** Header level: 1 Minimal (baseline, default), 2 Standard, 3 Extended. See mei-header.ts and CM-hub/docs/METADATA-STANDARDS.md. */
@@ -588,6 +590,7 @@ export const MEI_PRESETS: MeiProfilePreset[] = [
     build: () => {
       const p = staffPerVoice(defaultMeiProfile());
       p.name = 'Neumes, one staff per voice';
+      p.presetId = 'neumes-staves';
       return p;
     }
   },
@@ -598,6 +601,7 @@ export const MEI_PRESETS: MeiProfilePreset[] = [
     build: () => {
       const p = staffPerVoice(defaultMeiProfile());
       p.name = 'Premensural, one staff per voice';
+      p.presetId = 'premensural-staves';
       p.notation = 'premensural';
       p.entities.neume.tag = 'ligature';
       p.entities.note.tag = 'note';
@@ -605,6 +609,22 @@ export const MEI_PRESETS: MeiProfilePreset[] = [
     }
   }
 ];
+
+/**
+ * The profiles of a project plus the built-in ones (`MEI_PRESETS`), so that they are there without being created first. A built-in
+ * profile is a profile like any other (it can be edited and duplicated); it carries the id of its preset as `id` and `presetId`.
+ * One that a person deleted (its preset id is in `removed`) is not added again. Returns a new list; the given profiles are kept.
+ */
+export function withBuiltInProfiles(profiles: MeiMappingProfileV2[], removed: string[] = []): MeiMappingProfileV2[] {
+  const out = [...profiles];
+  for (const preset of MEI_PRESETS) {
+    if (removed.includes(preset.id) || out.some(p => p.presetId === preset.id || p.id === preset.id)) continue;
+    const profile = preset.build();
+    profile.id = preset.id;
+    out.push(profile);
+  }
+  return out;
+}
 
 export function migrateV1MeiMappings(v1: any): MeiMappingProfileV2 {
   return {

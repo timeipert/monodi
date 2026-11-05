@@ -198,7 +198,7 @@
                     </div>
                     <span class="mei-switches">
                       <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.showGenerated" (click)="setMeiPref({showGenerated: !meiPrefs.showGenerated})" [attr.aria-pressed]="meiPrefs.showGenerated" title="Show the attributes the export generates from the Monodi data (locked rows)"><i class="bi bi-lock-fill"></i></button>
-                      <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.markInStaff" (click)="setMeiPref({markInStaff: !meiPrefs.markInStaff})" [attr.aria-pressed]="meiPrefs.markInStaff" title="Mark annotated notes with a dot in the staff"><i class="bi bi-record-circle"></i></button>
+                      <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.markInStaff" (click)="setMeiPref({markInStaff: !meiPrefs.markInStaff})" [attr.aria-pressed]="meiPrefs.markInStaff" title="Show the MEI attributes of notes in the staff: a drawing for tilt, curve, rellen, con, angled, hooked and ligated; a dot for every other attribute"><i class="bi bi-record-circle"></i></button>
                     </span>
                   </div>
                   @if (meiPrefs.view === 'all') {
