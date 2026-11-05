@@ -1,3 +1,4 @@
+import { getSpreadVoices } from './notes/voice-spread-prefs';
 import { Injectable, NgZone } from '@angular/core';
 import { jsPDF } from 'jspdf';
 import * as VM from './types/model';
@@ -249,7 +250,7 @@ export class PdfExportService {
       const showClef = !adiastematic && (lp.uuid === c.firstSyllableUuid || shouldShowClef(c.clefMode, {
         firstInDocument: false, firstInZeile: idx === 0, afterLineChange: idx > 0 && children[idx - 1].kind === 'LineChange', wrapStart: false,
       }));
-      const geom = syllableGeometry(lp, { showClef, adiastematic });
+      const geom = syllableGeometry(lp, { showClef, adiastematic, spreadVoices: getSpreadVoices() });
       const voiceHeights = geom.voices.map((_, v) => 65 + 10 + Math.max(16, Math.ceil((geom.lowest[v] || 0) + 2 - 85)));
       const secHeight = voiceHeights.reduce((a, b) => a + b, 0) * SCALE;
       // the same without the lyric zone under the staff: for systems that carry no text at all
@@ -1241,7 +1242,7 @@ export class PdfExportService {
           type Item = { kind: 's'; g: SyllableGeometry; txt: string; w: number; shift: number } | { kind: 'm'; w: number; folio: boolean };
           const items: Item[] = printedParts(zeile).map((lp): Item => {
             if (lp.kind !== 'Syllable') return { kind: 'm', w: 7, folio: lp.kind === 'FolioChange' };
-            const g = syllableGeometry(lp, { showClef: false, adiastematic: adia });
+            const g = syllableGeometry(lp, { showClef: false, adiastematic: adia, spreadVoices: getSpreadVoices() });
             let txt = (lp.text || '').trim();
             if (txt === 'X' || txt === '...' || txt === '<...>') txt = '';
             txt = txt.replace(/-$/, '\u2013');

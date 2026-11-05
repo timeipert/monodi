@@ -739,6 +739,9 @@
     <button type="button" class="editor-status-toggle" [class.on]="showNoteCodes" [attr.aria-pressed]="showNoteCodes" (click)="toggleNoteCodes()" title="Show the note code under every syllable. Without this, the code appears on the selected or hovered syllable only.">
       <i class="bi" [ngClass]="showNoteCodes ? 'bi-check-square' : 'bi-square'" aria-hidden="true"></i> Note codes
     </button>
+    <button type="button" class="editor-status-toggle" [class.on]="spreadVoices" [attr.aria-pressed]="spreadVoices" (click)="toggleSpreadVoices()" title="Voices: spread the notes of aligned neumes over the same width (three notes above two: both fill the whole width). Off: every neume starts at the same place and keeps its natural width. Affects the display and the PDF export, not the data.">
+      <i class="bi" [ngClass]="spreadVoices ? 'bi-check-square' : 'bi-square'" aria-hidden="true"></i> Spread voices
+    </button>
     <span class="editor-status-item" [class.editor-status-error]="saveError">{{saveStateLabel}}</span>
     <span class="editor-status-item" [title]="isOnline ? 'Online' : 'Offline'">
       <span class="editor-status-dot" [class.on]="isOnline"></span>{{isOnline ? 'Online' : 'Offline'}}

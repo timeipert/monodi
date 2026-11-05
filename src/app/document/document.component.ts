@@ -1,3 +1,4 @@
+import { getSpreadVoices, setSpreadVoices } from '../notes/voice-spread-prefs';
 import { FocusService } from '../focus.service';
 import { applyPlaceholderImport, placeholderCommentsToSyllables, placeholderConfigFromSettings, syllableCommentsToPlaceholders } from '../placeholder-comments';
 import { ViewChild, ElementRef, Component, OnInit, DoCheck, HostListener, ChangeDetectorRef, NgZone, inject } from '@angular/core';
@@ -389,6 +390,9 @@ export class DocumentComponent implements OnInit, DoCheck {
     this.sidebarVisible = visible;
     try { localStorage.setItem('monodi_inspector_visible', visible ? '1' : '0'); } catch { /* the choice then lasts for this page only */ }
   }
+
+  get spreadVoices(): boolean { return getSpreadVoices(); }
+  toggleSpreadVoices(): void { setSpreadVoices(!getSpreadVoices()); }
 
   toggleNoteCodes(): void {
     this.showNoteCodes = !this.showNoteCodes;

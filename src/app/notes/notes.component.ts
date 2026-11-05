@@ -26,6 +26,7 @@ import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFl
 import { MeiAnnotationDialogComponent } from '../mei/mei-annotation-dialog.component';
 import { accidentalName, firstNoteOf, isAccidentalType, setHandAttr, AnnotationTarget } from '@monodi/core/mei';
 import { getMeiViewPrefs, meiRuleMarks, meiViewChanges$ } from '../mei/mei-view-prefs';
+import { getSpreadVoices, voiceSpreadChanges$ } from './voice-spread-prefs';
 import { generatedAttrs } from '../mei/mei-selection';
 import { getActiveMeiProfile } from '../mei/mei-annotation-context';
 import { ContextMenuItem, ContextMenuService } from '../context-menu/context-menu.service';
@@ -261,6 +262,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   ngOnInit() {
     this.meiViewSub = meiViewChanges$.subscribe(() => this.cdr.markForCheck());
+    this.spreadSub = voiceSpreadChanges$.subscribe(() => { this.recalculateWidths(); this.cdr.markForCheck(); });
     this.focusService.meiEditors.set(this.model.uuid, (target, note) => this.openMeiAttributes(target, note));
     this.notesToText();
     if (this.syllableTextElement?.nativeElement) {
@@ -291,6 +293,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   private focusedNoteSub?: Subscription;
   private meiViewSub?: Subscription;
+  private spreadSub?: Subscription;
 
   @HostListener('window:focus')
   onWindowFocus() {
@@ -311,6 +314,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   ngOnDestroy() {
     this.focusService.meiEditors.delete(this.model.uuid);
     this.meiViewSub?.unsubscribe();
+    this.spreadSub?.unsubscribe();
     this.undoService.deregisterNotesCallbacks(this.model.uuid);
     this.focusedNoteSub?.unsubscribe();
     setTimeout(() => this.toolsService.remove(this), 0);
@@ -1315,7 +1319,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     if (this.drawablesDirty) {
       this.drawablesCache = this.adiastematic
         ? adiastematicFromSpaceds(this.getVoices(), this.comments)
-        : fromSpaceds(this.getVoices(), this.comments);
+        : fromSpaceds(this.getVoices(), this.comments, { spreadVoices: getSpreadVoices() });
       this.drawablesDirty = false;
     }
     return this.drawablesCache[voiceIndex] || [];

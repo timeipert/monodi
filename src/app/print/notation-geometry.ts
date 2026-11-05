@@ -34,11 +34,11 @@ export function isEmptySyllable(s: VM.Syllable): boolean {
   return [s.notes, ...(s.additionalMelodies || [])].every((sp) => !sp || (sp.spaced || []).every((x) => (x.nonSpaced || []).every((n) => !(n.grouped || []).length)));
 }
 
-export function syllableGeometry(s: VM.Syllable, opts: { showClef: boolean; adiastematic: boolean }): SyllableGeometry {
+export function syllableGeometry(s: VM.Syllable, opts: { showClef: boolean; adiastematic: boolean; spreadVoices?: boolean }): SyllableGeometry {
   const isNormal = s.syllableType === VM.SyllableType.Normal;
   const showClef = opts.showClef && !opts.adiastematic;
   const spaceds = [s.notes, ...(s.additionalMelodies || [])];
-  const voices = isNormal ? (opts.adiastematic ? adiastematicFromSpaceds(spaceds, []) : fromSpaceds(spaceds, [])) : spaceds.map(() => []);
+  const voices = isNormal ? (opts.adiastematic ? adiastematicFromSpaceds(spaceds, []) : fromSpaceds(spaceds, [], { spreadVoices: opts.spreadVoices })) : spaceds.map(() => []);
   const shiftUnits = isNormal ? NOTE_GROUP_X + (showClef ? CLEF_SHIFT : 0) : -1;
 
   let svgW = 0;          // like NotesComponent.calculateWidth: last drawable x + 12
