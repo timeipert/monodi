@@ -1,3 +1,5 @@
+import { importMei } from '../mei/mei-import';
+import type { MeiImportFormat, MeiImportResult } from '../mei/mei-import';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { ChangeDetectorRef, Component, OnInit, ViewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -75,6 +77,12 @@ export class SourceComponent implements OnInit {
   isSaving = false;
 
   // Volpiano import
+  @ViewChild('meiImport', { static: false }) meiImportModal!: TemplateRef<any>;
+  meiImportFormat: MeiImportFormat = 'auto';
+  meiImportDocId = '';
+  meiImportError = '';
+  meiImportResult?: MeiImportResult;
+  private meiImportText = '';
   @ViewChild('volpianoImport', { static: false }) volpianoImportModal!: TemplateRef<any>;
   volpianoImportText = '';
   volpianoImportAlignedText = '';
@@ -380,6 +388,69 @@ export class SourceComponent implements OnInit {
         });
       }
     }
+  }
+
+  get meiImportLineCount(): number { return this.meiImportResult ? (this.meiImportResult.root.children[0] as any).children.length : 0; }
+  get meiImportVoiceCount(): number { return this.meiImportResult ? Math.max(1, ...(this.meiImportResult.root.children[0] as any).children.map((z: any) => z.voiceCount ?? 1)) : 0; }
+  get meiImportSyllableCount(): number { return this.meiImportResult ? (this.meiImportResult.root.children[0] as any).children.reduce((n: number, z: any) => n + z.children.length, 0) : 0; }
+
+  openMeiImport(): void {
+    this.meiImportFormat = 'auto';
+    this.meiImportDocId = '';
+    this.meiImportError = '';
+    this.meiImportResult = undefined;
+    this.meiImportText = '';
+    this.modalService.open(this.meiImportModal, { size: 'lg' });
+  }
+
+  onMeiFilePicked(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (!this.meiImportDocId) this.meiImportDocId = file.name.replace(/\.[^.]+$/, '');
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.meiImportText = String(reader.result ?? '');
+      this.previewMeiImport();
+      this.cdr.markForCheck();
+    };
+    reader.readAsText(file);
+  }
+
+  /** Reads the chosen file with the chosen format; shows what was found or why it cannot be read. */
+  previewMeiImport(): void {
+    this.meiImportError = '';
+    this.meiImportResult = undefined;
+    if (!this.meiImportText) return;
+    try {
+      this.meiImportResult = importMei(this.meiImportText, this.meiImportFormat);
+    } catch (e) {
+      this.meiImportError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  doMeiImport(): void {
+    const result = this.meiImportResult;
+    if (!this.user || !this.source || !this.source.id || !result) return;
+    const doc: Document = {
+      id: '',
+      quelle_id: this.source.id,
+      dokumenten_id: this.meiImportDocId.trim() || result.title,
+      gattung1: '', gattung2: '', festtag: '', feier: '', textinitium: '', bibliographischerverweis: '', druckausgabe: '',
+      zeilenstart: '', foliostart: '', kommentar: '', editionsstatus: '',
+      custom: {},
+    };
+    this.api.createDocument(this.user.token, { document: doc, notes: result.root }).subscribe(res => {
+      switch (res.kind) {
+        case 'LoginRequired': this.userService.logout(); break;
+        case 'DocumentCreated':
+          if (result.warnings.length > 0) this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'MEI import warnings');
+          this.toastr.success('Document created from MEI.');
+          this.modalService.dismissAll();
+          this.router.navigate(['/document', this.source!.id, res.id]);
+          break;
+        default: assertNever(res);
+      }
+    });
   }
 
   openVolpianoImport(): void {

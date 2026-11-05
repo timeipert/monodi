@@ -6,7 +6,7 @@ import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
 import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '@monodi/core/document';
-import { MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule, emitMei, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from '@monodi/core/mei';
+import { MEI_PRESETS, MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule, emitMei, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from '@monodi/core/mei';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
 import { checkAnnotations } from './mei-annotation-check';
@@ -933,6 +933,48 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   }
 
   // --- Profile Actions ---
+
+  /** The presets the *Manage* menu offers (see MEI_PRESETS in the shared code). */
+  readonly presets = MEI_PRESETS;
+
+  onNewProfileFromPreset(presetId: string) {
+    const preset = MEI_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+    const name = window.prompt('Enter name for the new profile:', preset.name);
+    if (!name || name.trim().length === 0) return;
+    const newProfile = preset.build();
+    newProfile.id = uuidv4();
+    newProfile.name = name.trim();
+    this.settings.meiProfiles = this.settings.meiProfiles || [];
+    this.settings.meiProfiles.push(newProfile);
+    this.settings.activeMeiProfileId = newProfile.id;
+    this.emitChange(true);
+    this.toastr.success(`Profile "${newProfile.name}" created from the preset "${preset.name}".`);
+  }
+
+  /** Names of the voices from one text field: separated by `;`. */
+  setVoiceLabels(text: string) {
+    const labels = text.split(';').map(t => t.trim());
+    while (labels.length > 0 && labels[labels.length - 1] === '') labels.pop();
+    this.activeProfile!.voiceLabels = labels.length > 0 ? labels : undefined;
+    this.emitChange();
+  }
+
+  /** Premensural notation names ligature and note for the neume and the note; neume notation restores nc and neume where the profile still has the premensural names. */
+  onNotationChange(value: 'neume' | 'premensural') {
+    const p = this.activeProfile!;
+    const e = p.entities;
+    if (value === 'premensural') {
+      p.notation = 'premensural';
+      e.neume.tag = 'ligature';
+      e.note.tag = 'note';
+    } else {
+      p.notation = undefined;
+      if (e.neume.tag === 'ligature') e.neume.tag = this.defaultProfile.entities.neume.tag;
+      if (e.note.tag === 'note') e.note.tag = this.defaultProfile.entities.note.tag;
+    }
+    this.emitChange();
+  }
 
   onNewProfile() {
     const name = window.prompt('Enter name for the new profile:');

@@ -123,6 +123,12 @@ let contourLine = false;
 let previousPitch: number | null = null;
 /** The `<neume>` element written for each unit of a syllable's melody (null for a unit that produced no neume), keyed by the syllable object that was walked. */
 let neumesOfSyllable = new WeakMap<object, (Element | null)[]>();
+/** Voice (0-based) that is being written: 0 for the first voice and for everything that is not a syllable of an additional voice. */
+let currentVoice = 0;
+/** Id prefix of voice 1 while the additional voices of a line are written (`idPrefix` then holds the prefix of the voice). */
+let voiceBasePrefix = 'm-';
+/** The profile writes the premensural notation (see MeiMappingProfileV2.notation). */
+let premensural = false;
 /** Number of staves the score declares: one per voice, i.e. the highest voice number that has notes in any line of the document (at least 1). */
 let staffCount = 1;
 
@@ -139,6 +145,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   activeSiglum = sourceSiglum || undefined;
   activeProfile = profile;
   conformant = profile.schemaConformant !== false;
+  premensural = profile.notation === 'premensural';
+  currentVoice = 0;
+  voiceBasePrefix = 'm-';
   contourLine = false;
   previousPitch = null;
   staffCount = profile.voices !== false ? Math.max(1, countVoices(root)) : 1;
@@ -296,7 +305,8 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   
   // The development schema URL answers 404 (state 2026-10-26). The conformant structure names the released MEI 5.0 neumes
   // customization, which accepts meiversion="5.0"; the default keeps the line of earlier exports.
-  const schemaUrl = conformant ? 'https://music-encoding.org/schema/5.0/mei-Neumes.rng' : 'https://music-encoding.org/schema/dev/mei-Neumes.rng';
+  const schemaUrl = premensural ? 'https://music-encoding.org/schema/5.0/mei-Mensural.rng'
+    : conformant ? 'https://music-encoding.org/schema/5.0/mei-Neumes.rng' : 'https://music-encoding.org/schema/dev/mei-Neumes.rng';
   const header = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>\n` +
     `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>\n`;
@@ -358,12 +368,19 @@ function makeScoreDef(doc: Document, profile: MeiMappingProfileV2): Element {
       staffDef.setAttribute('n', String(n));
       // Without @notationtype="neume" Verovio (and MEI-Friend, which is built on it) reads the neumes as common music notation: it warns
       // "Parent note for <syl> was not found" for every syllable and draws the staff wrongly (checked 2026-11-03 with Verovio 6.4).
-      staffDef.setAttribute('notationtype', 'neume');
+      staffDef.setAttribute('notationtype', premensural ? 'premensural' : 'neume');
       staffDef.setAttribute('lines', String(staff.lines));
       if (staff.clefShape) staffDef.setAttribute('clef.shape', staff.clefShape);
       if (staff.clefShape && staff.clefLine) staffDef.setAttribute('clef.line', String(staff.clefLine));
+      const voiceLabel = profile.voiceLabels?.[n - 1]?.trim();
+      if (voiceLabel) {
+        const label = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'label');
+        label.textContent = voiceLabel;
+        staffDef.appendChild(label);
+      }
       staffGrp.appendChild(staffDef);
     }
+    if (profile.voiceBracket && staffCount > 1) staffGrp.setAttribute('symbol', 'bracket');
     scoreDef.appendChild(staffGrp);
   }
   return scoreDef;
@@ -558,10 +575,14 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
     let layer = parentElement;
     let firstStaff: Element | null = null;
     if (parentElement.localName !== 'layer') {
-      const sbElement = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
-      sbElement.setAttribute('xml:id', idPrefix + zeile.uuid);
-      applyAttributes(sbElement, rule, { uuid: zeile.uuid });
-      parentElement.appendChild(sbElement);
+      // profile.firstLineBreak === false: the first staff of a section needs no line break before it.
+      const firstOfSection = !Array.from(parentElement.children).some(c => c.localName === 'staff');
+      if (!(firstOfSection && profile.firstLineBreak === false)) {
+        const sbElement = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
+        sbElement.setAttribute('xml:id', idPrefix + zeile.uuid);
+        applyAttributes(sbElement, rule, { uuid: zeile.uuid });
+        parentElement.appendChild(sbElement);
+      }
       const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
       staff.setAttribute('n', '1');
       layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
@@ -634,6 +655,7 @@ function walkAdditionalVoices(zeile: ZeileContainer, firstStaff: Element, doc: D
   const voiceCount = Math.max(0, ...parts.map(p => (p.kind === LinePartKind.Syllable ? (p.additionalMelodies ?? []).length : 0)));
   const savedPrefix = idPrefix;
   const savedContour = contourLine;
+  voiceBasePrefix = savedPrefix;
   let insertAfter: Element = firstStaff;
   // Neumes of the same unit (same position in the syllable's melody) of all voices, per syllable; voice 1 is first in each group.
   const aligned = new Map<any, Map<number, { element: Element; idBase: string }[]>>();
@@ -651,15 +673,16 @@ function walkAdditionalVoices(zeile: ZeileContainer, firstStaff: Element, doc: D
     const layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
     layer.setAttribute('n', '1');
     idPrefix = `${savedPrefix}v${v + 1}-`;
+    currentVoice = v;
     previousPitch = null;
     for (const part of parts) {
       const melody: Spaced | undefined = part.kind === LinePartKind.Syllable ? part.additionalMelodies?.[v - 1] : undefined;
       if (!melody || allNotes(melody).length === 0) continue;
       const before = layer.children.length;
-      const voicePart = { ...part, text: '', notes: melody, additionalMelodies: undefined, syllableType: 'Normal', meiAttrs: undefined };
+      // The voice shares the syllable (text, uuid) with voice 1: its notes are the only difference. Where the text stands is decided in
+      // walkLinePart from `additionalMelodies` of the original part, which the copy keeps.
+      const voicePart = { ...part, notes: melody, syllableType: 'Normal', meiAttrs: undefined };
       walkLinePart(voicePart, layer, doc, profile);
-      const written = layer.children[before];
-      if (written) written.setAttribute('corresp', '#' + savedPrefix + part.uuid);
       addAligned(part, voicePart, idPrefix + part.uuid);
     }
     if (layer.children.length === 0) continue;
@@ -676,7 +699,60 @@ function walkAdditionalVoices(zeile: ZeileContainer, firstStaff: Element, doc: D
     for (const g of group.slice(1)) g.element.setAttribute('synch', '#' + group[0].idBase);
   }));
   idPrefix = savedPrefix;
+  currentVoice = 0;
+  voiceBasePrefix = 'm-';
   contourLine = savedContour;
+}
+
+/** The voices of a syllable that have notes: voice 0 always, a further voice only with notes. Without `voices` there is voice 0 only. */
+function voicesOf(part: any, profile: MeiMappingProfileV2): number[] {
+  const out = [0];
+  if (!conformant || profile.voices === false) return out;
+  (part.additionalMelodies ?? []).forEach((m: Spaced, i: number) => { if (m && allNotes(m).length > 0) out.push(i + 1); });
+  return out;
+}
+
+/** Prefix of the ids of voice `voice` (0-based) while a line is written: voice 1 has the base prefix, a further voice `<base>v<n>-`. */
+function voicePrefix(voice: number): string {
+  const base = currentVoice === 0 ? idPrefix : voiceBasePrefix;
+  return voice === 0 ? base : `${base}v${voice + 1}-`;
+}
+
+/** Where the text of a syllable stands and how the other voices refer to it (profile.voiceText, profile.voiceLink). */
+function textPlan(part: any, profile: MeiMappingProfileV2): { multi: boolean; textVoice: number; textSylId: string; link: 'corresp' | 'sameas' } {
+  const voices = voicesOf(part, profile);
+  const multi = voices.length > 1;
+  const textVoice = multi && profile.voiceText === 'last' ? voices[voices.length - 1] : 0;
+  return { multi, textVoice, textSylId: voicePrefix(textVoice) + part.uuid + '-syl', link: profile.voiceLink === 'sameas' ? 'sameas' : 'corresp' };
+}
+
+/**
+ * The `syl` of a syllable in the voice being written: the text in the text voice; in the other voices an empty `syl/@sameas` that points
+ * to it (link `sameas`) or nothing (link `corresp`, then the syllable carries the pointer, see `textPlan`).
+ */
+function makeSyl(part: any, doc: Document, profile: MeiMappingProfileV2): Element | null {
+  const textRule = profile.entities.syllableText;
+  if (!textRule.enabled || !part.text) return null;
+  const plan = textPlan(part, profile);
+  const syl = doc.createElementNS('http://www.music-encoding.org/ns/mei', textRule.tag);
+  if (currentVoice === plan.textVoice) {
+    syl.textContent = part.text;
+    applyAttributes(syl, textRule, { text: part.text, uuid: part.uuid });
+    if (conformant && profile.wordPosition !== false) applyWordPosition(syl, part.text);
+    if (plan.multi && plan.link === 'sameas') syl.setAttribute('xml:id', plan.textSylId);
+    return syl;
+  }
+  if (plan.link === 'sameas') {
+    syl.setAttribute('sameas', '#' + plan.textSylId);
+    return syl;
+  }
+  return null;
+}
+
+/** `syllable/@corresp` of a voice that does not carry the text (link `corresp`): points to the syllable of the text voice. */
+function applyCorresp(element: Element, part: any, profile: MeiMappingProfileV2) {
+  const plan = textPlan(part, profile);
+  if (plan.multi && plan.link === 'corresp' && currentVoice !== plan.textVoice) element.setAttribute('corresp', '#' + voicePrefix(plan.textVoice) + part.uuid);
 }
 
 function walkLinePart(part: any, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
@@ -698,6 +774,10 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
 
   } else if (part.kind === LinePartKind.Syllable) {
     const rule = profile.entities.syllable;
+    if (premensural) {
+      walkSyllablePremensural(part, parentElement, doc, profile);
+      return;
+    }
     if (!rule.enabled) {
       // Walk notes directly under parentElement
       walkSyllableNotes(part, parentElement, doc, profile);
@@ -733,14 +813,9 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     applyAnnotationAttrs(syllable, mergedAttrs(annotations.syllable.get(part.uuid), part.meiAttrs));
 
     // syllableText inner tag
-    const textRule = profile.entities.syllableText;
-    if (textRule.enabled && part.text) {
-      const syl = doc.createElementNS('http://www.music-encoding.org/ns/mei', textRule.tag);
-      syl.textContent = part.text;
-      applyAttributes(syl, textRule, { text: part.text, uuid: part.uuid });
-      if (conformant) applyWordPosition(syl, part.text);
-      syllable.appendChild(syl);
-    }
+    const syl = makeSyl(part, doc, profile);
+    if (syl) syllable.appendChild(syl);
+    applyCorresp(syllable, part, profile);
 
     // Walk notes under the syllable element
     walkSyllableNotes(part, syllable, doc, profile);
@@ -801,6 +876,36 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
     targetParent.appendChild(dir);
   }
+}
+
+/**
+ * Premensural notation (profile.notation): a syllable has no element of its own. Its neumes are written as for neume notation (a
+ * `ligature` of `note`s per neume; the names come from the profile), then a ligature of one note is replaced by that note, and the text
+ * goes into a `verse` in the first of the elements (the text voice) or a `verse` with `syl/@sameas` (the other voices). A syllable
+ * without notes writes no text: there is no element to hold it. `lig="conjunctura"` and the other attributes of a ligature's notes are
+ * not derived: they are set by hand on the note (editor, MEI attributes tab) and written like any hand-set attribute.
+ */
+function walkSyllablePremensural(part: any, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
+  walkSyllableNotes(part, parentElement, doc, profile);
+  const units = neumesOfSyllable.get(part) ?? [];
+  const neumeTag = profile.entities.neume.tag;
+  units.forEach((el, i) => {
+    if (!el || el.localName !== neumeTag) return;
+    const notes = Array.from(el.children);
+    if (notes.length === 1) {
+      el.replaceWith(notes[0]);
+      units[i] = notes[0];
+    }
+  });
+  const first = units.find(u => !!u);
+  if (!first) return;
+  const syl = makeSyl(part, doc, profile);
+  if (syl) {
+    const verse = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'verse');
+    verse.appendChild(syl);
+    first.insertBefore(verse, first.firstChild);
+  }
+  applyCorresp(first, part, profile);
 }
 
 /**

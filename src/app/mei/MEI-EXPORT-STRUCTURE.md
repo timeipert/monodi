@@ -22,6 +22,29 @@ Start with the table, then the settings page: Settings → MEI Mapping → Expor
 | flat, sharp, natural | `<accid accid ploc oloc/>` in the syllable | Flat, sharp and natural as `accid` |
 | comment with a certainty | `annot/@type` has the token `cert:<value>` (the schema has no `@cert` on `annot`) | – |
 
+## Presets for two voices (state 2026-11-05)
+
+Settings → MEI Mapping → Manage → *New from preset* creates a profile from one of two presets (`MEI_PRESETS` in `packages/core/src/mei/mapping.model.ts`). Both write one staff per voice, the text in the last voice, `syl/@sameas` in the other voices, a bracket around the staves, no `<sb>` before the first staff and no `@wordpos`; the names of the voices are entered under Structure → Voices.
+
+| Preset | Body | Setting `notation` |
+|---|---|---|
+| Neumes, one staff per voice | `syllable` / `neume` / `nc`, `notationtype="neume"`, schema `mei-Neumes.rng` | `neume` |
+| Premensural, one staff per voice | `ligature` of `note`s for a neume of several notes, `note` for one note, `verse/syl` for the text, `notationtype="premensural"`, schema `mei-Mensural.rng`; `lig="conjunctura"` is not derived, it is set by hand on the note (editor, MEI attributes tab) | `premensural` |
+
+Profile settings added for them (all optional; a missing value keeps the earlier output): `notation`, `voiceText` (`first` or `last`), `voiceLink` (`corresp` or `sameas`), `voiceLabels`, `voiceBracket`, `firstLineBreak`, `wordPosition`.
+
+Checked with `mei-presets.spec.ts`: one Monodi document (five syllables, two voices) written with each preset equals the two trial files of a colleague (`mei-trial-files.ts`) in all staves, apart from the differences listed in the spec. The neume output validates against `mei-Neumes.rng` 5.0 except `nc/@name` (the trial file uses it too; the schema does not allow it on `nc`). The premensural output is not validated against `mei-Mensural.rng` (open, state 2026-11-05). `lig` and `name` (`virga`, `punctum`) are attributes set by hand on the notes; the spec sets them in the test document.
+
+## Import of MEI files (state 2026-11-05)
+
+The reverse direction is `mei-import.ts` (`importMei`). It is offered on the page of a source: *Import MEI* → choose the file, the format (*Detect from the file*, *Neumes* or *Premensural*) and a document ID; the dialog shows what was found and the warnings before the document is created.
+
+- **Neumes**: `syllable` with `syl` and `neume` of `nc`. **Premensural**: a `ligature` of `note`s or a single `note`; a syllable starts at the element that has a `verse` with a `syl`, elements without one continue it.
+- **Voices**: the staves of a section with increasing `@n` are the voices of one line; the first is the first voice, the others are `additionalMelodies`. Alignment follows `neume/@synch`, `syl/@sameas` and `syllable/@corresp` where the file has them, otherwise the position. The text is taken from whichever voice has it (`syl/@sameas` resolves to the `syl` it names).
+- **Attributes without a field in Monodi** (`name`, `lig`, ...) become hand-set MEI attributes of the notes (`meiAttrs`), on a `ligature` or `neume` of the neume's first note (`meiNeumeAttrs`); the export writes them again.
+- **Not read**: a second `layer` of a staff, elements other than syllable, neume, ligature, note, ligature notes without pitch (for example the empty `<note/>` in the premensural trial file; reported as a warning).
+- Checked with `mei-import.spec.ts`: both trial files, and a round trip (import, export with the preset, import) for both presets.
+
 ## Why these forms
 
 - **Syllable types.** MEI neume notation has no element for the type of a syllable and its guidelines say nothing about omitted material (state 2026-11-02, MEI 5.0 and 5.1). `supplied` is allowed around a syllable in both the neume customization (`mei-Neumes.rng`) and the full schema (`mei-all.rng`); `gap` marks a transcription gap and fits a source ellipsis less well. Decision for the edition's editors: whether a source ellipsis is better written as `gap` (open question 1; the form can be changed per type in the profile).

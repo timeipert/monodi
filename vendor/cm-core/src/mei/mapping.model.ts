@@ -160,8 +160,29 @@ export interface MeiMappingProfileV2 {
   staff?: MeiStaffSettings;
   /** A change of manuscript line inside a Monodi line becomes `<sb type="manuscriptLine"/>` in the layer (conformant structure); default on. */
   lineBreaks?: boolean;
-  /** The additional melodies of a syllable become `<layer n="2">` and so on, aligned by `@corresp` (conformant structure); default on. */
+  /** The additional melodies of a syllable become one `<staff n="2">` and so on per voice, aligned by `@corresp` or `@sameas` and `@synch` (conformant structure); default on. */
   voices?: boolean;
+  /**
+   * Notation of the body. `neume` (default): `syllable`, `neume`, `nc`. `premensural`: no syllable; a neume of several notes is a
+   * `ligature` of `note`s, a neume of one note is a `note`, the text is a `verse` with a `syl` in the first of them, the staff has
+   * `notationtype="premensural"` and the file names the MEI Mensural schema. Not yet valid against that schema (state 2026-11-05).
+   */
+  notation?: 'neume' | 'premensural';
+  /** Which voice of a syllable with several voices carries the text: the `first` (default) or the `last` voice that has notes. */
+  voiceText?: 'first' | 'last';
+  /**
+   * How the other voices refer to the text: `corresp` (default): `syllable/@corresp` to the syllable of the text voice and no `syl`;
+   * `sameas`: a `syl/@sameas` to the `syl` of the text voice (that `syl` gets an `xml:id`).
+   */
+  voiceLink?: 'corresp' | 'sameas';
+  /** Names of the voices, in staff order, written as `<label>` of the `staffDef` (for example `triplum`, `duplum`). */
+  voiceLabels?: string[];
+  /** The staves of several voices are grouped with a bracket (`staffGrp/@symbol="bracket"`); default off. */
+  voiceBracket?: boolean;
+  /** Write an `<sb/>` before the first staff of a section; default on. Off: only the lines after the first start with one. */
+  firstLineBreak?: boolean;
+  /** Write `@wordpos` and `@con` on the `syl` (conformant structure); default on. */
+  wordPosition?: boolean;
   /** Notes of a line of adiastematic notation: `contour` writes `@intm` (u, d or s) and no pitch, `pitch` writes the stored pitches; default `contour`. */
   adiastematic?: 'contour' | 'pitch';
   /**
@@ -537,6 +558,53 @@ export function upgradeMeiProfile(profile: MeiMappingProfileV2): MeiMappingProfi
   if (e.formteil && e.formteil.attributes.length === 0) e.formteil.attributes = FORMTEIL_ATTRIBUTES.map(a => ({ ...a }));
   return profile;
 }
+
+/** A named starting point for a profile (the editor offers them under *New profile from preset*). */
+export interface MeiProfilePreset {
+  id: string;
+  name: string;
+  description: string;
+  build: () => MeiMappingProfileV2;
+}
+
+/** Settings shared by the presets of several voices as staves (state 2026-11-05): text in the last voice, `sameas`, bracket, no first `sb`, no word position. */
+function staffPerVoice(profile: MeiMappingProfileV2): MeiMappingProfileV2 {
+  profile.schemaConformant = true;
+  profile.voices = true;
+  profile.voiceText = 'last';
+  profile.voiceLink = 'sameas';
+  profile.voiceBracket = true;
+  profile.voiceLabels = [];
+  profile.firstLineBreak = false;
+  profile.wordPosition = false;
+  return profile;
+}
+
+export const MEI_PRESETS: MeiProfilePreset[] = [
+  {
+    id: 'neumes-staves',
+    name: 'Neumes, one staff per voice',
+    description: 'syllable / neume / nc. The text stands in the last voice, the other voices point to it with syl/@sameas; neumes that align are tied with @synch. Checked against the MEI 5.0 neumes schema.',
+    build: () => {
+      const p = staffPerVoice(defaultMeiProfile());
+      p.name = 'Neumes, one staff per voice';
+      return p;
+    }
+  },
+  {
+    id: 'premensural-staves',
+    name: 'Premensural, one staff per voice',
+    description: 'ligature / note / verse instead of syllable / neume / nc, notationtype="premensural" (attributes such as lig="conjunctura" are set by hand on the notes). Not yet valid against the MEI Mensural schema.',
+    build: () => {
+      const p = staffPerVoice(defaultMeiProfile());
+      p.name = 'Premensural, one staff per voice';
+      p.notation = 'premensural';
+      p.entities.neume.tag = 'ligature';
+      p.entities.note.tag = 'note';
+      return p;
+    }
+  }
+];
 
 export function migrateV1MeiMappings(v1: any): MeiMappingProfileV2 {
   return {

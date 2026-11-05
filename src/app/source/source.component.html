@@ -261,6 +261,10 @@
                     title="Create a new document from a Volpiano string">
                     <i class="bi bi-music-note-beamed me-1"></i> Import Volpiano
                   </button>
+                  <button class="btn btn-outline-secondary btn-sm" (click)="openMeiImport()"
+                    title="Create a new document from an MEI file (neume or premensural notation)">
+                    <i class="bi bi-filetype-xml me-1"></i> Import MEI
+                  </button>
                   <button class="btn btn-outline-secondary btn-sm" (click)="printManuscript()" [disabled]="!documents.length"
                     title="Print all documents of this manuscript as one PDF (contents table, collected apparatus)">
                     <i class="bi bi-file-pdf me-1"></i> Print manuscript
@@ -289,6 +293,7 @@
                 <div class="d-flex justify-content-center gap-2 flex-wrap">
                   <button class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]"><i class="bi bi-plus-lg me-1"></i>New document</button>
                   <button class="btn btn-outline-secondary btn-sm" (click)="openVolpianoImport()"><i class="bi bi-music-note-beamed me-1"></i>Import Volpiano</button>
+                  <button class="btn btn-outline-secondary btn-sm" (click)="openMeiImport()"><i class="bi bi-filetype-xml me-1"></i>Import MEI</button>
                 </div>
               </div>
             } @else {
@@ -359,6 +364,57 @@
     </div>
     }<!-- /source layout -->
   </div>
+
+  <!-- MEI import modal -->
+  <ng-template #meiImport let-modal>
+    <div class="modal-header">
+      <h4 class="modal-title">Import MEI</h4>
+      <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click');"></button>
+    </div>
+    <div class="modal-body">
+      <p class="text-muted small">
+        Choose an MEI file (MEI is the XML format of the Music Encoding Initiative). A new document is created under this source.
+        The staves of a section are read as the voices of one line. Attributes that Monodi has no field for (for example
+        <code>name</code> or <code>lig</code>) are kept as MEI attributes of the notes.
+      </p>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="meiImportFile">File</label>
+        <input id="meiImportFile" type="file" class="form-control form-control-sm" accept=".mei,.xml,application/xml,text/xml" (change)="onMeiFilePicked($event)">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="meiImportFormat">Format</label>
+        <select id="meiImportFormat" class="form-select form-select-sm w-auto" [(ngModel)]="meiImportFormat" (ngModelChange)="previewMeiImport()">
+          <option value="auto">Detect from the file</option>
+          <option value="neume">Neumes: syllable / neume / nc</option>
+          <option value="premensural">Premensural: ligature / note / verse</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="meiImportDocId">Document ID <span class="text-muted">(optional)</span></label>
+        <input id="meiImportDocId" class="form-control form-control-sm" [(ngModel)]="meiImportDocId" placeholder="e.g. A-KN1012_001r_01">
+      </div>
+      @if (meiImportError) {
+        <div class="alert alert-danger py-2 small">{{ meiImportError }}</div>
+      }
+      @if (meiImportResult; as r) {
+        <div class="alert alert-info py-2 small">
+          Read as <strong>{{ r.format === 'neume' ? 'neume' : 'premensural' }}</strong> notation:
+          {{ meiImportSyllableCount }} syllables in {{ meiImportLineCount }} line(s) and {{ meiImportVoiceCount }} voice(s).
+        </div>
+        @if (r.warnings.length > 0) {
+          <div class="alert alert-warning py-2 small">
+            <ul class="mb-0">
+              @for (w of r.warnings; track w) { <li>{{ w }}</li> }
+            </ul>
+          </div>
+        }
+      }
+      <div class="text-end">
+        <button class="btn btn-secondary btn-sm me-2" (click)="modal.dismiss()">Cancel</button>
+        <button class="btn btn-primary btn-sm" (click)="doMeiImport()" [disabled]="!meiImportResult">Create Document</button>
+      </div>
+    </div>
+  </ng-template>
 
   <!-- Volpiano import modal -->
   <ng-template #volpianoImport let-modal>

@@ -18,6 +18,9 @@
         <div class="mei-backdrop" (click)="manageOpen = false"></div>
         <ul class="dropdown-menu dropdown-menu-end show" style="right: 0;" (click)="manageOpen = false">
           <li><button class="dropdown-item" (click)="onNewProfile()"><i class="bi bi-plus-lg me-2"></i>New profile</button></li>
+          @for (preset of presets; track preset.id) {
+            <li><button class="dropdown-item" (click)="onNewProfileFromPreset(preset.id)" [title]="preset.description"><i class="bi bi-magic me-2"></i>New from preset: {{ preset.name }}</button></li>
+          }
           <li><button class="dropdown-item" (click)="onDuplicateProfile()" [disabled]="!activeProfile"><i class="bi bi-files me-2"></i>Duplicate</button></li>
           <li><button class="dropdown-item" (click)="onRenameProfile()" [disabled]="!activeProfile"><i class="bi bi-pencil me-2"></i>Rename</button></li>
           <li><hr class="dropdown-divider"></li>
@@ -149,7 +152,57 @@
                     <input class="form-check-input" type="checkbox" id="voicesCheck" [ngModel]="activeProfile.voices !== false" (ngModelChange)="activeProfile.voices = $event ? undefined : false; emitChange()">
                     <label class="form-check-label fw-medium" for="voicesCheck">Additional melodies as further staves</label>
                   </div>
-                  <small class="text-muted d-block mt-1">The second voice and further ones of a syllable become <code>&lt;layer n="2"&gt;</code> and so on of the same staff; their syllables point to the first voice with <code>&#64;corresp</code>.</small>
+                  <small class="text-muted d-block mt-1">The second voice and further ones of a syllable become <code>&lt;staff n="2"&gt;</code> and so on (one staff per voice, each with a <code>&lt;layer&gt;</code> and a <code>&lt;staffDef&gt;</code>). Neumes that align carry <code>&#64;synch</code> to the neume of the first voice.</small>
+                </div>
+                @if (activeProfile.voices !== false) {
+                  <div class="mb-4">
+                    <label class="form-label fw-medium">Voices</label>
+                    <div class="row g-2 align-items-center mb-2">
+                      <div class="col-12 col-md-3 small"><label for="voiceTextSelect">Text stands in</label></div>
+                      <div class="col-12 col-md-4">
+                        <select id="voiceTextSelect" class="form-select form-select-sm" [ngModel]="activeProfile.voiceText ?? 'first'" (ngModelChange)="activeProfile.voiceText = $event === 'first' ? undefined : $event; emitChange()">
+                          <option value="first">the first voice</option>
+                          <option value="last">the last voice</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-center mb-2">
+                      <div class="col-12 col-md-3 small"><label for="voiceLinkSelect">Other voices refer to it by</label></div>
+                      <div class="col-12 col-md-4">
+                        <select id="voiceLinkSelect" class="form-select form-select-sm" [ngModel]="activeProfile.voiceLink ?? 'corresp'" (ngModelChange)="activeProfile.voiceLink = $event === 'corresp' ? undefined : $event; emitChange()">
+                          <option value="corresp">syllable/&#64;corresp (no syl)</option>
+                          <option value="sameas">syl/&#64;sameas</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-center mb-2">
+                      <div class="col-12 col-md-3 small"><label for="voiceLabels">Names of the voices</label></div>
+                      <div class="col-12 col-md-6"><input id="voiceLabels" class="form-control form-control-sm" placeholder="one name per voice, separated by ; (for example triplum; duplum)" [ngModel]="(activeProfile.voiceLabels ?? []).join('; ')" (ngModelChange)="setVoiceLabels($event)"></div>
+                    </div>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="voiceBracketCheck" [ngModel]="!!activeProfile.voiceBracket" (ngModelChange)="activeProfile.voiceBracket = $event ? true : undefined; emitChange()">
+                      <label class="form-check-label" for="voiceBracketCheck">Bracket around the staves of the voices</label>
+                    </div>
+                    <small class="text-muted d-block mt-1">The names become <code>&lt;label&gt;</code> of the <code>&lt;staffDef&gt;</code>. With <code>syl/&#64;sameas</code> the <code>syl</code> of the text voice gets an ID.</small>
+                  </div>
+                }
+                <div class="mb-4">
+                  <label class="form-label fw-medium" for="notationSelect">Notation</label>
+                  <select id="notationSelect" class="form-select form-select-sm w-auto" [ngModel]="activeProfile.notation ?? 'neume'" (ngModelChange)="onNotationChange($event)">
+                    <option value="neume">Neumes: syllable / neume / nc</option>
+                    <option value="premensural">Premensural: ligature / note / verse</option>
+                  </select>
+                  <small class="text-muted d-block mt-1">Premensural: a neume of several notes is a <code>&lt;ligature&gt;</code> of notes, a neume of one note is a <code>&lt;note&gt;</code>; the text is a <code>&lt;verse&gt;</code> in the first of them; the staves get <code>notationtype="premensural"</code> and the file names the MEI Mensural schema, which it does not yet satisfy (state 2026-11-05). Changing this setting also sets the names of the elements for neume and note.</small>
+                </div>
+                <div class="mb-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="firstLineBreakCheck" [ngModel]="activeProfile.firstLineBreak !== false" (ngModelChange)="activeProfile.firstLineBreak = $event ? undefined : false; emitChange()">
+                    <label class="form-check-label fw-medium" for="firstLineBreakCheck">&lt;sb&gt; before the first staff of a section</label>
+                  </div>
+                  <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" id="wordPositionCheck" [ngModel]="activeProfile.wordPosition !== false" (ngModelChange)="activeProfile.wordPosition = $event ? undefined : false; emitChange()">
+                    <label class="form-check-label fw-medium" for="wordPositionCheck">Word position of syllables (<code>&#64;wordpos</code>, <code>&#64;con</code>)</label>
+                  </div>
                 </div>
                 <div class="mb-4">
                   <label class="form-label fw-medium" for="adiaSelect">Lines of adiastematic notation (no staff)</label>
