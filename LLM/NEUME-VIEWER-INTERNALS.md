@@ -13,7 +13,7 @@ checked on that date.
 * App: the Neume Viewer, published at **https://neume.monodi.app**. Folder in this monorepo: `apps/transcription-equivalents`
   (before 2026-10-28 the standalone repository `cm-transkriptionseq`; its mirror repository on GitHub is
   `timeipert/CM-Transcription-Equivalents`). Everything of interest is in `ui/`.
-* Other documents in that folder: `README.md` (what it does), `ARCHITECTURE.md` (how it is built), `DATA.md` (how its data
+* Other documents in that folder: `README.md` (what it does), `documentation/ARCHITECTURE.md` (how it is built), `documentation/DATA.md` (how its data
   is built). Paths below such as `services/...`, `stores/...` and `utils/...` are relative to `apps/transcription-equivalents/ui/src/`;
   `scripts/...` and `ui/...` are relative to `apps/transcription-equivalents/`.
 * Stack: Vue 3 + Pinia (state stores) + Vite (build tool), plain JavaScript (JSDoc types), no server. Like
@@ -292,7 +292,7 @@ Routes (all lazy): `/` overview, `/equivalents`, `/annotations/:id?`, `/polygons
 * **Adding a setting**: one line in `PERSISTED_SETTINGS`; it is then saved, exported,
   imported and migrated. **Changing a stored shape**: bump `SCHEMA_VERSION` in
   `workspaceSchema.js`, add an upgrade step (non-mutating) and a fixture test.
-  (`ARCHITECTURE.md` has the full checklist.)
+  (`apps/transcription-equivalents/documentation/ARCHITECTURE.md` has the full checklist.)
 * **The pipeline**: every input format has an adapter (`services/pipeline/adapters/`) that
   produces a `NormalizedDataset` (`normalizedModel.js`): sources with metadata, IIIF URL,
   equivalents, regions, items, documents. `toWorkspaceState()` projects it onto the stores.
@@ -318,7 +318,7 @@ npm run build        # writes ../docs (gitignored) and verifies nothing from pub
 * The static data (`ui/public/index.json`, `sources/`) comes from
   `python scripts/analyze_transcriptions.py` over a corpus export. An earlier version of this
   document said these files are committed; state 2026-11-05: they are not in git (`.gitignore`) and are
-  built by `scripts/refresh_data.py`, see `DATA.md` in the same folder.
+  built by `scripts/refresh_data.py`, see `documentation/DATA.md` in the same folder.
 
 ### Working agreements
 

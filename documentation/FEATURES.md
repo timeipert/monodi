@@ -2,7 +2,7 @@
 
 **What this is for.** The full description of Monodi-Zero (the app in `apps/monodi`, published at https://monodi.app; before
 2026-10-28 the standalone repository `monodi-light`): what users can do with it, how their data is stored, and how
-developers build and package it. The short overview is [README.md](README.md). **Who it is for.** Users (musicologists
+developers build and package it. The short overview is [README.md](../README.md). **Who it is for.** Users (musicologists
 who transcribe and analyse chant) and developers. **Where to start.** Users: "What users can do with it", then "Getting
 started"; developers: "For developers". **State.** 2026-11-02 for the feature list; the developer section carries its own
 dated notes (state 2026-11-05).
@@ -111,7 +111,7 @@ npm run dist:electron    # full installers (dmg / nsis / AppImage) via electron-
 
 Continuous integration builds and tests every push (in the monorepo: `.github/workflows/ci.yml` at the repository root). The desktop-release workflow (`electron.yml` in the former standalone repository) must run its build job on **Node 22**. Release conventions, versioning, and the data-migration policy were documented in `RELEASING.md` of the former standalone repository. State 2026-11-05: neither `RELEASING.md` nor an Electron workflow file was found in the monorepo.
 
-Issues and contributions go to the GitHub repository [timeipert/monodi](https://github.com/timeipert/monodi) (formerly `timeipert/mz`, which GitHub redirects there; code changes are made in the monorepo `monodi-platform`, folder `apps/monodi`, see [CLAUDE.md](CLAUDE.md)).
+Issues and contributions go to the GitHub repository [timeipert/monodi](https://github.com/timeipert/monodi) (formerly `timeipert/mz`, which GitHub redirects there; code changes are made in the monorepo `monodi-platform`, folder `apps/monodi`, see [CLAUDE.md](../CLAUDE.md)).
 
 ---
 

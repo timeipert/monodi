@@ -51,7 +51,7 @@ around one neume inside a region.
 | **Neumen-Editor** | `cm-neumen-editor`; `apps/neume-docs` since 2026-10-28 | unpublished (state 2026-10-04) successor of the Viewer; the intended annotation tool. Starts empty, loads a corpus from files, local-first, nothing leaves the browser | **none** (file import only, one way) |
 | Neume Viewer | `cm-transkriptionseq`; `apps/transcription-equivalents` since 2026-10-28 | published predecessor (`neume.monodi.app`) | a GitHub bridge (state 2026-10-04: uncommitted) — **source to port from**, then retire |
 
-[NEUME-VIEWER-INTERNALS.md](NEUME-VIEWER-INTERNALS.md) describes the Neume Viewer (the predecessor of the Editor). Its field
+[NEUME-VIEWER-INTERNALS.md](../LLM/NEUME-VIEWER-INTERNALS.md) describes the Neume Viewer (the predecessor of the Editor). Its field
 model and bridge are the starting point. State 2026-11-05: no equivalent document for the Editor exists in `apps/neume-docs`.
 
 ---
@@ -253,10 +253,10 @@ stored in its own additive field. Not on the critical path.
 Phase 0 and the Editor and Monodi sides of Phases 1 and 2, as written on 2026-10-04.
 
 **Phase 0, Monodi side — done (state 2026-10-04: uncommitted; 19 specs green):** `AnnotationRegion` has `canvasId?` /
-`folioLabel?` ([model.ts](src/app/types/model.ts)); the pure resolver
-[region-page.ts](src/app/notationsdokumentation/region-page.ts) places a region by
+`folioLabel?` ([model.ts](../src/app/types/model.ts)); the pure resolver
+[region-page.ts](../src/app/notationsdokumentation/region-page.ts) places a region by
 `canvasId → folioLabel → legacy folio` (so `"113r"` is not read as canvas 113), with
-[a spec](src/app/notationsdokumentation/region-page.spec.ts); the frozen annotate tab uses it
+[a spec](../src/app/notationsdokumentation/region-page.spec.ts); the frozen annotate tab uses it
 for lookups, stamps regions it creates, and backfills `canvasId` on older regions (never
 rewriting `folio`/`folioLabel`). Open (state 2026-10-04): `imageId` matching. The gallery view and the
 unused line popup used `parseInt(folio)` on 2026-10-04; they are rebuilt in Phase 2.

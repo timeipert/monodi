@@ -12,7 +12,7 @@
  * annotationItems`). Pure functions on plain data: the caller reads the file,
  * shows the plan, and saves what the plan says.
  *
- * Merge rules (INTEGRATION-PLAN.md §4.2):
+ * Merge rules (documentation/INTEGRATION-PLAN.md §4.2):
  *  - by id: regions and snippets are matched by `id`, equivalents by `pattern`;
  *  - the editor owns geometry, names, patterns, variants and Ref-IDs: where both
  *    sides have a record, the file's values win;

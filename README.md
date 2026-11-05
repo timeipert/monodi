@@ -6,7 +6,7 @@
 
 **The browser owns the storage: clearing its site data deletes the workspace, so make regular backups.**
 
-- **Using it:** open the app and read *Manual* in its navigation bar. All features: [FEATURES.md](FEATURES.md).
+- **Using it:** open the app and read *Manual* in its navigation bar. All features: [FEATURES.md](documentation/FEATURES.md).
 - **Developing it:** Angular, no backend. Rules for changes: [CLAUDE.md](CLAUDE.md).
 
 ```bash
@@ -15,20 +15,20 @@ npx ng serve           # development server at http://localhost:4200
 npx ng test --watch=false --browsers=ChromeHeadless
 ```
 
-Desktop packaging (Electron) and related projects: [FEATURES.md](FEATURES.md).
+Desktop packaging (Electron) and related projects: [FEATURES.md](documentation/FEATURES.md).
 
 ## Documentation
 
-Markdown documents in this folder (`apps/monodi`):
+Markdown documents of `apps/monodi`. `README.md` and `CLAUDE.md` stay in the app folder because tools look for them there; the other documents are in `documentation/` (for people) and `LLM/` (for agents and developers who work on the bridge to the Neume Viewer).
 
 | Document | What it is for |
 |---|---|
-| [FEATURES.md](FEATURES.md) | Full description of all features for users and developers; Electron packaging and related projects. |
+| [FEATURES.md](documentation/FEATURES.md) | Full description of all features for users and developers; Electron packaging and related projects. |
 | [CLAUDE.md](CLAUDE.md) | Rules for changes (shared code, headless exports, deployment of monodi.app) and the project-wide writing rules. |
-| [CHANT-SVG.md](CHANT-SVG.md) | How the headless SVG export draws a chant like the PDF export (`scripts/export-svg-batch.mjs`). |
-| [GITHUB-LOGIN.md](GITHUB-LOGIN.md) | How "Sign in with GitHub" works (GitHub App, PKCE, proxy) and how it is configured. |
-| [INTEGRATION-PLAN.md](INTEGRATION-PLAN.md) | Plan for the file exchange between Monodi-Zero and the Neume Viewer (annotation exchange). |
-| [NEUME-VIEWER-INTERNALS.md](NEUME-VIEWER-INTERNALS.md) | Description of the Neume Viewer (the sibling app) as seen from Monodi-Zero: what it reads and writes. |
+| [CHANT-SVG.md](documentation/CHANT-SVG.md) | How the headless SVG export draws a chant like the PDF export (`scripts/export-svg-batch.mjs`). |
+| [GITHUB-LOGIN.md](documentation/GITHUB-LOGIN.md) | How "Sign in with GitHub" works (GitHub App, PKCE, proxy) and how it is configured. |
+| [INTEGRATION-PLAN.md](documentation/INTEGRATION-PLAN.md) | Plan for the file exchange between Monodi-Zero and the Neume Viewer (annotation exchange). |
+| [NEUME-VIEWER-INTERNALS.md](LLM/NEUME-VIEWER-INTERNALS.md) | Description of the Neume Viewer (the sibling app) as seen from Monodi-Zero: what it reads and writes. |
 
 Files that were taken out of the app because they were unused or broken are in `archive/monodi/` at the root of the
 monorepo (list: `archive/monodi/README.md`).

@@ -12,7 +12,7 @@
  *   4. `folio`       legacy: a canvas index if it is all digits, else a label
  *
  * Pure functions on plain data, so the same rules can be tested in isolation.
- * See INTEGRATION-PLAN.md §4.1.
+ * See documentation/INTEGRATION-PLAN.md §4.1.
  */
 
 import * as VM from '../types/model';

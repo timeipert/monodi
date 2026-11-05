@@ -7,7 +7,7 @@
  *
  * GitHub still wants the client secret at the token exchange and the token
  * endpoint is not CORS-enabled, so the exchange and the refresh go through a
- * tiny proxy (see GITHUB-LOGIN.md). The browser never sees the secret.
+ * tiny proxy (see documentation/GITHUB-LOGIN.md). The browser never sees the secret.
  */
 
 export interface PkcePair {
