@@ -76,8 +76,8 @@ describe('MEI annotations', () => {
       rule({ id: '1', target: 'syllable', match: { syllableText: '^glo' }, set: { type: 'first' } }),
       rule({ id: '2', target: 'neume', match: { syllableText: 'ri' }, set: { rellen: 'below' } })
     ]);
-    expect(Array.from(doc.querySelectorAll('layer[n="1"] > syllable')).map(s => s.getAttribute('type'))).toEqual(['first', null]);
-    expect(Array.from(doc.querySelectorAll('layer[n="1"] neume')).map(s => s.getAttribute('rellen'))).toEqual([null, 'below']);
+    expect(Array.from(doc.querySelectorAll('staff[n="1"] > layer[n="1"] > syllable')).map(s => s.getAttribute('type'))).toEqual(['first', null]);
+    expect(Array.from(doc.querySelectorAll('staff[n="1"] > layer[n="1"] neume')).map(s => s.getAttribute('rellen'))).toEqual([null, 'below']);
   });
 
   it('matches on pitch, note type and flag, and fills {pname}, {oct}, {syllable} and {index}', () => {

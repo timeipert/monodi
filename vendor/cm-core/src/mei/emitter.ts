@@ -121,6 +121,10 @@ let activeProfile: MeiMappingProfileV2 | undefined;
 let contourLine = false;
 /** Pitch (octave * 7 + step) of the previous note of the line, for `@intm` of a contour line. */
 let previousPitch: number | null = null;
+/** The `<neume>` element written for each unit of a syllable's melody (null for a unit that produced no neume), keyed by the syllable object that was walked. */
+let neumesOfSyllable = new WeakMap<object, (Element | null)[]>();
+/** Number of staves the score declares: one per voice, i.e. the highest voice number that has notes in any line of the document (at least 1). */
+let staffCount = 1;
 
 /** Optional data for the header levels above the baseline. */
 export interface EmitMeiOptions {
@@ -137,8 +141,10 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   conformant = profile.schemaConformant !== false;
   contourLine = false;
   previousPitch = null;
+  staffCount = profile.voices !== false ? Math.max(1, countVoices(root)) : 1;
   accidAsElement = profile.accidentals !== 'note';
   pageBreakIds = new Set<string>();
+  neumesOfSyllable = new WeakMap<object, (Element | null)[]>();
   wordOpen = false;
   idPrefix = 'm-';
   annotations = buildAnnotationIndex(root, profile.annotationRules, activeSiglum);
@@ -346,15 +352,18 @@ function makeScoreDef(doc: Document, profile: MeiMappingProfileV2): Element {
   if (conformant) {
     const staff = profile.staff ?? DEFAULT_STAFF;
     const staffGrp = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staffGrp');
-    const staffDef = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staffDef');
-    staffDef.setAttribute('n', '1');
-    // Without @notationtype="neume" Verovio (and MEI-Friend, which is built on it) reads the neumes as common music notation: it warns
-    // "Parent note for <syl> was not found" for every syllable and draws the staff wrongly (checked 2026-11-03 with Verovio 6.4).
-    staffDef.setAttribute('notationtype', 'neume');
-    staffDef.setAttribute('lines', String(staff.lines));
-    if (staff.clefShape) staffDef.setAttribute('clef.shape', staff.clefShape);
-    if (staff.clefShape && staff.clefLine) staffDef.setAttribute('clef.line', String(staff.clefLine));
-    staffGrp.appendChild(staffDef);
+    // One staffDef per voice (staff n = voice number); every voice staff has the lines and clef of the score.
+    for (let n = 1; n <= staffCount; n++) {
+      const staffDef = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staffDef');
+      staffDef.setAttribute('n', String(n));
+      // Without @notationtype="neume" Verovio (and MEI-Friend, which is built on it) reads the neumes as common music notation: it warns
+      // "Parent note for <syl> was not found" for every syllable and draws the staff wrongly (checked 2026-11-03 with Verovio 6.4).
+      staffDef.setAttribute('notationtype', 'neume');
+      staffDef.setAttribute('lines', String(staff.lines));
+      if (staff.clefShape) staffDef.setAttribute('clef.shape', staff.clefShape);
+      if (staff.clefShape && staff.clefLine) staffDef.setAttribute('clef.line', String(staff.clefLine));
+      staffGrp.appendChild(staffDef);
+    }
     scoreDef.appendChild(staffGrp);
   }
   return scoreDef;
@@ -367,6 +376,8 @@ function makeScoreDef(doc: Document, profile: MeiMappingProfileV2): Element {
  *
  * 1. Verovio lays out all `staff` children of ONE section as one system, on top of each other. A form part with several lines then
  *    shows its lines over each other (the texts overlap). A line after the first gets a section of its own, together with its `sb`.
+ *    The staves of the further voices of a line (`n` 2 and above) stay in the section of the line: laid out on top of each other, they
+ *    are the voices in score.
  * 2. An `annot` that is a direct child of a section (paratext, Verweis, initium) crashes Verovio 6.4. It moves to the start of the layer of
  *    the next line of the same `mdiv`, or to the end of the layer of the previous line; a chant without any line gets a staff for it.
  *    The comments of the header (`notesStmt`) are not touched.
@@ -375,8 +386,15 @@ function makeVerovioSafe(mei: Element, doc: Document): void {
   const NS = 'http://www.music-encoding.org/ns/mei';
   for (const section of Array.from(mei.getElementsByTagNameNS(NS, 'section'))) {
     let seenStaff = false;
+    // The section that receives the staves of the line being processed: the section itself for the first line, a holder for a later one.
+    let current: Element = section;
     for (const child of Array.from(section.children)) {
       if (child.localName !== 'staff') continue;
+      if (seenStaff && child.getAttribute('n') !== '1') {
+        // Staff of a further voice: stays with the staff of voice 1 of its line, so the voices are laid out on top of each other.
+        if (current !== section) current.appendChild(child);
+        continue;
+      }
       if (seenStaff) {
         const before = child.previousElementSibling;
         const anchor = before && before.localName === 'sb' ? before : child;
@@ -386,6 +404,7 @@ function makeVerovioSafe(mei: Element, doc: Document): void {
         section.insertBefore(holder, anchor);
         holder.appendChild(anchor);
         if (anchor !== child) holder.appendChild(child);
+        current = holder;
       }
       seenStaff = true;
     }
@@ -537,6 +556,7 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
     // Inside a layer (commentary lines) the caller has made staff and layer: no line break, no wrappers.
     // Elsewhere a line is a <staff><layer> of its own, announced by a line break in the section (an <sb> in a layer is invalid).
     let layer = parentElement;
+    let firstStaff: Element | null = null;
     if (parentElement.localName !== 'layer') {
       const sbElement = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
       sbElement.setAttribute('xml:id', idPrefix + zeile.uuid);
@@ -549,12 +569,13 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
       staff.appendChild(layer);
       parentElement.appendChild(staff);
       if (contourLine) staff.setAttribute('type', 'adiastematic');
+      firstStaff = staff;
     }
     for (const part of zeile.children ?? []) {
       walkLinePart(part, layer, doc, profile);
     }
-    if (profile.voices !== false && layer.parentElement && layer.parentElement.localName === 'staff' && parentElement.localName !== 'layer') {
-      walkAdditionalVoices(zeile, layer.parentElement, doc, profile);
+    if (profile.voices !== false && firstStaff) {
+      walkAdditionalVoices(zeile, firstStaff, doc, profile);
     }
     return;
   }
@@ -577,30 +598,83 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
   }
 }
 
+/** Number of voices of a line: 1 plus the highest additional melody that has notes (0 if the line has no additional melody). */
+function lineVoiceCount(zeile: ZeileContainer): number {
+  let count = 0;
+  for (const part of (zeile.children ?? []) as any[]) {
+    if (part.kind !== LinePartKind.Syllable) continue;
+    (part.additionalMelodies ?? []).forEach((melody: Spaced, i: number) => {
+      if (melody && allNotes(melody).length > 0) count = Math.max(count, i + 1);
+    });
+  }
+  return count + (count > 0 ? 1 : 0);
+}
+
+/** Highest number of voices of any line of the document (0 if no line has a second voice). */
+function countVoices(container: any): number {
+  let max = 0;
+  for (const child of container?.children ?? []) {
+    if (child.kind === ContainerKind.ZeileContainer) max = Math.max(max, lineVoiceCount(child));
+    else if (child.children) max = Math.max(max, countVoices(child));
+  }
+  return max;
+}
+
 /**
- * The additional melodies of the syllables of a line (second voice and so on) are written as `<layer n="2">` and so on of the same staff.
- * A syllable of such a layer has no text (the layer 1 syllable holds it), points to that syllable with `@corresp`, and has ids of its own.
+ * The additional melodies of the syllables of a line (second voice and so on) are written as one `<staff>` per voice in the same
+ * section: `<staff n="2"><layer n="1">` and so on, after the staff of voice 1. A staff has its own `staffDef` in the score definition.
+ * A syllable of such a staff has no text (the syllable of voice 1 holds it), points to that syllable with `@corresp`, and has ids of its
+ * own. Its neumes and neume components (`nc`) are written like those of voice 1. A neume of voice 2 and above that aligns to a neume of
+ * voice 1 (the same unit of the same syllable) has `@synch` that points to it; the neume of voice 1 gets an `xml:id` as the target.
  */
-function walkAdditionalVoices(zeile: ZeileContainer, staff: Element, doc: Document, profile: MeiMappingProfileV2) {
+function walkAdditionalVoices(zeile: ZeileContainer, firstStaff: Element, doc: Document, profile: MeiMappingProfileV2) {
+  const section = firstStaff.parentElement;
+  if (!section) return;
   const parts = (zeile.children ?? []) as any[];
   const voiceCount = Math.max(0, ...parts.map(p => (p.kind === LinePartKind.Syllable ? (p.additionalMelodies ?? []).length : 0)));
   const savedPrefix = idPrefix;
   const savedContour = contourLine;
+  let insertAfter: Element = firstStaff;
+  // Neumes of the same unit (same position in the syllable's melody) of all voices, per syllable; voice 1 is first in each group.
+  const aligned = new Map<any, Map<number, { element: Element; idBase: string }[]>>();
+  const addAligned = (part: any, key: object, idBase: string) => {
+    const units = neumesOfSyllable.get(key) ?? [];
+    const byUnit = aligned.get(part) ?? new Map<number, { element: Element; idBase: string }[]>();
+    units.forEach((element, i) => {
+      if (!element) return;
+      byUnit.set(i, [...(byUnit.get(i) ?? []), { element, idBase: `${idBase}-neume${i + 1}` }]);
+    });
+    aligned.set(part, byUnit);
+  };
+  for (const part of parts) if (part.kind === LinePartKind.Syllable) addAligned(part, part, savedPrefix + part.uuid);
   for (let v = 1; v <= voiceCount; v++) {
     const layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
-    layer.setAttribute('n', String(v + 1));
+    layer.setAttribute('n', '1');
     idPrefix = `${savedPrefix}v${v + 1}-`;
     previousPitch = null;
     for (const part of parts) {
       const melody: Spaced | undefined = part.kind === LinePartKind.Syllable ? part.additionalMelodies?.[v - 1] : undefined;
       if (!melody || allNotes(melody).length === 0) continue;
       const before = layer.children.length;
-      walkLinePart({ ...part, text: '', notes: melody, additionalMelodies: undefined, syllableType: 'Normal', meiAttrs: undefined }, layer, doc, profile);
+      const voicePart = { ...part, text: '', notes: melody, additionalMelodies: undefined, syllableType: 'Normal', meiAttrs: undefined };
+      walkLinePart(voicePart, layer, doc, profile);
       const written = layer.children[before];
       if (written) written.setAttribute('corresp', '#' + savedPrefix + part.uuid);
+      addAligned(part, voicePart, idPrefix + part.uuid);
     }
-    if (layer.children.length > 0) staff.appendChild(layer);
+    if (layer.children.length === 0) continue;
+    const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+    staff.setAttribute('n', String(v + 1));
+    if (savedContour) staff.setAttribute('type', 'adiastematic');
+    staff.appendChild(layer);
+    section.insertBefore(staff, insertAfter.nextSibling);
+    insertAfter = staff;
   }
+  aligned.forEach(byUnit => byUnit.forEach(group => {
+    if (group.length < 2) return;
+    group[0].element.setAttribute('xml:id', group[0].idBase);
+    for (const g of group.slice(1)) g.element.setAttribute('synch', '#' + group[0].idBase);
+  }));
   idPrefix = savedPrefix;
   contourLine = savedContour;
 }
@@ -752,11 +826,14 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
   if (!syllable.notes || !syllable.notes.spaced) return;
 
   const spacedArr = syllable.notes.spaced;
+  const neumeElements: (Element | null)[] = [];
+  neumesOfSyllable.set(syllable, neumeElements);
   // Every spaced unit becomes its own <neume>, so a gap between units needs no
   // mark. con="g" only marks a gap INSIDE a neume, between non-ligated groups
   // (`*u`, see isGroupBreakGap); notes in one `grouped` array are a ligature.
   for (let sIndex = 0; sIndex < spacedArr.length; sIndex++) {
     const neumeData = spacedArr[sIndex];
+    neumeElements[sIndex] = null;
     if (!neumeData.nonSpaced || neumeData.nonSpaced.length === 0) continue;
 
     const patternRule = resolvePatternRule(profile.patternRules, extractPattern(neumeData), activeSiglum);
@@ -896,5 +973,6 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
     }
     // A unit that held only accidentals or no note at all is not a neume.
     if (neumeEl && neumeEl.childNodes.length === 0 && neumeEl.parentNode) neumeEl.parentNode.removeChild(neumeEl);
+    else neumeElements[sIndex] = neumeEl;
   }
 }

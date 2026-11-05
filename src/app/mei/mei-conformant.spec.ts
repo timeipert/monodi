@@ -44,10 +44,15 @@ describe('MEI body structure', () => {
     const d = build(true, [note('n1')]);
     const section = d.querySelector('section > section')!;
     expect(names(section)).toEqual(['sb', 'staff', 'section']);
-    expect(names(section.querySelector(':scope > section'))).toEqual(['sb', 'staff']);
-    expect(Array.from(d.querySelectorAll('section')).every(s => Array.from(s.children).filter(c => c.localName === 'staff').length <= 1)).toBeTrue();
+    // the second line has a second voice (emptySyllable(2)): a staff of its own in the section of that line
+    expect(names(section.querySelector(':scope > section'))).toEqual(['sb', 'staff', 'staff']);
+    // a section holds at most one staff per voice
+    expect(Array.from(d.querySelectorAll('section')).every(s => {
+      const ns = Array.from(s.children).filter(c => c.localName === 'staff').map(c => c.getAttribute('n'));
+      return new Set(ns).size === ns.length;
+    })).toBeTrue();
     expect(d.querySelector('layer > sb')).toBeNull();
-    expect(d.querySelectorAll('staff > layer[n="1"] > syllable').length).toBe(2);
+    expect(d.querySelectorAll('staff[n="1"] > layer[n="1"] > syllable').length).toBe(2);
   });
 
   it('conformant: the staffDef declares neume notation, without which Verovio and MEI-Friend read the chant as common music notation', () => {
@@ -64,7 +69,7 @@ describe('MEI body structure', () => {
 
   it('conformant: oriscus, quilisma, strophicus and liquescent are empty children of an nc that keeps pitch and octave', () => {
     const d = build(true, [note('n1', NoteType.Oriscus), note('n2', NoteType.Quilisma), note('n3', NoteType.Strophicus), note('n4', NoteType.Normal, true)]);
-    const ncs = Array.from(d.querySelectorAll('layer[n="1"] neume > nc'));
+    const ncs = Array.from(d.querySelectorAll('staff[n="1"] > layer neume > nc'));
     expect(ncs.length).toBe(5);       // four notes of the first line and one of the second
     expect(names(ncs[0])).toEqual(['oriscus']);
     expect(names(ncs[1])).toEqual(['quilisma']);
@@ -349,18 +354,51 @@ describe('MEI body structure: syllable types, paratext, line breaks, clefs, voic
     expect([f.getAttribute('lines'), f.getAttribute('clef.shape'), f.getAttribute('clef.line')]).toEqual(['4', 'F', '3']);
   });
 
-  it('writes the additional melodies as further layers that point to the syllable, unless the option is off', () => {
+  it('writes each additional melody as a staff of its own with a layer, syllables that point to the syllable of voice 1, and a staffDef per staff', () => {
     const s = syl('a', 'x', SyllableType.Normal, BaseNote.G);
-    s.additionalMelodies = [{ spaced: [{ nonSpaced: [{ grouped: [nc('v2n', BaseNote.C)] }] }] }];
+    s.additionalMelodies = [{ spaced: [{ nonSpaced: [{ grouped: [nc('v2n', BaseNote.C), nc('v2m', BaseNote.D)] }] }] }];
     const d = emit([s]);
-    const layers = Array.from(d.querySelectorAll('staff > layer'));
-    expect(layers.map(l => l.getAttribute('n'))).toEqual(['1', '2']);
-    const second = layers[1].children[0];
+    const section = d.querySelector('section > section')!;
+    expect(names(section)).toEqual(['sb', 'staff', 'staff']);
+    const staves = Array.from(section.querySelectorAll(':scope > staff'));
+    expect(staves.map(st => st.getAttribute('n'))).toEqual(['1', '2']);
+    expect(staves.map(st => names(st))).toEqual([['layer'], ['layer']]);
+    const defs = Array.from(d.querySelectorAll('staffDef'));
+    expect(defs.map(def => def.getAttribute('n'))).toEqual(['1', '2']);
+    expect(defs.every(def => def.getAttribute('notationtype') === 'neume')).toBeTrue();
+    const first = staves[0].querySelector('layer > syllable')!;
+    const second = staves[1].querySelector('layer > syllable')!;
+    expect(first.querySelector('syl')!.textContent).toBe('x');
     expect(second.getAttribute('corresp')).toBe('#m-a');
     expect(second.querySelector('syl')).toBeNull();
-    expect(second.querySelector('nc')!.getAttribute('pname')).toBe('c');
+    expect(names(second)).toEqual(['neume']);
+    // the neumes of the two voices align (same unit of the same syllable): only the neume of voice 2 has @synch, pointing to voice 1
+    const n1 = first.querySelector('neume')!, n2 = second.querySelector('neume')!;
+    expect(n1.getAttribute('xml:id')).toBe('m-a-neume1');
+    expect(n1.hasAttribute('synch')).toBeFalse();
+    expect(n2.getAttribute('synch')).toBe('#m-a-neume1');
+    expect(Array.from(second.querySelectorAll('neume > nc')).map(n => n.getAttribute('pname'))).toEqual(['c', 'd']);
     expect(new Set(Array.from(d.querySelectorAll('[*|id]')).map(e => e.getAttribute('xml:id'))).size).toBe(d.querySelectorAll('[*|id]').length);
-    expect(emit([s], p => { p.voices = false; }).querySelectorAll('staff > layer').length).toBe(1);
+    const off = emit([s], p => { p.voices = false; });
+    expect(off.querySelectorAll('staff').length).toBe(1);
+    expect(off.querySelectorAll('staffDef').length).toBe(1);
+  });
+
+  it('declares a staffDef for the highest voice number of the document and writes a staff only on the lines that have that voice', () => {
+    const two = syl('a', 'x', SyllableType.Normal, BaseNote.G);
+    two.additionalMelodies = [{ spaced: [{ nonSpaced: [{ grouped: [nc('v2n', BaseNote.C)] }] }] }];
+    const one = syl('b', 'y', SyllableType.Normal, BaseNote.A);
+    const root = emptyRootContainer();
+    const formteil = emptyFormteilContainer(DocumentType.Level1, []);
+    const z1 = emptyZeileContainer(1); z1.children = [one];
+    const z2 = emptyZeileContainer(2); z2.children = [two];
+    formteil.children = [z1, z2];
+    root.children = [formteil];
+    const d = new DOMParser().parseFromString(emitMei(root, defaultMeiProfile()), 'application/xml');
+    expect(d.querySelectorAll('staffDef').length).toBe(2);
+    // line 1 has one staff; line 2 (a section of its own) has the staves of both voices
+    const lines = Array.from(d.querySelectorAll('section section'));
+    expect(lines.map(sec => Array.from(sec.children).filter(c => c.localName === 'staff').map(c => c.getAttribute('n')))).toEqual([['1'], ['1', '2']]);
   });
 
   it('writes the notes of an adiastematic line as contours (@intm) without pitch, unless pitches are asked for', () => {

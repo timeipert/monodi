@@ -147,7 +147,7 @@
                 <div class="mb-4">
                   <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="voicesCheck" [ngModel]="activeProfile.voices !== false" (ngModelChange)="activeProfile.voices = $event ? undefined : false; emitChange()">
-                    <label class="form-check-label fw-medium" for="voicesCheck">Additional melodies as further layers</label>
+                    <label class="form-check-label fw-medium" for="voicesCheck">Additional melodies as further staves</label>
                   </div>
                   <small class="text-muted d-block mt-1">The second voice and further ones of a syllable become <code>&lt;layer n="2"&gt;</code> and so on of the same staff; their syllables point to the first voice with <code>&#64;corresp</code>.</small>
                 </div>
