@@ -163,46 +163,52 @@ describe('Drawables.fromSpaceds (two voices)', () => {
 });
 
 describe('Drawables.fromSpaceds (spreadVoices)', () => {
-  const three = () => sp([[note(BaseNote.C, 4), note(BaseNote.D, 4), note(BaseNote.E, 4)]], [[note(BaseNote.F, 4), note(BaseNote.G, 4)]]);
-  const two = () => sp([[note(BaseNote.C, 4), note(BaseNote.D, 4)]], [[note(BaseNote.F, 4), note(BaseNote.G, 4)]]);
+  const C = () => note(BaseNote.C, 4), D = () => note(BaseNote.D, 4), E = () => note(BaseNote.E, 4), F = () => note(BaseNote.F, 4);
+  const xs = (ds: any[]) => notesOf(ds).map(n => n.x);
 
-  it('keeps the natural width of the shorter neume by default', () => {
-    const [a, b] = fromSpaceds([three(), two()], []);
-    expect(notesOf(b)[1].x).toBeLessThan(notesOf(a)[2].x);
+  it('is off by default: the shorter neume keeps its natural spacing', () => {
+    const [a, b] = fromSpaceds([sp([[C(), D(), E()]]), sp([[C(), D()]])], []);
+    expect(xs(b)[1]).toBe(xs(a)[1]);
   });
 
-  it('with spreadVoices the notes of a two-note neume span the width of the three-note neume above it', () => {
-    const [a, b] = fromSpaceds([three(), two()], [], { spreadVoices: true });
-    const na = notesOf(a), nb = notesOf(b);
-    expect(nb[0].x).toBe(na[0].x);
-    expect(nb[1].x).toBe(na[2].x);
-    // the second neume has the same natural width in both voices: nothing to spread, and it still starts at the same x
-    expect(nb[2].x).toBe(na[3].x);
-    expect(nb[3].x).toBe(na[4].x);
+  it('puts the second of two notes between the second and third of three, and keeps the first aligned', () => {
+    const [a, b] = fromSpaceds([sp([[C(), D(), E()]]), sp([[C(), D()]])], [], { spreadVoices: true });
+    const na = xs(a), nb = xs(b);
+    expect(nb[0]).toBe(na[0]);
+    expect(nb[1]).toBeGreaterThan(na[1]);
+    expect(nb[1]).toBeLessThan(na[2]);
+    expect(nb[1]).toBeCloseTo((na[1] + na[2]) / 2, 5);
   });
 
-  it('stretches the neume bracket with the notes: both brackets end at the same x', () => {
-    const [a, b] = fromSpaceds([sp([[note(BaseNote.C, 4), note(BaseNote.D, 4), note(BaseNote.E, 4)]]), sp([[note(BaseNote.C, 4), note(BaseNote.D, 4)]])], [], { spreadVoices: true });
+  it('divides four against three into thirds of the width of four, and four against two into halves', () => {
+    const four = sp([[C(), D(), E(), F()]]);
+    const [a, b] = fromSpaceds([four, sp([[C(), D(), E()]])], [], { spreadVoices: true });
+    const na = xs(a), nb = xs(b);
+    expect(nb[0]).toBe(na[0]);
+    expect(nb[1]).toBeCloseTo(na[1] + (na[2] - na[1]) / 3, 5);
+    expect(nb[2]).toBeCloseTo(na[2] + ((na[3] - na[2]) * 2) / 3, 5);
+    const [c, d] = fromSpaceds([sp([[C(), D(), E(), F()]]), sp([[C(), D()]])], [], { spreadVoices: true });
+    expect(xs(d)[0]).toBe(xs(c)[0]);
+    expect(xs(d)[1]).toBeCloseTo(xs(c)[2], 5);
+  });
+
+  it('moves the neume bracket with the notes and keeps the width of the position', () => {
+    const [a, b] = fromSpaceds([sp([[C(), D(), E()]], [[F()]]), sp([[C(), D()]], [[F()]])], [], { spreadVoices: true });
     const ties = (ds: any[]) => ds.filter(d => d instanceof DTie) as DTie[];
     expect(ties(b)[0].x).toBe(ties(a)[0].x);
-    expect(ties(b)[0].right).toBeCloseTo(ties(a)[0].right, 5);
-    expect(notesOf(b)[1].x).toBe(notesOf(a)[2].x);
+    expect(ties(b)[0].right).toBeLessThanOrEqual(ties(a)[0].right);
+    expect(xs(b)[2]).toBe(xs(a)[3]);                       // the next neume starts at the same x in both voices
   });
 
-  it('spreads the middle notes evenly when a neume of four notes stands over one of three', () => {
-    const [a, b] = fromSpaceds([sp([[note(BaseNote.C, 4), note(BaseNote.D, 4), note(BaseNote.E, 4), note(BaseNote.F, 4)]]), sp([[note(BaseNote.C, 4), note(BaseNote.D, 4), note(BaseNote.E, 4)]])], [], { spreadVoices: true });
-    const x = notesOf(b).map(n => n.x);
-    expect(x[2]).toBe(notesOf(a)[3].x);
-    // the natural spacing differs by a pixel between notes with and without ledger line; the spread keeps that proportion
-    expect(Math.abs((x[1] - x[0]) - (x[2] - x[1]))).toBeLessThan(2);
-  });
-
-  it('leaves a neume of a single note at the start and does not change a voice alone', () => {
-    const single = sp([[note(BaseNote.C, 4)]]);
-    const [a, b] = fromSpaceds([sp([[note(BaseNote.C, 4), note(BaseNote.D, 4), note(BaseNote.E, 4)]]), single], [], { spreadVoices: true });
-    expect(notesOf(b)[0].x).toBe(notesOf(a)[0].x);
-    const alone = fromSpaceds([three()], [], { spreadVoices: true })[0];
-    expect(alone.map(d => [d.x, (d as any).y])).toEqual(fromSpaceds([three()], [])[0].map(d => [d.x, (d as any).y]));
+  it('leaves a neume of a single note, equal neumes and a voice alone as they are', () => {
+    const [a, b] = fromSpaceds([sp([[C(), D(), E()]]), sp([[C()]])], [], { spreadVoices: true });
+    expect(xs(b)[0]).toBe(xs(a)[0]);
+    const equal = () => [sp([[C(), D()]]), sp([[E(), F()]])];
+    const [x, y] = fromSpaceds(equal(), [], { spreadVoices: true });
+    const [x0, y0] = fromSpaceds(equal(), []);
+    expect([xs(x), xs(y)]).toEqual([xs(x0), xs(y0)]);
+    const alone = fromSpaceds([sp([[C(), D(), E()]])], [], { spreadVoices: true })[0];
+    expect(alone.map(d => [d.x, (d as any).y])).toEqual(fromSpaceds([sp([[C(), D(), E()]])], [])[0].map(d => [d.x, (d as any).y]));
   });
 });
 

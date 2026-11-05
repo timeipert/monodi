@@ -53,10 +53,12 @@ export function fromSpaced(sd: Spaced, comments: Comment[]): Drawable[] {
 /** Options of the layout of several voices of one syllable. */
 export interface VoiceLayoutOptions {
   /**
-   * Spread the notes of aligned neumes over the same width. The neumes of the voices that stand at the same position of the syllable
-   * start at the same x (always) and, with this option, also end at the same x: a neume with fewer notes than its widest counterpart
-   * is stretched evenly (three notes in voice 1, two in voice 2: both span the whole width). A neume of a single note has no width
-   * to stretch and stays at the start. Off by default: with very different note counts the stretched neume looks too loose.
+   * Divide the width of the widest of the aligned neumes among the notes of the other neumes. The neumes of the voices that stand at
+   * the same position of the syllable always start at the same x. With this option, a neume with fewer notes than the widest one of
+   * its position keeps its first note aligned and puts note i of n at the place of note i * m / n of the m notes of the widest neume,
+   * between two of its notes where that is not a whole number: three notes in voice 1 and two in voice 2 give the places 0 and 1.5
+   * (the second note stands between the second and third note above it); four against three give 0, 1.33 and 2.67; four against two
+   * give 0 and 2. A neume of a single note stays at the start. Off by default.
    */
   spreadVoices?: boolean;
 }
@@ -64,25 +66,28 @@ export interface VoiceLayoutOptions {
 /** Distance of the glyph of a note from its place in the neume: DNote.x is the place minus this (see fromNote). */
 const noteGlyphOffset = (n: Note) => (n.liquescent ? 0 : 1);
 
-/** Place (x) of a note within its neume, from its drawable. */
-function placeOf(ds: Drawable[], n: Note): number | undefined {
-  const d = ds.find((x): x is DNote => x instanceof DNote && x.ref === n);
-  return d ? d.x + noteGlyphOffset(n) : undefined;
+/** The notes of a neume with their places (x relative to the start of the neume), in reading order. */
+function placesOf(ds: Drawable[]): { note: Note; place: number }[] {
+  return ds
+    .filter((x): x is DNote => x instanceof DNote)
+    .map(d => ({ note: d.ref, place: d.x + noteGlyphOffset(d.ref) }))
+    .sort((a, b) => a.place - b.place);
 }
 
-/** x of the last note of a neume, relative to the start of the neume (0 for a neume of a single note). */
-function lastPlaceOf(ds: Drawable[]): number {
-  return maxOf(ds.filter((x): x is DNote => x instanceof DNote).map(d => d.x + noteGlyphOffset(d.ref))) || 0;
+/** Place of the point `t` (in notes, may be fractional) on the row of places of the widest neume: linear between two notes. */
+function placeAt(reference: { place: number }[], t: number): number {
+  const i = Math.min(Math.floor(t), reference.length - 2);
+  return reference[i].place + (t - i) * (reference[i + 1].place - reference[i].place);
 }
 
 /**
- * Stretches one neume horizontally so that its last note stands `target` from its start (the notes move apart evenly). Everything that
- * belongs to a note (glyph, ledger lines, comment marks) moves with the note, so the glyphs keep their shape. A neume bracket (DTie)
- * starts with its first note and grows by the distance its notes were moved apart.
+ * Moves the notes of a neume to the places `targets` (same order as `placesOf`). Everything that belongs to a note (glyph, ledger
+ * lines, comment marks) moves with the note, so the glyphs keep their shape. A neume bracket (DTie) starts with its first note and
+ * grows by the distance its notes were moved apart.
  */
-function stretchNeume(ds: Drawable[], target: number): Drawable[] {
-  const k = target / lastPlaceOf(ds);
-  const shift = (n: Note) => (k - 1) * (placeOf(ds, n) ?? 0);
+function moveNotes(ds: Drawable[], own: { note: Note; place: number }[], targets: number[]): Drawable[] {
+  const shifts = new Map<Note, number>(own.map((o, i) => [o.note, targets[i] - o.place]));
+  const shift = (n: Note) => shifts.get(n) ?? 0;
   return ds.map(d => {
     if (d instanceof DTie) {
       const first = d.ref.grouped[0], last = d.ref.grouped[d.ref.grouped.length - 1];
@@ -108,17 +113,21 @@ export function fromSpaceds(sds: Spaced[], comments: Comment[], options: VoiceLa
       }
     }
     
-    // With spreadVoices: the last note of every neume of this position goes where the widest one has its last note.
-    const targetPlace = options.spreadVoices ? maxOf(sds.map((_, m) => (mapped[m][i] ? lastPlaceOf(mapped[m][i]) : 0))) || 0 : 0;
+    // With spreadVoices: the neume with the most notes of this position is the reference for the places of the others.
+    const rows = sds.map((_, m) => (mapped[m][i] ? placesOf(mapped[m][i]) : []));
+    const reference = options.spreadVoices ? rows.reduce((best, r) => (r.length > best.length ? r : best), [] as typeof rows[0]) : [];
 
     for (let m = 0; m < sds.length; m++) {
       if (mapped[m][i]) {
-        const own = lastPlaceOf(mapped[m][i]);
-        const neume = options.spreadVoices && own > 0 && own < targetPlace ? stretchNeume(mapped[m][i], targetPlace) : mapped[m][i];
+        const own = rows[m];
+        const spread = reference.length > own.length && own.length >= 2;
+        const neume = spread
+          ? moveNotes(mapped[m][i], own, own.map((_, k) => placeAt(reference, (k * reference.length) / own.length)))
+          : mapped[m][i];
         aligned[m].push(neume.map(d => d.addOffset(offset)));
       }
     }
-    
+
     const present = sds.map((_, m) => mapped[m][i]).filter(Boolean);
     offset += (present.length > 0 && present.every(isAccidentalOnly) ? ACCIDENTAL_SPACE : NEUME_SPACE) + maxWidth;
   }

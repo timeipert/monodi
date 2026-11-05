@@ -739,7 +739,7 @@
     <button type="button" class="editor-status-toggle" [class.on]="showNoteCodes" [attr.aria-pressed]="showNoteCodes" (click)="toggleNoteCodes()" title="Show the note code under every syllable. Without this, the code appears on the selected or hovered syllable only.">
       <i class="bi" [ngClass]="showNoteCodes ? 'bi-check-square' : 'bi-square'" aria-hidden="true"></i> Note codes
     </button>
-    <button type="button" class="editor-status-toggle" [class.on]="spreadVoices" [attr.aria-pressed]="spreadVoices" (click)="toggleSpreadVoices()" title="Voices: spread the notes of aligned neumes over the same width (three notes above two: both fill the whole width). Off: every neume starts at the same place and keeps its natural width. Affects the display and the PDF export, not the data.">
+    <button type="button" class="editor-status-toggle" [class.on]="spreadVoices" [attr.aria-pressed]="spreadVoices" (click)="toggleSpreadVoices()" title="Voices: divide the width of the widest aligned neume among the notes of the others (three notes above two: the first notes are aligned, the second of the two stands between the second and third above it). Off: every neume starts at the same place and keeps its natural spacing. Affects the display and the PDF export, not the data.">
       <i class="bi" [ngClass]="spreadVoices ? 'bi-check-square' : 'bi-square'" aria-hidden="true"></i> Spread voices
     </button>
     <span class="editor-status-item" [class.editor-status-error]="saveError">{{saveStateLabel}}</span>
