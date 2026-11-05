@@ -1,16 +1,29 @@
 # The Neume Viewer, from the inside
 
-For agents working in **monodi-light** (Monodi-Zero). This describes the sibling
-app that runs at **https://neume.monodi.app**, so you can reason about what it
-reads, what it writes, and where the two apps touch. It is written from the Neume
-Viewer's code as of October 2026; when in doubt, the code wins.
+**What this is for.** A description of the Neume Viewer, the sibling app of Monodi-Zero, written from the Viewer's code so
+that developers of Monodi-Zero can reason about what the Viewer reads, what it writes, and where the two apps touch.
+**Placement.** This document describes the *other* app: the Neume Viewer lives in `apps/transcription-equivalents`, while
+this file sits in `apps/monodi` (Monodi-Zero) because it is read from the Monodi side; other files link to it here.
+**Who it is for.** Developers and LLM agents working on Monodi-Zero (`apps/monodi`, before 2026-10-28 the standalone
+repository `monodi-light`) or on the bridge between the two apps. **Where to start.** Section 1 (purpose), section 6 (the
+bridge to Monodi-Zero, the contract that matters), section 8 (running it). **State.** Written from the Viewer's code as of
+October 2026 (file last changed 2026-10-10); when in doubt, the code wins. Dated notes marked "state 2026-11-05" were
+checked on that date.
 
-* Repository: `/Users/timeipert/Documents/Antigrav/cm-transkriptionseq`
-  (GitHub: `timeipert/CM-Transcription-Equivalents`). Everything of interest is in `ui/`.
-* Other docs there: `README.md` (what it does), `ARCHITECTURE.md` (how it is built).
-  Paths below are relative to that repository.
-* Stack: Vue 3 + Pinia + Vite, plain JavaScript (JSDoc types), no server. Like
-  monodi-light it is local-first: the user's work lives in their browser.
+* App: the Neume Viewer, published at **https://neume.monodi.app**. Folder in this monorepo: `apps/transcription-equivalents`
+  (before 2026-10-28 the standalone repository `cm-transkriptionseq`; its mirror repository on GitHub is
+  `timeipert/CM-Transcription-Equivalents`). Everything of interest is in `ui/`.
+* Other documents in that folder: `README.md` (what it does), `ARCHITECTURE.md` (how it is built), `DATA.md` (how its data
+  is built). Paths below such as `services/...`, `stores/...` and `utils/...` are relative to `apps/transcription-equivalents/ui/src/`;
+  `scripts/...` and `ui/...` are relative to `apps/transcription-equivalents/`.
+* Stack: Vue 3 + Pinia (state stores) + Vite (build tool), plain JavaScript (JSDoc types), no server. Like
+  Monodi-Zero it is local-first: the user's work lives in their browser.
+* Terms: *IIIF* (International Image Interoperability Framework) is a web standard for serving manuscript images, described by a
+  JSON *manifest*; *siglum* is the short code of a source (`Aa 13`); a *folio* is a manuscript leaf (`113r`, `113v`); *MEI*
+  (Music Encoding Initiative) is an XML format for music notation; a *neume* is a sign for one or several notes; a *pattern* is
+  a code for a neume's note sequence (section 2); *Ref-ID* is the reference id given to a pattern for one source;
+  *OMMR4all* is an optical music recognition tool whose project folders the Viewer can import; *CORS* is the browser rule for
+  cross-origin requests; *SFC* is a Vue single-file component; *localStorage* and *IndexedDB* are browser storage.
 
 ## 1. What it is for
 
@@ -29,7 +42,7 @@ those transcriptions:
    table, line galleries, a neume table, and a static HTML/ZIP export.
 
 It never edits transcriptions. It consumes them (via the static build) and exchanges
-**source metadata, equivalents and annotations** with monodi-light.
+**source metadata, equivalents and annotations** with Monodi-Zero.
 
 ## 2. Where its data comes from
 
@@ -61,7 +74,7 @@ custom signs (`L` liquescent, …), `[ … ]` marks graphically connected notes.
 `*` is one note, `*u` two notes ascending, `[*u]` the same connected, `*uVd` three
 notes with custom sign `V` on the middle one. Grammar and helpers:
 `utils/patternCode.js`, `utils/signs.js`. A legacy pattern may carry a trailing
-variant (`"*dd b"`); the current model keeps the variant in its own field.
+variant (`"*dd b"`); the model (state October 2026) keeps the variant in its own field.
 
 ## 3. What the user creates (the data model)
 
@@ -85,17 +98,17 @@ directSnippets  hand-cut image snippets (carry base64 images; IndexedDB)
 
 * **`points`** is an SVG-style string `"x,y x,y x,y …"` in **percent of the page
   image (0–100 on both axes)**, so it is independent of image resolution. This is
-  the same convention as monodi-light's `AnnotationRegion.points` / `AnnotationItem.points`.
+  the same convention as Monodi-Zero's `AnnotationRegion.points` / `AnnotationItem.points`.
   Helpers: `utils/geometry.js`.
 * A **region** is one line of the page (name like `"Line 3"`). A **snippet/item**
   always belongs to a region. Items reference their region by id only.
-* **`unassigned`** regions are a holding pen: whole-page snippets from older builds
+* **`unassigned`** regions are a holding pen: whole-page snippets from builds before the 2026-10-04 persistence rework
   that fitted no line were folded into one per page (`id` starting `r_unassigned_`).
   They are *not* manuscript lines. The bridge never sends them to monodi (§6).
-* Ids come from `utils/id.js` (`newId('r')` → `r_<random>`); older data has
+* Ids come from `utils/id.js` (`newId('r')` → `r_<random>`); data from before that rework has
   `Date.now()`-style ids. Treat ids as opaque strings.
 * **Folio** labels are strings (`"113r"`). Stored keys always use the **transcription's
-  folio**, never an IIIF canvas label (`"fol. 18v"`, `"(0339)"`); older data keyed by a canvas
+  folio**, never an IIIF canvas label (`"fol. 18v"`, `"(0339)"`); data keyed by a canvas
   label is moved onto folios automatically (`services/alignment/pageKeys.js`). A region may
   carry `canvas: { index, label }` — the scan it was drawn on (Viewer-only, not pushed). Matching canvases of a IIIF manifest to
   folios is non-trivial (`utils/folioAlignment.js`, `utils/folioMath.js`); per-source
@@ -106,8 +119,8 @@ directSnippets  hand-cut image snippets (carry base64 images; IndexedDB)
 Page-level maps are keyed `"<source>_<folio>"`. Sigla can contain underscores
 (`WiSch 4_5`); folios and pattern codes cannot. So a key is **always split from the
 right** (`utils/keys.js`: `pageKey`, `parsePageKey`, `isPageKeyOf`). Never
-`key.split('_')[0]` and never `key.startsWith(source + '_')`. If you ever read a
-Viewer backup yourself, do the same.
+`key.split('_')[0]` and never `key.startsWith(source + '_')`. Code that reads a
+Viewer backup does the same.
 
 ## 4. Persistence and file formats
 
@@ -117,7 +130,7 @@ Each store implements `serialize()`, `hydrate(data)`, `reset()`. They are regist
 `services/persistence/storeRegistry.js`, which mirrors each one to its own
 localStorage key (`globalSettings`, `annotations_v3`, `personalTables`, `iiifLinks`,
 `patternLibrary_v1`, `ommrSettings_v1`; direct snippets in IndexedDB), tolerating
-corrupt entries (kept as `<key>__corrupt`) and reading older key layouts. One change
+corrupt entries (kept as `<key>__corrupt`) and reading key layouts of earlier versions. One change
 signal per store (`services/persistence/changeTracker.js`) drives the mirror, the
 folder autosave and the "back up your work" reminder.
 
@@ -134,7 +147,7 @@ The user can bind a local folder; the app autosaves into it:
 It **never overwrites a file it cannot read or that was written by a newer version**;
 saving switches off with a message instead (`services/persistence/workspaceStorage.js`).
 
-### Exports (the formats that can reach you)
+### Exports (the formats that can reach Monodi-Zero or other readers)
 
 `services/persistence/workspaceSchema.js` owns the format. Envelope `type`:
 `cm-workspace-backup` (everything), `cm-manuscript-export` (chosen manuscripts),
@@ -144,9 +157,9 @@ personalTables, iiifLinks, patternLibrary, ommrSettings, directSnippets } }`.
 `migrate()` upgrades older files (version 1 had a legacy `annotations` map keyed
 `Source_Folio_Pattern`, folded into regions on upgrade; the pre-schema
 `{ version, content }` envelope is also accepted) and refuses newer ones.
-If you write or read these files, go through that module's rules rather than copying shapes.
+Code that writes or reads these files goes through that module's rules rather than copying shapes.
 
-> monodi-light has its own workspace/export formats (`WORKSPACE_SCHEMA_VERSION`,
+> Monodi-Zero has its own workspace/export formats (`WORKSPACE_SCHEMA_VERSION`,
 > the `sourceAnnotations` block in `document.component.ts`). They are separate;
 > only the shared repository (§6) and the field names there are common ground.
 
@@ -164,11 +177,10 @@ If you write or read these files, go through that module's rules rather than cop
 
 ## 6. The bridge to monodi
 
-This is the contract that matters for monodi-light. Code: `services/sync/`
+This is the contract that matters for Monodi-Zero. Code: `services/sync/`
 (`githubClient.js`, `monodiSchema.js`, `sharedDataChannel.js`), `services/pipeline/`
 (adapters + normalised model), `stores/sharedSync.js`, `components/GithubSyncPanel.vue`.
-UI: **Settings → Shared Sync (monodi.app)**. At the time of writing the bridge is new
-and has not been tried against the real shared repository.
+UI: **Settings → Shared Sync (monodi.app)**. State October 2026 (file last changed 2026-10-10): the bridge had not been tried against the real shared repository; this was not re-checked on 2026-11-05.
 
 ### What it does
 
@@ -180,12 +192,12 @@ and has not been tried against the real shared repository.
   **Documents** are also read, but only to feed the overview's
   filters (initium, feast, genre); they are not stored in the workspace.
 * **Push**: converts the Viewer's workspace into monodi's source shape, merges it onto
-  the records currently in the repository, and writes **only what changed** in **one
-  commit**, in the layout the repository already has (see "Repository layout").
+  the records in the repository, and writes **only what changed** in **one
+  commit**, in the layout the repository has (see "Repository layout").
 * **File exchange**: the same database as a single JSON file
   (`{ sources, documents, notes, settings }`), for use without a repository.
 * The connection config is `{ token, owner, repo, branch }` under localStorage key
-  `monodi_github_config` — the same key monodi-light uses. **localStorage is per
+  `monodi_github_config` — the same key Monodi-Zero uses. **localStorage is per
   origin and the apps live on different origins** (`monodi.app`, `neume.monodi.app`),
   so a connection made in one is *not* visible in the other; the user enters it in each
   (the two Viewer versions on `neume.monodi.app` do share it).
@@ -205,21 +217,21 @@ and has not been tried against the real shared repository.
 | `documents[]` (`quelle_id`, `textinitium`, `festtag`, `gattung1`, …) | overview filter facets only |
 
 These are exactly the `RootContainer` / `AnnotationRegion` / `AnnotationItem` /
-`EquivalentMetadata` types in monodi-light's `src/app/types/model.ts`. **Those types and
+`EquivalentMetadata` types in Monodi-Zero's `src/app/types/model.ts` (`apps/monodi/src/app/types/model.ts`). **Those types and
 the Viewer's `monodiSchema.js` have to change together.**
 
 ### Repository layout
 
-Both layouts monodi-light has used are understood; a repository that has any
-`manuscripts/<id>.json` is read as the current one, exactly as monodi-light does:
+Both layouts Monodi-Zero has used are understood; a repository that has any
+`manuscripts/<id>.json` is read as the layout of October 2026, exactly as Monodi-Zero does:
 
-* **`manuscripts/<source.id>.json`** (current): `{ source, documents }`, compact JSON; the notes
+* **`manuscripts/<source.id>.json`** (layout of October 2026): `{ source, documents }`, compact JSON; the notes
   live in `manuscripts/<id>/notes-NNNN.json` chunks. The Viewer reads the bundles (never the
   chunks — it needs no notes), and on push rewrites a bundle only when its source changed,
   keeping the bundle's documents and any other property. `settings.json` and the chunks are
-  never touched. A new source gets a new bundle `manuscripts/<id>.json` with `id = siglum`.
+  never touched. A source that has no bundle gets a bundle `manuscripts/<id>.json` with `id = siglum`.
   An empty repository gets this layout.
-* **`sources/`, `documents/`, `notes/`, `settings.json`** (older): read and written as before.
+* **`sources/`, `documents/`, `notes/`, `settings.json`** (earlier layout): read and written unchanged.
 
 The file list GitHub returns can be truncated for a very large repository; the Viewer then
 refuses to sync rather than work from a partial list.
@@ -229,11 +241,11 @@ refuses to sync rather than work from a partial list.
 * The Viewer owns **equivalents, regions, items, IIIF URL and the metadata fields above**.
   On push it replaces the arrays on the monodi record with its own version, with three
   protections: an array the Viewer has **nothing for** is left as it is in the repository
-  (a source known to the Viewer only by its IIIF link cannot wipe monodi-light's regions);
+  (a source known to the Viewer only by its IIIF link cannot wipe Monodi-Zero's regions);
   regions with a **`lineUUID`** and items with a **`uuid`** that exist only in the repository
   are kept; and every other field of the record is kept (`...existing`).
 * `lineUUID` (a region's link to a transcription line) and item `uuid` (link to a
-  NonSpaced) are **created in monodi-light only**. The Viewer carries them through
+  NonSpaced) are **created in Monodi-Zero only**. The Viewer carries them through
   but never generates or edits them; items it creates have no `uuid`.
 * Items drawn in the Viewer get a pattern and an optional `variant` letter. Viewer-only
   fields (`linkData`, `ommrLineId`, `unassigned`, snippet extras) are **dropped** on push
@@ -284,27 +296,29 @@ Routes (all lazy): `/` overview, `/equivalents`, `/annotations/:id?`, `/polygons
 * **The pipeline**: every input format has an adapter (`services/pipeline/adapters/`) that
   produces a `NormalizedDataset` (`normalizedModel.js`): sources with metadata, IIIF URL,
   equivalents, regions, items, documents. `toWorkspaceState()` projects it onto the stores.
-  Add a new input format by adding an adapter; do not special-case it in a store.
+  A further input format is added as an adapter; do not special-case it in a store.
 * **OMMR4all**: an exported OMMR4all project folder can be imported
   (`services/ommr/folderImport.js`); its line boxes become regions and its neumes snippets.
 
 ## 8. Running and changing it
 
 ```bash
-cd /Users/timeipert/Documents/Antigrav/cm-transkriptionseq/ui
+cd apps/transcription-equivalents/ui   # from the root of the monorepo
 npm install
 npm run dev          # http://localhost:5173
-npm test             # vitest (≈430 tests: persistence, stores, schema migrations, bridge)
+npm test             # vitest (about 430 tests in October 2026; persistence, stores, schema migrations, bridge)
 npm run lint         # eslint
 npm run typecheck    # tsc over the core modules
 npm run build        # writes ../docs (gitignored) and verifies nothing from public/ is missing
 ```
 
 * Deployment: GitHub Actions lints, tests, builds `ui/` and publishes it to GitHub Pages at
-  `neume.monodi.app` (`.github/workflows/pages.yml`); the built site is not committed. The
-  app it replaced is tagged `legacy-site-2026-10-04`; its saved data is read by the current app.
+  `neume.monodi.app` (`apps/transcription-equivalents/.github/workflows/pages.yml`); the built site is not committed. The
+  app it replaced is tagged `legacy-site-2026-10-04`; its saved data is read by the app described here.
 * The static data (`ui/public/index.json`, `sources/`) comes from
-  `python scripts/analyze_transcriptions.py` over a corpus export; it is committed.
+  `python scripts/analyze_transcriptions.py` over a corpus export. An earlier version of this
+  document said these files are committed; state 2026-11-05: they are not in git (`.gitignore`) and are
+  built by `scripts/refresh_data.py`, see `DATA.md` in the same folder.
 
 ### Working agreements
 
@@ -314,7 +328,7 @@ npm run build        # writes ../docs (gitignored) and verifies nothing from pub
 * **The user's work is the one thing that must not be lost.** Persistence code is held to
   a higher standard than the rest: validate what is read, never overwrite what cannot be
   read, add a test for every format change.
-* When you change anything that crosses the bridge (§6) — a field on `Source`,
+* A change to anything that crosses the bridge (§6) — a field on `Source`,
   `AnnotationRegion`, `AnnotationItem`, `EquivalentMetadata`, or the repository layout —
-  tell the user it needs a matching change in the Neume Viewer's `services/sync/`
-  and `services/pipeline/`, and the reverse.
+  needs a matching change in the Neume Viewer's `services/sync/` and `services/pipeline/`,
+  and the reverse; the person who requested the change is told so.
