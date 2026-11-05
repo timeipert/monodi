@@ -35,9 +35,19 @@ describe('APIService', () => {
     } as Document);
     const storedDocIds = async () => ((await localforage.getItem<Document[]>('monodi_documents')) || []).map(d => d.id);
 
+    /**
+     * Waits until the service has finished its start-up (it reads both lists, migrates the notes and then sets `storagePersisted`).
+     * A fixed pause was too short on a slow machine: the start-up read then met the seeded lists and repaired the source ids a second time.
+     * Without the storage API (`storagePersisted` stays null) the wait ends after one second.
+     */
+    async function startupFinished() {
+      for (let waited = 0; service.storagePersisted === null && waited < 1000; waited += 10) await new Promise(r => setTimeout(r, 10));
+      await new Promise(r => setTimeout(r, 20));
+    }
+
     /** Puts the given lists into storage as another part of the app would, and makes the service read them. */
     async function seed(sources: unknown[], documents: unknown[]) {
-      await new Promise(r => setTimeout(r, 50));          // let the service's own start-up reads finish first
+      await startupFinished();                             // the service's own start-up reads must be over first
       await localforage.setItem('monodi_sources', sources);
       await localforage.setItem('monodi_documents', documents);
       service.invalidateCache();

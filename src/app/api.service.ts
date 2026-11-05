@@ -77,11 +77,14 @@ export class APIService {
       const { sources, repaired } = repairStoredSources(await localforage.getItem<Source[]>('monodi_sources'));
       // A save or an invalidation that happened while we were reading wins over what we read.
       if (this.sourcesCache || generation !== this.cacheGeneration) return this.sourcesCache ?? sources;
-      this.sourcesCache = sources;
       if (repaired) {
         console.warn('Repaired sources without a usable id.');
+        // The repaired ids are stored before the list is handed out: a caller that gets the cache while the write is still running
+        // would see ids that the storage does not have yet (and a second repair would make up different ones).
         await localforage.setItem('monodi_sources', sources).catch(e => console.warn('Could not save repaired sources:', e));
+        if (this.sourcesCache || generation !== this.cacheGeneration) return this.sourcesCache ?? sources;
       }
+      this.sourcesCache = sources;
       return sources;
     } catch (e) {
       if (generation === this.cacheGeneration) this.sourcesLoading = null;   // let the next call try again
