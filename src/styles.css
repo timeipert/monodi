@@ -253,3 +253,26 @@ button:disabled,
 .dropdown-item.active, .dropdown-item:active { background-color: var(--color-primary); }
 .modal-content, .dropdown-menu { border-color: var(--color-border); box-shadow: var(--shadow-lg); }
 .table { --bs-table-border-color: var(--color-border); }
+
+/* MEI annotations: colours of the sources of an attribute, the same in the sidebar, the dialog and the staff
+   (MEI_SOURCE_COLOR in src/app/mei/mei-view-prefs.ts). */
+:root {
+  --mei-hand: #1f5fbf;
+  --mei-flag: #7c3aed;
+  --mei-rule: #0d9488;
+  --mei-mapping: #6b7280;
+}
+
+/* Flag buttons of the MEI attribute dialog (mei-annotation-dialog.component.html). */
+.mei-flag-btn {
+  display: inline-flex; align-items: baseline; gap: .35rem;
+  border: 1px solid var(--color-border, #d6d3cd); background: #fff; color: inherit;
+  padding: .15rem .5rem; font-size: .8rem;
+}
+.mei-flag-btn .mei-flag-key {
+  font-family: var(--font-mono, ui-monospace, monospace); font-weight: 700; color: var(--mei-flag);
+}
+.mei-flag-btn .mei-flag-writes { font-family: var(--font-mono, ui-monospace, monospace); font-size: .72rem; color: #6b7280; }
+.mei-flag-btn.on { border-color: var(--mei-flag); background: #f3edff; }
+.mei-flag-btn.on .mei-flag-writes { color: var(--mei-flag); }
+.mei-flag-hint { color: var(--mei-flag); }

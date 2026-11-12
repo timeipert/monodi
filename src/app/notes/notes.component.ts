@@ -23,9 +23,9 @@ import { commentColor } from '../comment/comment-colors';
 import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
 import { NoteFlagDef, flagDefsOf, flagForShortcutKey, flagShortcutKey, getNoteFlagDefs, extractPattern } from '@monodi/core/document';
-import { MeiAnnotationDialogComponent } from '../mei/mei-annotation-dialog.component';
+import { MeiAnnotationDialogComponent, MeiAnnotationResult } from '../mei/mei-annotation-dialog.component';
 import { accidentalName, firstNoteOf, isAccidentalType, setHandAttr, AnnotationTarget } from '@monodi/core/mei';
-import { getMeiViewPrefs, meiRuleMarks, meiViewChanges$ } from '../mei/mei-view-prefs';
+import { getMeiViewPrefs, meiLens, meiRuleMarks, meiViewChanges$, MEI_SOURCE_COLOR } from '../mei/mei-view-prefs';
 import { attributeGlyphs, linkedPairs, linkPath } from '../mei/mei-attribute-glyphs';
 import type { AttrGlyph } from '../mei/mei-attribute-glyphs';
 import { getSpreadVoices, voiceSpreadChanges$ } from './voice-spread-prefs';
@@ -51,6 +51,9 @@ const SYLLABLE_TYPE_CHOICES: { type: VM.SyllableType; label: string }[] = [
   { type: VM.SyllableType.SourceEllipsis, label: 'Source ellipsis (...)' },
   { type: VM.SyllableType.EditorialEllipsis, label: 'Editorial ellipsis (<...>)' },
 ];
+
+/** Where an MEI attribute drawn in the staff comes from. */
+type MeiMarkSource = 'hand' | 'rule' | 'flag';
 
 @Component({
     selector: 'app-notes',
@@ -266,6 +269,11 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     this.meiViewSub = meiViewChanges$.subscribe(() => this.cdr.markForCheck());
     this.spreadSub = voiceSpreadChanges$.subscribe(() => { this.recalculateWidths(); this.cdr.markForCheck(); });
     this.focusService.meiEditors.set(this.model.uuid, (target, note) => this.openMeiAttributes(target, note));
+    this.focusService.meiNoteActions.set(this.model.uuid, {
+      toggleFlag: (note, key) => this.toggleFlagOn(note, key),
+      removeHandAttr: (target, note, name) => this.removeHandAttr(target, note, name),
+      select: noteUuid => this.selectNote(noteUuid)
+    });
     this.notesToText();
     if (this.syllableTextElement?.nativeElement) {
       (this.syllableTextElement.nativeElement as HTMLElement).textContent = this.model?.text || '';
@@ -315,6 +323,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   ngOnDestroy() {
     this.focusService.meiEditors.delete(this.model.uuid);
+    this.focusService.meiNoteActions.delete(this.model.uuid);
     this.meiViewSub?.unsubscribe();
     this.spreadSub?.unsubscribe();
     this.undoService.deregisterNotesCallbacks(this.model.uuid);
@@ -1114,11 +1123,19 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     ref.componentInstance.subject = target === 'syllable'
       ? `syllable "${this.model.text}"`
       : note ? `${target === 'neume' ? 'neume of ' : ''}${this.isAccid(note) ? accidentalName(note.noteType) + ' at' : 'note'} ${note.base}${note.octave} in "${this.model.text}"` : '';
-    ref.result.then((result: Record<string, string>) => {
+    if (target === 'nc' && note && !this.isAccid(note)) {
+      ref.componentInstance.flagDefs = getNoteFlagDefs();
+      ref.componentInstance.flags = [...(note.flags ?? [])];
+    }
+    ref.result.then((result: MeiAnnotationResult) => {
       this.undoService.beforeChange('Edit MEI attributes');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
-      for (const name of Object.keys(current)) if (!(name in result)) setHandAttr(holder, target, name, null);
-      for (const [name, value] of Object.entries(result)) setHandAttr(holder, target, name, value);
+      for (const name of Object.keys(current)) if (!(name in result.attrs)) setHandAttr(holder, target, name, null);
+      for (const [name, value] of Object.entries(result.attrs)) setHandAttr(holder, target, name, value);
+      if (note && result.flags) {
+        if (result.flags.length > 0) note.flags = result.flags; else delete note.flags;
+        this.refreshNoteText();
+      }
       this.cdr.markForCheck();
     }, () => { /* dismissed */ });
   }
@@ -1134,6 +1151,55 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       if (flags.length === (f.flags ?? []).length) flags.push(key);
       if (flags.length > 0) f.flags = flags; else delete f.flags;
     });
+  }
+
+  /** Sets or clears a flag on a note of this syllable (from the MEI tab of the sidebar); one undo step. */
+  toggleFlagOn(note: VM.Note, key: string): void {
+    this.undoService.beforeChange('Edit Note');
+    this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+    delete note.isLatent;
+    const flags = (note.flags ?? []).filter(k => k !== key);
+    if (flags.length === (note.flags ?? []).length) flags.push(key);
+    if (flags.length > 0) note.flags = flags; else delete note.flags;
+    this.refreshNoteText();
+    this.cdr.markForCheck();
+  }
+
+  /** Removes an attribute set by hand on a note, the neume it starts, or this syllable (from the MEI tab of the sidebar); one undo step. */
+  removeHandAttr(target: AnnotationTarget, note: VM.Note, name: string): void {
+    const holder = target === 'syllable' ? this.model : target === 'neume' ? this.neumeFirstNote(note) : note;
+    if (!holder) return;
+    this.undoService.beforeChange('Edit MEI attributes');
+    this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+    setHandAttr(holder, target, name, null);
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Selects a note of this syllable as a click on it does, gives the staff the keyboard focus (so that the digit key of a flag acts on
+   * the note) and scrolls it into view when it is outside the window. Used to step through the places the MEI tab highlights.
+   */
+  selectNote(noteUuid: string): boolean {
+    const voices = this.getVoices();
+    for (let v = 0; v < voices.length; v++) {
+      const note = (voices[v]?.spaced ?? []).flatMap(n => n.nonSpaced).flatMap(g => g.grouped).find(n => n.uuid === noteUuid);
+      if (!note) continue;
+      this.focusedVoiceIndex = v;
+      this.focusService.preferredVoiceIndex = v;
+      this.focusService.preferredFocus = Focus.Notes;
+      this.focusService.registerFocus(() => { VM.removeFocusFromLinePart(this.model); this.cdr.markForCheck(); });
+      VM.focusOne(voices[v], note);
+      this.focusService.focusedNoteUUID = note.uuid;
+      const div = this.notesDivElements?.toArray()[v]?.nativeElement as HTMLElement | undefined;
+      if (div) {
+        div.focus({ preventScroll: true });
+        const r = div.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > window.innerHeight || r.left < 0 || r.right > window.innerWidth) div.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      }
+      this.cdr.markForCheck();
+      return true;
+    }
+    return false;
   }
 
   /** Keyboard edits end with this; menu actions have to call it themselves. */
@@ -1177,14 +1243,19 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     return flagDefsOf(n.flags);
   }
 
-  /** Colours of the MEI drawings in the staff: dark blue for an attribute set by hand, light blue for one written by an annotation rule. */
-  static readonly MEI_GLYPH_COLOR = { hand: '#1f5fbf', rule: '#7ea6e0' } as const;
-
-  /** The MEI attributes of a note, hand-set values over rule values, with the source of each. */
-  private meiAttrsOf(n: VM.Note): { attrs: Record<string, string>; hand: Record<string, string> } {
+  /**
+   * The MEI attributes of a note in the order of precedence of the export (flag, rule, hand; see MEI-ANNOTATIONS.md, section 1), with
+   * the source of each. The attributes the mapping generates from the Monodi data are not included: the note head shows them already.
+   */
+  private meiAttrsOf(n: VM.Note): { attrs: Record<string, string>; sourceOf: (name: string) => MeiMarkSource } {
     const hand = n.meiAttrs ?? {};
     const rule = meiRuleMarks.noteAttrs.get(n.uuid) ?? {};
-    return { attrs: { ...rule, ...hand }, hand };
+    const flag: Record<string, string> = {};
+    for (const fd of flagDefsOf(n.flags)) Object.assign(flag, fd.mei ?? {});
+    return {
+      attrs: { ...flag, ...rule, ...hand },
+      sourceOf: name => name in hand ? 'hand' : name in rule ? 'rule' : 'flag'
+    };
   }
 
   /** The centre of a note head in the staff, and the scale of its glyph (a liquescent head is drawn at 2/3 size, see Drawables.ts). */
@@ -1202,23 +1273,23 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   /**
    * The MEI attributes of a note as they are drawn in the staff: a small drawing for every attribute that changes the shape of a neume
    * component (tilt, curve, rellen, con, angled, hooked, ligated; see `mei-attribute-glyphs.ts`, modelled on Verovio), in the colour of
-   * its source (MEI_GLYPH_COLOR; a hand-set value wins). A ligature or an extended connection with a partner note is drawn as a band by
+   * its source (MEI_SOURCE_COLOR: by hand, from a flag, from a rule). A ligature or an extended connection with a partner note is drawn as a band by
    * meiLinks, not here. Off when the person turned the marks off.
    */
-  meiGlyphs(n: VM.Note, voiceIndex = 0): (AttrGlyph & { source: 'hand' | 'rule' })[] {
+  meiGlyphs(n: VM.Note, voiceIndex = 0): (AttrGlyph & { source: MeiMarkSource })[] {
     if (!getMeiViewPrefs().markInStaff) return [];
-    const { attrs, hand } = this.meiAttrsOf(n);
+    const { attrs, sourceOf } = this.meiAttrsOf(n);
     const linked = this.meiLinkedNotes(voiceIndex);
-    const out: (AttrGlyph & { source: 'hand' | 'rule' })[] = [];
+    const out: (AttrGlyph & { source: MeiMarkSource })[] = [];
     for (const g of attributeGlyphs(attrs, { noteType: n.noteType }).glyphs) {
       if (g.link === 'next' && (linked.from.has(n.uuid) || linked.to.has(n.uuid))) continue;
       if (g.link === 'previous' && linked.conTo.has(n.uuid)) continue;
-      out.push({ ...g, source: g.attr in hand ? 'hand' : 'rule' });
+      out.push({ ...g, source: sourceOf(g.attr) });
     }
     return out;
   }
 
-  private meiLinksCache: { key: string; links: { d: string; source: 'hand' | 'rule'; title: string; key: string }[]; from: Set<string>; to: Set<string>; conTo: Set<string> }[] = [];
+  private meiLinksCache: { key: string; links: { d: string; source: MeiMarkSource; title: string; key: string }[]; from: Set<string>; to: Set<string>; conTo: Set<string> }[] = [];
 
   /** The notes of a voice in a band of meiLinks: first (`from`) and second (`to`) component of a ligature, and `conTo` for con="e". */
   private meiLinkedNotes(voiceIndex: number): { from: Set<string>; to: Set<string>; conTo: Set<string> } {
@@ -1229,7 +1300,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
    * The oblique bands between note heads of one voice: two ligated components in a row (`ligated`), and a component with `con="e"` and
    * the one before it, as Verovio joins them (see linkedPairs). Recomputed when the drawables or the attributes change.
    */
-  meiLinks(voiceIndex: number): { d: string; source: 'hand' | 'rule'; title: string; key: string }[] {
+  meiLinks(voiceIndex: number): { d: string; source: MeiMarkSource; title: string; key: string }[] {
     if (!getMeiViewPrefs().markInStaff) return [];
     return this.meiLinkData(voiceIndex).links;
   }
@@ -1250,9 +1321,9 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       const viaCon = attrsOf(b)['con'] === 'e' && !(attrsOf(a)['ligated'] && attrsOf(b)['ligated']);
       const attr = viaCon ? 'con' : 'ligated';
       if (viaCon) conTo.add(b.ref.uuid); else { from.add(a.ref.uuid); to.add(b.ref.uuid); }
-      const hand = viaCon ? 'con' in (b.ref.meiAttrs ?? {}) : 'ligated' in (a.ref.meiAttrs ?? {});
+      const source = viaCon ? this.meiAttrsOf(b.ref).sourceOf('con') : this.meiAttrsOf(a.ref).sourceOf('ligated');
       return {
-        d: linkPath(ca, cb), source: (hand ? 'hand' : 'rule') as 'hand' | 'rule', key: `${a.ref.uuid}-${b.ref.uuid}`,
+        d: linkPath(ca, cb), source, key: `${a.ref.uuid}-${b.ref.uuid}`,
         title: attr === 'con' ? 'con="e": extended connection to the previous component' : 'ligated: oblique ligature of two components'
       };
     });
@@ -1271,12 +1342,17 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     return c.y + bottom * c.scale + 1;
   }
 
-  meiGlyphColor(source: 'hand' | 'rule'): string { return NotesComponent.MEI_GLYPH_COLOR[source]; }
+  meiGlyphColor(source: MeiMarkSource): string { return MEI_SOURCE_COLOR[source]; }
+
+  meiSourceLabel(source: MeiMarkSource): string {
+    return source === 'hand' ? 'set by hand' : source === 'rule' ? 'written by a rule' : 'written by a flag';
+  }
 
   /**
    * Dot above a note in the staff for MEI attributes that have no shape (for example `name` or `lig`), on the note or on the neume it
    * starts; an open ring on the first note of a syllable with attributes of its own. A note whose attributes all have a drawing gets no dot.
-   * The colour tells the source: red when set by hand, amber when only an annotation rule writes them.
+   * The colour tells the source (MEI_SOURCE_COLOR): set by hand, or only written by an annotation rule. Attributes written by a flag
+   * get no dot: the flag has its own marker above the note.
    */
   meiMarker(n: VM.Note): { kind: 'note' | 'syllable'; source: 'hand' | 'rule' } | null {
     if (!getMeiViewPrefs().markInStaff) return null;
@@ -1836,11 +1912,24 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
     const ref: any = d.ref;
     if (!('uuid' in ref)) return false;
     if (this.highlightNoteUUIDs && this.highlightNoteUUIDs.has(ref.uuid)) return true;
+    if (meiLens.notes.has(ref.uuid)) return true;
     const targetDocId = this.docId || this.searchExecSvc.activeDocumentHighlight?.documentId;
     return !!this.searchExecSvc.getNoteHighlightColor(targetDocId, ref.uuid);
   }
 
+  /** Colours of a note the MEI tab highlights (see meiLens): every place found is light orange, the place stepped to is dark orange. */
+  private meiLensColor(d: Drawable): { fill: string; stroke: string } | null {
+    if (!d.ref || !('uuid' in d.ref) || this.highlightNoteUUIDs?.has((d.ref as any).uuid)) return null;
+    const uuid = (d.ref as any).uuid;
+    // orange, as the lens bar of the MEI tab; the place stepped to is darker
+    if (meiLens.current.has(uuid)) return { fill: '#fdba74', stroke: '#c2410c' };
+    if (meiLens.notes.has(uuid)) return { fill: '#ffedd5', stroke: '#f97316' };
+    return null;
+  }
+
   getHighlightFill(d: Drawable): string {
+    const lens = this.meiLensColor(d);
+    if (lens) return lens.fill;
     if (d.ref && 'uuid' in d.ref) {
       const targetDocId = this.docId || this.searchExecSvc.activeDocumentHighlight?.documentId;
       const custom = this.searchExecSvc.getNoteHighlightColor(targetDocId, (d.ref as any).uuid);
@@ -1850,6 +1939,8 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   getHighlightStroke(d: Drawable): string {
+    const lens = this.meiLensColor(d);
+    if (lens) return lens.stroke;
     if (d.ref && 'uuid' in d.ref) {
       const targetDocId = this.docId || this.searchExecSvc.activeDocumentHighlight?.documentId;
       const custom = this.searchExecSvc.getNoteHighlightColor(targetDocId, (d.ref as any).uuid);

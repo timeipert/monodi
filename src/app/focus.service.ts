@@ -56,6 +56,17 @@ export class FocusService {
    */
   readonly meiEditors = new Map<string, (target: AnnotationTarget, note: VM.Note) => void>();
 
+  /**
+   * Small edits from the MEI tab of the sidebar on a note of a syllable: toggle a note flag, remove an attribute set by hand. Registered
+   * like meiEditors, so that each edit is one undo step of the syllable editor and the note code is rewritten. `select` selects a note
+   * as a click does and gives the staff the keyboard focus (stepping through highlighted places); false when the note is not in it.
+   */
+  readonly meiNoteActions = new Map<string, {
+    toggleFlag: (note: VM.Note, key: string) => void;
+    removeHandAttr: (target: AnnotationTarget, note: VM.Note, name: string) => void;
+    select: (noteUuid: string) => boolean;
+  }>();
+
   mode: Mode = { kind: "Normal" }
 
   preferredFocus: Focus = Focus.Notes;

@@ -15,6 +15,7 @@ describe('NotesComponent', () => {
 
   const mockFocusService = {
     meiEditors: new Map(),
+    meiNoteActions: new Map(),
     focusedNoteUUID$: of(null),
     preferredFocus: 'Notes',
     mode: { kind: 'Normal' }

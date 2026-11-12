@@ -39,8 +39,13 @@ import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { FileSystemService } from '../file-system.service';
 
 import { getActiveMeiProfile } from '../mei/mei-annotation-context';
-import { AnnotatedPlace, AttrGroup, NoteSelection, PlaceGroup, annotatedPlaces, findFocusedNote, groupPlaces, selectionAnnotations } from '../mei/mei-selection';
-import { MeiViewPrefs, getMeiViewPrefs, setMeiViewPrefs, setMeiRuleMarks } from '../mei/mei-view-prefs';
+import { AttrGroup, AttrRow, NoteSelection, findFocusedNote, selectionAnnotations } from '../mei/mei-selection';
+import { MeiViewPrefs, getMeiViewPrefs, setMeiViewPrefs, setMeiRuleMarks, setMeiLensMarks } from '../mei/mei-view-prefs';
+import {
+  AttrSource, LensSpec, MeiReview, ReviewAttribute, ReviewFlag, ReviewPlace, ReviewValue, buildMeiReview, flagFor, lensKey, lensLabel,
+  lensElement, lensPlaces, placesWithout, removeHandAttribute, replaceHandAttributeByFlag
+} from '../mei/mei-review';
+import { NoteFlagDef, getNoteFlagDefs } from '@monodi/core/document';
 import { buildAnnotationIndex, AnnotationTarget } from '@monodi/core/mei';
 import { SearchReplaceService, SearchMatch, SearchReplaceOptions } from './search-replace.service';
 import { downloadBlob } from '../download';
@@ -738,20 +743,18 @@ export class DocumentComponent implements OnInit, DoCheck {
   }
 
   /**
-   * Annotations of the note that has the editor focus, for the MEI tab. Evaluated while the tab is open;
-   * the result is reused until the focused note, its syllable or any attribute changes.
+   * Annotations of the note that has the editor focus, for the *Note* view of the MEI tab. Evaluated while the tab is open; the result
+   * is reused until the focused note, its syllable, the profile or the flags change. The generated attributes are always computed
+   * (the attributes a flag writes are found among them); the lock switch only hides them.
    */
   private meiCache?: { key: string; value: { selection: NoteSelection; groups: AttrGroup[] } | undefined };
   get meiAnnotations(): { selection: NoteSelection; groups: AttrGroup[] } | undefined {
     if (this.sidebarTab !== 'mei' || !this.cont) return undefined;
     const profile = getActiveMeiProfile();
     const sel = findFocusedNote(this.cont);
-    // The syllable and the profile decide the result, so an unchanged pair reuses it; the export that lists the generated
-    // attributes only runs when one of them changes.
-    const withGenerated = this.meiPrefs.showGenerated;
-    const key = sel ? JSON.stringify([sel.note.uuid, sel.syllable, profile, this.sourceSigle, withGenerated]) : '';
+    const key = sel ? JSON.stringify([sel.note.uuid, sel.syllable, profile, this.sourceSigle, getNoteFlagDefs()]) : '';
     if (this.meiCache && this.meiCache.key === key) return this.meiCache.value;
-    const value = sel ? selectionAnnotations(this.cont, profile?.annotationRules, this.sourceSigle, withGenerated ? profile : undefined) : undefined;
+    const value = sel ? selectionAnnotations(this.cont, profile?.annotationRules, this.sourceSigle, profile) : undefined;
     this.meiCache = { key, value };
     return value;
   }
@@ -759,29 +762,307 @@ export class DocumentComponent implements OnInit, DoCheck {
   get meiPrefs(): MeiViewPrefs { return getMeiViewPrefs(); }
   setMeiPref(change: Partial<MeiViewPrefs>): void { setMeiViewPrefs(change); this.meiCache = undefined; }
 
-  meiPlaceFilter: 'all' | 'hand' | 'rule' = 'all';
-  private meiPlacesCache?: { at: number; json: string; value: AnnotatedPlace[] };
+  /** The rows of a group of the Note view; the generated ones only when the lock switch is on. */
+  meiVisibleRows(g: AttrGroup): AttrRow[] {
+    return this.meiPrefs.showGenerated ? g.rows : g.rows.filter(r => r.source !== 'generated');
+  }
+
+  // ---- Review of the whole document (Overview view, highlighting) -------------------------------------------------------------
+
+  /** What the export writes on every note, neume and syllable, with the source of each attribute (see mei/mei-review.ts). */
+  meiReview?: MeiReview;
+  private meiReviewKey = '';
+  private meiReviewAt = 0;
+  private meiReviewTimer?: ReturnType<typeof setTimeout>;
+
   /**
-   * Every annotated place of the document, for the list view. The scan runs at most every 600 ms and the previous array
-   * is kept while the content is equal, so change detection sees a stable value.
+   * Rebuilds the review when the document, the profile, the flags or the siglum changed; at most every 600 ms, and only while the MEI
+   * tab is open. A call inside the 600 ms sets a timer, whose end runs change detection again, so that the last edit (or an undo) is
+   * always shown.
    */
-  get meiPlaces(): AnnotatedPlace[] {
-    if (this.sidebarTab !== 'mei' || this.meiPrefs.view !== 'all' || !this.cont) return [];
+  private refreshMeiReview(force = false): void {
+    if (this.sidebarTab !== 'mei' || !this.cont) return;
     const now = Date.now();
-    if (this.meiPlacesCache && now - this.meiPlacesCache.at < 600) return this.meiPlacesCache.value;
-    const value = annotatedPlaces(this.cont, getActiveMeiProfile()?.annotationRules, this.sourceSigle);
-    const json = JSON.stringify(value);
-    if (this.meiPlacesCache && this.meiPlacesCache.json === json) { this.meiPlacesCache.at = now; return this.meiPlacesCache.value; }
-    this.meiPlacesCache = { at: now, json, value };
-    return value;
+    if (!force && now - this.meiReviewAt < 600) {
+      this.meiReviewTimer ??= setTimeout(() => { this.meiReviewTimer = undefined; this.cdr.markForCheck(); }, 600 - (now - this.meiReviewAt) + 10);
+      return;
+    }
+    this.meiReviewAt = now;
+    const profile = getActiveMeiProfile();
+    if (!profile) return;
+    const key = JSON.stringify([this.cont, profile, getNoteFlagDefs(), this.sourceSigle]);
+    if (!force && key === this.meiReviewKey) return;
+    this.meiReviewKey = key;
+    this.meiReview = buildMeiReview(this.cont, profile, getNoteFlagDefs(), this.sourceSigle);
+    this.meiOverviewCache = undefined;
+    this.updateMeiLensMarks();
+  }
+
+  /** Search text of the Overview (attribute names and values). */
+  meiOverviewQuery = '';
+  /** Sources shown in the Overview; the attributes the mapping generates from the Monodi data are hidden at first. */
+  meiOverviewSources: Record<AttrSource, boolean> = { hand: true, flag: true, rule: true, mapping: false };
+  readonly meiSources: { key: AttrSource; label: string; title: string }[] = [
+    { key: 'hand', label: 'by hand', title: 'Set by hand in the editor' },
+    { key: 'flag', label: 'flag', title: 'Written by a note flag (for example V for virga)' },
+    { key: 'rule', label: 'rule', title: 'Written by an annotation rule of the MEI profile' },
+    { key: 'mapping', label: 'from data', title: 'Generated by the export from the Monodi data (connection after a gap, stem of a note head, ...)' }
+  ];
+
+  toggleMeiSource(key: AttrSource): void {
+    this.meiOverviewSources = { ...this.meiOverviewSources, [key]: !this.meiOverviewSources[key] };
+    this.meiOverviewCache = undefined;
+  }
+
+  setMeiOverviewQuery(q: string): void { this.meiOverviewQuery = q; this.meiOverviewCache = undefined; }
+
+  private meiOverviewCache?: { element: string; target: string; label: string; attributes: (ReviewAttribute & { shown: ReviewValue[]; without: number })[] }[];
+  /**
+   * The attributes of the Overview, grouped by element (notes, neumes, syllables): only values that have at least one place from a
+   * source that is switched on, and that match the search text. `without` counts the elements of the same kind that lack the attribute.
+   */
+  get meiOverview() {
+    if (this.meiOverviewCache) return this.meiOverviewCache;
+    const review = this.meiReview;
+    if (!review) return [];
+    const q = this.meiOverviewQuery.trim().toLowerCase();
+    const on = this.meiOverviewSources;
+    const groups = new Map<string, { element: string; target: string; label: string; attributes: (ReviewAttribute & { shown: ReviewValue[]; without: number })[] }>();
+    for (const a of review.attributes) {
+      const shown = a.values.filter(v =>
+        (Object.keys(v.bySource) as AttrSource[]).some(src => on[src] && v.bySource[src] > 0) &&
+        (!q || a.name.toLowerCase().includes(q) || v.value.toLowerCase().includes(q) || `${a.name}="${v.value}"`.toLowerCase().includes(q)));
+      if (shown.length === 0) continue;
+      const key = `${a.target}|${a.element}`;
+      if (!groups.has(key)) {
+        const label = a.target === 'nc' ? (a.element === 'accid' ? 'Accidentals' : 'Notes') : a.target === 'neume' ? 'Neumes' : 'Syllables';
+        groups.set(key, { element: a.element, target: a.target, label, attributes: [] });
+      }
+      groups.get(key)!.attributes.push({ ...a, shown, without: placesWithout(review, { ...a, element: lensElement(a.target, a.element) }).length });
+    }
+    this.meiOverviewCache = [...groups.values()];
+    return this.meiOverviewCache;
+  }
+
+  /** The flags of the project for the Overview, filtered by the search text. */
+  get meiOverviewFlags(): ReviewFlag[] {
+    const q = this.meiOverviewQuery.trim().toLowerCase();
+    return (this.meiReview?.flags ?? []).filter(f => !q || f.def.key.toLowerCase() === q || f.def.label.toLowerCase().includes(q) || f.writes.toLowerCase().includes(q));
+  }
+
+  /** Places per source, as dots with counts in the Overview. */
+  meiValueSources(v: ReviewValue): { key: AttrSource; count: number }[] {
+    return (['hand', 'flag', 'rule', 'mapping'] as AttrSource[]).filter(k => v.bySource[k] > 0).map(k => ({ key: k, count: v.bySource[k] }));
+  }
+
+  /** Width of the bar of a value, relative to the most frequent value of its attribute. */
+  meiValueShare(a: ReviewAttribute, v: ReviewValue): number {
+    const max = Math.max(...a.values.map(x => x.places.length));
+    return max ? Math.round(100 * v.places.length / max) : 0;
+  }
+
+  // ---- Lens: highlight the places of an attribute value or a flag in the staff, and step through them ---------------------------
+
+  meiLensSpec?: LensSpec;
+  /** Index of the place stepped to, -1 before the first step. */
+  meiLensIndex = -1;
+  meiLensListOpen = false;
+
+  get meiLensPlaces(): ReviewPlace[] {
+    return this.meiReview && this.meiLensSpec ? lensPlaces(this.meiReview, this.meiLensSpec) : [];
+  }
+
+  get meiLensLabel(): string { return this.meiLensSpec ? lensLabel(this.meiLensSpec, getNoteFlagDefs()) : ''; }
+
+  isMeiLens(spec: LensSpec): boolean { return !!this.meiLensSpec && lensKey(this.meiLensSpec) === lensKey(spec); }
+
+  /** Highlights the places of a value, of a flag, or the elements without an attribute; choosing the active one again turns it off. */
+  setMeiLens(spec: LensSpec): void {
+    if (this.isMeiLens(spec)) { this.clearMeiLens(); return; }
+    this.meiLensSpec = spec;
+    this.meiLensIndex = -1;
+    this.meiLensListOpen = false;
+    this.refreshMeiReview(true);
+    this.updateMeiLensMarks();
+    if (this.meiLensPlaces.length > 0) this.stepMeiLens(1);
+  }
+
+  clearMeiLens(): void {
+    this.meiLensSpec = undefined;
+    this.meiLensIndex = -1;
+    setMeiLensMarks(new Set(), new Set());
+  }
+
+  /** Goes to the next (1) or previous (-1) place, wrapping around, and selects its note in the editor. */
+  stepMeiLens(delta: number): void {
+    const places = this.meiLensPlaces;
+    if (places.length === 0) return;
+    this.meiLensIndex = this.meiLensIndex < 0 ? (delta > 0 ? 0 : places.length - 1) : (this.meiLensIndex + delta + places.length) % places.length;
+    this.updateMeiLensMarks();
+    this.selectMeiPlace(places[this.meiLensIndex]);
+  }
+
+  goToMeiLensPlace(i: number): void {
+    this.meiLensIndex = i;
+    this.updateMeiLensMarks();
+    this.selectMeiPlace(this.meiLensPlaces[i]);
+  }
+
+  /**
+   * Selects the note of a place in its syllable editor, as a click does. When no syllable editor is registered for it (for example
+   * while the page is still being drawn), the page first scrolls to the syllable, and the note is selected once its editor exists.
+   */
+  private selectMeiPlace(p: ReviewPlace): void {
+    const select = () => this.focusService.meiNoteActions.get(p.syllableUuid)?.select(p.anchor) ?? false;
+    this.meiCache = undefined;
+    if (select()) return;
+    this.jumpToNote(p.anchor);
+    setTimeout(() => { if (select()) { this.meiCache = undefined; this.cdr.markForCheck(); } }, 700);
+  }
+
+  private updateMeiLensMarks(): void {
+    const places = this.meiLensPlaces;
+    if (!this.meiLensSpec) { setMeiLensMarks(new Set(), new Set()); return; }
+    if (this.meiLensIndex >= places.length) this.meiLensIndex = places.length - 1;
+    const current = this.meiLensIndex >= 0 ? places[this.meiLensIndex] : undefined;
+    setMeiLensMarks(new Set(places.flatMap(p => p.notes)), new Set(current?.notes ?? []));
+  }
+
+  /** The source of the lens attribute at a place (value lenses only), for the list. */
+  meiLensSourceAt(p: ReviewPlace): AttrSource | undefined {
+    const spec = this.meiLensSpec;
+    return spec && spec.kind === 'value' ? p.attrs[spec.name]?.source : undefined;
+  }
+
+  /** Places of a value lens where the attribute is set by hand: they can be removed or replaced by a flag at once. */
+  get meiLensHandPlaces(): ReviewPlace[] {
+    const spec = this.meiLensSpec;
+    if (!spec || spec.kind !== 'value') return [];
+    return this.meiLensPlaces.filter(p => p.attrs[spec.name]?.source === 'hand');
+  }
+
+  /** A flag that writes exactly the value of the lens (for notes only), so that the hand-set values can be replaced by it. */
+  get meiLensFlag(): NoteFlagDef | undefined {
+    const spec = this.meiLensSpec;
+    return spec && spec.kind === 'value' && spec.target === 'nc' ? flagFor(spec.name, spec.value, getNoteFlagDefs()) : undefined;
+  }
+
+  /** Removes the hand-set value of the lens from every place it is set by hand; one undo step. */
+  removeMeiLensHandValues(): void {
+    const spec = this.meiLensSpec;
+    const places = this.meiLensHandPlaces;
+    if (!spec || spec.kind !== 'value' || places.length === 0 || !this.cont) return;
+    this.applyMeiBulk(`Remove ${spec.name}="${spec.value}"`, root => removeHandAttribute(root, spec.target, places.map(p => p.anchor), spec.name, spec.value),
+      n => `${n} hand-set ${spec.name}="${spec.value}" removed. Undo with Ctrl+Z.`);
+  }
+
+  /** Replaces the hand-set value of the lens by the flag that writes the same; one undo step. */
+  replaceMeiLensByFlag(): void {
+    const spec = this.meiLensSpec;
+    const flag = this.meiLensFlag;
+    const places = this.meiLensHandPlaces;
+    if (!spec || spec.kind !== 'value' || !flag || places.length === 0 || !this.cont) return;
+    this.applyMeiBulk(`Use flag ${flag.key}`, root => replaceHandAttributeByFlag(root, places.map(p => p.anchor), spec.name, spec.value, flag),
+      n => `${n} note(s) now carry the flag ${flag.key} (${flag.label}) instead of ${spec.name}="${spec.value}" set by hand. Undo with Ctrl+Z.`);
+  }
+
+  /** Runs an edit on a copy of the document and swaps it in (the note editors redraw on a new model object); one undo step. */
+  private applyMeiBulk(action: string, edit: (root: VM.RootContainer) => number, message: (n: number) => string): void {
+    if (!this.cont) return;
+    this.undoService.beforeChange(action);
+    const out: VM.RootContainer = JSON.parse(JSON.stringify(this.cont));
+    const n = edit(out);
+    if (n === 0) { this.toastr.info('Nothing to change.'); return; }
+    this.cont = out;
+    this.contJsonClone = JSON.stringify(this.cont);
+    this.save();
+    this.refreshMeiReview(true);
+    this.cdr.detectChanges();
+    this.toastr.success(message(n));
+  }
+
+  // ---- Note view: flags of the note, actions on a row -------------------------------------------------------------------------
+
+  /** The flags of the project, for the chips of the Note view. */
+  get meiFlagDefs(): NoteFlagDef[] { return getNoteFlagDefs(); }
+
+  meiFlagWrites(def: NoteFlagDef): string {
+    const parts = [...(def.meiTag ? [`<${def.meiTag}>`] : []), ...Object.entries(def.mei ?? {}).map(([n, v]) => `${n}="${v}"`)];
+    return parts.join(' ') || 'nothing (no MEI form chosen)';
+  }
+
+  /** Flags belong to notes; an accidental (written as `<accid>`) takes none. */
+  meiTakesFlags(groups: AttrGroup[]): boolean { return groups.some(g => g.target === 'nc' && g.element !== 'accid'); }
+
+  isMeiFlagOn(sel: NoteSelection, key: string): boolean { return (sel.note.flags ?? []).includes(key); }
+
+  /** Sets or clears a flag on the selected note (the editor of its syllable does the edit, as one undo step). */
+  toggleMeiFlag(sel: NoteSelection, key: string): void {
+    this.focusService.meiNoteActions.get(sel.syllable.uuid)?.toggleFlag(sel.note, key);
+    this.meiCache = undefined;
+  }
+
+  /** Removes an attribute set by hand on the selected note, its neume or its syllable. */
+  removeMeiHandRow(sel: NoteSelection, g: AttrGroup, r: AttrRow): void {
+    this.focusService.meiNoteActions.get(sel.syllable.uuid)?.removeHandAttr(g.target, sel.note, r.name);
+    this.meiCache = undefined;
+  }
+
+  /** A flag that writes exactly a hand-set value of the selected note, and that the note does not carry yet. */
+  meiFlagForRow(sel: NoteSelection, g: AttrGroup, r: AttrRow): NoteFlagDef | undefined {
+    if (g.target !== 'nc' || g.element !== 'nc' || r.source !== 'hand') return undefined;
+    const f = flagFor(r.name, r.value, getNoteFlagDefs());
+    return f && !this.isMeiFlagOn(sel, f.key) ? f : undefined;
+  }
+
+  /** Replaces a hand-set value of the selected note by the flag that writes the same. */
+  useMeiFlagForRow(sel: NoteSelection, g: AttrGroup, r: AttrRow, f: NoteFlagDef): void {
+    const actions = this.focusService.meiNoteActions.get(sel.syllable.uuid);
+    if (!actions) return;
+    actions.removeHandAttr(g.target, sel.note, r.name);
+    actions.toggleFlag(sel.note, f.key);
+    this.meiCache = undefined;
+  }
+
+  /** Highlights every place with the same attribute value as a row of the Note view. */
+  findMeiRow(g: AttrGroup, r: AttrRow): void {
+    this.setMeiLens({ kind: 'value', target: g.target, element: lensElement(g.target, g.element), name: r.name, value: r.value });
+  }
+
+  isMeiRowLens(g: AttrGroup, r: AttrRow): boolean {
+    return this.isMeiLens({ kind: 'value', target: g.target, element: lensElement(g.target, g.element), name: r.name, value: r.value });
+  }
+
+  /** Highlights every note that carries a flag. */
+  findMeiFlag(key: string): void { this.setMeiLens({ kind: 'flag', key }); }
+
+  /** Lens of a value in the Overview. */
+  meiValueLens(a: ReviewAttribute, v: ReviewValue): LensSpec {
+    return { kind: 'value', target: a.target, element: lensElement(a.target, a.element), name: a.name, value: v.value };
+  }
+
+  /** Lens of the elements that lack an attribute, in the Overview. */
+  meiWithoutLens(a: ReviewAttribute): LensSpec {
+    return { kind: 'without', target: a.target, element: lensElement(a.target, a.element), name: a.name };
+  }
+
+  /** F3 goes to the next highlighted place, Shift+F3 to the previous one, while places are highlighted. */
+  @HostListener('document:keydown', ['$event'])
+  onMeiLensKey(e: KeyboardEvent): void {
+    if (e.key !== 'F3' || !this.meiLensSpec || this.sidebarTab !== 'mei') return;
+    e.preventDefault();
+    this.stepMeiLens(e.shiftKey ? -1 : 1);
   }
 
   private meiMarksAt = 0;
   /**
-   * Keeps the marks of annotation rules in the staff up to date: evaluates the rules at most every 600 ms, and only while
-   * the marks are on and the profile has rules. The staff redraws only when the result changes.
+   * Keeps the marks of annotation rules in the staff and the review of the MEI tab up to date: evaluates the rules at most every
+   * 600 ms, and only while the marks are on and the profile has rules. The staff redraws only when the result changes.
    */
   ngDoCheck(): void {
+    this.refreshMeiReview();
+    if (this.sidebarTab !== 'mei' && this.meiLensSpec) setMeiLensMarks(new Set(), new Set());
+    else if (this.meiLensSpec) this.updateMeiLensMarks();
     const now = Date.now();
     if (now - this.meiMarksAt < 600) return;
     this.meiMarksAt = now;
@@ -793,41 +1074,14 @@ export class DocumentComponent implements OnInit, DoCheck {
     setMeiRuleMarks(notes, sylls, new Map([...idx.nc].map(([uuid, attrs]) => [uuid, { ...attrs }])));
   }
 
-  meiOpenGroups = new Set<string>();
-  meiClosedGroups = new Set<string>();
-  private meiGroupsCache?: { places: AnnotatedPlace[]; filter: string; by: string; value: PlaceGroup[] };
-  get meiGroups(): PlaceGroup[] {
-    const places = this.meiPlaces;
-    const by = this.meiPrefs.groupBy;
-    const c = this.meiGroupsCache;
-    if (c && c.places === places && c.filter === this.meiPlaceFilter && c.by === by) return c.value;
-    const value = groupPlaces(this.meiPlacesFiltered, by);
-    this.meiGroupsCache = { places, filter: this.meiPlaceFilter, by, value };
-    return value;
-  }
-  /** A group is open when the person opened it, or when there are few groups and the person did not close it. */
-  isMeiGroupOpen(g: PlaceGroup): boolean {
-    return this.meiOpenGroups.has(g.key) || (this.meiGroups.length <= 3 && !this.meiClosedGroups.has(g.key));
-  }
-  toggleMeiGroup(g: PlaceGroup): void {
-    if (this.isMeiGroupOpen(g)) { this.meiOpenGroups.delete(g.key); this.meiClosedGroups.add(g.key); }
-    else { this.meiClosedGroups.delete(g.key); this.meiOpenGroups.add(g.key); }
-  }
-
-  readonly meiListLimit = 200;
-  get meiPlacesFiltered(): AnnotatedPlace[] {
-    return this.meiPlaces.filter(p => this.meiPlaceFilter === 'all' || p.source === this.meiPlaceFilter);
-  }
-  meiPlaceCount(source: 'hand' | 'rule'): number { return this.meiPlaces.filter(p => p.source === source).length; }
-
   /** Scrolls to the note and selects it (same mechanism as the `focus` link parameter). */
   jumpToNote(uuid: string): void {
     this.pendingFocusNoteUuid = uuid;
     this.applyPendingFocus();
   }
 
-  meiCount(g: AttrGroup, source: 'hand' | 'rule' | 'generated'): number {
-    return g.rows.filter(r => r.source === source).length;
+  meiCount(g: AttrGroup, source: AttrRow['source']): number {
+    return this.meiVisibleRows(g).filter(r => r.source === source).length;
   }
 
   /** Opens the dialog for the annotations of the focused note (the editor of its syllable does the work). */
@@ -2017,6 +2271,8 @@ export class DocumentComponent implements OnInit, DoCheck {
       s.unsubscribe();
     }
     this.toolService.remove(this);
+    if (this.meiReviewTimer) clearTimeout(this.meiReviewTimer);
+    setMeiLensMarks(new Set(), new Set());
   }
 
   doImport(): void {

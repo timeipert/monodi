@@ -5,6 +5,7 @@
  */
 import * as VM from '../types/model';
 import { AnnotationTarget, MeiAnnotationRule, MeiMappingProfileV2, emitMei, AnnotationIndex, AttrMap, accidentalName, buildAnnotationIndex, firstNoteOf, isAccidentalType } from '@monodi/core/mei';
+import { flagDefsOf } from '@monodi/core/document';
 
 /** The note with the editor focus and the neume and syllable around it. */
 export interface NoteSelection {
@@ -16,8 +17,13 @@ export interface NoteSelection {
 export interface AttrRow {
   name: string;
   value: string;
-  /** `hand`: set in the editor. `rule`: written by an annotation rule. `generated`: written by the entity mapping from the Monodi data (pitch, connection, …); it cannot be edited here. */
-  source: 'hand' | 'rule' | 'generated';
+  /**
+   * `hand`: set in the editor. `rule`: written by an annotation rule. `flag`: written by a note flag of the note (`flagKey`).
+   * `generated`: written by the entity mapping from the Monodi data (pitch, connection, …); it cannot be edited here.
+   */
+  source: 'hand' | 'rule' | 'flag' | 'generated';
+  /** The flag that writes the attribute (only on `flag` rows). */
+  flagKey?: string;
   /** A rule also sets this attribute, but the value set by hand wins (only on `hand` rows). */
   overridesRule?: string;
   /** The mapping generates this attribute, but the value set by hand wins (only on `hand` and `rule` rows). */
@@ -126,11 +132,15 @@ export function selectionGroups(sel: NoteSelection, index: AnnotationIndex, gene
       rows: attrRows(sel.note.meiAttrs, index.nc.get(sel.note.uuid), generated?.nc)
     }, syllable];
   }
+  // A generated attribute that a flag of the note writes with the same value comes from that flag.
+  const flags = flagDefsOf(sel.note.flags);
+  const ncRows = attrRows(sel.note.meiAttrs, index.nc.get(sel.note.uuid), generated?.nc).map(r => {
+    if (r.source !== 'generated') return r;
+    const flag = flags.find(f => f.mei?.[r.name] === r.value);
+    return flag ? { ...r, source: 'flag' as const, flagKey: flag.key } : r;
+  });
   return [
-    {
-      target: 'nc', element: 'nc', subject: `note ${pitch}`,
-      rows: attrRows(sel.note.meiAttrs, index.nc.get(sel.note.uuid), generated?.nc)
-    },
+    { target: 'nc', element: 'nc', subject: `note ${pitch}`, rows: ncRows },
     {
       target: 'neume', element: 'neume', subject: 'its neume',
       rows: attrRows(first?.meiNeumeAttrs, first ? index.neume.get(first.uuid) : undefined, generated?.neume)
@@ -145,91 +155,4 @@ export function selectionAnnotations(root: VM.RootContainer, rules: MeiAnnotatio
   const selection = findFocusedNote(root);
   if (!selection) return undefined;
   return { selection, groups: selectionGroups(selection, buildAnnotationIndex(root, rules, sigle), profile ? generatedAttrs(selection, profile) : undefined, profile?.accidentals !== 'note') };
-}
-
-/** One place in the document that carries annotations. */
-export interface AnnotatedPlace {
-  /** A note to jump to: the note itself, the first note of the neume, or the first note of the syllable. */
-  noteUuid: string;
-  syllableUuid: string;
-  syllableText: string;
-  target: AnnotationTarget;
-  /** Short description, for example `note G4`. */
-  label: string;
-  names: string[];
-  /** The attributes with their values (hand-set values win over rule values). */
-  attrs: AttrMap;
-  /** `hand` if any attribute of the place is set by hand, otherwise `rule`. */
-  source: 'hand' | 'rule';
-}
-
-/** Every note, neume and syllable that has attributes set by hand or written by a rule, in document order. */
-export function annotatedPlaces(root: VM.RootContainer, rules: MeiAnnotationRule[] | undefined, sigle?: string): AnnotatedPlace[] {
-  const index = buildAnnotationIndex(root, rules, sigle);
-  const out: AnnotatedPlace[] = [];
-  let curSyllable = '';
-  const add = (anchor: VM.Note | undefined, text: string, target: AnnotationTarget, label: string, hand?: AttrMap, rule?: AttrMap) => {
-    const names = [...new Set([...Object.keys(hand ?? {}), ...Object.keys(rule ?? {})])].sort();
-    if (!anchor || names.length === 0) return;
-    out.push({ noteUuid: anchor.uuid, syllableUuid: curSyllable, syllableText: text, target, label, names, attrs: { ...(rule ?? {}), ...(hand ?? {}) }, source: hand && Object.keys(hand).length > 0 ? 'hand' : 'rule' });
-  };
-  for (const syl of VM.getSyllables(root)) {
-    const text = syl.text ?? '';
-    curSyllable = syl.uuid;
-    const voice = syl.notes?.spaced ?? [];
-    const firstOfSyllable = voice.map(n => firstNoteOf(n)).find(n => !!n);
-    add(firstOfSyllable, text, 'syllable', `syllable "${text}"`, syl.meiAttrs, index.syllable.get(syl.uuid));
-    for (const neume of voice) {
-      const first = firstNoteOf(neume);
-      if (first) add(first, text, 'neume', 'neume', first.meiNeumeAttrs, index.neume.get(first.uuid));
-      for (const g of neume.nonSpaced) for (const n of g.grouped) add(n, text, 'nc', `note ${n.base}${n.octave}`, n.meiAttrs, index.nc.get(n.uuid));
-    }
-  }
-  return out;
-}
-
-export interface PlaceGroup {
-  key: string;
-  label: string;
-  /** Short description under the label, for example the value pairs of an annotation. */
-  detail?: string;
-  items: AnnotatedPlace[];
-  source: 'hand' | 'rule' | 'mixed';
-}
-
-const srcOf = (items: AnnotatedPlace[]): PlaceGroup['source'] =>
-  items.every(i => i.source === 'hand') ? 'hand' : items.every(i => i.source === 'rule') ? 'rule' : 'mixed';
-
-/**
- * Groups the annotated places so that a long list stays readable:
- *   - `annotation`: places with the same element and the same attributes and values together ("nc tilt=n": 12 places),
- *     the most frequent first;
- *   - `syllable`: one group per syllable, in document order;
- *   - `element`: note (nc), neume and syllable.
- */
-export function groupPlaces(places: AnnotatedPlace[], by: 'annotation' | 'syllable' | 'element'): PlaceGroup[] {
-  const map = new Map<string, PlaceGroup>();
-  const order: string[] = [];
-  for (const p of places) {
-    let key: string, label: string, detail: string | undefined;
-    if (by === 'annotation') {
-      detail = Object.keys(p.attrs).sort().map(n => `${n}="${p.attrs[n]}"`).join(' ');
-      key = `${p.target}|${detail}`;
-      label = `<${p.target === 'nc' ? 'nc' : p.target}>`;
-    } else if (by === 'syllable') {
-      key = p.syllableUuid;
-      label = p.syllableText ? `“${p.syllableText}”` : '(syllable without text)';
-    } else {
-      key = p.target;
-      label = p.target === 'nc' ? 'Notes (nc)' : p.target === 'neume' ? 'Neumes' : 'Syllables';
-    }
-    let g = map.get(key);
-    if (!g) { g = { key, label, detail, items: [], source: 'hand' }; map.set(key, g); order.push(key); }
-    g.items.push(p);
-  }
-  const groups = order.map(k => map.get(k)!);
-  groups.forEach(g => g.source = srcOf(g.items));
-  if (by === 'annotation') groups.sort((a, b) => b.items.length - a.items.length);
-  if (by === 'element') groups.sort((a, b) => ['nc', 'neume', 'syllable'].indexOf(a.items[0].target) - ['nc', 'neume', 'syllable'].indexOf(b.items[0].target));
-  return groups;
 }

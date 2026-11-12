@@ -187,108 +187,201 @@
                   </div>
                 </div>
               }
-              <!-- Tab Content: MEI attributes of the selected note -->
+              <!-- Tab Content: MEI. "Note" shows what the export writes for the selected note, its neume and its syllable;
+                   "Overview" lists every attribute value and flag of the document with counts. A click on a value, a flag or a
+                   row highlights its places in the staff (the lens bar steps through them). See mei/mei-review.ts. -->
               @if (sidebarTab === 'mei') {
                 @let ann = meiAnnotations;
                 <div class="mei-tab small">
                   <div class="mei-toolbar">
                     <div class="btn-group btn-group-sm" role="group" aria-label="What the MEI tab shows">
-                      <button type="button" class="btn btn-outline-secondary" [class.active]="meiPrefs.view === 'note'" (click)="setMeiPref({view: 'note'})" title="The attributes of the selected note, its neume and its syllable">Selected</button>
-                      <button type="button" class="btn btn-outline-secondary" [class.active]="meiPrefs.view === 'all'" (click)="setMeiPref({view: 'all'})" title="Every annotated place of this document">All annotated</button>
+                      <button type="button" class="btn btn-outline-secondary" [class.active]="meiPrefs.view === 'note'" (click)="setMeiPref({view: 'note'})" title="What the export writes for the selected note, its neume and its syllable">Note</button>
+                      <button type="button" class="btn btn-outline-secondary" [class.active]="meiPrefs.view === 'overview'" (click)="setMeiPref({view: 'overview'})" title="Every attribute value and flag of this document, with counts; click one to highlight its notes">Overview</button>
                     </div>
                     <span class="mei-switches">
-                      <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.showGenerated" (click)="setMeiPref({showGenerated: !meiPrefs.showGenerated})" [attr.aria-pressed]="meiPrefs.showGenerated" title="Show the attributes the export generates from the Monodi data (locked rows)"><i class="bi bi-lock-fill"></i></button>
+                      <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.showGenerated" (click)="setMeiPref({showGenerated: !meiPrefs.showGenerated})" [attr.aria-pressed]="meiPrefs.showGenerated" title="Note view: also show the attributes the export generates from the Monodi data (grey rows)"><i class="bi bi-lock-fill"></i></button>
                       <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.markInStaff" (click)="setMeiPref({markInStaff: !meiPrefs.markInStaff})" [attr.aria-pressed]="meiPrefs.markInStaff" title="Show the MEI attributes of notes in the staff: a drawing for tilt, curve, rellen, con, angled, hooked and ligated; a dot for every other attribute"><i class="bi bi-record-circle"></i></button>
                     </span>
                   </div>
-                  @if (meiPrefs.view === 'all') {
-                    <div class="mei-list-filter">
-                      <button type="button" class="btn btn-link btn-sm p-0" [class.fw-bold]="meiPlaceFilter === 'all'" (click)="meiPlaceFilter = 'all'">All {{meiPlaces.length}}</button>
-                      <button type="button" class="btn btn-link btn-sm p-0" [class.fw-bold]="meiPlaceFilter === 'hand'" (click)="meiPlaceFilter = 'hand'"><span class="mei-dot mei-dot-hand ms-0"></span> by hand {{meiPlaceCount('hand')}}</button>
-                      <button type="button" class="btn btn-link btn-sm p-0" [class.fw-bold]="meiPlaceFilter === 'rule'" (click)="meiPlaceFilter = 'rule'"><span class="mei-dot mei-dot-rule ms-0"></span> rule {{meiPlaceCount('rule')}}</button>
-                      <label class="mei-groupby">Group by
-                        <select class="form-select form-select-sm" [ngModel]="meiPrefs.groupBy" (ngModelChange)="setMeiPref({groupBy: $event})">
-                          <option value="annotation">annotation</option>
-                          <option value="syllable">syllable</option>
-                          <option value="element">element</option>
-                        </select>
-                      </label>
-                    </div>
-                    @if (meiGroups.length === 0) {
-                      <div class="text-muted text-center py-3">Nothing is annotated here yet. Right-click a note → MEI attributes, or add a rule in Settings.</div>
-                    } @else {
-                      <div class="mei-groups">
-                        @for (g of meiGroups; track g.key) {
-                          <section class="mei-pgroup">
-                            <button type="button" class="mei-pgroup-head" (click)="toggleMeiGroup(g)" [attr.aria-expanded]="isMeiGroupOpen(g)">
-                              <i class="bi" [class.bi-chevron-right]="!isMeiGroupOpen(g)" [class.bi-chevron-down]="isMeiGroupOpen(g)"></i>
-                              <span class="mei-dot" [class.mei-dot-hand]="g.source !== 'rule'" [class.mei-dot-rule]="g.source === 'rule'"></span>
-                              <span class="mei-pgroup-title">
-                                @if (meiPrefs.groupBy === 'annotation') { <code>{{g.label}}</code> <span class="mei-pgroup-detail">{{g.detail}}</span> } @else { {{g.label}} }
-                              </span>
-                              <span class="mei-count mei-count-gen">{{g.items.length}}</span>
-                            </button>
-                            @if (isMeiGroupOpen(g)) {
-                              <ul class="mei-places">
-                                @for (p of g.items.slice(0, 100); track $index) {
-                                  <li>
-                                    <button type="button" class="mei-place" (click)="jumpToNote(p.noteUuid)" [title]="'Go to ' + p.label">
-                                      <span class="mei-dot" [class.mei-dot-hand]="p.source === 'hand'" [class.mei-dot-rule]="p.source === 'rule'"></span>
-                                      <span class="mei-place-where">
-                                        @if (meiPrefs.groupBy !== 'element') { <code>{{p.target}}</code> }
-                                        {{p.label}}
-                                        @if (meiPrefs.groupBy !== 'syllable') { <span class="text-muted">in “{{p.syllableText || '(no text)'}}”</span> }
-                                      </span>
-                                      @if (meiPrefs.groupBy !== 'annotation') { <span class="mei-place-names">{{p.names.join(', ')}}</span> }
-                                    </button>
-                                  </li>
-                                }
-                                @if (g.items.length > 100) { <li class="text-muted px-2 py-1">{{g.items.length - 100}} more in this group</li> }
-                              </ul>
-                            }
-                          </section>
-                        }
+
+                  <div class="mei-legend" aria-label="Colours of the sources">
+                    @for (s of meiSources; track s.key) { <span class="mei-legend-item" [title]="s.title"><span class="mei-dot" [attr.data-src]="s.key"></span>{{s.label}}</span> }
+                  </div>
+
+                  @if (meiLensSpec) {
+                    @let places = meiLensPlaces;
+                    <div class="mei-lens" role="region" aria-label="Highlighted places">
+                      <div class="mei-lens-head">
+                        <i class="bi bi-highlighter mei-lens-icon" aria-hidden="true"></i>
+                        <code class="mei-lens-label" [title]="meiLensLabel">{{meiLensLabel}}</code>
+                        <span class="mei-lens-pos" aria-live="polite">{{meiLensIndex >= 0 ? meiLensIndex + 1 : '–'}} / {{places.length}}</span>
+                        <span class="btn-group btn-group-sm">
+                          <button type="button" class="btn btn-outline-secondary py-0 px-1" (click)="stepMeiLens(-1)" [disabled]="places.length === 0" title="Previous place (Shift+F3)" aria-label="Previous place"><i class="bi bi-chevron-left"></i></button>
+                          <button type="button" class="btn btn-outline-secondary py-0 px-1" (click)="stepMeiLens(1)" [disabled]="places.length === 0" title="Next place (F3)" aria-label="Next place"><i class="bi bi-chevron-right"></i></button>
+                          <button type="button" class="btn btn-outline-secondary py-0 px-1" [class.active]="meiLensListOpen" (click)="meiLensListOpen = !meiLensListOpen" [disabled]="places.length === 0" title="List the places" aria-label="List the places"><i class="bi bi-list-ul"></i></button>
+                        </span>
+                        <button type="button" class="btn-close mei-lens-close" (click)="clearMeiLens()" title="Stop highlighting" aria-label="Stop highlighting"></button>
                       </div>
-                    }
+                      @if (places.length === 0) {
+                        <div class="mei-lens-empty">No place in this document.</div>
+                      }
+                      @if (meiLensHandPlaces.length > 0) {
+                        <div class="mei-lens-actions">
+                          <span><span class="mei-dot" data-src="hand"></span>{{meiLensHandPlaces.length}} set by hand</span>
+                          @if (meiLensFlag; as f) {
+                            <button type="button" class="btn btn-sm mei-flag-btn py-0" (click)="replaceMeiLensByFlag()" [title]="'Remove the value set by hand and set the flag ' + f.key + ' (' + f.label + ') instead; the export writes the same. One undo step.'">
+                              Use flag <span class="mei-flag-key">{{f.key}}</span> {{f.label}}
+                            </button>
+                          }
+                          <button type="button" class="btn btn-sm btn-outline-danger py-0" (click)="removeMeiLensHandValues()" title="Remove the value from every place where it is set by hand. One undo step.">Remove</button>
+                        </div>
+                      }
+                      @if (meiLensListOpen && places.length > 0) {
+                        <ol class="mei-lens-list">
+                          @for (p of places.slice(0, 300); track p.target + p.anchor; let i = $index) {
+                            <li>
+                              <button type="button" class="mei-place" [class.current]="i === meiLensIndex" (click)="goToMeiLensPlace(i)" [title]="'Go to ' + p.label">
+                                <span class="mei-place-n">{{i + 1}}</span>
+                                <span class="mei-place-where">{{p.label}} <span class="text-muted">in “{{p.syllableText || '(no text)'}}”</span></span>
+                                @if (meiLensSourceAt(p); as src) { <span class="mei-dot" [attr.data-src]="src" [title]="src"></span> }
+                              </button>
+                            </li>
+                          }
+                          @if (places.length > 300) { <li class="text-muted px-2 py-1">{{places.length - 300}} more</li> }
+                        </ol>
+                      }
+                    </div>
+                  }
+
+                  @if (meiPrefs.view === 'overview') {
+                    <div class="mei-ov">
+                      <div class="mei-ov-filter">
+                        <input type="search" class="form-control form-control-sm" placeholder="Filter: tilt, virga, s …" aria-label="Filter attributes and flags"
+                          [ngModel]="meiOverviewQuery" (ngModelChange)="setMeiOverviewQuery($event)">
+                        <div class="mei-src-chips" role="group" aria-label="Sources shown">
+                          @for (s of meiSources; track s.key) {
+                            <button type="button" class="mei-src-chip" [class.on]="meiOverviewSources[s.key]" [attr.aria-pressed]="meiOverviewSources[s.key]" (click)="toggleMeiSource(s.key)" [title]="s.title">
+                              <span class="mei-dot" [attr.data-src]="s.key"></span>{{s.label}}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                      @if (meiReview?.error) {
+                        <div class="alert alert-warning py-1 px-2 mb-0">The export failed: {{meiReview?.error}}</div>
+                      }
+
+                      <section class="mei-ov-sec">
+                        <h6 class="mei-ov-title">Flags <span class="mei-ov-sub">markers on notes, and what the export writes for them</span></h6>
+                        @if (meiFlagDefs.length === 0) {
+                          <div class="mei-none">No flags are defined. Add them in <a routerLink="/settings" [queryParams]="{tab: 'mei'}">Settings → MEI Mapping → Flags</a> (for example V for virga).</div>
+                        } @else {
+                          @for (f of meiOverviewFlags; track f.def.key) {
+                            <button type="button" class="mei-ov-flag" [class.active]="isMeiLens({kind: 'flag', key: f.def.key})" (click)="findMeiFlag(f.def.key)" [disabled]="f.places.length === 0"
+                              [title]="f.places.length ? 'Highlight the ' + f.places.length + ' note(s) with the flag ' + f.def.key : 'No note carries the flag ' + f.def.key">
+                              <span class="mei-flag-key">{{f.def.key}}</span>
+                              <span class="mei-ov-flag-label">{{f.def.label}}</span>
+                              <code class="mei-ov-writes">{{f.writes || 'writes nothing'}}</code>
+                              <span class="mei-ov-n">{{f.places.length}}</span>
+                            </button>
+                          }
+                        }
+                      </section>
+
+                      @let overview = meiOverview;
+                      @if (overview.length === 0 && !meiReview?.error) {
+                        <div class="mei-none text-center py-3">
+                          @if (meiOverviewQuery) { Nothing matches “{{meiOverviewQuery}}”. }
+                          @else { No attribute from the chosen sources. Right-click a note → MEI attributes, set a flag, or add a rule in Settings. }
+                        </div>
+                      }
+                      @for (grp of overview; track grp.target + grp.element) {
+                        <section class="mei-ov-sec">
+                          <h6 class="mei-ov-title">{{grp.label}} <code>&lt;{{grp.element}}&gt;</code></h6>
+                          @for (a of grp.attributes; track a.name) {
+                            <div class="mei-ov-attr">
+                              <div class="mei-ov-attr-head">
+                                <code class="mei-ov-name">{{a.name}}</code>
+                                <span class="mei-ov-n" title="Elements with this attribute">{{a.count}}</span>
+                                @if (a.without > 0) {
+                                  <button type="button" class="btn btn-link btn-sm p-0 mei-ov-without" [class.active]="isMeiLens(meiWithoutLens(a))" (click)="setMeiLens(meiWithoutLens(a))"
+                                    [title]="'Highlight the ' + a.without + ' element(s) of this kind without @' + a.name">without: {{a.without}}</button>
+                                }
+                              </div>
+                              @for (v of a.shown; track v.value) {
+                                <button type="button" class="mei-ov-value" [class.active]="isMeiLens(meiValueLens(a, v))" (click)="setMeiLens(meiValueLens(a, v))"
+                                  [title]="'Highlight the ' + v.places.length + ' place(s) with ' + a.name + '=&quot;' + v.value + '&quot;'">
+                                  <span class="mei-ov-bar" [style.width.%]="meiValueShare(a, v)"></span>
+                                  <code class="mei-ov-v">{{v.value}}</code>
+                                  <span class="mei-ov-srcs">
+                                    @for (s of meiValueSources(v); track s.key) { <span class="mei-ov-src" [attr.data-src]="s.key" [title]="s.count + ' ' + s.key">{{s.count}}</span> }
+                                    @for (k of v.flagKeys; track k) { <span class="mei-flag-key" [title]="'From the flag ' + k">{{k}}</span> }
+                                  </span>
+                                  <span class="mei-ov-n">{{v.places.length}}</span>
+                                </button>
+                              }
+                            </div>
+                          }
+                        </section>
+                      }
+                    </div>
                   } @else {
                   @if (!ann) {
                     <div class="text-muted text-center py-4 px-2">
                       <i class="bi bi-cursor fs-4 d-block mb-2"></i>
-                      Click a note to see the MEI attributes of the note, its neume and its syllable.
+                      Click a note to see what the export writes for the note, its neume and its syllable.
                     </div>
                   } @else {
                     <div class="mei-summary">
                       <span class="text-muted">Note {{ann.selection.note.base}}{{ann.selection.note.octave}} in “{{ann.selection.syllable.text}}”</span>
-                      <span class="mei-legend">
-                        <span class="mei-dot mei-dot-hand"></span>by hand
-                        <span class="mei-dot mei-dot-rule"></span>rule
-                        <i class="bi bi-lock-fill mei-lock"></i>generated
-                      </span>
                     </div>
+                    @if (meiFlagDefs.length > 0 && meiTakesFlags(ann.groups)) {
+                      <div class="mei-note-flags">
+                        <span class="mei-note-flags-title">Flags</span>
+                        @for (fd of meiFlagDefs; track fd.key) {
+                          <button type="button" class="btn btn-sm mei-flag-btn" [class.on]="isMeiFlagOn(ann.selection, fd.key)" [attr.aria-pressed]="isMeiFlagOn(ann.selection, fd.key)"
+                            (click)="toggleMeiFlag(ann.selection, fd.key)" [title]="(isMeiFlagOn(ann.selection, fd.key) ? 'Clear' : 'Set') + ' the flag ' + fd.key + ' (' + fd.label + '); it writes ' + meiFlagWrites(fd)">
+                            <span class="mei-flag-key">{{fd.key}}</span> {{fd.label}}
+                          </button>
+                        }
+                      </div>
+                    }
                     <section class="mei-group">
                       @for (g of ann.groups; track g.target) {
                         <header class="mei-group-head">
                           <span class="mei-group-title"><code>&lt;{{g.element}}&gt;</code> <span class="text-muted fw-normal">{{g.subject}}</span></span>
                           <span class="mei-counts">
-                            @if (meiCount(g, 'hand')) { <span class="mei-count mei-count-hand" title="Set by hand">{{meiCount(g, 'hand')}}</span> }
-                            @if (meiCount(g, 'rule')) { <span class="mei-count mei-count-rule" title="Written by a rule">{{meiCount(g, 'rule')}}</span> }
-                            @if (meiCount(g, 'generated')) { <span class="mei-count mei-count-gen" title="Generated from the Monodi data">{{meiCount(g, 'generated')}}</span> }
+                            @for (s of ['hand', 'flag', 'rule', 'generated']; track s) {
+                              @if (meiCount(g, $any(s)); as n) { <span class="mei-count" [attr.data-src]="s === 'generated' ? 'mapping' : s" [title]="n + ' ' + (s === 'generated' ? 'from data' : s)">{{n}}</span> }
+                            }
                           </span>
-                          <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 flex-shrink-0" (click)="editMeiAttributes(g.target)" title="Edit the attributes set by hand">
+                          <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 flex-shrink-0" (click)="editMeiAttributes(g.target)" title="Edit the attributes set by hand (and the flags of the note)">
                             <i class="bi bi-pencil"></i><span class="mei-edit-label ms-1">Edit</span>
                           </button>
                         </header>
-                        @if (g.rows.length === 0) {
+                        @let rows = meiVisibleRows(g);
+                        @if (rows.length === 0) {
                           <div class="mei-none">no attributes</div>
                         } @else {
                           <ul class="mei-attr-list">
-                            @for (r of g.rows; track r.name) {
-                              <li class="mei-attr" [class.mei-attr-hand]="r.source === 'hand'" [class.mei-attr-rule]="r.source === 'rule'" [class.mei-attr-generated]="r.source === 'generated'">
-                                <span class="mei-attr-name">
-                                  @if (r.source === 'generated') { <i class="bi bi-lock-fill mei-lock" title="Generated from the Monodi data by the export mapping. Override it with an attribute set by hand."></i> }
-                                  {{r.name}}
-                                </span>
+                            @for (r of rows; track r.name) {
+                              <li class="mei-attr" [attr.data-src]="r.source === 'generated' ? 'mapping' : r.source" [class.lens]="isMeiRowLens(g, r)">
+                                <span class="mei-attr-name">{{r.name}}</span>
                                 <span class="mei-attr-value">{{r.value}}</span>
+                                <span class="mei-attr-tools">
+                                  <span class="mei-src-tag" [attr.data-src]="r.source === 'generated' ? 'mapping' : r.source"
+                                    [title]="r.source === 'hand' ? 'Set by hand' : r.source === 'flag' ? 'Written by the flag ' + r.flagKey : r.source === 'rule' ? 'Written by an annotation rule' : 'Generated from the Monodi data by the export mapping; set a value by hand to override it'">
+                                    @switch (r.source) { @case ('hand') { hand } @case ('flag') { flag {{r.flagKey}} } @case ('rule') { rule } @default { data } }
+                                  </span>
+                                  <button type="button" class="mei-tool" [class.on]="isMeiRowLens(g, r)" (click)="findMeiRow(g, r)" [title]="'Highlight every place with ' + r.name + '=&quot;' + r.value + '&quot;'" [attr.aria-label]="'Find ' + r.name + ' ' + r.value"><i class="bi bi-search"></i></button>
+                                  @if (r.source === 'hand') {
+                                    <button type="button" class="mei-tool mei-tool-remove" (click)="removeMeiHandRow(ann.selection, g, r)" [title]="'Remove ' + r.name + ' set by hand'" [attr.aria-label]="'Remove ' + r.name"><i class="bi bi-x-lg"></i></button>
+                                  }
+                                </span>
+                                @if (meiFlagForRow(ann.selection, g, r); as f) {
+                                  <button type="button" class="mei-attr-note mei-flag-hint btn btn-link btn-sm p-0 text-start" (click)="useMeiFlagForRow(ann.selection, g, r, f)">
+                                    The flag {{f.key}} ({{f.label}}) writes the same. Use the flag instead.
+                                  </button>
+                                }
                                 @if (r.overridesRule !== undefined) { <span class="mei-attr-note">overrides rule value “{{r.overridesRule}}”</span> }
                                 @if (r.overridesGenerated !== undefined) { <span class="mei-attr-note">overrides generated value “{{r.overridesGenerated}}”</span> }
                               </li>

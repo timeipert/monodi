@@ -36,7 +36,7 @@
             <g [attr.transform]="'translate(' + (showClef ? 44 : 12) + ', 0)'">
               @for (link of meiLinks(i); track link.key) {
                 <path class="mei-link" [attr.d]="link.d" [attr.fill]="meiGlyphColor(link.source)" fill-opacity="0.55"
-                  style="pointer-events: none;"><title>{{ link.title }} ({{ link.source === 'hand' ? 'set by hand' : 'written by a rule' }})</title></path>
+                  style="pointer-events: none;"><title>{{ link.title }} ({{ meiSourceLabel(link.source) }})</title></path>
               }
               @for (drawable of getDrawables(i); track refOfDrawable($index, drawable)) {
                 <g
@@ -57,11 +57,11 @@
                       text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
                     style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
                   }
-                  <!-- Search Result Note Highlight Circle -->
+                  <!-- Highlight circle: a search result, or a note the MEI tab highlights -->
                   @if (isNote(drawable) && isHighlighted(drawable)) {
                     <circle
-                      [attr.cx]="drawable.x + (drawable.ref.liquescent ? 4 : 6)" [attr.cy]="drawable.y + 30"
-                      r="10" [attr.fill]="getHighlightFill(drawable)" fill-opacity="0.8"
+                      [attr.cx]="headCenter(drawable).x" [attr.cy]="headCenter(drawable).y"
+                      [attr.r]="drawable.ref.liquescent ? 8 : 10" [attr.fill]="getHighlightFill(drawable)" fill-opacity="0.8"
                       [attr.stroke]="getHighlightStroke(drawable)" stroke-width="1.5"
                       style="pointer-events: none;" />
                   }
@@ -90,14 +90,14 @@
                     @for (g of meiGlyphs(drawable.ref, i); track g.attr) {
                       <path class="mei-glyph" [attr.d]="g.d" [attr.transform]="meiGlyphTransform(drawable)"
                         fill="none" [attr.stroke]="meiGlyphColor(g.source)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"
-                        style="pointer-events: none;"><title>{{ g.title }} ({{ g.source === 'hand' ? 'set by hand' : 'written by a rule' }})</title></path>
+                        style="pointer-events: none;"><title>{{ g.title }} ({{ meiSourceLabel(g.source) }})</title></path>
                     }
                   }
                   @if (isNote(drawable) && meiMarker(drawable.ref); as mk) {
                     <circle [attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 4" r="3"
-                      [attr.fill]="mk.kind === 'note' ? (mk.source === 'hand' ? '#a00' : '#b7791f') : 'none'"
-                      [attr.stroke]="mk.source === 'hand' ? '#a00' : '#b7791f'" stroke-width="1.2" style="pointer-events: none;">
-                      <title>{{ mk.kind === 'note' ? 'MEI attributes on this note or its neume' : 'MEI attributes on this syllable' }} ({{ mk.source === 'hand' ? 'set by hand' : 'written by a rule' }})</title>
+                      [attr.fill]="mk.kind === 'note' ? meiGlyphColor(mk.source) : 'none'"
+                      [attr.stroke]="meiGlyphColor(mk.source)" stroke-width="1.2" style="pointer-events: none;">
+                      <title>{{ mk.kind === 'note' ? 'MEI attributes on this note or its neume' : 'MEI attributes on this syllable' }} ({{ meiSourceLabel(mk.source) }})</title>
                     </circle>
                   }
                   @if (isTie(drawable)) {

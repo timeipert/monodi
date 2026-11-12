@@ -6,6 +6,15 @@ import { targetElements } from './mei-annotation-check';
 import { MeiSchemaRegistry } from './schema/mei-schema-registry.service';
 import { glyphFor, linkPath } from './mei-attribute-glyphs';
 import { GLYPH_PATHS } from '../notes/glyph-paths';
+import { NoteFlagDef } from '@monodi/core/document';
+import { flagFor, flagWrites } from './mei-review';
+
+/** What the dialog returns: the attributes set by hand and, for a note, its flags. */
+export interface MeiAnnotationResult {
+  attrs: Record<string, string>;
+  /** The flags of the note after the edit (only for a note, `nc`). */
+  flags?: string[];
+}
 
 /** The shapes of a neume component that can be picked by looking at them (see `mei-attribute-glyphs.ts`). */
 const SHAPE_GROUPS: { attr: string; label: string; values: string[] }[] = [
@@ -24,7 +33,8 @@ interface Row { name: string; value: string }
  * Edit the MEI attributes that are set by hand on a note (`<nc>`), a neume or a syllable. The
  * attributes offered and the values accepted come from the schema catalog of the active MEI profile;
  * an attribute the schema does not know can still be added (a warning, or an error in strict mode).
- * Returns the new attribute map through `modal.close`.
+ * For a note, the dialog also sets its flags: a flag is the Monodi marker of an MEI form (for example V *Virga* writes `type="virga"`),
+ * and a value set by hand that a flag writes exactly is offered as that flag. Returns a MeiAnnotationResult through `modal.close`.
  */
 @Component({
   selector: 'app-mei-annotation-dialog',
@@ -43,6 +53,13 @@ export class MeiAnnotationDialogComponent implements OnInit {
   @Input() subject = '';
   /** MEI element to edit when it is not the one the profile maps the target to (an accidental is an `accid`, not an `nc`). */
   @Input() elementName = '';
+  /** The note flags of the project (for a note only). */
+  @Input() flagDefs: NoteFlagDef[] = [];
+  /** The flags of the note before the edit. */
+  @Input() flags: string[] = [];
+
+  /** The flags of the note as chosen in the dialog. */
+  activeFlags: string[] = [];
 
   rows: Row[] = [];
   newName = '';
@@ -59,6 +76,7 @@ export class MeiAnnotationDialogComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.rows = Object.entries(this.attrs).map(([name, value]) => ({ name, value }));
+    this.activeFlags = [...this.flags];
     if (this.elementName) this.element = this.elementName;
     else if (this.profile) this.element = targetElements(this.profile)[this.target];
     else this.element = this.target;
@@ -171,11 +189,43 @@ export class MeiAnnotationDialogComponent implements OnInit {
   apply(): void {
     const out: Record<string, string> = {};
     for (const r of this.rows) if (r.value.trim() !== '') out[r.name] = r.value.trim();
-    this.modal.close(out);
+    const result: MeiAnnotationResult = { attrs: out };
+    if (this.showFlags) result.flags = [...this.activeFlags];
+    this.modal.close(result);
+  }
+
+  /** Flags are offered for a note (not for an accidental, a neume or a syllable) when the project has any. */
+  get showFlags(): boolean { return this.target === 'nc' && !this.elementName && this.flagDefs.length > 0; }
+
+  isFlagOn(key: string): boolean { return this.activeFlags.includes(key); }
+
+  toggleFlag(key: string): void {
+    this.activeFlags = this.isFlagOn(key) ? this.activeFlags.filter(k => k !== key) : [...this.activeFlags, key];
+  }
+
+  flagWrites(def: NoteFlagDef): string { return flagWrites(def) || 'nothing (no MEI form chosen)'; }
+
+  /** A flag that writes exactly this value; the row can be replaced by it (see flagFor). */
+  flagForRow(row: Row): NoteFlagDef | undefined {
+    return this.showFlags && row.value.trim() ? flagFor(row.name, row.value.trim(), this.flagDefs) : undefined;
+  }
+
+  /** Replaces the hand-set value by the flag that writes the same. */
+  useFlag(row: Row, def: NoteFlagDef): void {
+    this.rows.splice(this.rows.indexOf(row), 1);
+    if (!this.isFlagOn(def.key)) this.activeFlags = [...this.activeFlags, def.key];
+  }
+
+  /** Names the flags of the note wrote before the edit: the generated list shows them in the flag section instead. */
+  private get namesFromFlags(): Set<string> {
+    const names = new Set<string>();
+    for (const key of this.flags) for (const n of Object.keys(this.flagDefs.find(d => d.key === key)?.mei ?? {})) names.add(n);
+    return names;
   }
 
   get generatedEntries(): { name: string; value: string }[] {
-    return Object.entries(this.generated).filter(([n]) => !this.rows.some(r => r.name === n)).map(([name, value]) => ({ name, value }));
+    const fromFlags = this.showFlags ? this.namesFromFlags : new Set<string>();
+    return Object.entries(this.generated).filter(([n]) => !this.rows.some(r => r.name === n) && !fromFlags.has(n)).map(([name, value]) => ({ name, value }));
   }
 
   get ruleEntries(): { name: string; value: string }[] {

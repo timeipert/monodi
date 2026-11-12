@@ -1,6 +1,7 @@
 import { MeiAnnotationRule, defaultMeiProfile } from '@monodi/core/mei';
-import { annotatedPlaces, attrRows, groupPlaces, selectionAnnotations } from './mei-selection';
-import { getMeiViewPrefs, meiRuleMarks, setMeiRuleMarks, setMeiViewPrefs } from './mei-view-prefs';
+import { setNoteFlagDefs } from '@monodi/core/document';
+import { attrRows, selectionAnnotations } from './mei-selection';
+import { getMeiViewPrefs, meiLens, meiRuleMarks, resetMeiViewPrefsCache, setMeiLensMarks, setMeiRuleMarks, setMeiViewPrefs } from './mei-view-prefs';
 import {
   emptyRootContainer, emptyFormteilContainer, emptyZeileContainer, emptySyllable,
   DocumentType, BaseNote, NoteType, RootContainer
@@ -69,37 +70,45 @@ describe('MEI tab of the sidebar: annotations of the focused note', () => {
     expect(result.groups[0].rows.every(r => r.source === 'generated')).toBeTrue();
   });
 
-  it('lists every annotated place of the document, by hand and by rule, with a note to jump to', () => {
-    const root = oneSyllable([note('n1', { meiAttrs: { tilt: 'n' }, meiNeumeAttrs: { rellen: 'l' } }), note('n2'), note('n3')]);
-    (root.children[0] as any).children[0].children[0].meiAttrs = { type: 'intro' };
-    const places = annotatedPlaces(root, [rule({ target: 'nc', match: { pitch: 'G4' }, set: { label: 'x' } })]);
-    const text = places.map(p => `${p.target}:${p.noteUuid}:${p.names.join('+')}:${p.source}`);
-    expect(text).toContain('syllable:n1:type:hand');
-    expect(text).toContain('nc:n1:label+tilt:hand');
-    expect(text).toContain('nc:n2:label:rule');
-    expect(text).toContain('neume:n1:rellen:hand');   // the neume's attributes are held by its first note
-    expect(places.every(p => p.syllableText === 'Glo')).toBeTrue();
-  });
-
   it('keeps the display choices in local storage and falls back to the defaults', () => {
     const before = getMeiViewPrefs();
-    expect(before.view === 'note' || before.view === 'all').toBeTrue();
-    setMeiViewPrefs({ showGenerated: false, markInStaff: false, view: 'all', groupBy: 'annotation' });
-    expect(getMeiViewPrefs()).toEqual({ showGenerated: false, markInStaff: false, view: 'all', groupBy: 'annotation' });
-    expect(JSON.parse(localStorage.getItem('monodi_mei_view')!).view).toBe('all');
+    expect(before.view === 'note' || before.view === 'overview').toBeTrue();
+    setMeiViewPrefs({ showGenerated: false, markInStaff: false, view: 'overview' });
+    expect(getMeiViewPrefs()).toEqual({ showGenerated: false, markInStaff: false, view: 'overview' });
+    expect(JSON.parse(localStorage.getItem('monodi_mei_view')!).view).toBe('overview');
     setMeiViewPrefs({ showGenerated: true, markInStaff: true, view: 'note' });
     expect(getMeiViewPrefs().showGenerated).toBeTrue();
   });
 
-  it('groups the annotated places by annotation, syllable or element', () => {
-    const root = oneSyllable([note('n1', { meiAttrs: { tilt: 'n' } }), note('n2', { meiAttrs: { tilt: 'n' } }), note('n3', { meiAttrs: { tilt: 's' } })]);
-    (root.children[0] as any).children[0].children[0].meiAttrs = { type: 'intro' };
-    const places = annotatedPlaces(root, []);
-    const byAnn = groupPlaces(places, 'annotation');
-    expect(byAnn.map(g => `${g.detail}:${g.items.length}`)).toEqual(['tilt="n":2', 'type="intro":1', 'tilt="s":1']);   // most frequent first, then document order
-    expect(groupPlaces(places, 'syllable').map(g => `${g.label}:${g.items.length}`)).toEqual(['“Glo”:4']);
-    expect(groupPlaces(places, 'element').map(g => `${g.label}:${g.items.length}`)).toEqual(['Notes (nc):3', 'Syllables:1']);
-    expect(byAnn.every(g => g.source === 'hand')).toBeTrue();
+  it('opens a stored choice of the list "All annotated" (until 2026-11-05) as the Overview', () => {
+    const saved = localStorage.getItem('monodi_mei_view');
+    localStorage.setItem('monodi_mei_view', JSON.stringify({ showGenerated: true, markInStaff: true, view: 'all', groupBy: 'syllable' }));
+    resetMeiViewPrefsCache();
+    expect(getMeiViewPrefs()).toEqual({ showGenerated: true, markInStaff: true, view: 'overview' });
+    if (saved === null) localStorage.removeItem('monodi_mei_view'); else localStorage.setItem('monodi_mei_view', saved);
+    resetMeiViewPrefsCache();
+  });
+
+  it('shows an attribute that a flag of the note writes as coming from that flag', () => {
+    setNoteFlagDefs([{ key: 'V', label: 'Virga', abbrev: 'V', mei: { tilt: 's' } }]);
+    try {
+      const root = oneSyllable([note('n1', { focus: true, flags: ['V'] })]);
+      const rows = selectionAnnotations(root, [], undefined, defaultMeiProfile())!.groups[0].rows;
+      expect(rows.find(r => r.name === 'tilt')).toEqual({ name: 'tilt', value: 's', source: 'flag', flagKey: 'V' });
+      expect(rows.find(r => r.name === 'pname')!.source).toBe('generated');
+    } finally {
+      setNoteFlagDefs([]);
+    }
+  });
+
+  it('highlighted notes of the MEI tab are replaced as a whole and only signal a change when they differ', () => {
+    setMeiLensMarks(new Set(['a', 'b']), new Set(['b']));
+    const first = meiLens.notes;
+    setMeiLensMarks(new Set(['b', 'a']), new Set(['b']));
+    expect(meiLens.notes).toBe(first);
+    setMeiLensMarks(new Set(), new Set());
+    expect(meiLens.notes.size).toBe(0);
+    expect(meiLens.current.size).toBe(0);
   });
 
   it('marks of annotation rules are replaced as a whole and only signal a change when they differ', () => {
