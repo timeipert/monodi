@@ -43,6 +43,7 @@ import { SharedEditorModule } from './shared-editor.module';
 
 import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selector/subcorpora-selector.component';
 import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
+import { MeiStructurePanelComponent } from './mei/mei-structure-panel.component';
 import { ImportExportComponent } from './import-export/import-export.component';
 import { SelectionDashboardComponent } from './search/selection-dashboard/selection-dashboard.component';
 import { ChartBarsComponent } from './search/charts/chart-bars.component';
@@ -78,6 +79,7 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         HelpButtonComponent,
         ContextMenuComponent,
         MeiMappingEditorComponent,
+        MeiStructurePanelComponent,
         ImportExportComponent,
         SelectionDashboardComponent,
         ChartBarsComponent,

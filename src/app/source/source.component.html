@@ -384,9 +384,7 @@
       <div class="mb-3">
         <label class="form-label small fw-semibold" for="meiImportFormat">Format</label>
         <select id="meiImportFormat" class="form-select form-select-sm w-auto" [(ngModel)]="meiImportFormat" (ngModelChange)="previewMeiImport()">
-          <option value="auto">Detect from the file</option>
-          <option value="neume">Neumes: syllable / neume / nc</option>
-          <option value="premensural">Premensural: ligature / note / verse</option>
+          @for (o of meiImportFormats; track o.value) { <option [value]="o.value">{{ o.label }}</option> }
         </select>
       </div>
       <div class="mb-3">
@@ -398,7 +396,7 @@
       }
       @if (meiImportResult; as r) {
         <div class="alert alert-info py-2 small">
-          Read as <strong>{{ r.format === 'neume' ? 'neume' : 'premensural' }}</strong> notation:
+          Read as <strong>{{ r.formatLabel }}</strong>:
           {{ r.stats.syllables }} syllables with {{ r.stats.notes }} notes in {{ r.stats.lines }} line(s) and {{ r.stats.voices }} voice(s).
         </div>
         @if (r.warnings.length > 0) {

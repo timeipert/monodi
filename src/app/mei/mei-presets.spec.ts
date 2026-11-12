@@ -148,7 +148,8 @@ describe('MEI presets for two voices', () => {
     const list = withBuiltInProfiles([own]);
     expect(list.map(p => p.id)).toEqual(['default', 'neumes-staves', 'premensural-staves']);
     expect(list[1].presetId).toBe('neumes-staves');
-    expect(list[2].notation).toBe('premensural');
+    expect(list[2].structure?.syllable).toBe('never');
+    expect(list[2].structure?.text.wrappers).toEqual(['verse']);
     expect(withBuiltInProfiles(list).length).toBe(3);                                           // not added twice
     expect(withBuiltInProfiles([own], ['premensural-staves']).map(p => p.id)).toEqual(['default', 'neumes-staves']);
     const edited = withBuiltInProfiles([own])[1];

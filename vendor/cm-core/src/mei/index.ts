@@ -4,6 +4,7 @@
  */
 export * from './emitter';
 export * from './mapping.model';
+export * from './structure';
 export * from './annotations';
 export * from './meta';
 export * from './header';

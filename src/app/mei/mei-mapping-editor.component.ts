@@ -6,7 +6,7 @@ import { UserService } from '../user.service';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as uuidv4 } from 'uuid';
 import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '@monodi/core/document';
-import { MEI_PRESETS, MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule, emitMei, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from '@monodi/core/mei';
+import { MEI_PRESETS, MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, upgradeMeiProfile, bodyStructureIssues, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule, emitMei, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from '@monodi/core/mei';
 import { SAMPLE_DOCUMENT, SAMPLE_META } from './mei-sample';
 import { validateMeiProfile, MeiValidationError } from './mei-validation';
 import { checkAnnotations } from './mei-annotation-check';
@@ -19,7 +19,7 @@ import { downloadBlob } from '../download';
 const PREVIEW_SYLLABLE_LIMIT = 40;
 const PREVIEW_MAX_ZEILEN = 2;
 
-type MeiTabId = 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema';
+type MeiTabId = 'general' | 'levels' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema';
 interface MeiGroup { id: 'export' | 'annotations' | 'schema'; label: string; icon: string; tabs: MeiTabId[] }
 
 @Component({
@@ -225,7 +225,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
   /** True for the tabs that are not an element of the entity tree. */
   get isPseudoNode(): boolean {
-    return ['skeleton', 'header', 'patterns', 'flags', 'rules', 'schema'].includes(this.selectedNodeId);
+    return ['skeleton', 'levels', 'header', 'patterns', 'flags', 'rules', 'schema'].includes(this.selectedNodeId);
   }
 
   /** Document the rules panel counts matches on. */
@@ -304,13 +304,14 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   // --- Tabs ---
   /** The three areas of the page; each has one or more sections. */
   readonly groups: MeiGroup[] = [
-    { id: 'export',      label: 'Export format', icon: 'bi-file-earmark-code', tabs: ['general', 'elements', 'header'] },
+    { id: 'export',      label: 'Export format', icon: 'bi-file-earmark-code', tabs: ['general', 'levels', 'elements', 'header'] },
     { id: 'annotations', label: 'Annotations',   icon: 'bi-tags',              tabs: ['flags', 'patterns', 'rules'] },
     { id: 'schema',      label: 'Schema',        icon: 'bi-patch-check',       tabs: ['schema'] }
   ];
 
-  readonly tabs: { id: 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema'; label: string; hint: string }[] = [
+  readonly tabs: { id: MeiTabId; label: string; hint: string }[] = [
     { id: 'general',  label: 'Structure', hint: 'Frame around the music' },
+    { id: 'levels',   label: 'Levels',    hint: 'Element per level of the music: syllable, neume, note, text' },
     { id: 'elements', label: 'Elements',  hint: 'Tag and attributes per part' },
     { id: 'header',   label: 'Header',    hint: 'Header block and publication data' },
     { id: 'flags',    label: 'Flags',     hint: 'Your own markers, e.g. virga' },
@@ -361,9 +362,10 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     ] }
   ];
 
-  get tab(): 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema' {
+  get tab(): MeiTabId {
     switch (this.selectedNodeId) {
       case 'skeleton': return 'general';
+      case 'levels': return 'levels';
       case 'header': return 'header';
       case 'patterns': return 'patterns';
       case 'flags': return 'flags';
@@ -373,7 +375,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     }
   }
 
-  setTab(t: 'general' | 'elements' | 'header' | 'patterns' | 'flags' | 'rules' | 'schema') {
+  setTab(t: MeiTabId) {
     this.selectNode(t === 'general' ? 'skeleton' : t === 'elements' ? this.lastEntity : t);
   }
 
@@ -830,6 +832,10 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
     // 1. Model Validation
     this.validationErrors.push(...validateMeiProfile(this.activeProfile));
+    // The structure of the body (tab Levels): names the export cannot write, invalid MEI, what the import does not read back.
+    this.validationErrors.push(...bodyStructureIssues(
+      this.activeProfile, this.schemas.forProfile(this.activeProfile.schemaId, this.activeProfile.schemaExtensions)
+    ).map(i => ({ entity: 'levels', message: `${i.level}: ${i.kind === 'mei' ? 'not valid MEI: ' : i.kind === 'import' ? 'import: ' : ''}${i.message}`, isError: i.kind === 'error' })));
     this.validationErrors.push(...checkAnnotations(
       this.previewRoot, this.activeProfile, this.schemas.forProfile(this.activeProfile.schemaId, this.activeProfile.schemaExtensions)
     ).map(i => ({ entity: i.element, message: `${i.where}: ${i.message}`, isError: i.level === 'error' })));
@@ -961,22 +967,6 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     this.emitChange();
   }
 
-  /** Premensural notation names ligature and note for the neume and the note; neume notation restores nc and neume where the profile still has the premensural names. */
-  onNotationChange(value: 'neume' | 'premensural') {
-    const p = this.activeProfile!;
-    const e = p.entities;
-    if (value === 'premensural') {
-      p.notation = 'premensural';
-      e.neume.tag = 'ligature';
-      e.note.tag = 'note';
-    } else {
-      p.notation = undefined;
-      if (e.neume.tag === 'ligature') e.neume.tag = this.defaultProfile.entities.neume.tag;
-      if (e.note.tag === 'note') e.note.tag = this.defaultProfile.entities.note.tag;
-    }
-    this.emitChange();
-  }
-
   onNewProfile() {
     const name = window.prompt('Enter name for the new profile:');
     if (name && name.trim().length > 0) {
@@ -1054,7 +1044,8 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       this.activeProfile.skeleton = JSON.parse(JSON.stringify(def.skeleton));
       this.activeProfile.emitHeader = def.emitHeader;
       this.activeProfile.inlineInterventions = def.inlineInterventions;
-      for (const k of ['schemaConformant', 'syllableTypes', 'staff', 'lineBreaks', 'voices', 'adiastematic', 'accidentals'] as const) delete this.activeProfile[k];
+      this.activeProfile.structure = def.structure;
+      for (const k of ['schemaConformant', 'syllableTypes', 'staff', 'lineBreaks', 'voices', 'adiastematic', 'accidentals', 'notation'] as const) delete this.activeProfile[k];
       this.emitChange(true);
       this.toastr.success('Profile reset to defaults.');
     }
@@ -1083,14 +1074,17 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
           throw new Error("Invalid profile format: Missing 'version: 2', 'entities', or 'skeleton'.");
         }
         
-        const requiredEntities = ['syllable', 'neume', 'note', 'clef', 'liquescentElement', 'oriscus', 'quilisma', 'strophicus', 'sb', 'paratextContainer', 'commentTree'];
+        // Every entity rule of the profile model (MeiEntityKey). Until 2026-11-05 this list named keys the model does not have
+        // (liquescentElement, sb, paratextContainer, commentTree), so every exported profile was refused.
+        const requiredEntities: MeiEntityKey[] = ['formteil', 'zeile', 'paratext', 'syllable', 'syllableText', 'neume', 'note', 'clef', 'oriscus', 'quilisma', 'strophicus', 'liquescent'];
         for (const req of requiredEntities) {
           if (!parsed.entities[req]) {
             throw new Error(`Invalid profile format: Missing entity configuration for "${req}".`);
           }
         }
         
-        const newProfile: MeiMappingProfileV2 = parsed;
+        // A profile file written before 2026-11-05 has `notation` instead of `structure`; the upgrade writes the structure it means.
+        const newProfile: MeiMappingProfileV2 = upgradeMeiProfile(parsed);
         newProfile.id = uuidv4();
         delete newProfile.presetId;
         

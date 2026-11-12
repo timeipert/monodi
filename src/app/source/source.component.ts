@@ -1,6 +1,6 @@
-import { importMei } from '../mei/mei-import';
+import { importFormatOptions, importMei, importRequestOf } from '../mei/mei-import';
 import { documentIdFromFileName, newImportedDocument } from '../mei/mei-import-document';
-import type { MeiImportFormat, MeiImportResult } from '../mei/mei-import';
+import type { MeiImportResult } from '../mei/mei-import';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { ChangeDetectorRef, Component, OnInit, ViewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -79,7 +79,9 @@ export class SourceComponent implements OnInit {
 
   // Volpiano import
   @ViewChild('meiImport', { static: false }) meiImportModal!: TemplateRef<any>;
-  meiImportFormat: MeiImportFormat = 'auto';
+  /** A value of `importFormatOptions`: `auto`, `neume`, `premensural` or `profile:<id>` (an export profile of the project). */
+  meiImportFormat = 'auto';
+  get meiImportFormats(): { value: string; label: string }[] { return importFormatOptions(this.settings?.meiProfiles); }
   meiImportDocId = '';
   meiImportError = '';
   meiImportResult?: MeiImportResult;
@@ -419,7 +421,7 @@ export class SourceComponent implements OnInit {
     this.meiImportResult = undefined;
     if (!this.meiImportText) return;
     try {
-      this.meiImportResult = importMei(this.meiImportText, this.meiImportFormat);
+      this.meiImportResult = importMei(this.meiImportText, importRequestOf(this.meiImportFormat, this.settings?.meiProfiles));
     } catch (e) {
       this.meiImportError = e instanceof Error ? e.message : String(e);
     }

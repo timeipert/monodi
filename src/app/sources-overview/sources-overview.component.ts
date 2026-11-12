@@ -1,5 +1,6 @@
-import { importMei } from '../mei/mei-import';
-import type { MeiImportFormat, MeiImportResult } from '../mei/mei-import';
+import { importFormatOptions, importMei, importRequestOf } from '../mei/mei-import';
+import type { MeiImportResult } from '../mei/mei-import';
+import type { MeiMappingProfileV2 } from '@monodi/core/mei';
 import { documentIdFromFileName, newImportedDocument, newImportedSource } from '../mei/mei-import-document';
 import { FocusService } from '../focus.service';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
@@ -441,7 +442,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   // --- MEI import (several files at once) ---
   showMeiImportDialog = false;
-  meiImportFormat: MeiImportFormat = 'auto';
+  /** A value of `importFormatOptions`: `auto`, `neume`, `premensural` or `profile:<id>` (an export profile of the project). */
+  meiImportFormat = 'auto';
+  /** The export profiles of the project, for the formats of the import (loaded when the dialog opens). */
+  meiImportProfiles: MeiMappingProfileV2[] = [];
+  get meiImportFormats(): { value: string; label: string }[] { return importFormatOptions(this.meiImportProfiles); }
   /** Source the documents are created in; `new` creates one with the siglum below. */
   meiImportSourceId = '';
   meiImportNewSigle = '';
@@ -455,6 +460,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     this.meiImportFiles = [];
     this.meiImportBusy = false;
     this.showMeiImportDialog = true;
+    if (this.user) {
+      this.api.getSettings(this.user.token).subscribe(res => {
+        if (res.kind === 'SettingsRetrieved') { this.meiImportProfiles = res.settings.meiProfiles ?? []; this.cdRef.markForCheck(); }
+      });
+    }
     this.cdRef.markForCheck();
   }
 
@@ -474,7 +484,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   previewMeiImport(): void {
     for (const f of this.meiImportFiles) {
       f.result = undefined; f.error = undefined;
-      try { f.result = importMei(f.text, this.meiImportFormat); }
+      try { f.result = importMei(f.text, importRequestOf(this.meiImportFormat, this.meiImportProfiles)); }
       catch (e) { f.error = e instanceof Error ? e.message : String(e); }
     }
     this.cdRef.markForCheck();

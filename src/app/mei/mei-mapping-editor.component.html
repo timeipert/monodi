@@ -187,12 +187,8 @@
                   </div>
                 }
                 <div class="mb-4">
-                  <label class="form-label fw-medium" for="notationSelect">Notation</label>
-                  <select id="notationSelect" class="form-select form-select-sm w-auto" [ngModel]="activeProfile.notation ?? 'neume'" (ngModelChange)="onNotationChange($event)">
-                    <option value="neume">Neumes: syllable / neume / nc</option>
-                    <option value="premensural">Premensural: ligature / note / verse</option>
-                  </select>
-                  <small class="text-muted d-block mt-1">Premensural: a neume of several notes is a <code>&lt;ligature&gt;</code> of notes, a neume of one note is a <code>&lt;note&gt;</code>; the text is a <code>&lt;verse&gt;</code> in the first of them; the staves get <code>notationtype="premensural"</code> and the file names the MEI Mensural schema, which it does not yet satisfy (state 2026-11-05). Changing this setting also sets the names of the elements for neume and note.</small>
+                  <span class="form-label fw-medium d-block">Notation</span>
+                  <small class="text-muted d-block">Which element each level of the music becomes (syllable, neume, note, text, accidental, stem), with the two built-in structures neumes and premensural: tab <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="setTab('levels')">Levels</button>.</small>
                 </div>
                 <div class="mb-4">
                   <div class="form-check form-switch">
@@ -241,6 +237,11 @@
               </div>
             }
             </div>
+          }
+
+          <!-- Levels: the structure of the body -->
+          @if (tab === 'levels' && activeProfile) {
+            <app-mei-structure-panel [profile]="activeProfile" (changed)="emitChange()"></app-mei-structure-panel>
           }
 
           <!-- Header -->

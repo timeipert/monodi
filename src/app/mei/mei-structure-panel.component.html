@@ -1,0 +1,240 @@
+<div class="p-4 mei-pane">
+  <p class="mei-lead">
+    Which MEI element each level of the transcription becomes, whether it is written, which attributes it gets, and where the text stands.
+    The levels nest in the order of the transcription (a neume belongs to one syllable, a note to one neume), so that order is fixed;
+    a level that is not written passes its content to the level around it. Any element name is written as given; the warnings below say
+    what the MEI schema or the import of Monodi does not accept.
+  </p>
+
+  <!-- Built-in structures -->
+  <div class="border rounded p-3 mb-4 bg-light">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span class="small fw-medium me-1">Built-in structure</span>
+      @for (p of presets; track p.id) {
+        <button type="button" class="btn btn-sm" [class.btn-primary]="matching?.id === p.id" [class.btn-outline-secondary]="matching?.id !== p.id"
+          (click)="applyPreset(p.id)" [title]="p.description">{{ p.name }}</button>
+      }
+    </div>
+    <div class="small text-muted mt-2">
+      @if (matching) {
+        This profile has the built-in structure "{{ matching.name }}": {{ matching.description }}
+      } @else {
+        A structure of its own. The import of Monodi reads it back when this profile is chosen as the format in the import dialog (Sources → Import MEI).
+      }
+    </div>
+  </div>
+
+  <!-- Checks -->
+  @if (issues.length > 0) {
+    <div class="mb-4 small">
+      @if (issueCount.error > 0) {
+        <div class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>{{ issueCount.error }} {{ issueCount.error === 1 ? 'name stops' : 'names stop' }} the export (see the levels below).</div>
+      }
+      @if (issueCount.mei > 0) {
+        <div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle-fill me-1"></i>Not valid MEI: {{ issueCount.mei }} {{ issueCount.mei === 1 ? 'warning' : 'warnings' }}. The file is written as described.</div>
+      }
+      @if (issueCount.import > 0) {
+        <div class="text-warning-emphasis"><i class="bi bi-arrow-repeat me-1"></i>Not read back by the import: {{ issueCount.import }} {{ issueCount.import === 1 ? 'warning' : 'warnings' }}.</div>
+      }
+    </div>
+  }
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-7">
+      <!-- Levels, outermost first -->
+      @for (lv of levels; track lv.key) {
+        <div class="border rounded p-2 mb-2" [style.margin-left.rem]="lv.depth * 0.9" [class.opacity-50]="!written(lv)" [attr.data-level]="lv.key">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-medium" style="min-width: 7.5rem;">{{ lv.label }}</span>
+            @if (lv.modes) {
+              <select class="form-select form-select-sm w-auto" [ngModel]="mode(lv)" (ngModelChange)="setMode(lv, $event)" [attr.aria-label]="'Whether the ' + lv.label + ' is written'">
+                @for (m of lv.modes; track m) { <option [value]="m">{{ modeLabels[m] }}</option> }
+              </select>
+            }
+            <span class="input-group input-group-sm w-auto">
+              <span class="input-group-text font-monospace text-muted">&lt;</span>
+              <input type="text" class="form-control font-monospace" style="width: 8rem;" list="meiStructureSuggestions"
+                [ngModel]="elementOf(lv)" (change)="setElement(lv, $any($event.target).value)" [attr.aria-label]="'Element of the ' + lv.label">
+              <span class="input-group-text font-monospace text-muted">&gt;</span>
+            </span>
+            @if (attributesOf(lv); as attrs) {
+              @for (a of attrs; track $index) { <span class="badge bg-light text-dark border font-monospace fw-normal">{{ attrSummary(a) }}</span> }
+            }
+          </div>
+          <small class="text-muted d-block mt-1">{{ lv.hint }}</small>
+          @for (i of issuesOf(lv.key); track i.message) {
+            <div class="small mt-1" [class.text-danger]="i.kind === 'error'" [class.text-warning-emphasis]="i.kind !== 'error'">
+              <i class="bi me-1" [ngClass]="i.kind === 'error' ? 'bi-x-circle' : i.kind === 'mei' ? 'bi-exclamation-triangle' : 'bi-arrow-repeat'"></i>{{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
+            </div>
+          }
+          @if (attributesOf(lv); as attrs) {
+            <details class="mt-1 small">
+              <summary class="text-muted">Attributes ({{ attrs.length }})@if (wrappersOf(lv); as wraps) { and elements around it ({{ wraps.length }})}</summary>
+              <div class="mt-2">
+                @for (a of attrs; track $index; let i = $index) {
+                  <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                    <input type="text" class="form-control form-control-sm font-monospace" style="width: 7rem;" placeholder="name" [(ngModel)]="a.name" (ngModelChange)="emit()" [attr.aria-label]="'Attribute name'">
+                    <select class="form-select form-select-sm w-auto" [(ngModel)]="a.source" (ngModelChange)="emit()" aria-label="Source of the value">
+                      <option value="static">fixed value</option>
+                      <option value="field">from the transcription</option>
+                    </select>
+                    @if (a.source === 'static') {
+                      <input type="text" class="form-control form-control-sm font-monospace" style="width: 8rem;" placeholder="value" [(ngModel)]="a.value" (ngModelChange)="emit()" aria-label="Value">
+                    } @else {
+                      <select class="form-select form-select-sm w-auto" [(ngModel)]="a.value" (ngModelChange)="emit()" aria-label="Data field">
+                        <option value="" disabled>field …</option>
+                        @for (f of fieldsOf(lv); track f.key) { <option [value]="f.key">{{ f.label }} ({{ f.key }})</option> }
+                      </select>
+                    }
+                    <label class="form-check-label small ms-1"><input type="checkbox" class="form-check-input me-1" [(ngModel)]="a.omitIfEmpty" (ngModelChange)="emit()">left out when empty</label>
+                    <button type="button" class="btn btn-link btn-sm text-danger p-0 ms-1" (click)="removeAttribute(attrs, i)" title="Remove this attribute"><i class="bi bi-x-circle"></i></button>
+                  </div>
+                }
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="addAttribute(attrs)"><i class="bi bi-plus"></i> Attribute</button>
+                @if (wrappersOf(lv); as wraps) {
+                  <div class="mt-2">
+                    <span class="text-muted">Elements around each {{ lv.label | lowercase }}, outermost first (one shared element per parent):</span>
+                    <div class="wrapper-chips mt-1">
+                      @for (w of wraps; track $index; let i = $index; let last = $last) {
+                        <div class="wrapper-chip">
+                          <span>&lt;{{ w }}&gt;</span>
+                          <button type="button" class="btn btn-link py-0 px-1" (click)="moveWrapper(wraps, i, -1)" [disabled]="i === 0" title="Move out"><i class="bi bi-caret-left-fill" style="font-size: 0.6rem;"></i></button>
+                          <button type="button" class="btn btn-link py-0 px-1" (click)="moveWrapper(wraps, i, 1)" [disabled]="last" title="Move in"><i class="bi bi-caret-right-fill" style="font-size: 0.6rem;"></i></button>
+                          <button type="button" class="btn btn-link text-danger p-0 ms-1" (click)="removeWrapper(wraps, i)" title="Remove"><i class="bi bi-x-circle"></i></button>
+                        </div>
+                      }
+                      <input type="text" class="form-control form-control-sm w-auto font-monospace" style="width: 8rem;" placeholder="+ element" list="meiStructureSuggestions" #lw
+                        (keyup.enter)="addWrapper(wraps, lw.value); lw.value = ''" aria-label="Add an element around it">
+                    </div>
+                  </div>
+                }
+              </div>
+            </details>
+          }
+        </div>
+      }
+
+      <!-- Text -->
+      <div class="border rounded p-2 mb-2 mt-3" data-level="text">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="fw-medium" style="min-width: 7.5rem;">Text</span>
+          <span class="input-group input-group-sm w-auto">
+            <span class="input-group-text font-monospace text-muted">&lt;</span>
+            <input type="text" class="form-control font-monospace" style="width: 6rem;" list="meiStructureSuggestions" [ngModel]="textRule.tag"
+              (change)="textRule.tag = $any($event.target).value.trim(); emit()" aria-label="Element of the text">
+            <span class="input-group-text font-monospace text-muted">&gt;</span>
+          </span>
+          <span class="small">in</span>
+          <select class="form-select form-select-sm w-auto" [ngModel]="st.text.holder" (ngModelChange)="setTextHolder($event)" aria-label="Element that holds the text">
+            @for (h of textHolders; track h.value) { <option [value]="h.value">{{ h.label }}</option> }
+          </select>
+          <span class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary" (click)="moveText(-1)" [disabled]="st.text.holder === 'syllable'" title="One level out (towards the syllable)"><i class="bi bi-arrow-up"></i></button>
+            <button type="button" class="btn btn-outline-secondary" (click)="moveText(1)" [disabled]="st.text.holder === 'note'" title="One level in (towards the note)"><i class="bi bi-arrow-down"></i></button>
+          </span>
+          <select class="form-select form-select-sm w-auto" [(ngModel)]="st.text.position" (ngModelChange)="emit()" aria-label="Before or after the music">
+            <option value="first">before the music</option>
+            <option value="last">after the music</option>
+          </select>
+        </div>
+        <div class="mt-2 small">
+          <span class="text-muted">Elements around the text, outermost first (made for every syllable):</span>
+          <div class="wrapper-chips mt-1">
+            @for (w of st.text.wrappers; track $index; let i = $index; let last = $last) {
+              <div class="wrapper-chip">
+                <span>&lt;{{ w }}&gt;</span>
+                <button type="button" class="btn btn-link py-0 px-1" (click)="moveWrapper(st.text.wrappers, i, -1)" [disabled]="i === 0" title="Move out"><i class="bi bi-caret-left-fill" style="font-size: 0.6rem;"></i></button>
+                <button type="button" class="btn btn-link py-0 px-1" (click)="moveWrapper(st.text.wrappers, i, 1)" [disabled]="last" title="Move in"><i class="bi bi-caret-right-fill" style="font-size: 0.6rem;"></i></button>
+                <button type="button" class="btn btn-link text-danger p-0 ms-1" (click)="removeWrapper(st.text.wrappers, i)" title="Remove"><i class="bi bi-x-circle"></i></button>
+              </div>
+            }
+            <div class="wrapper-chip border-primary text-primary bg-primary-subtle">&lt;{{ textRule.tag || 'syl' }}&gt;</div>
+            <input type="text" class="form-control form-control-sm w-auto font-monospace" style="width: 8rem;" placeholder="+ element, e.g. verse" list="meiStructureSuggestions" #tw
+              (keyup.enter)="addWrapper(st.text.wrappers, tw.value); tw.value = ''" aria-label="Add an element around the text">
+          </div>
+          <div class="text-muted mt-1">{{ textHolderNote }} The text voice and the links of the other voices are set on the Structure tab (Voices).</div>
+        </div>
+        @for (i of issuesOf('text'); track i.message) {
+          <div class="small mt-1" [class.text-danger]="i.kind === 'error'" [class.text-warning-emphasis]="i.kind !== 'error'">
+            <i class="bi me-1" [ngClass]="i.kind === 'error' ? 'bi-x-circle' : i.kind === 'mei' ? 'bi-exclamation-triangle' : 'bi-arrow-repeat'"></i>{{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
+          </div>
+        }
+      </div>
+
+      <!-- Stem -->
+      <div class="border rounded p-2 mb-2" data-level="stem" [class.opacity-50]="!conformant">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="fw-medium" style="min-width: 7.5rem;">Stem of a note</span>
+          <select class="form-select form-select-sm w-auto" [(ngModel)]="st.stem.form" (ngModelChange)="emit()" aria-label="How a stem is written">
+            <option value="attribute">attribute of the note</option>
+            <option value="element">element in the note</option>
+            <option value="none">not written</option>
+          </select>
+          @if (st.stem.form === 'element') {
+            <span class="input-group input-group-sm w-auto">
+              <span class="input-group-text font-monospace text-muted">&lt;</span>
+              <input type="text" class="form-control font-monospace" style="width: 6rem;" list="meiStructureSuggestions" [(ngModel)]="st.stem.element" (ngModelChange)="emit()" aria-label="Element of the stem">
+              <span class="input-group-text font-monospace text-muted">&gt;</span>
+            </span>
+          }
+          @if (st.stem.form !== 'none') {
+            <span class="input-group input-group-sm w-auto">
+              <span class="input-group-text">&#64;</span>
+              <input type="text" class="form-control font-monospace" style="width: 5rem;" [(ngModel)]="st.stem.attribute" (ngModelChange)="emit()" aria-label="Attribute of the stem">
+            </span>
+            <span class="input-group input-group-sm w-auto">
+              <span class="input-group-text">up</span>
+              <input type="text" class="form-control font-monospace" style="width: 4rem;" [(ngModel)]="st.stem.up" (ngModelChange)="emit()" aria-label="Value for a stem up">
+            </span>
+            <span class="input-group input-group-sm w-auto">
+              <span class="input-group-text">down</span>
+              <input type="text" class="form-control font-monospace" style="width: 4rem;" [(ngModel)]="st.stem.down" (ngModelChange)="emit()" aria-label="Value for a stem down">
+            </span>
+          }
+        </div>
+        <small class="text-muted d-block mt-1">The note types Ascending and Descending (an oval head with a stem up or down). Neumes: <code>nc/&#64;tilt</code> n or s; premensural: <code>note/plica/&#64;dir</code> up or down. Written only with the schema-conformant structure.</small>
+        @for (i of issuesOf('stem'); track i.message) {
+          <div class="small mt-1" [class.text-danger]="i.kind === 'error'" [class.text-warning-emphasis]="i.kind !== 'error'">
+            <i class="bi me-1" [ngClass]="i.kind === 'error' ? 'bi-x-circle' : i.kind === 'mei' ? 'bi-exclamation-triangle' : 'bi-arrow-repeat'"></i>{{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
+          </div>
+        }
+      </div>
+
+      <!-- Staff definition and schema -->
+      <div class="border rounded p-2 mb-2" data-level="staffdef">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-md-4 fw-medium">Notation of the staves</div>
+          <div class="col-12 col-md-8">
+            <input type="text" class="form-control form-control-sm font-monospace" list="meiNotationTypes" placeholder="empty: not written" [(ngModel)]="st.notationType" (ngModelChange)="emit()" aria-label="Value of staffDef/@notationtype">
+          </div>
+          <div class="col-12 col-md-4 fw-medium">Schema named in the file</div>
+          <div class="col-12 col-md-8">
+            <input type="text" class="form-control form-control-sm font-monospace" list="meiSchemaUrls" placeholder="empty: MEI 5.0 neumes" [(ngModel)]="st.schemaUrl" (ngModelChange)="emit()" aria-label="Schema URL of the xml-model lines">
+          </div>
+        </div>
+        <small class="text-muted d-block mt-1"><code>staffDef/&#64;notationtype</code> tells viewers such as Verovio how to draw the staves; the schema URL goes into the two <code>&lt;?xml-model?&gt;</code> lines at the top of the file. Neither changes what the export checks here (that is the Schema tab).</small>
+        @for (i of issuesOf('staffDef'); track i.message) {
+          <div class="small mt-1 text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>Not valid MEI: {{ i.message }}</div>
+        }
+      </div>
+    </div>
+
+    <!-- Sketch -->
+    <div class="col-12 col-xl-5">
+      <div class="small fw-medium mb-1">What a line looks like</div>
+      <p class="small text-muted mb-2">Two syllables of a sample: <em>Ky-</em> with a flat, a neume of two groups (the second note with a stem up) and a neume of one note; <em>e</em> with one note. Written with this profile.</p>
+      <pre class="bg-dark text-light p-3 rounded small mb-0" style="font-size: 11px; max-height: 32rem; overflow: auto;"><code>{{ sketch }}</code></pre>
+    </div>
+  </div>
+
+  <datalist id="meiStructureSuggestions">
+    @for (s of suggestions; track s) { <option [value]="s"></option> }
+  </datalist>
+  <datalist id="meiNotationTypes">
+    @for (v of notationTypes; track v) { <option [value]="v"></option> }
+    <option value="premensural"></option>
+  </datalist>
+  <datalist id="meiSchemaUrls">
+    @for (u of schemaUrls; track u.url) { @if (u.url) { <option [value]="u.url">{{ u.label }}</option> } }
+  </datalist>
+</div>

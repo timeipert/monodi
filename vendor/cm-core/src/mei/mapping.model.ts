@@ -1,3 +1,6 @@
+import { applyBodyStructurePreset, bodyStructureOf, neumeBodyStructure } from './structure';
+import type { MeiBodyStructure } from './structure';
+
 export interface MeiAttributeRule {
   name: string;                       // attribute name, e.g. "pname"
   source: 'static' | 'field';
@@ -165,9 +168,14 @@ export interface MeiMappingProfileV2 {
   /** The additional melodies of a syllable become one `<staff n="2">` and so on per voice, aligned by `@corresp` or `@sameas` and `@synch` (conformant structure); default on. */
   voices?: boolean;
   /**
-   * Notation of the body. `neume` (default): `syllable`, `neume`, `nc`. `premensural`: no syllable; a neume of several notes is a
-   * `ligature` of `note`s, a neume of one note is a `note`, the text is a `verse` with a `syl` in the first of them, the staff has
-   * `notationtype="premensural"` and the file names the MEI Mensural schema. Not yet valid against that schema (state 2026-11-05).
+   * Structure of the body: the element of each level of the transcription, how the levels nest, where the text stands, how an
+   * accidental and a stem are written (see structure.ts). Missing in a profile stored before 2026-11-05; `bodyStructureOf` then
+   * reads `notation`, and `upgradeMeiProfile` writes the structure into the profile.
+   */
+  structure?: MeiBodyStructure;
+  /**
+   * Replaced by `structure` on 2026-11-05; kept so that profiles stored before are read the same way. `neume` (or missing): the
+   * built-in structure `neume`; `premensural`: the built-in structure `premensural` (see `BODY_STRUCTURE_PRESETS`).
    */
   notation?: 'neume' | 'premensural';
   /** Which voice of a syllable with several voices carries the text: the `first` (default) or the `last` voice that has notes. */
@@ -283,7 +291,7 @@ export const MEI_ELEMENT_SUGGESTIONS: string[] = [
   'music', 'body', 'mdiv', 'score', 'scoreDef', 'section', 'staff', 'layer',
   'sb', 'pb', 'syllable', 'syl', 'neume', 'nc', 'ncGrp', 'clef', 'dir',
   'annot', 'liquescent', 'oriscus', 'quilisma', 'strophicus', 'episema',
-  'custos', 'divLine', 'accid'
+  'custos', 'divLine', 'accid', 'ligature', 'note', 'verse', 'plica', 'stem', 'chord', 'beam'
 ];
 
 /** Section attributes: the signature of the form part is its label (it may hold spaces, `@n` may not), the status its type. */
@@ -539,6 +547,7 @@ export function defaultMeiProfile(): MeiMappingProfileV2 {
     skeleton: ['music', 'body', 'mdiv', 'score'],
     emitHeader: true,
     inlineInterventions: false,
+    structure: neumeBodyStructure(),
     entities: buildEntities(null)
   };
 }
@@ -546,7 +555,8 @@ export function defaultMeiProfile(): MeiMappingProfileV2 {
 /**
  * Brings a stored profile to the defaults of state 2026-11-02 where it still holds the earlier defaults: the paratext
  * (it was off and named the element `dir`, which the schema does not allow in a section), the clef line (it was a fixed 1) and
- * the section attributes (there were none). A setting that a person changed is left as it is.
+ * the section attributes (there were none). A setting that a person changed is left as it is. A profile without a body structure
+ * (stored before 2026-11-05) gets the structure that its field `notation` named, and `notation` is removed.
  */
 export function upgradeMeiProfile(profile: MeiMappingProfileV2): MeiMappingProfileV2 {
   const e = profile.entities;
@@ -558,6 +568,9 @@ export function upgradeMeiProfile(profile: MeiMappingProfileV2): MeiMappingProfi
   const line = e.clef?.attributes.find(a => a.name === 'line');
   if (line && line.source === 'static' && line.value === '1') { line.source = 'field'; line.value = 'line'; }
   if (e.formteil && e.formteil.attributes.length === 0) e.formteil.attributes = FORMTEIL_ATTRIBUTES.map(a => ({ ...a }));
+  // The fixed switch `notation` (before 2026-11-05) becomes the structure it named; the export stays the same.
+  if (!profile.structure) profile.structure = bodyStructureOf(profile);
+  delete profile.notation;
   return profile;
 }
 
@@ -597,15 +610,12 @@ export const MEI_PRESETS: MeiProfilePreset[] = [
   {
     id: 'premensural-staves',
     name: 'Premensural, one staff per voice',
-    description: 'ligature / note / verse instead of syllable / neume / nc, notationtype="premensural" (attributes such as lig="conjunctura" are set by hand on the notes). Not yet valid against the MEI Mensural schema.',
+    description: 'ligature / note / verse instead of syllable / neume / nc, notationtype="premensural" (attributes such as lig="conjunctura" are set by hand on the notes). Not valid against the MEI Mensural schema (state 2026-11-05; tab Levels lists where).',
     build: () => {
       const p = staffPerVoice(defaultMeiProfile());
       p.name = 'Premensural, one staff per voice';
       p.presetId = 'premensural-staves';
-      p.notation = 'premensural';
-      p.entities.neume.tag = 'ligature';
-      p.entities.note.tag = 'note';
-      return p;
+      return applyBodyStructurePreset(p, 'premensural');
     }
   }
 ];
@@ -634,6 +644,7 @@ export function migrateV1MeiMappings(v1: any): MeiMappingProfileV2 {
     skeleton: ['music', 'body', 'mdiv', 'score'],
     emitHeader: true,
     inlineInterventions: false,
+    structure: neumeBodyStructure(),
     entities: buildEntities(v1)
   };
 }

@@ -28,10 +28,12 @@ import {
   DEFAULT_STAFF
 } from './mapping.model';
 import type {
+  MeiAttributeRule,
   MeiMappingProfileV2,
-  MeiEntityKey,
-  MeiEntityRule
+  MeiEntityKey
 } from './mapping.model';
+import { bodyStructureOf, effectiveGroupMode, effectiveNeumeMode, effectiveSyllableMode, neumeBodyStructure, MEI_NEUMES_SCHEMA_URL } from './structure';
+import type { MeiBodyStructure, MeiLevelMode } from './structure';
 
 export function resolveFormteilFields(formteil: FormteilContainer): Record<string, string> {
   const res: Record<string, string> = { uuid: formteil.uuid };
@@ -127,8 +129,20 @@ let neumesOfSyllable = new WeakMap<object, (Element | null)[]>();
 let currentVoice = 0;
 /** Id prefix of voice 1 while the additional voices of a line are written (`idPrefix` then holds the prefix of the voice). */
 let voiceBasePrefix = 'm-';
-/** The profile writes the premensural notation (see MeiMappingProfileV2.notation). */
-let premensural = false;
+/** Structure of the body of the profile being exported (see structure.ts); module variable like the ones above. */
+let structure: MeiBodyStructure = neumeBodyStructure();
+/** Whether the syllable, neume and group levels are written (the structure with the switches of the entity rules applied). */
+let syllableMode: 'always' | 'never' = 'always';
+let neumeMode: MeiLevelMode = 'always';
+let groupMode: MeiLevelMode = 'never';
+/** Element names of a voice (`structure.voice`): one staff per voice, each with one layer. */
+let staffTag = 'staff';
+let layerTag = 'layer';
+/**
+ * Per syllable that was walked (keyed like `neumesOfSyllable`): the first element its music put into the element around it (a neume,
+ * or without neume element a group or a note) and its first note, for the holder of the text (`structure.text.holder`).
+ */
+let musicOfSyllable = new WeakMap<object, { first: Element | null; firstNote: Element | null }>();
 /** Number of staves the score declares: one per voice, i.e. the highest voice number that has notes in any line of the document (at least 1). */
 let staffCount = 1;
 
@@ -145,7 +159,13 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   activeSiglum = sourceSiglum || undefined;
   activeProfile = profile;
   conformant = profile.schemaConformant !== false;
-  premensural = profile.notation === 'premensural';
+  structure = bodyStructureOf(profile);
+  syllableMode = effectiveSyllableMode(profile, structure);
+  neumeMode = effectiveNeumeMode(profile, structure);
+  groupMode = effectiveGroupMode(structure);
+  staffTag = structure.voice.staff.trim() || 'staff';
+  layerTag = structure.voice.layer.trim() || 'layer';
+  musicOfSyllable = new WeakMap<object, { first: Element | null; firstNote: Element | null }>();
   currentVoice = 0;
   voiceBasePrefix = 'm-';
   contourLine = false;
@@ -245,10 +265,10 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                         walkFormteil(child, commentSection, doc, profile);
                     } else if (child.kind === ContainerKind.ZeileContainer) {
                         if (hasWitnessLabels) {
-                            currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+                            currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', staffTag);
                             currentStaff.setAttribute('n', '1');
                             currentStaff.setAttribute('xml:id', `m-comment-${i}-reading-${readingIndex}`);
-                            currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+                            currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', layerTag);
                             currentLayer.setAttribute('n', '1');
                             currentStaff.appendChild(currentLayer);
                             commentSection.appendChild(currentStaff);
@@ -257,9 +277,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                             idPrefix = 'm-';
                         } else {
                             if (!currentStaff) {
-                              currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+                              currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', staffTag);
                               currentStaff.setAttribute('n', '1');
-                              currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+                              currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', layerTag);
                               currentLayer.setAttribute('n', '1');
                               currentStaff.appendChild(currentLayer);
                               commentSection.appendChild(currentStaff);
@@ -278,9 +298,9 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
                 for (const zItem of treeResult.zeilen) {
                     const ptrSection = doc.createElementNS('http://www.music-encoding.org/ns/mei', profile.entities.formteil.tag);
                     ptrSection.setAttribute('xml:id', zItem.id);
-                    const currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+                    const currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', staffTag);
                     currentStaff.setAttribute('n', '1');
-                    const currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+                    const currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', layerTag);
                     currentLayer.setAttribute('n', '1');
                     currentStaff.appendChild(currentLayer);
                     ptrSection.appendChild(currentStaff);
@@ -303,10 +323,10 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
   const serializer = new XMLSerializer();
   let xmlString = serializer.serializeToString(mei);
   
-  // The development schema URL answers 404 (state 2026-10-26). The conformant structure names the released MEI 5.0 neumes
-  // customization, which accepts meiversion="5.0"; the default keeps the line of earlier exports.
-  const schemaUrl = premensural ? 'https://music-encoding.org/schema/5.0/mei-Mensural.rng'
-    : conformant ? 'https://music-encoding.org/schema/5.0/mei-Neumes.rng' : 'https://music-encoding.org/schema/dev/mei-Neumes.rng';
+  // The schema of the structure (`structure.schemaUrl`, premensural: the MEI 5.0 Mensural customization). Without one: the conformant
+  // structure names the released MEI 5.0 neumes customization, which accepts meiversion="5.0"; the earlier structure keeps the line of
+  // earlier exports (the development schema URL answers 404, state 2026-10-26).
+  const schemaUrl = structure.schemaUrl.trim() || (conformant ? MEI_NEUMES_SCHEMA_URL : 'https://music-encoding.org/schema/dev/mei-Neumes.rng');
   const header = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>\n` +
     `<?xml-model href="${schemaUrl}" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>\n`;
@@ -368,7 +388,7 @@ function makeScoreDef(doc: Document, profile: MeiMappingProfileV2): Element {
       staffDef.setAttribute('n', String(n));
       // Without @notationtype="neume" Verovio (and MEI-Friend, which is built on it) reads the neumes as common music notation: it warns
       // "Parent note for <syl> was not found" for every syllable and draws the staff wrongly (checked 2026-11-03 with Verovio 6.4).
-      staffDef.setAttribute('notationtype', premensural ? 'premensural' : 'neume');
+      if (structure.notationType.trim()) staffDef.setAttribute('notationtype', structure.notationType.trim());
       staffDef.setAttribute('lines', String(staff.lines));
       if (staff.clefShape) staffDef.setAttribute('clef.shape', staff.clefShape);
       if (staff.clefShape && staff.clefLine) staffDef.setAttribute('clef.line', String(staff.clefLine));
@@ -406,7 +426,7 @@ function makeVerovioSafe(mei: Element, doc: Document): void {
     // The section that receives the staves of the line being processed: the section itself for the first line, a holder for a later one.
     let current: Element = section;
     for (const child of Array.from(section.children)) {
-      if (child.localName !== 'staff') continue;
+      if (child.localName !== staffTag) continue;
       if (seenStaff && child.getAttribute('n') !== '1') {
         // Staff of a further voice: stays with the staff of voice 1 of its line, so the voices are laid out on top of each other.
         if (current !== section) current.appendChild(child);
@@ -428,7 +448,7 @@ function makeVerovioSafe(mei: Element, doc: Document): void {
   }
 
   const annots = Array.from(mei.getElementsByTagNameNS(NS, 'annot')).filter(a => a.parentElement?.localName === 'section');
-  const layersOf = (el: Element): Element[] => Array.from((el.closest('mdiv') ?? mei).getElementsByTagNameNS(NS, 'layer'));
+  const layersOf = (el: Element): Element[] => Array.from((el.closest('mdiv') ?? mei).getElementsByTagNameNS(NS, layerTag));
   for (const annot of annots.reverse()) {                       // reversed: inserting at the start keeps the order of annotations
     const layers = layersOf(annot);
     const next = layers.find(l => !!(annot.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING));
@@ -441,9 +461,9 @@ function makeVerovioSafe(mei: Element, doc: Document): void {
       previous.appendChild(annot);
       continue;
     }
-    const staff = doc.createElementNS(NS, 'staff');
+    const staff = doc.createElementNS(NS, staffTag);
     staff.setAttribute('n', '1');
-    const layer = doc.createElementNS(NS, 'layer');
+    const layer = doc.createElementNS(NS, layerTag);
     layer.setAttribute('n', '1');
     staff.appendChild(layer);
     annot.parentElement!.appendChild(staff);
@@ -461,9 +481,9 @@ function applyRuleAttributes(element: Element, attrs?: Record<string, string>) {
 }
 
 function applyAttributes(
-  element: Element, 
-  rule: MeiEntityRule, 
-  resolvedFields: Record<string, string>, 
+  element: Element,
+  rule: { attributes: MeiAttributeRule[] },
+  resolvedFields: Record<string, string>,
   customHandler?: (ruleName: string) => string | null
 ) {
   for (const attrRule of rule.attributes) {
@@ -574,18 +594,18 @@ function walkZeile(zeile: ZeileContainer, parentElement: Element, doc: Document,
     // Elsewhere a line is a <staff><layer> of its own, announced by a line break in the section (an <sb> in a layer is invalid).
     let layer = parentElement;
     let firstStaff: Element | null = null;
-    if (parentElement.localName !== 'layer') {
+    if (parentElement.localName !== layerTag) {
       // profile.firstLineBreak === false: the first staff of a section needs no line break before it.
-      const firstOfSection = !Array.from(parentElement.children).some(c => c.localName === 'staff');
+      const firstOfSection = !Array.from(parentElement.children).some(c => c.localName === staffTag);
       if (!(firstOfSection && profile.firstLineBreak === false)) {
         const sbElement = doc.createElementNS('http://www.music-encoding.org/ns/mei', rule.tag);
         sbElement.setAttribute('xml:id', idPrefix + zeile.uuid);
         applyAttributes(sbElement, rule, { uuid: zeile.uuid });
         parentElement.appendChild(sbElement);
       }
-      const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+      const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', staffTag);
       staff.setAttribute('n', '1');
-      layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+      layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', layerTag);
       layer.setAttribute('n', '1');
       staff.appendChild(layer);
       parentElement.appendChild(staff);
@@ -670,7 +690,7 @@ function walkAdditionalVoices(zeile: ZeileContainer, firstStaff: Element, doc: D
   };
   for (const part of parts) if (part.kind === LinePartKind.Syllable) addAligned(part, part, savedPrefix + part.uuid);
   for (let v = 1; v <= voiceCount; v++) {
-    const layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+    const layer = doc.createElementNS('http://www.music-encoding.org/ns/mei', layerTag);
     layer.setAttribute('n', '1');
     idPrefix = `${savedPrefix}v${v + 1}-`;
     currentVoice = v;
@@ -686,7 +706,7 @@ function walkAdditionalVoices(zeile: ZeileContainer, firstStaff: Element, doc: D
       addAligned(part, voicePart, idPrefix + part.uuid);
     }
     if (layer.children.length === 0) continue;
-    const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+    const staff = doc.createElementNS('http://www.music-encoding.org/ns/mei', staffTag);
     staff.setAttribute('n', String(v + 1));
     if (savedContour) staff.setAttribute('type', 'adiastematic');
     staff.appendChild(layer);
@@ -774,13 +794,8 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
 
   } else if (part.kind === LinePartKind.Syllable) {
     const rule = profile.entities.syllable;
-    if (premensural) {
-      walkSyllablePremensural(part, parentElement, doc, profile);
-      return;
-    }
-    if (!rule.enabled) {
-      // Walk notes directly under parentElement
-      walkSyllableNotes(part, parentElement, doc, profile);
+    if (syllableMode === 'never') {
+      walkSyllableWithoutElement(part, parentElement, doc, profile);
       return;
     }
 
@@ -812,13 +827,17 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
     }
     applyAnnotationAttrs(syllable, mergedAttrs(annotations.syllable.get(part.uuid), part.meiAttrs));
 
-    // syllableText inner tag
+    // The text: in the syllable before or after its music, or in its first neume or note (structure.text).
     const syl = makeSyl(part, doc, profile);
-    if (syl) syllable.appendChild(syl);
+    const inSyllable = structure.text.holder === 'syllable';
+    if (syl && inSyllable && structure.text.position === 'first') syllable.appendChild(wrapText(syl, doc));
     applyCorresp(syllable, part, profile);
 
     // Walk notes under the syllable element
     walkSyllableNotes(part, syllable, doc, profile);
+    if (syl && inSyllable && structure.text.position === 'last') syllable.appendChild(wrapText(syl, doc));
+    // A syllable without the neume or note that should hold its text keeps the text itself.
+    if (syl && !inSyllable) placeText(textHolder(part) ?? syllable, wrapText(syl, doc));
 
     if (supplied) {
       supplied.appendChild(syllable);
@@ -879,33 +898,48 @@ function walkLinePart(part: any, parentElement: Element, doc: Document, profile:
 }
 
 /**
- * Premensural notation (profile.notation): a syllable has no element of its own. Its neumes are written as for neume notation (a
- * `ligature` of `note`s per neume; the names come from the profile), then a ligature of one note is replaced by that note, and the text
- * goes into a `verse` in the first of the elements (the text voice) or a `verse` with `syl/@sameas` (the other voices). A syllable
- * without notes writes no text: there is no element to hold it. `lig="conjunctura"` and the other attributes of a ligature's notes are
- * not derived: they are set by hand on the note (editor, MEI attributes tab) and written like any hand-set attribute.
+ * A syllable without an element of its own (`structure.syllable` is `never`, or the syllable rule is switched off; premensural
+ * notation): its neumes stand in the element around it (the layer), its text in the holder that `structure.text` names (premensural:
+ * a `verse` in the first neume, which is a `ligature` or, for a neume of one note, that `note`), and the other voices point to that
+ * holder with `@corresp`. Without a holder (text holder `syllable`, or a syllable without notes) the text is not written. The type of
+ * the syllable (ellipses) and the attributes set on it are not written either: there is no element to carry them. `lig="conjunctura"`
+ * and the other attributes of a ligature's notes are not derived: they are set by hand on the note and written like any hand-set attribute.
  */
-function walkSyllablePremensural(part: any, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
+function walkSyllableWithoutElement(part: any, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
   walkSyllableNotes(part, parentElement, doc, profile);
-  const units = neumesOfSyllable.get(part) ?? [];
-  const neumeTag = profile.entities.neume.tag;
-  units.forEach((el, i) => {
-    if (!el || el.localName !== neumeTag) return;
-    const notes = Array.from(el.children);
-    if (notes.length === 1) {
-      el.replaceWith(notes[0]);
-      units[i] = notes[0];
-    }
-  });
-  const first = units.find(u => !!u);
-  if (!first) return;
+  const holder = textHolder(part);
+  if (!holder) return;
   const syl = makeSyl(part, doc, profile);
-  if (syl) {
-    const verse = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'verse');
-    verse.appendChild(syl);
-    first.insertBefore(verse, first.firstChild);
+  if (syl) placeText(holder, wrapText(syl, doc));
+  applyCorresp(holder, part, profile);
+}
+
+/** The element that holds the text of a syllable that was walked, if the music of the syllable wrote it (see MeiTextPlacement.holder). */
+function textHolder(part: any): Element | null {
+  const music = musicOfSyllable.get(part);
+  if (structure.text.holder === 'neume') return music?.first ?? null;
+  if (structure.text.holder === 'note') return music?.firstNote ?? null;
+  return null;
+}
+
+/** The text element inside the wrappers of `structure.text` (made anew for every syllable), outermost first. */
+function wrapText(syl: Element, doc: Document): Element {
+  let outer = syl;
+  for (const name of [...structure.text.wrappers].reverse()) {
+    if (!name.trim()) continue;
+    const w = doc.createElementNS('http://www.music-encoding.org/ns/mei', name.trim());
+    w.appendChild(outer);
+    outer = w;
   }
-  applyCorresp(first, part, profile);
+  return outer;
+}
+
+/** Puts the text into its holder: before its content (after a `gap` that marks the syllable type) or after it (`structure.text.position`). */
+function placeText(holder: Element, text: Element) {
+  if (structure.text.position === 'last') { holder.appendChild(text); return; }
+  let before = holder.firstElementChild;
+  while (before && before.localName === 'gap') before = before.nextElementSibling;
+  holder.insertBefore(text, before);
 }
 
 /**
@@ -924,8 +958,8 @@ function isGroupBreakGap(groups: { grouped: Note[] }[], gIndex: number, nIndex: 
 
 /** MEI `accid/@accid` value of the Monodi accidental note types (f flat, n natural, s sharp). */
 const ACCIDENTAL_VALUE: { [noteType: string]: string } = { Flat: 'f', Natural: 'n', Sharp: 's' };
-/** Conformant structure: `nc/@tilt` (direction of the pen stroke) for the note heads with a stem, as drawn in Monodi-Zero (glyph-paths.ts). */
-const STEM_TILT: { [noteType: string]: string } = { Ascending: 'n', Descending: 's' };
+/** Conformant structure: the note heads with a stem, as drawn in Monodi-Zero (glyph-paths.ts); true for a stem up. Written as `structure.stem`. */
+const STEM_UP: { [noteType: string]: boolean } = { Ascending: true, Descending: false };
 
 function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Document, profile: MeiMappingProfileV2) {
   if (!syllable.notes || !syllable.notes.spaced) return;
@@ -933,6 +967,8 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
   const spacedArr = syllable.notes.spaced;
   const neumeElements: (Element | null)[] = [];
   neumesOfSyllable.set(syllable, neumeElements);
+  const music: { first: Element | null; firstNote: Element | null } = { first: null, firstNote: null };
+  musicOfSyllable.set(syllable, music);
   // Every spaced unit becomes its own <neume>, so a gap between units needs no
   // mark. con="g" only marks a gap INSIDE a neume, between non-ligated groups
   // (`*u`, see isGroupBreakGap); notes in one `grouped` array are a ligature.
@@ -950,8 +986,11 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
     // Accidentals are `accid` children of the syllable, in the sequence of its neumes (see config/mei-body-mapping.yml in CM-hub).
     const accidsBefore: Element[] = [];
     const accidsAfter: Element[] = [];
+    /** Without a neume element: the first group (or note) of this unit, which is the unit's first element in the element around it. */
+    let unitFirst: Element | null = null;
+    let groupNumber = 0;
 
-    if (neumeRule.enabled) {
+    if (neumeMode !== 'never') {
       // Resolve wrappers outermost-first
       for (const w of neumeRule.wrappers) {
         targetParent = getOrCreateWrapper(targetParent, w, doc);
@@ -969,6 +1008,17 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
     for (let gIndex = 0; gIndex < neumeData.nonSpaced.length; gIndex++) {
       const groupedData = neumeData.nonSpaced[gIndex];
       if (!groupedData.grouped || groupedData.grouped.length === 0) continue;
+      // The group level (structure.group): one element per group of notes written together, made when its first note is written.
+      groupNumber++;
+      const group: { el: Element | null } = { el: null };
+      const groupHost = (): Element => {
+        if (!group.el) {
+          group.el = doc.createElementNS('http://www.music-encoding.org/ns/mei', structure.group.element.trim());
+          applyAttributes(group.el, structure.group, { index: String(groupNumber), uuid: groupedData.grouped[0]?.uuid ?? '' });
+          targetParent.appendChild(group.el);
+        }
+        return group.el;
+      };
 
       for (let nIndex = 0; nIndex < groupedData.grouped.length; nIndex++) {
         const note = groupedData.grouped[nIndex];
@@ -976,11 +1026,13 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         if (accidAsElement && ACCIDENTAL_VALUE[note.noteType]) {
           // An accidental is not a note of the melody. Monodi does not say which note it affects, and neither does the `accid`:
           // it stands in the syllable where it stands in the sequence, with the pitch position it was written at (ploc/oloc).
-          const accid = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'accid');
+          // Element and attributes: structure.accid.
+          const accid = doc.createElementNS('http://www.music-encoding.org/ns/mei', structure.accid.element.trim() || 'accid');
           accid.setAttribute('xml:id', idPrefix + note.uuid);
-          accid.setAttribute('accid', ACCIDENTAL_VALUE[note.noteType]);
-          if (note.base) accid.setAttribute('ploc', note.base.toLowerCase());
-          if (note.octave !== undefined) accid.setAttribute('oloc', note.octave.toString());
+          applyAttributes(accid, structure.accid, {
+            uuid: note.uuid, accid: ACCIDENTAL_VALUE[note.noteType],
+            base: note.base ? note.base.toLowerCase() : '', octave: note.octave !== undefined ? note.octave.toString() : ''
+          });
           applyAnnotationAttrs(accid, mergedAttrs(annotations.nc.get(note.uuid), note.meiAttrs));
           (neumeEl && neumeEl.childNodes.length > 0 ? accidsAfter : accidsBefore).push(accid);
           continue;
@@ -1011,7 +1063,7 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         if (!noteRule.enabled) continue;
 
         // Resolve wrappers outermost-first
-        let noteTargetParent = targetParent;
+        let noteTargetParent = groupMode !== 'never' ? groupHost() : targetParent;
         for (const w of noteRule.wrappers) {
           noteTargetParent = getOrCreateWrapper(noteTargetParent, w, doc);
         }
@@ -1054,15 +1106,19 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         previousPitch = pitch;
 
         for (const fd of flagDefs) applyRuleAttributes(nc, fd.mei);
-        if (conformant && STEM_TILT[note.noteType]) {
-          if (premensural) {
-            // Mensural notation has no tilt on a note; a note head with a stroke up or down is a plica (MEI 5.0 `<plica dir>`,
-            // drawn by Verovio as stems at the sides of the note head). See MEI-EXPORT-STRUCTURE.md, "Note heads with a stem".
-            const plica = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'plica');
-            plica.setAttribute('dir', STEM_TILT[note.noteType] === 'n' ? 'up' : 'down');
-            nc.appendChild(plica);
-          } else {
-            nc.setAttribute('tilt', STEM_TILT[note.noteType]);
+        if (conformant && STEM_UP[note.noteType] !== undefined) {
+          // structure.stem. Neume notation: `nc/@tilt` n or s (direction of the pen stroke). Mensural notation has no tilt on a note;
+          // a note head with a stroke up or down is a plica (MEI 5.0 `<plica dir>`, drawn by Verovio as stems at the sides of the note
+          // head). See MEI-EXPORT-STRUCTURE.md, "Note heads with a stem".
+          const stem = structure.stem;
+          const value = (STEM_UP[note.noteType] ? stem.up : stem.down).trim();
+          const attr = stem.attribute.trim();
+          if (stem.form === 'element' && stem.element.trim()) {
+            const el = doc.createElementNS('http://www.music-encoding.org/ns/mei', stem.element.trim());
+            if (attr && value) el.setAttribute(attr, value);
+            nc.appendChild(el);
+          } else if (stem.form === 'attribute' && attr && value) {
+            nc.setAttribute(attr, value);
           }
         }
 
@@ -1077,6 +1133,15 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
         }
 
         noteTargetParent.appendChild(nc);
+        if (!music.firstNote) music.firstNote = nc;
+      }
+      if (group.el) {
+        // A group of one note, written only with several notes: the note stands in its place.
+        const only = group.el.children.length === 1 ? group.el.children[0] : null;
+        if (groupMode === 'several' && only) group.el.replaceWith(only);
+        if (!unitFirst) unitFirst = groupMode === 'several' && only ? only : group.el;
+      } else if (!unitFirst && !neumeEl) {
+        unitFirst = music.firstNote && music.firstNote.parentElement ? topOf(music.firstNote, targetParent) : null;
       }
     }
 
@@ -1087,7 +1152,25 @@ function walkSyllableNotes(syllable: Syllable, parentElement: Element, doc: Docu
       for (const a of accidsAfter) holder.insertBefore(a, next);
     }
     // A unit that held only accidentals or no note at all is not a neume.
+    let unitEl: Element | null = null;
     if (neumeEl && neumeEl.childNodes.length === 0 && neumeEl.parentNode) neumeEl.parentNode.removeChild(neumeEl);
-    else neumeElements[sIndex] = neumeEl;
+    else {
+      // A neume of one element, written only with several (premensural: a ligature of one note): the element stands in its place.
+      if (neumeEl && neumeMode === 'several' && neumeEl.children.length === 1) {
+        const only = neumeEl.children[0];
+        neumeEl.replaceWith(only);
+        neumeEl = only;
+      }
+      neumeElements[sIndex] = neumeEl;
+      unitEl = neumeEl;
+    }
+    if (!music.first) music.first = unitEl ?? unitFirst;
   }
+}
+
+/** The ancestor of `el` (or `el` itself) that is a child of `container`: a note inside its wrappers is represented by the outermost one. */
+function topOf(el: Element, container: Element): Element {
+  let e = el;
+  while (e.parentElement && e.parentElement !== container) e = e.parentElement;
+  return e;
 }
