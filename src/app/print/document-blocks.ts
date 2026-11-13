@@ -6,7 +6,7 @@ import { canonicalStatus } from '../types/formteil-status';
  * paratexts (rubrics) and lines of notation — the same sequence the read-only view renders.
  */
 export type PrintBlock =
-  | { kind: 'formteil'; depth: number; signature: string; status: string }
+  | { kind: 'formteil'; depth: number; signature: string; status: string; references: string[] }
   | { kind: 'paratext'; depth: number; text: string }
   | { kind: 'zeile'; depth: number; zeile: VM.ZeileContainer; status: string };
 
@@ -26,7 +26,9 @@ export function documentBlocks(root: VM.RootContainer): PrintBlock[] {
       case VM.ContainerKind.FormteilContainer: {
         const sig = (c.data || []).find((d) => d.name === VM.FormteilDataName.Signatur)?.data?.trim() || '';
         const status = canonicalStatus((c.data || []).find((d) => d.name === VM.FormteilDataName.Status)?.data) || inherited;
-        out.push({ kind: 'formteil', depth, signature: sig, status });
+        // the field "Verweis" of a section (a biblical verse, a chant catalogue number, an editorial note); a section may have several
+        const references = (c.data || []).filter((d) => d.name === VM.FormteilDataName.Verweis).map((d) => (d.data || '').trim()).filter(Boolean);
+        out.push({ kind: 'formteil', depth, signature: sig, status, references });
         for (const ch of c.children || []) visit(ch, depth + 1, status);
         break;
       }

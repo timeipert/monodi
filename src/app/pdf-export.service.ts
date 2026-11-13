@@ -417,7 +417,7 @@ export class PdfExportService {
         const {
           pdfMarginLeft, pdfMarginRight, pdfMarginTop, pdfMarginBottom, mirrorMargins, SCALE, pdfStaffSpacing, pdfBracketGap, pdfSyllableTextOffset,
           extraSyllableSpacing, pdfContinuationIndent, pdfFontSize, pdfSignaturSpace, pdfVerticalSpace, widowSlack, hideBareStaff,
-          compactTextless, skipEmptySyllables, statusTextStyles, titleFontSize, pdfTitleVerticalSpace, headerSource, metaFontSize, pdfMetadataVerticalSpace,
+          compactTextless, skipEmptySyllables, sectionReferences, statusTextStyles, titleFontSize, pdfTitleVerticalSpace, headerSource, metaFontSize, pdfMetadataVerticalSpace,
           pdfParatextFontSize, pdfParatextSpacing, pdfCommentStaffScale, pdfCommentFontSize, pdfCommentBlockGap, lemmaColumnMax,
           chapterHeadings, chapterNewPage, partStyle, contentsEdition, contentsApparatus, pdfShowPageNumbers, pdfPageNumberFontSize, pdfHeadlineFontSize,
           pdfHeadlineMetadataFields, bookmarks, docHeadingFields, docHeadingSeparator, boldAsSmallCaps, hyphenate,
@@ -933,6 +933,29 @@ export class PdfExportService {
                 }
                 if (!wasLastElementParatext) defer(pdfVerticalSpace, () => { cursorY += pdfVerticalSpace; }, true);
                 wasLastElementParatext = false;
+                // The references of the section ("Verweis"), in italics above its first line; queued like a rubric, so they
+                // stay on the page of that line. An entry that repeats the reference of the document (its heading) is left out.
+                const docReference = String((job.document as any)?.bibliographischerverweis ?? '').trim();
+                const refs = sectionReferences ? block.references.filter((r) => r !== docReference) : [];
+                if (refs.length) {
+                  doc.setFontSize(pdfParatextFontSize - 1);
+                  doc.setFont(fontFamily, 'italic');
+                  const refLines: string[] = doc.splitTextToSize(refs.join('\n'), Math.max(60, pageWidth - pdfMarginRight - textX));
+                  const refNeed = refLines.length * (pdfParatextFontSize - 1) * 1.4 + pdfParatextSpacing;
+                  defer(refNeed, () => {
+                    doc.setFontSize(pdfParatextFontSize - 1);
+                    doc.setFont(fontFamily, 'italic');
+                    doc.setTextColor(90, 90, 90);
+                    doc.text(refLines, textX, cursorY);
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFont(fontFamily, 'normal');
+                    lastParatextBaselineY = cursorY + (refLines.length - 1) * (pdfParatextFontSize - 1) * doc.getLineHeightFactor();
+                    lastParatextPage = doc.getNumberOfPages();
+                    paratextPending = true;
+                    cursorY += refNeed;
+                  });
+                  wasLastElementParatext = true;
+                }
                 continue;
               }
               const zeile = block.kind === 'zeile' ? block.zeile : null;

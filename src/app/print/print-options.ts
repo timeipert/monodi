@@ -40,6 +40,7 @@ export function resolvePrintOptions(s: Partial<ProjectSettings> & { [key: string
     hideBareStaff: s.pdfHideStaffWithoutNotes !== false,
     compactTextless: s.pdfCompactTextless !== false,
     skipEmptySyllables: s.pdfSkipEmptySyllables !== false,
+    sectionReferences: s.pdfSectionReferences !== false,
     statusTextStyles: resolveStatusTextStyles(s.pdfStatusTextStyle),
     // titles, metadata, rubrics
     titleFontSize: num(s.pdfTitleFontSize, D.pdfTitleFontSize),

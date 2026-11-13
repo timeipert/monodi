@@ -744,6 +744,12 @@ export interface ProjectSettings {
   pdfCompactTextless?: boolean;
   /** Syllables with neither text nor notes take no room (default); off keeps their gap. */
   pdfSkipEmptySyllables?: boolean;
+  /**
+   * The entries of the section field "Verweis" (for example "Ps 50, 9", "CAO 1494") are printed in italics above the first
+   * line of their section (default); off leaves them out. An entry equal to the document field `bibliographischerverweis`
+   * is never repeated there.
+   */
+  pdfSectionReferences?: boolean;
   /** Lyric style per section status (key: English status name): 'smallcaps' | 'uppercase' | 'lowercase'; missing = as typed. */
   pdfStatusTextStyle?: { [status: string]: 'none' | 'smallcaps' | 'uppercase' | 'lowercase' };
   pdfChapterHeadings?: boolean;

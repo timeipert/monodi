@@ -29,6 +29,16 @@ describe('documentBlocks', () => {
     expect(lines).toEqual(['Entry Mark', '', 'Trope Element', 'Refrain']);
   });
 
+  it('carries the references ("Verweis") of a section, in their order, without empty ones', () => {
+    const withRefs: any = { ...form('1', [zeile([])]) };
+    withRefs.data = [...withRefs.data, { name: FormteilDataName.Verweis, data: ' Ps 50, 9 ' }, { name: FormteilDataName.Verweis, data: '' },
+      { name: FormteilDataName.Verweis, data: 'Melodie: Rex\nvgl. Lk 1, 34-35' }];
+    const root: any = { kind: ContainerKind.RootContainer, uuid: 'r', comments: [], children: [withRefs, form('2', [zeile([])])] };
+    const sections = documentBlocks(root).filter((x) => x.kind === 'formteil') as any[];
+    expect(sections[0].references).toEqual(['Ps 50, 9', 'Melodie: Rex\nvgl. Lk 1, 34-35']);
+    expect(sections[1].references).toEqual([]);
+  });
+
   it('prints syllables and line/folio changes, but not the clef and box markers', () => {
     const z = zeile([{ kind: 'Syllable' }, { kind: 'Clef' }, { kind: 'LineChange' }, { kind: 'Box' }, { kind: 'FolioChange' }]);
     expect(printedParts(z).map((p: any) => p.kind)).toEqual(['Syllable', 'LineChange', 'FolioChange']);

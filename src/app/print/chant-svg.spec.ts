@@ -126,4 +126,29 @@ describe('renderChantSvg', () => {
       expect(a.svg).toBe(b.svg);
     });
   });
+
+  describe('references of a section ("Verweis")', () => {
+    const withReferences = (refs: string[]) => {
+      const doc = JSON.parse(JSON.stringify(real[0].doc));
+      const first = (c: any): any => c.kind === VM.ContainerKind.FormteilContainer ? c : (c.children || []).map(first).find(Boolean);
+      const section = first(doc);
+      section.data = [...(section.data || []), ...refs.map((data) => ({ name: VM.FormteilDataName.Verweis, data }))];
+      return doc;
+    };
+    const texts = (svg: string) => [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+
+    it('are printed in italics, except an entry that repeats the reference of the document', async () => {
+      const job = jobOf(withReferences(['Ps 50, 9', 'CAO 1494']));
+      job.document.bibliographischerverweis = 'CAO 1494';
+      const out = await renderChantSvg(job, { settings: SETTINGS });
+      expect(texts(out.svg)).toContain('Ps 50, 9');
+      expect(texts(out.svg)).not.toContain('CAO 1494');
+      expect(out.svg).toMatch(/<text [^>]*font-style="italic"[^>]*>Ps 50, 9<\/text>/);
+    });
+
+    it('are left out when the setting pdfSectionReferences is off', async () => {
+      const out = await renderChantSvg(jobOf(withReferences(['Ps 50, 9'])), { settings: { ...SETTINGS, pdfSectionReferences: false } as any });
+      expect(texts(out.svg)).not.toContain('Ps 50, 9');
+    });
+  });
 });
