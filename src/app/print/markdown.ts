@@ -24,7 +24,7 @@ export type MdBlock =
   | { kind: 'image'; src: string; alt: string; title?: string }
   | { kind: 'rule' };
 
-const ESCAPABLE = /[\\`*_{}\[\]()#+\-.!>~|]/;
+const ESCAPABLE = /[\\`*_{}\[\]()#+\-.!<>~|"$%&',:;=?@^]/;   // ASCII punctuation, as in CommonMark (`\<ohann>` prints "<ohann>")
 
 /** Closing marker of an emphasis run: not preceded by whitespace, not part of a longer run. */
 function findClose(s: string, mark: string, from: number): number {

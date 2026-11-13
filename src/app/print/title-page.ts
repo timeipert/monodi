@@ -34,6 +34,9 @@ export interface TitleTemplate {
   top: number;
   /** Space left and right of the text area, in pt. */
   side: number;
+  /** Space left of the text area, in pt, when it differs from `side` (a block set from the middle of the page, as on the
+   *  title page of a printed volume). Missing or 0: `side`. */
+  left?: number;
   /** Space below the bottom stack, in pt. */
   bottom: number;
   /** Line height as a multiple of the text size. */
@@ -135,6 +138,7 @@ export function sanitizeTitleTemplate(raw: unknown): TitleTemplate {
   return {
     top: clampNum(r.top, 0, 70, base.top),
     side: clampNum(r.side, 0, 200, base.side),
+    ...(r.left ? { left: clampNum(r.left, 0, 400, 0) } : {}),
     bottom: clampNum(r.bottom, 0, 200, base.bottom),
     lineHeight: clampNum(r.lineHeight, 1, 2.5, base.lineHeight),
     variables,
@@ -170,7 +174,9 @@ interface Prepared { block: TitleBlock; lines: string[]; height: number }
 
 /** Places the blocks on a page of `page` pt. `y` of a text item is its baseline. */
 export function layoutCover(t: TitleTemplate, lookup: PlaceholderLookup, page: { w: number; h: number }, measure: MeasureStyled): CoverLayout {
-  const textW = Math.max(40, page.w - 2 * t.side);
+  const L = t.left || t.side;                    // left edge of the text area
+  const textW = Math.max(40, page.w - L - t.side);
+  const mid = L + textW / 2;
   const unknown: string[] = [];
   const watching: PlaceholderLookup = (name) => { const v = lookup(name); if (v === undefined && !unknown.includes(name)) unknown.push(name); return v; };
   const prepared: Prepared[] = [];
@@ -186,10 +192,10 @@ export function layoutCover(t: TitleTemplate, lookup: PlaceholderLookup, page: {
   const items: CoverItem[] = [];
   const place = (p: Prepared, top: number): void => {
     const { block } = p;
-    const x = block.align === 'left' ? t.side : block.align === 'right' ? page.w - t.side : page.w / 2;
+    const x = block.align === 'left' ? L : block.align === 'right' ? page.w - t.side : mid;
     if (block.kind === 'rule') {
       const len = textW * block.width / 100;
-      const x1 = block.align === 'left' ? t.side : block.align === 'right' ? page.w - t.side - len : page.w / 2 - len / 2;
+      const x1 = block.align === 'left' ? L : block.align === 'right' ? page.w - t.side - len : mid - len / 2;
       items.push({ kind: 'rule', x1, x2: x1 + len, y: top + block.size / 2, thickness: block.size, color: block.color });
       return;
     }

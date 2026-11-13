@@ -29,8 +29,18 @@ export async function rasterize(blob: Blob, maxPx: number, quality = 0.88): Prom
   }
 }
 
+type ImageLoader = (src: string, maxPx: number) => Promise<LoadedImage | null>;
+let ownLoader: ImageLoader | null = null;
+
+/** Outside the browser (the headless export in Node) there is no canvas to decode with: the caller sets a loader of its
+ *  own (scripts/lib/pdf-batch-entry.ts). `null` goes back to the browser's way. */
+export function setImageLoader(loader: ImageLoader | null): void {
+  ownLoader = loader;
+}
+
 /** A picture from an address or a data URL; null if it cannot be fetched (offline, no CORS …). */
 export async function loadImage(src: string, maxPx = 1600): Promise<LoadedImage | null> {
+  if (ownLoader) return ownLoader(src, maxPx);
   try {
     const res = await fetch(src);
     if (!res.ok) return null;

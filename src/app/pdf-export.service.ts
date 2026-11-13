@@ -26,6 +26,9 @@ import { drawGClef, drawStaff, drawSyllableNotation, RGB } from './print/notatio
 import { Box, TreeKit, layoutCommentTree } from './print/comment-tree-layout';
 import { FontStyle, TextKit, breakLines, drawLines, linesWidth, linkReferences } from './print/rich-text';
 import { MdBlock, MdInline, parseMarkdown, safeHref } from './print/markdown';
+import { withCaretSuperscript } from './print/caret-superscript';
+import { withDrawnGlyphs } from './print/drawn-glyphs';
+import { MarginAnchor, extractMarginAnchors, hasMarginAnchors } from './print/margin-labels';
 import { MdLine, SUP_RISE, SUP_SIZE, layoutInlines, lineWidth } from './print/markdown-layout';
 import { hyphenateWord, loadHyphenation } from './print/hyphenate';
 import { printLabels } from './print/labels';
@@ -34,6 +37,7 @@ import { sourceDescription } from './source-description';
 import { buildNotationDoc, NotationDoc, notationNotes } from './notation-doc';
 import { readSetup } from './notation-set';
 import { drawEquivalents, drawNeumeTree, drawNotes, drawStrips, drawSubheading, NotationHost } from './print/notation-doc-draw';
+import { hasSpecialSign, parseTreeCode } from '@monodi/core';
 import { loadStripPictures } from './print/notation-doc-images';
 import { loadStripImages } from './notation-strip-images';
 import { TitleTemplate } from './print/title-page';
@@ -147,6 +151,14 @@ export interface PdfExportOptions {
   title?: string;
   /** A cover before everything else, set from a template with placeholders. `group`: what the volume is called when a print is split. */
   cover?: { template: TitleTemplate; group?: string; groupField?: string; groupParts?: string[] };
+  /** Further pages behind the cover, each set from a template like it: a series page, the title page of a printed volume, the imprint (publisher, copyright, funding). */
+  coverPages?: { template: TitleTemplate; group?: string }[];
+  /**
+   * Parts of running text set from Markdown, as a printed volume has them: `front` stand behind the contents and before the
+   * edition (notes on using the volume, introduction), `back` behind all other parts (list of literature, indexes). Each is a
+   * part of its own: its title as heading (a part page in the volume style), in the contents and in the running head.
+   */
+  textParts?: { front?: PdfTextPart[]; report?: PdfTextPart[]; back?: PdfTextPart[] };
   /** The cover and the title page / contents count as pages: the edition begins at page 3, as in a printed volume. Default: the edition is numbered from 1. */
   countFrontPages?: boolean;
   /** 'save' (default) starts the download; 'blob' hands the PDF back in the stats (volumes that are zipped, the cover preview); 'none' only draws (the SVG renderer reads the drawing calls and needs no file). */
@@ -161,6 +173,29 @@ export interface PdfExportOptions {
   wrapDocument?: (doc: jsPDF) => jsPDF;
   fileName?: string;
   onProgress?: (message: string, done: number, total: number) => void;
+}
+
+/** A part of running text in a print (see `PdfExportOptions.textParts`). */
+export interface PdfTextPart {
+  title: string;
+  markdown: string;
+}
+
+/** The parts behind the edition and their order (setting `pdfPartOrder`); the default is the order of the dialog's options. */
+export type PdfPartKey = 'apparatus' | 'descriptions' | 'notation';
+export const DEFAULT_PART_ORDER: PdfPartKey[] = ['apparatus', 'descriptions', 'notation'];
+
+/** The order of the parts behind the edition: the setting's keys first (unknown ones dropped), the missing ones after them. */
+export function partOrder(raw: unknown): PdfPartKey[] {
+  const own = Array.isArray(raw) ? raw.filter((k): k is PdfPartKey => (DEFAULT_PART_ORDER as string[]).includes(k)) : [];
+  return [...new Set([...own, ...DEFAULT_PART_ORDER])];
+}
+
+/** A field of a source as the print reads it: a standard field, else a custom one (`custom` after an import). */
+export function sourceFieldText(src: any, key: string): string {
+  if (!src || !key) return '';
+  const v = src[key] ?? src.custom?.[key];
+  return v === undefined || v === null ? '' : String(v).trim();
 }
 
 export interface PdfExportStats {
@@ -333,7 +368,8 @@ export class PdfExportService {
   private async newDocument(opts: Pick<PdfExportOptions, 'settings' | 'pageFormat' | 'pageSizePt' | 'wrapDocument'>): Promise<{ doc: jsPDF; s: any; fontFamily: string }> {
     const s: any = { ...(opts.settings || {}), ...(opts.pageFormat ? { pdfFormat: opts.pageFormat, pdfOrientation: 'portrait' } : {}) };
     const real = new jsPDF({ unit: 'pt', format: opts.pageSizePt ?? pdfPageFormat(s.pdfFormat), orientation: (s.pdfOrientation || 'portrait'), compress: true });
-    const doc = opts.wrapDocument ? opts.wrapDocument(real) : real;
+    // `59^CM`: CM raised; ⟨ ⟩ ⌞ ⌟, which the text fonts lack, drawn as strokes
+    const doc = withCaretSuperscript(withDrawnGlyphs(opts.wrapDocument ? opts.wrapDocument(real) : real));
     const fontSetting: string = s.pdfFontFamily || PRINT_PDF_DEFAULTS.pdfFontFamily;
     const fontFamily = embeddedFamily(fontSetting) || fontSetting;
     if (embeddedFamily(fontFamily)) await registerEmbeddedFont(doc, fontFamily);
@@ -354,7 +390,11 @@ export class PdfExportService {
   private async exportInner(jobsIn: PdfDocJob[], opts: PdfExportOptions): Promise<PdfExportStats> {
     if (!jobsIn.length) throw new Error('Nothing to print');
     // Documents of one manuscript belong together: each manuscript is a chapter (stable by first appearance).
-    const chapterKeyOf = (j: PdfDocJob) => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
+    const sourceKeyOf = (j: PdfDocJob): string => (j.source as any)?.id ?? (j.sigle || (j.source as any)?.quellensigle || '');
+    // Several manuscripts can form one chapter (the printed volume II-2 sets "11. Bamberg | Ba 12 | Ba 45"): the setting
+    // `pdfChapterGroupField` names a source field, manuscripts with the same value in it share a chapter.
+    const groupField = String((opts.settings as any)?.pdfChapterGroupField || '').trim();
+    const chapterKeyOf = (j: PdfDocJob): string => (groupField && sourceFieldText(j.source, groupField)) || sourceKeyOf(j);
     // A unit (a play) is a chapter of its own, as a manuscript is; the descriptions, notation and folio labels below still go by manuscript.
     const arranging = opts.arrangeRelated !== false;
     const { items: jobs, chapterNo, chapterFirst, labels, sections, see, keys: chapterKeys, count: chapterCount } = chapterize(
@@ -395,7 +435,7 @@ export class PdfExportService {
         const maxContentY = pageHeight - pdfMarginBottom;
 
         // Two-column text (the source descriptions, as in the printed volume): a full column goes on in the next one, then on a new page.
-        let mdCols: { w: number; gap: number; shift: number; second: boolean; top: number; firstEnd: number; limit?: number } | null = null;
+        let mdCols: { w: number; gap: number; shift: number; second: boolean; top: number; firstEnd: number; limit?: number; last?: { after: number; h: number } } | null = null;
         let mdPageBreaks = 0;   // pages added by checkPageOverflow: a dry run of balanced columns must not need any
         const checkPageOverflow = (neededHeight: number) => {
           if (cursorY + neededHeight > (mdCols?.limit ?? maxContentY)) {
@@ -409,7 +449,11 @@ export class PdfExportService {
             mdPageBreaks++;
             doc.addPage();
             cursorY = pdfMarginTop;
-            if (mdCols) { mdCols.second = false; mdCols.shift = 0; mdCols.top = pdfMarginTop; mdCols.limit = undefined; }
+            if (mdCols) {
+              mdCols.second = false; mdCols.shift = 0; mdCols.top = pdfMarginTop;
+              // the last page of a text whose columns are balanced (see `balancedTail` in drawMdVolume) ends higher
+              mdCols.limit = mdCols.last && mdPageBreaks === mdCols.last.after ? pdfMarginTop + mdCols.last.h : undefined;
+            }
           }
         };
 
@@ -417,7 +461,8 @@ export class PdfExportService {
         const clefMode: ClefDisplayMode = sanitizeClefDisplayMode(s.clefDisplayMode);
         const useTitlePage = opts.titlePage;
         // The cover (if any) is page 1, the title page / contents follow it; the edition starts behind them.
-        const coverPages = opts.cover ? 1 : 0;
+        const extraCovers = opts.coverPages ?? [];
+        const coverPages = (opts.cover ? 1 : 0) + extraCovers.length;
         let titlePageCount = coverPages + (useTitlePage ? 1 : 0);
         for (let i = 0; i < titlePageCount; i++) doc.addPage();
         cursorY = pdfMarginTop;
@@ -448,7 +493,7 @@ export class PdfExportService {
         const foliated = new Map<string, boolean>();
         for (const j of jobs) {
           const labels = VM.getAllLineParts(j.cont).filter((p) => p.kind === 'FolioChange').map((p) => String((p as any).text || ''));
-          const key = chapterKeyOf(j);
+          const key = sourceKeyOf(j);
           foliated.set(key, (foliated.get(key) ?? false) || usesFolioPrefix(labels));
         }
         // a single document has no running number; the frame is for printed series only
@@ -513,17 +558,30 @@ export class PdfExportService {
           return [sourceLineOf(j), siglum].filter(Boolean).join(' | ')
             || buildHeadline(j.document, pdfHeadlineMetadataFields, opts.settings) || (j.document.dokumenten_id || '');
         };
+        // The chapter's name: the setting `pdfChapterTitleField` names a source field (the place of origin, or a title of its
+        // own); without it, or where that field is empty, the library's town as before.
+        const chapterTitleField = String((s as any).pdfChapterTitleField || '').trim();
         const placeOf = (ji: number): string => {
           if (chapterKeys[ji].startsWith(UNIT_CHAPTER)) return chapterKeys[ji].slice(UNIT_CHAPTER.length);   // the chapter of a play is named by the play
           const src: any = jobs[ji].source || {};
-          return (src.bibliotheksort || src.herkunftsort || '').toString().trim();
+          return (chapterTitleField && sourceFieldText(src, chapterTitleField)) || (src.bibliotheksort || src.herkunftsort || '').toString().trim();
         };
-        const siglumOf = (ji: number): string => ((jobs[ji].sigle || (jobs[ji].source as any)?.quellensigle || '') as string).toString().trim();
+        const ownSiglumOf = (ji: number): string => ((jobs[ji].sigle || (jobs[ji].source as any)?.quellensigle || '') as string).toString().trim();
+        // the manuscripts of each chapter, in order of appearance (one, unless `pdfChapterGroupField` joins several)
+        const chapterMembers = new Map<string, number[]>();
+        jobs.forEach((j, ji) => {
+          const list = chapterMembers.get(chapterKeys[ji]) ?? chapterMembers.set(chapterKeys[ji], []).get(chapterKeys[ji])!;
+          if (!list.some((k) => sourceKeyOf(jobs[k]) === sourceKeyOf(j))) list.push(ji);
+        });
+        const membersOf = (ji: number): number[] => (chapterKeys[ji].startsWith(UNIT_CHAPTER) ? [ji] : chapterMembers.get(chapterKeys[ji]) ?? [ji]);
+        const siglumOf = (ji: number): string => membersOf(ji).map(ownSiglumOf).filter(Boolean).join(' | ');
         /** "1. Utrecht": the manuscript's number and place (the library's town). */
         /** Manuscripts get their own rows (contents, bookmarks): with several manuscripts, or — when the contents list only manuscripts — also with one. */
         const chapterRows = chapterCount > 1 || contentsEdition !== 'documents';
         const chapterTitleOf = (ji: number): string => (chapterCount > 1 ? chapterNo[ji] + '. ' : '') + (placeOf(ji) || siglumOf(ji) || headOf(ji));
         /** Contents / bookmark entry of a manuscript: "1. Utrecht | Ut 417". */
+        /** One manuscript of a chapter (the parts that describe each manuscript on its own): "11. Bamberg | Ba 45". */
+        const sourceLabelOf = (ji: number): string => (chapterCount > 1 ? chapterNo[ji] + '. ' : '') + ([placeOf(ji), ownSiglumOf(ji)].filter(Boolean).join(' | ') || headOf(ji));
         const chapterLabelOf = (ji: number): string => (chapterCount > 1 ? chapterNo[ji] + '. ' : '') + ([placeOf(ji), siglumOf(ji)].filter(Boolean).join(' | ') || headOf(ji));
         // Cross references ("Edition: p. 15 | …") are written at the end, when the pages are known.
         const crossRefs: { page: number; y: number; ji: number }[] = [];
@@ -545,11 +603,15 @@ export class PdfExportService {
          * the references to the other parts in small type. The apparatus and the descriptions
          * (`full` = false) take the first two lines.
          */
-        const drawChapterBlock = (ji: number, x: number, width: number, full: boolean): void => {
+        const drawChapterBlock = (ji: number, x: number, width: number, full: boolean, ownOnly = false): void => {
           const src: any = jobs[ji].source || {};
           drawBoldLines(chapterTitleOf(ji), x, full ? 14 : 11.5, width);
           cursorY += 9;
-          drawBoldLines(headOf(ji), x, full ? 10.5 : 8.5, width);
+          // every manuscript of the chapter on a line of its own ("Bamberg, Staatsbibliothek, Msc. lit. 12 | Ba 12")
+          (ownOnly ? [ji] : membersOf(ji)).forEach((mi, k) => {
+            if (k > 0) cursorY += full ? 4 : 3;
+            drawBoldLines(headOf(mi), x, full ? 10.5 : 8.5, width);
+          });
           cursorY += full ? 14 : 10;
           if (full) {
             const origin = [[src.herkunftsort, src.herkunftsinstitution].filter(Boolean).join(', '), src.datierung].filter(Boolean).join(' | ');
@@ -588,6 +650,24 @@ export class PdfExportService {
           doc.setTextColor(0, 0, 0);
           doc.addPage();
           cursorY = pdfMarginTop;
+        };
+        /**
+         * The title of a part behind the edition (sources, notations, apparatus). With `pdfTextPartTitle: 'top'` (the printed
+         * volume II-2) it is set bold and black at the top of the page and the first manuscript follows on the same page; else
+         * a page of its own (volume style) or a heading.
+         */
+        const drawReportPartTitle = (title: string): void => {
+          if (volumeParts && (s as any).pdfTextPartTitle === 'top') {
+            // positions of volume II-2: title baseline 11.3 pt below the top margin, the text 29.9 pt below the baseline
+            const ty = pdfMarginTop + 11.3;
+            doc.setFont(fontFamily, 'bold');
+            doc.setFontSize(16);
+            doc.setTextColor(0, 0, 0);
+            doc.text(title, pdfMarginLeft, ty);
+            doc.setFont(fontFamily, 'normal');
+            cursorY = ty + 29.9;
+          } else if (volumeParts) drawPartPage(title);
+          else cursorY = drawHeading(title, textX, cursorY + 3, textColumnW, 10) + 2;
         };
         const ownerOf = (finalPage: number): number => {
           const page = finalPage - pageShift();
@@ -714,7 +794,9 @@ export class PdfExportService {
               // of a page of its own.
               const fsH = pdfFontSize + 1;
               const lineHM = fsH * 1.25;
-              if (cursorY > pdfMarginTop + 1 && !suppressDocRule) {
+              // `pdfDocRule: false` (the printed volume): no hairline above the heading, and the music follows closer
+              const docRule = (s as any).pdfDocRule !== false;
+              if (cursorY > pdfMarginTop + 1 && !suppressDocRule && docRule) {
                 doc.setDrawColor(PDF_KEY_GREY + 40, PDF_KEY_GREY + 40, PDF_KEY_GREY + 40);
                 doc.setLineWidth(0.4);
                 doc.line(textX, cursorY - fsH - 3, pageWidth - pdfMarginRight, cursorY - fsH - 3);
@@ -725,7 +807,7 @@ export class PdfExportService {
               flowHeading(headingParts(job.document, docHeadingFields, opts.settings, jobs.map((j) => j.document)), fsH);
               doc.setFont(fontFamily, 'normal');
               doc.setTextColor(0, 0, 0);
-              cursorY += lineHM + 7;
+              cursorY += lineHM + (docRule ? 7 : 2);
             } else {
             // The framed number (see boxMode) stands in the left margin, level
             // with the first title line, as the chant numbers do in the printed edition.
@@ -873,7 +955,7 @@ export class PdfExportService {
                 // indents and clefs (see pdf-layout.ts).
                 const measured = timedSync('measure', () => this.measureLineParts(zeile, {
                   doc, fontFamily, pdfFontSize, SCALE, extraSyllableSpacing, textOffset: pdfSyllableTextOffset, clefMode, firstSyllableUuid, textStyle: statusTextStyles[block.kind === 'zeile' ? block.status : ''], skipEmpty: skipEmptySyllables, keepUuids: commentAnchors,
-                  formatFolio: (l) => formatFolioLabel(l, folioMode, foliated.get(chapterKeyOf(job)) ?? false),
+                  formatFolio: (l) => formatFolioLabel(l, folioMode, foliated.get(sourceKeyOf(job)) ?? false),
                 }));
                 // All-caps syllables ("SA– LUS") are set in small capitals; the first letter of a
                 // word stays full size, the continuation of a hyphenated word is all small. A status
@@ -1308,6 +1390,7 @@ export class PdfExportService {
         };
 
         // ── Critical apparatus of one document ──────────────────────────────────────────────
+        const apparatusChapters = new Set<string>();   // chapters whose heading the apparatus has drawn
         const drawApparatusFor = async (job: PdfDocJob, ji: number) => {
           const jobParts = VM.getAllLineParts(job.cont);
           const hasComments = printableComments(job.cont).length > 0 || job.cont.globalComment;
@@ -1319,25 +1402,29 @@ export class PdfExportService {
                 apparatusPage = editionPage();
                 apparatusStarted = true;
                 markPart(L.apparatus);
-                if (volumeParts) drawPartPage(L.apparatus);
-                else cursorY = drawHeading(L.apparatus, textX, cursorY + 3, textColumnW, 10) + 2;
+                drawReportPartTitle(L.apparatus);
             }
             if (multi) {
                 // Hierarchy like the printed apparatus: the manuscript (chapter heading), below it
                 // each document — framed running number, ID, incipit, genre — and its entries.
                 // Queued: they are drawn together with the first entry that follows.
-                if (chapterFirst[ji] && chapterHeadings) {
+                // the chapter heading comes with the first document of the chapter that has entries (the first document of the
+                // chapter may have none; the heading then went missing and the entries stood under the chapter before)
+                if (!apparatusChapters.has(chapterKeys[ji]) && chapterHeadings) {
+                    apparatusChapters.add(chapterKeys[ji]);
                     const drawChapter = () => {
                         if (!dry) apHeadPage ||= doc.getNumberOfPages();
                         cursorY += 10;
                         if (chapterRows && !dry) apparatusOutline.push({ label: chapterLabelOf(ji), depth: 1, job: ji, page: editionPage() });
                         drawChapterBlock(ji, textX, textColumnW, false);
                     };
-                    defer(dryRun(drawChapter), drawChapter, true);
+                    // not dropped at the top of a page: only space may be dropped there, a heading never (it went missing on
+                    // the first page of the apparatus and wherever a manuscript or a document began a page)
+                    defer(dryRun(drawChapter), drawChapter);
                 }
                 const fsD = pdfCommentFontSize + 1;
                 defer(6 + fsD * 1.9 + 3, () => {
-                    cursorY += 6;
+                    if (!atPageTop(cursorY, pageBox)) cursorY += 6;
                     apHeadPage ||= doc.getNumberOfPages();
                     drawBox(boxTextOf(ji), cursorY + fsD, fsD);
                     doc.setFontSize(fsD);
@@ -1353,7 +1440,7 @@ export class PdfExportService {
                     doc.setTextColor(0, 0, 0);
                     cursorY += fsD * 0.9 + 3;
                     apparatusOutline.push({ label: [idText, incipit].filter(Boolean).join(' '), depth: chapterRows ? 2 : 1, job: ji, page: editionPage() });
-                }, true);
+                });
             }
             let apHeadPage = 0;
             let apEntryRecorded = false;
@@ -1586,13 +1673,25 @@ export class PdfExportService {
           doc.setTextColor(0, 0, 0);
         };
         /** One run of inline text, breaking lines and pages as needed. `marker` hangs in front of the first line. */
-        const drawMdFlow = (ins: MdInline[], x0: number, width: number, size: number, o: { bold?: boolean; marker?: string; align?: 'left' | 'center' | 'right' | 'justify'; indent?: number; hang?: number } = {}): void => {
-          const lh = size * 1.38;
+        const drawMdFlow = (ins: MdInline[], x0: number, width: number, size: number, o: { bold?: boolean; marker?: string; align?: 'left' | 'center' | 'right' | 'justify'; indent?: number; hang?: number; noHyphens?: boolean; lead?: number; onLine?: (li: number, line: MdLine, y: number, x: number) => void } = {}): void => {
+          // a line that ends at a hard line break (a legend of signs in the source descriptions) is not justified either:
+          // each part between breaks is laid out as a paragraph of its own, the first with the indent
+          const hard = ins.findIndex((i) => i.t === '\n');
+          if (o.align === 'justify' && hard > 0 && hard < ins.length - 1 && !o.hang && !o.marker && !o.onLine) {
+            drawMdFlow(ins.slice(0, hard), x0, width, size, o);
+            drawMdFlow(ins.slice(hard + 1), x0, width, size, { ...o, indent: 0 });
+            return;
+          }
+          const lh = o.lead ?? size * 1.38;
           const hang = o.hang ?? 0;
-          const lines = layoutInlines(ins, size, width - hang, mdMeasure, { bold: o.bold, firstW: o.indent ? width - o.indent : hang ? width : undefined, hyphenate: mdHyphenate });
+          const lines = layoutInlines(ins, size, width - hang, mdMeasure, { bold: o.bold, firstW: o.indent ? width - o.indent : hang ? width : undefined, hyphenate: o.noHyphens ? undefined : mdHyphenate });
           if (o.indent && lines[0]) lines[0] = lines[0].map((p) => ({ ...p, x: p.x + o.indent! }));
+          // No orphan (the first line of a paragraph alone at the foot of a column or page) and no widow (its last line
+          // alone at the head of the next): at least two lines on each side of a break; a paragraph of two or three lines
+          // is not broken. Usual rule of book typesetting (German: Schusterjunge, Hurenkind).
+          const n = lines.length;
           lines.forEach((line, li) => {
-            checkPageOverflow(lh);
+            checkPageOverflow(li === 0 && n >= 2 ? Math.min(n <= 3 ? n : 2, n) * lh : li === n - 2 && n >= 4 ? 2 * lh : lh);
             const lx = hang && li > 0 ? hang : 0;
             const x = x0 + (mdCols?.shift ?? 0) + lx;
             doc.setDrawColor(PDF_CORNER_GREY, PDF_CORNER_GREY, PDF_CORNER_GREY);
@@ -1604,6 +1703,7 @@ export class PdfExportService {
               doc.setTextColor(0, 0, 0);
               doc.text(o.marker, x - 4 - doc.getTextWidth(o.marker), cursorY + size);
             }
+            o.onLine?.(li, line, cursorY, x);
             // the last line of a justified paragraph stays as it is
             drawMdLines([line], x, cursorY, width - lx, size, lh, o.align === 'justify' && li === lines.length - 1 ? 'left' : o.align);
             cursorY += lh;
@@ -1614,23 +1714,44 @@ export class PdfExportService {
          * and a row that has text in its first cell only ("Nach f. 98v Lakune") runs across the whole width in italics.
          * Column widths come from the text (natural if it fits, else shared out); the head is repeated in a new column or page.
          */
-        const drawMdTable = (b: Extract<MdBlock, { kind: 'table' }>, x0: number, width: number, fs: number): void => {
-          const size = fs - 0.5;
+        const drawMdTable = (b0: Extract<MdBlock, { kind: 'table' }>, x0: number, width: number, fs: number): void => {
+          // An empty head row of a table with more than three columns is not a plain list: Markdown needs a head row, so
+          // the authors left it empty and set the real head (bold) in the first row, as in the synopsis of Kön D and KöAE 3.
+          // That row becomes the head; a table of this width without a bold first row is ruled without a head.
+          const emptyHead = b0.head.every((c) => !mdPlain(c));
+          const wide = b0.head.length > 3;
+          const firstBold = !!b0.rows[0]?.some((c) => mdPlain(c)) && b0.rows[0].every((c) => !mdPlain(c) || c.every((i) => i.bold || !i.t.trim()));
+          const b = emptyHead && wide && firstBold ? { ...b0, head: b0.rows[0].map((c) => c.map((i) => ({ ...i, bold: false }))), rows: b0.rows.slice(1) } : b0;
+          const headless = emptyHead && wide && !firstBold;
+          // tables of more than three columns in smaller type over the full width, as in the printed volume (CM II-2, Kön D)
+          const size = wide ? fs - 1.5 : fs - 0.5;
           const lh = size * 1.32;
           const padX = 3.5;
-          const padY = 2.2;
+          const padY = emptyHead && !wide ? 0.5 : wide ? 1.2 : 2.2;   // a plain list (empty head) is set closer
           const n = b.head.length;
           const isNote = (r: MdInline[][]) => n > 1 && !!mdPlain(r[0]) && r.slice(1).every((c) => !mdPlain(c));
           const italic = (c: MdInline[]) => c.map((i) => ({ ...i, italic: true }));
           const natural = (c: MdInline[]) => Math.max(0, ...layoutInlines(c, size, 1e5, mdMeasure).map(lineWidth));
           const longest = (c: MdInline[]) => Math.max(0, ...c.flatMap((i) => i.t.split(/\s+/).map((w) => mdMeasure(w, i.bold ? 'bold' : i.italic ? 'italic' : 'normal', size, i.sc))));
           const sized = [b.head.map(italic), ...b.rows.filter((r) => !isNote(r))];
-          const maxW = Array.from({ length: n }, (_, k) => Math.max(0, ...sized.map((r) => natural(r[k]))));
+          // In a wide table a single long cell (a note on a lacuna in a folio column) wraps instead of widening its column:
+          // a cell counts at most three times the median width of the filled cells of its column.
+          const maxW = Array.from({ length: n }, (_, k) => {
+            const ws = sized.map((r) => natural(r[k]));
+            if (!wide) return Math.max(0, ...ws);
+            const filled = ws.filter((v) => v > 0).sort((a, c) => a - c);
+            const cap = 3 * (filled[Math.floor(filled.length / 2)] ?? 0);
+            return Math.max(0, ...ws.map((v) => Math.min(v, cap)));
+          });
           const minW = Array.from({ length: n }, (_, k) => Math.max(8, ...sized.map((r) => longest(r[k]))));
           const inner = Math.max(n * 10, width - n * 2 * padX);
           const sum = (a: number[]) => a.reduce((t, v) => t + v, 0);
           let colW: number[];
-          if (sum(maxW) <= inner) colW = maxW;
+          const plainList = emptyHead && !wide;
+          if (plainList && n >= 2 && maxW[0] <= 72 - 2 * padX) maxW[0] = minW[0] = 72 - 2 * padX;
+          // a wide table with long cells spans the full width; one of short cells (a list of quires) keeps its natural widths
+          if (sum(maxW) <= inner) colW = wide && sum(maxW) >= 0.6 * inner ? maxW.map((m) => (inner * m) / Math.max(1, sum(maxW)))
+            : wide ? maxW.map((m) => Math.min(m + 12, m + (inner - sum(maxW)) / n)) : maxW;
           else if (sum(minW) >= inner) colW = minW.map((m) => (inner * m) / sum(minW));
           else {
             const room = inner - sum(minW);
@@ -1662,21 +1783,26 @@ export class PdfExportService {
             row.cells.forEach((lines, k) => drawMdLines(lines, left() + colX0[k], cursorY + padY, row.note ? tableW - 2 * padX : colW[k], size, lh, row.note ? 'left' : b.align[k] ?? 'left'));
             cursorY += row.h;
           };
+          // a table with an empty head row is a plain list of two or three columns (editorial signs, abbreviations): no
+          // head, no rules, as the printed volume sets such lists
+          const plain = plainList;
           const startBlock = (): void => {
+            if (plain) return;
             rule(cursorY, 0.4, 120);
+            if (headless) return;
             drawRow(head);
             rule(cursorY, 0.4, 120);
           };
-          checkPageOverflow(head.h + (body[0]?.h ?? 0) + 4);
+          checkPageOverflow((plain || headless ? 0 : head.h) + (body[0]?.h ?? 0) * (wide ? 3 : 1) + 4);
           startBlock();
           body.forEach((row, ri) => {
             const at = where();
             checkPageOverflow(row.h);
             if (where() !== at) startBlock();
             drawRow(row);
-            if (ri < body.length - 1) rule(cursorY, 0.25, 205);
+            if (ri < body.length - 1 && !plain && !wide) rule(cursorY, 0.25, 205);
           });
-          rule(cursorY, 0.4, 120);
+          if (!plain) rule(cursorY, 0.4, 120);
           cursorY += fs * 0.7;
         };
         const drawMdBlocks = (blocks: MdBlock[], x: number, width: number, fs: number): void => {
@@ -1732,14 +1858,14 @@ export class PdfExportService {
                   break;
                 }
                 // at its own size (96 dpi), shrunk to the column and to most of a page
-                let w = Math.min(width, scale ? Math.max(0.05, scale) * textColumnW : img.w * 0.75);
+                let w = Math.min(width, scale ? Math.max(0.05, scale) * Math.max(textColumnW, width) : img.w * 0.75);
                 let h = (w * img.h) / img.w;
                 const maxH = (maxContentY - pdfMarginTop) * 0.8;
                 if (h > maxH) { h = maxH; w = (h * img.w) / img.h; }
                 const capSize = fs - 1;
                 const capLines = cap ? layoutInlines([{ t: cap, italic: true }], capSize, width, mdMeasure) : [];
                 checkPageOverflow(h + 3 + capLines.length * capSize * 1.38);
-                doc.addImage(img.data, img.format, x + (width - w) / 2, cursorY, w, h, undefined, 'FAST');
+                doc.addImage(img.data, img.format, x + (mdCols?.shift ?? 0) + (width - w) / 2, cursorY, w, h, undefined, 'FAST');   // in the right column when two run
                 cursorY += h + 3;
                 if (cap) drawMdFlow([{ t: cap, italic: true }], x, width, capSize, { align: 'center' });
                 cursorY += gap;
@@ -1799,49 +1925,136 @@ export class PdfExportService {
          * in italics, paragraphs indented. A picture runs across both columns where it stands in the text, and the text
          * above it is spread evenly over the two columns.
          */
-        const drawMdVolume = (all: MdBlock[], sigle: string, sourceLine: string): void => {
-          const fs = pdfFontSize - 1;
+        /**
+         * A paragraph that starts with a line in italics, ended by a line break (`*Editionsquellen*` + `<br>`), carries a
+         * margin label: the printed volume sets such labels in italics left of the paragraph (notes on using the volume).
+         */
+        const marginLabelOf = (b: MdBlock): { label: MdInline[]; rest: MdInline[] } | null => {
+          if (b.kind !== 'paragraph') return null;
+          const k = b.inlines.findIndex((i) => i.t === '\n');
+          if (k < 1 || !b.inlines.slice(0, k).every((i) => i.italic || !i.t.trim())) return null;
+          return { label: b.inlines.slice(0, k), rest: b.inlines.slice(k + 1) };
+        };
+        const drawMdVolume = (all: MdBlock[], sigle: string, sourceLine: string, textPart = false, wide = false): void => {
+          // a text with margin labels runs in two columns from its start, each with a narrow column of labels; it is set in
+          // the measures of the notes on use of the printed volume II-2: 10 pt on 12.1 pt, columns of 79 + 147 pt, gutter 14.4 pt
+          const withLabels = all.some((b) => !!marginLabelOf(b) || (b.kind === 'paragraph' && hasMarginAnchors(b.inlines)));
+          const fs = withLabels ? 10 : pdfFontSize - 1;
+          const LEAD = withLabels ? 12.1 : fs * 1.38;
+          // a part of running text spans the whole type area from margin to margin, as in the printed volume; a source
+          // description keeps to the text edge of the edition (right of the column of chant numbers)
+          const X0 = textPart || wide ? pdfMarginLeft : textX;
+          const TW = textPart || wide ? pageWidth - pdfMarginLeft - pdfMarginRight : textColumnW;
           let list = [...all];
           if (list[0]?.kind === 'heading' && list[0].level === 1 && mdPlain(list[0].inlines) === sigle) list.shift();
           const titles = new Set(list.flatMap((b) => (b.kind === 'heading' ? [mdPlain(b.inlines)] : [])));
           list = list.filter((b) => !(b.kind === 'list' && b.items.length && b.items.every((it) => titles.has(mdPlain(it.inlines)))));
-          const at = list.findIndex((b) => b.kind === 'heading');
+          // in a part of running text a level-1 heading is a title of the size of the part's own title and stays in one column
+          // (editorial signs, then abbreviations, on one page); the two columns start with the first smaller heading
+          const at = withLabels ? 0 : list.findIndex((b) => b.kind === 'heading' && !(textPart && b.level === 1));
           const said = new Set([sourceLine, sigle, [sourceLine, sigle].filter(Boolean).join(' | ')].filter(Boolean).map(squash));
           let lead = at < 0 ? list : list.slice(0, at);
           lead = lead.filter((b) => !(b.kind === 'paragraph' && said.has(squash(mdPlain(b.inlines)))));
           let body = at < 0 ? [] : list.slice(at);
-          if (boldAsSmallCaps) { lead = smallCapsOf(lead); body = smallCapsOf(body); }
+          // (not in a text with margin labels: its bold labels stay bold)
+          if (boldAsSmallCaps && !withLabels) { lead = smallCapsOf(lead); body = smallCapsOf(body); }
           for (const b of lead) {
-            if (b.kind === 'paragraph') { drawMdFlow(b.inlines, textX, textColumnW, fs); cursorY += fs * 1.2; }
-            else drawMdBlocks([b], textX, textColumnW, fs);
+            if (textPart && b.kind === 'heading' && b.level === 1) {
+              cursorY += 22;
+              checkPageOverflow(60);
+              drawMdFlow(b.inlines, X0, TW, 16, { bold: true });
+              cursorY += 12;
+            } else if (b.kind === 'paragraph') { drawMdFlow(b.inlines, X0, TW, fs); cursorY += fs * 1.2; }
+            else drawMdBlocks([b], X0, TW, fs);
           }
           if (!body.length) return;
-          const gap = 16;
-          const w = (textColumnW - gap) / 2;
-          const lh = fs * 1.38;
+          const gap = withLabels ? 14.4 : 16;
+          const w = (TW - gap) / 2;
+          const lh = LEAD;
           cursorY += fs * 0.6;
           checkPageOverflow(lh * 4);
           mdPlainLists = true;
           let afterHeading = true;
+          const lw = withLabels ? Math.round(w * 0.35 * 10) / 10 : 0;   // the column of the margin labels inside each text column
+          /** Where the last label of a column ends, so that labels of neighbouring lines do not overlap. */
+          const labelEnd = new Map<string, number>();
+          const drawLabel = (label: MdInline[], page: number, x: number, y: number): void => {
+            if (dry || !label.length) return;
+            const bold = label.every((i) => i.bold || !i.t.trim());
+            const ins = label.map((i) => ({ ...i, italic: !bold, bold }));
+            const st: FontStyle = bold ? 'bold' : 'italic';
+            // labels break between words; a word wider than the label column ("Transkriptionsäquivalente") is hyphenated
+            const longWord = ins.some((i) => i.t.split(/\s+/).some((wd) => mdMeasure(wd, st, fs, i.sc) > lw - 6));
+            const lines = layoutInlines(ins, fs, lw - 6, mdMeasure, { hyphenate: longWord ? mdHyphenate : undefined });
+            const key = `${page}:${x}`;
+            const top = Math.max(y, labelEnd.get(key) ?? -1);
+            const here = doc.getNumberOfPages();
+            if (page !== here) doc.setPage(page);
+            drawMdLines(lines, x, top, lw - 6, fs, LEAD, 'left');
+            if (page !== here) doc.setPage(here);
+            labelEnd.set(key, top + lines.length * LEAD);
+          };
+          /** A paragraph with its margin labels: the text in the text column, each label beside the line of its word. */
+          const drawLabelled = (ins: MdInline[], anchors: MarginAnchor[]): void => {
+            const boldStart = anchors[0]?.word === 0 && anchors[0].label.every((i) => i.bold || !i.t.trim());
+            checkPageOverflow(LEAD * 2);
+            const seen: { start: number; end: number; page: number; y: number; x: number }[] = [];
+            let words = 0;
+            let prevHyphen = false;
+            drawMdFlow(ins, X0 + lw, w - lw, fs, {
+              align: 'justify', lead: LEAD, indent: afterHeading || boldStart ? 0 : fs * 1.28,
+              onLine: (_li, line, y, x) => {
+                const start = words;
+                line.forEach((p, k) => {
+                  const fresh = k === 0 ? !(prevHyphen && /^[a-zäöüß]/.test(p.text)) : p.x > line[k - 1].x + line[k - 1].width + 0.5;
+                  if (fresh && p.text.trim()) words++;
+                });
+                const last = line[line.length - 1];
+                prevHyphen = !!last && /\p{L}-$/u.test(last.text);
+                seen.push({ start, end: words, page: doc.getNumberOfPages(), y, x: x - lw });
+              },
+            });
+            for (const a of anchors) {
+              const at = seen.find((l) => a.word < l.end) ?? seen[seen.length - 1];
+              if (at) drawLabel(a.label, at.page, at.x, at.y);
+            }
+            afterHeading = false;
+          };
           const drawText = (blocks: MdBlock[]): void => {
             blocks.forEach((b) => {
-              if (b.kind === 'heading') {
+              const ml = withLabels ? marginLabelOf(b) : null;
+              if (withLabels && b.kind === 'heading') {
+                // bold, above the text column (not above the labels), as the sections of the notes in the printed volume
+                if (cursorY > mdCols!.top) cursorY += 18;
+                checkPageOverflow(LEAD * 4);
+                drawMdFlow(b.inlines, X0 + lw, w - lw, 11.5, { bold: true, lead: LEAD });
+                cursorY += 7;
+                afterHeading = true;
+              } else if (ml) {
+                drawLabelled(ml.rest, [{ word: 0, label: ml.label }]);
+              } else if (withLabels && b.kind === 'paragraph') {
+                const { inlines, anchors } = extractMarginAnchors(b.inlines);
+                drawLabelled(inlines, anchors);
+              } else if (withLabels) {
+                drawMdBlocks([b], X0 + lw, w - lw, fs);
+                afterHeading = false;
+              } else if (b.kind === 'heading') {
                 if (cursorY > mdCols!.top) cursorY += fs * 0.9;
                 checkPageOverflow(lh * 3);    // a heading never ends a column alone
-                drawMdFlow(b.inlines.map((i) => ({ ...i, italic: true })), textX, w, fs);
+                drawMdFlow(b.inlines.map((i) => ({ ...i, italic: true })), X0, w, fs);
                 afterHeading = true;
               } else if (b.kind === 'paragraph') {
-                drawMdFlow(b.inlines, textX, w, fs, { align: 'justify', indent: afterHeading ? 0 : fs * 1.3 });
+                drawMdFlow(b.inlines, X0, w, fs, { align: 'justify', indent: afterHeading ? 0 : fs * 1.3 });
                 afterHeading = false;
               } else {
-                drawMdBlocks([b], textX, w, fs);
+                drawMdBlocks([b], X0, w, fs);
                 afterHeading = false;
               }
             });
           };
           /** Two columns from here on, filled up to `limit` (the bottom of the page if not given). */
-          const columns = (blocks: MdBlock[], limit?: number): { second: boolean; end: number; breaks: number } => {
-            mdCols = { w, gap, shift: 0, second: false, top: cursorY, firstEnd: 0, limit };
+          const columns = (blocks: MdBlock[], limit?: number, last?: { after: number; h: number }): { second: boolean; end: number; breaks: number } => {
+            mdCols = { w, gap, shift: 0, second: false, top: cursorY, firstEnd: 0, limit, last };
             mdTextAlign = 'justify';
             mdPageBreaks = 0;
             const resume = afterHeading;
@@ -1871,18 +2084,50 @@ export class PdfExportService {
             const done = columns(blocks, top + hi);
             cursorY = done.end;
           };
+          /** A text over several pages: the full pages as they come, the last page with two columns of the same length, so
+           *  that the next text can follow below it (otherwise its left column reached the bottom and the next manuscript
+           *  always began a new page). */
+          const balancedTail = (blocks: MdBlock[]): void => {
+            if (!blocks.length) return;
+            checkPageOverflow(lh * 4);
+            let breaks = 0;
+            dryRun(() => { breaks = columns(blocks).breaks; });
+            if (breaks === 0) { balanced(blocks); return; }
+            const fits = (h: number): boolean => {
+              let ok = false;
+              dryRun(() => { const r = columns(blocks, undefined, { after: breaks, h }); ok = r.breaks === breaks && (!r.second || r.end <= pdfMarginTop + h + 0.01); });
+              return ok;
+            };
+            let lo = 0;
+            let hi = maxContentY - pdfMarginTop;
+            if (!fits(hi)) { cursorY = columns(blocks).end; return; }
+            while (hi - lo > 1) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+            cursorY = columns(blocks, undefined, { after: breaks, h: hi }).end;
+          };
+          // pictures and wide tables (more than three columns) across both columns; the text around them in columns
+          const fullWidth = (b: MdBlock): boolean => (b.kind === 'image' && !(/^\s*0?\.[0-3]\d*\s*$/.test(b.alt) || /^\s*0?\.4\s*$/.test(b.alt))) || (b.kind === 'table' && b.head.length > 3);
           let pending: MdBlock[] = [];
           for (const b of body) {
-            if (b.kind !== 'image') { pending.push(b); continue; }
-            balanced(pending);
+            if (!fullWidth(b)) { pending.push(b); continue; }
+            // A short paragraph that ends with a colon right before a wide table introduces it ("Tropen zu den Antiphonen
+            // … in Kön D und …:"). The printed volume sets it as the caption below the table, without the colon.
+            const prev = pending[pending.length - 1];
+            const intro = b.kind === 'table' && prev?.kind === 'paragraph' && /:\s*$/.test(mdPlain(prev.inlines)) && mdPlain(prev.inlines).length < 300 ? prev : null;
+            if (intro) pending = pending.slice(0, -1);
+            balancedTail(pending);   // a text over a page before the picture or table ends in balanced columns too
             pending = [];
             cursorY += fs * 0.6;
-            drawMdBlocks([b], textX, textColumnW, fs);
+            drawMdBlocks([b], X0, TW, fs);
+            if (intro) {
+              const inl = intro.inlines.map((i) => ({ ...i }));
+              const last = inl[inl.length - 1];
+              last.t = last.t.replace(/\s*:\s*$/, '');
+              cursorY -= fs * 0.3;
+              drawMdFlow(inl.map((i) => ({ ...i, italic: !i.italic })), X0, TW, fs - 1);
+            }
+            cursorY += fs * 0.6;
           }
-          if (pending.length) {
-            const done = columns(pending);
-            cursorY = done.end;
-          }
+          balancedTail(pending);
           mdPlainLists = false;
           cursorY += fs * 1.2;
         };
@@ -1897,7 +2142,7 @@ export class PdfExportService {
           const withText: { job: number; blocks: MdBlock[] }[] = [];
           const seen = new Set<string>();
           jobs.forEach((job, ji) => {
-            const key = chapterKeyOf(job);
+            const key = sourceKeyOf(job);
             if (seen.has(key)) return;
             seen.add(key);
             const blocks = parseMarkdown(sourceDescription(job.source));
@@ -1915,21 +2160,58 @@ export class PdfExportService {
           descriptionPage = editionPage();
           descriptionStarted = true;
           markPart(descriptionTitle);
-          if (volumeParts) drawPartPage(descriptionTitle);
-          else cursorY = drawHeading(descriptionTitle, textX, cursorY + 3, textColumnW, 10) + 2;
+          drawReportPartTitle(descriptionTitle);
           withText.forEach(({ job: ji, blocks }, k) => {
             if (multi) {
               // the manuscript as a chapter heading, like in the apparatus
               checkPageOverflow(80);
               if (k > 0) cursorY += 14;
               cursorY += 10;
-              descriptionOutline.push({ label: chapterLabelOf(ji), job: ji, page: editionPage() });
-              drawChapterBlock(ji, textX, textColumnW, false);
+              descriptionOutline.push({ label: sourceLabelOf(ji), job: ji, page: editionPage() });
+              drawChapterBlock(ji, textX, textColumnW, false, true);
             } else checkPageOverflow(60);
             apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });   // the running head names this manuscript
             mdQuoteBars = [];
             drawMdVolume(blocks, siglumOf(ji), sourceLineOf(jobs[ji]));
           });
+        };
+
+        // ── Parts of running text (Markdown): notes on the volume, introduction, literature … (opts.textParts) ──
+        type TextPlace = 'front' | 'report' | 'back';
+        const textPartRows: { title: string; page: number; front: boolean; place: TextPlace }[] = [];
+        const textPartNames = new Set<string>();
+        /** A part of running text: front parts start on the page the edition would start on, back parts on a new page. */
+        const textTitleTop = (s as any).pdfTextPartTitle === 'top';
+        /** `pdfNotationWide`: the notation documentation (its headings and Markdown) across the whole type area. */
+        const notationWide = !!(s as any).pdfNotationWide;
+        const drawTextPart = async (tp: PdfTextPart, front: boolean, place: TextPlace = front ? 'front' : 'back'): Promise<void> => {
+          const blocks = parseMarkdown(tp.markdown || '');
+          const srcs = new Set<string>();
+          imageSources(blocks, srcs);
+          await Promise.all([...srcs].map(async (src) => { mdImages.set(src, await loadImage(src)); }));
+          if (hyphenate) await loadHyphenation();
+          // a front part starts on the page left free by the part before it (or the first page behind the front pages)
+          if (!front) { doc.addPage(); cursorY = pdfMarginTop; }
+          const title = (tp.title || '').trim();
+          textPartRows.push({ title, page: editionPage(), front, place });
+          textPartNames.add(title);
+          markPart(title);
+          if (volumeParts && textTitleTop && title) {
+            // `pdfTextPartTitle: 'top'` (the printed volume): the title bold and black at the top of the page, without a rule
+            // of its own (the running head above has one), and the text follows on the same page
+            // positions of volume II-2: title baseline 11.3 pt below the top margin, first text baseline 45.9 pt below it
+            const ty = pdfMarginTop + 11.3;
+            doc.setFont(fontFamily, 'bold');
+            doc.setFontSize(16);
+            doc.setTextColor(0, 0, 0);
+            doc.text(title, pdfMarginLeft, ty);
+            doc.setFont(fontFamily, 'normal');
+            cursorY = ty + 29.9;
+          } else if (volumeParts) drawPartPage(title);
+          else if (title) cursorY = drawHeading(title, textX, cursorY + 3, textColumnW, 10) + 2;
+          mdQuoteBars = [];
+          if (blocks.length) drawMdVolume(blocks, '', '', true);
+          if (front) { doc.addPage(); cursorY = pdfMarginTop; }
         };
 
         // ── Notation documentation: per manuscript the neume table and strips of the lines its signs stand in ──
@@ -1940,30 +2222,63 @@ export class PdfExportService {
         const notationSetup = readSetup(opts.settings);
         const notationDocOf = (job: PdfDocJob): NotationDoc => buildNotationDoc(job.source || {}, notationSetup);
         const hasNotation = (nd: NotationDoc) => nd.rows.length > 0 || nd.strips.length > 0;
+        // `pdfNotationMarkdownField` names a source field that holds a notation documentation written as Markdown (with
+        // pictures by URL); it is printed in the part of the notation documentation, behind the table built from the neume
+        // equivalents, if there is one.
+        const notationMdField = String((opts.settings as any)?.pdfNotationMarkdownField || '').trim();
+        // `pdfNotationPatternsField`: a source field with the pattern codes of a manuscript, one per line; with the option
+        // `neumeTree` the tree of these patterns follows the Markdown documentation (a manuscript without equivalents file)
+        const notationPatternsField = String((opts.settings as any)?.pdfNotationPatternsField || '').trim();
+        // `pdfNeumeTreeMaxNotes`, `pdfNeumeTreeSpecialSigns: false`: the tree shows only patterns of up to n notes, and none
+        // with a special sign (liquescence, oriscus, quilisma, strophicus …; the virga counts as an ordinary sign)
+        const treeMax = Number((opts.settings as any)?.pdfNeumeTreeMaxNotes) || 0;
+        const treeSpecial = (opts.settings as any)?.pdfNeumeTreeSpecialSigns !== false;
+        const treeShowCodes = (opts.settings as any)?.pdfNeumeTreeCodes !== false;   // false: the signs without their codes
+        const treeCodes = (codes: string[]): string[] => codes.filter((c) => {
+          const p = parseTreeCode(c);
+          return !!p && (!treeMax || p.count <= treeMax) && (treeSpecial || !hasSpecialSign(c));
+        });
+        const notationPatternsOf = (job: PdfDocJob): string[] => notationPatternsField
+          ? sourceFieldText(job.source, notationPatternsField).split(/\r?\n/).map((c) => c.trim()).filter(Boolean) : [];
+        const notationMarkdownOf = (job: PdfDocJob): MdBlock[] => notationMdField ? parseMarkdown(sourceFieldText(job.source, notationMdField)) : [];
         const drawNotations = async (): Promise<void> => {
-          const withDoc: { job: number; nd: NotationDoc }[] = [];
+          const withDoc: { job: number; nd: NotationDoc; md: MdBlock[] }[] = [];
           const seen = new Set<string>();
           jobs.forEach((job, ji) => {
-            const key = chapterKeyOf(job);
+            const key = sourceKeyOf(job);
             if (seen.has(key)) return;
             seen.add(key);
-            const nd = notationDocOf(job);
-            if (hasNotation(nd)) withDoc.push({ job: ji, nd });
+            // the table of transcription equivalents only for a source that has an equivalents file of its own: without one
+            // the table would list the default sign set, which says nothing about this manuscript
+            const own = ((job.source as any)?.equivalents?.length ?? 0) > 0 || ((job.source as any)?.annotationItems?.length ?? 0) > 0;
+            const nd0 = notationDocOf(job);
+            const nd: NotationDoc = own ? nd0 : { ...nd0, rows: [], strips: [] };
+            const md = notationMarkdownOf(job);
+            if (hasNotation(nd) || md.length) withDoc.push({ job: ji, nd, md });
           });
           if (!withDoc.length) return;
+          {
+            // pictures of a notation documentation written as Markdown are fetched first, as for the descriptions
+            const srcs = new Set<string>();
+            for (const w of withDoc) imageSources(w.md, srcs);
+            await Promise.all([...srcs].map(async (src) => { mdImages.set(src, await loadImage(src)); }));
+            if (hyphenate && withDoc.some((w) => w.md.length)) await loadHyphenation();
+          }
           doc.addPage();
           cursorY = pdfMarginTop;
           notationPage = editionPage();
           notationStarted = true;
           markPart(L.notation);
-          if (volumeParts) drawPartPage(L.notation);
-          else cursorY = drawHeading(L.notation, textX, cursorY + 3, textColumnW, 10) + 2;
+          drawReportPartTitle(L.notation);
+          // in the layout of the printed volume the notation documentation spans the type area from margin to margin
+          const nx = notationWide ? pdfMarginLeft : textX;
+          const nw = notationWide ? pageWidth - pdfMarginLeft - pdfMarginRight : textColumnW;
           const host: NotationHost = {
             doc, fontFamily, fs: pdfFontSize - 1, x: textX, width: textColumnW, top: pdfMarginTop, bottom: maxContentY, noImage: L.noImage,
             newPage: () => { doc.addPage(); cursorY = pdfMarginTop; return pdfMarginTop; },
           };
           for (let k = 0; k < withDoc.length; k++) {
-            const { job: ji, nd } = withDoc[k];
+            const { job: ji, nd, md } = withDoc[k];
             const job = jobs[ji];
             opts.onProgress?.('Notation ' + siglumOf(ji), k, withDoc.length);
             // the images are fetched first; a manuscript starts on a page of its own, as in the printed volume
@@ -1974,8 +2289,8 @@ export class PdfExportService {
             if (k > 0) { doc.addPage(); cursorY = pdfMarginTop; }
             if (multi) {
               cursorY += 10;
-              notationOutline.push({ label: chapterLabelOf(ji), job: ji, page: editionPage() });
-              drawChapterBlock(ji, textX, textColumnW, false);
+              notationOutline.push({ label: sourceLabelOf(ji), job: ji, page: editionPage() });
+              drawChapterBlock(ji, nx, nw, false, true);
             }
             apparatusSpans.push({ job: ji, from: doc.getNumberOfPages() });   // the running head names this manuscript
             cursorY += 4;
@@ -1990,7 +2305,13 @@ export class PdfExportService {
               cursorY = drawStrips(host, nd.strips, pictures, cursorY + 16, L.inventory);
             }
             if (opts.neumeTree && nd.rows.length) {
-              cursorY = drawNeumeTree(host, nd.rows.map(r => r.pattern), cursorY + 16, L.tree);
+              cursorY = drawNeumeTree(host, treeCodes(nd.rows.map(r => r.pattern)), cursorY + 16, L.tree, { codes: treeShowCodes });
+            }
+            if (md.length) {
+              mdQuoteBars = [];
+              drawMdVolume(md, siglumOf(ji), sourceLineOf(job), false, notationWide);
+              const codes = opts.neumeTree && !nd.rows.length ? treeCodes(notationPatternsOf(job)) : [];
+              if (codes.length) cursorY = drawNeumeTree({ ...host, x: nx, width: nw }, codes, cursorY + 16, L.tree, { codes: treeShowCodes });
             }
           }
         };
@@ -2000,9 +2321,12 @@ export class PdfExportService {
         {
           const hasApparatus = !!opts.apparatus && jobs.some((j) => printableComments(j.cont).length > 0 || j.cont.globalComment);
           const hasDescriptions = !!opts.sourceDescriptions && jobs.some((j) => parseMarkdown(sourceDescription(j.source)).length > 0);
-          const hasNotationDocs = !!opts.notationDocumentation && jobs.some((j) => hasNotation(notationDocOf(j)));
-          multiPart = hasApparatus || hasDescriptions || hasNotationDocs;
+          const hasNotationDocs = !!opts.notationDocumentation && jobs.some((j) => hasNotation(notationDocOf(j)) || notationMarkdownOf(j).length > 0);
+          const hasTextParts = !!(opts.textParts?.front?.length || opts.textParts?.report?.length || opts.textParts?.back?.length);
+          multiPart = hasApparatus || hasDescriptions || hasNotationDocs || hasTextParts;
           volumeParts = partStyle === 'volume' && multiPart;
+          for (const tp of opts.textParts?.front ?? []) await drawTextPart(tp, true);
+          if (opts.textParts?.front?.length) markPart(L.edition);
           if (volumeParts) drawPartPage(L.edition);
         }
         for (let ji = 0; ji < jobs.length; ji++) {
@@ -2027,20 +2351,46 @@ export class PdfExportService {
             }
           }
         }
-        if (opts.apparatus) {
-          for (let ji = 0; ji < jobs.length; ji++) {
-            opts.onProgress?.('Apparatus ' + (jobs[ji].document.dokumenten_id || ''), ji, jobs.length);
-            await drawApparatusFor(jobs[ji], ji);
+        // the critical report: its own parts of running text first (literature sigla in the printed volume), then the parts
+        // behind the edition in the order of the setting `pdfPartOrder` (the printed volume: descriptions, notation, apparatus)
+        const reportStartPage = doc.getNumberOfPages() + 1;
+        // the printed volume opens its critical report with a page of its own ("Kritischer Bericht"), then each part starts
+        // with its title at the top of a page (`pdfTextPartTitle: 'top'`)
+        const reportTitleText = String((s as any).pdfReportTitle || '').trim();
+        const reportPartPage = volumeParts && (s as any).pdfTextPartTitle === 'top' && !!reportTitleText;
+        let reportPage = 0;
+        if (reportPartPage) {
+          doc.addPage();
+          reportPage = editionPage();
+          markPart(reportTitleText);
+          const x = pageWidth * 0.4;
+          const y = pageHeight * 0.288;
+          partPages.add(doc.getNumberOfPages());
+          doc.setFont(fontFamily, 'normal');
+          doc.setFontSize(24);
+          doc.setTextColor(120, 120, 120);
+          doc.text(reportTitleText, x, y);
+          doc.setDrawColor(PDF_KEY_GREY, PDF_KEY_GREY, PDF_KEY_GREY);
+          doc.setLineWidth(0.5);
+          doc.line(x, y + 10, pageWidth, y + 10);
+          doc.setTextColor(0, 0, 0);
+        }
+        for (const tp of opts.textParts?.report ?? []) await drawTextPart(tp, false, 'report');
+        for (const part of partOrder((s as any).pdfPartOrder)) {
+          if (part === 'apparatus' && opts.apparatus) {
+            for (let ji = 0; ji < jobs.length; ji++) {
+              opts.onProgress?.('Apparatus ' + (jobs[ji].document.dokumenten_id || ''), ji, jobs.length);
+              await drawApparatusFor(jobs[ji], ji);
+            }
+          } else if (part === 'descriptions' && opts.sourceDescriptions) {
+            opts.onProgress?.('Source description', jobs.length, jobs.length);
+            await drawDescriptions();
+          } else if (part === 'notation' && opts.notationDocumentation) {
+            opts.onProgress?.('Notation documentation', jobs.length, jobs.length);
+            await drawNotations();
           }
         }
-        if (opts.sourceDescriptions) {
-          opts.onProgress?.('Source description', jobs.length, jobs.length);
-          await drawDescriptions();
-        }
-        if (opts.notationDocumentation) {
-          opts.onProgress?.('Notation documentation', jobs.length, jobs.length);
-          await drawNotations();
-        }
+        for (const tp of opts.textParts?.back ?? []) await drawTextPart(tp, false);
         stats.documents = docEntries.map((e) => ({ id: jobs[e.job].document.dokumenten_id || '', page: e.page }));
         stats.apparatusPage = apparatusStarted ? apparatusPage : 0;
         stats.descriptionPage = descriptionStarted ? descriptionPage : 0;
@@ -2053,6 +2403,10 @@ export class PdfExportService {
           doc.setPage(1);
           drawCover(doc, opts.cover.template, makeLookup(jobs, opts.settings, opts.cover.template.variables, { titel: opts.title, gruppe: opts.cover.group, gruppenfeld: opts.cover.groupField, gruppenteile: opts.cover.groupParts }), fontFamily);
         }
+        extraCovers.forEach((c, k) => {
+          doc.setPage((opts.cover ? 1 : 0) + k + 1);
+          drawCover(doc, c.template, makeLookup(jobs, opts.settings, c.template.variables, { titel: opts.title, gruppe: c.group ?? opts.cover?.group, gruppenfeld: opts.cover?.groupField, gruppenteile: opts.cover?.groupParts }), fontFamily);
+        });
         if (useTitlePage) {
           const cx = pageWidth / 2;
           const keyX = cx - 9;
@@ -2068,7 +2422,7 @@ export class PdfExportService {
           doc.setPage(coverPages + 1);
           // Several documents: no automatic title block — only a title of one's own, if one was given
           // (the contents then start at the top of the page). The cover carries the title already.
-          const ownTitle = multi && !opts.cover ? (opts.title || '').trim() : '';
+          const ownTitle = multi && !opts.cover && !extraCovers.length ? (opts.title || '').trim() : '';
           let y = multi && !ownTitle ? pdfMarginTop + 10 : Math.max(pdfMarginTop + 30, pageHeight * 0.17);
           doc.setTextColor(0, 0, 0);
           doc.setFont(fontFamily, 'normal');
@@ -2116,38 +2470,67 @@ export class PdfExportService {
             // and the page the document starts on; the apparatus is listed after them.
             // Hierarchy as in the printed volume's contents: part (Edition / Critical Apparatus) >
             // manuscript (chapter) > documents, each with the framed running number.
-            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean; indent: number; depth: number; num?: string; bookmarkOnly?: boolean };
+            type Row = { id: string; incipit: string; genre: string; page: number; plain?: boolean; chapter?: boolean; indent: number; depth: number; num?: string; bookmarkOnly?: boolean; sub?: string[] };
             const rows: Row[] = [];
             const docIndent = chapterRows ? 24 : 12;
             const docDepth = chapterRows ? 2 : 1;
             // the contents list the manuscripts only, like the printed volume; the documents stay in the bookmarks
             const manuscriptsOnly = contentsEdition !== 'documents';
+            const twoLineChapters = (s as any).pdfContentsChapterLines === 'two';
+            for (const t of textPartRows.filter((r) => r.front)) rows.push({ id: '', incipit: t.title, genre: '', page: t.page, plain: true, chapter: true, indent: 0, depth: 0 });
             rows.push({ id: '', incipit: L.edition, genre: '', page: (docEntries[0]?.page ?? 1) - (volumeParts ? 1 : 0), plain: true, chapter: true, indent: 0, depth: 0 });
             docEntries.forEach((e) => {
               const j = jobs[e.job];
-              if (chapterRows && chapterFirst[e.job]) rows.push({ id: '', incipit: chapterLabelOf(e.job), genre: '', page: e.page, plain: true, indent: 12, depth: 1 });
+              if (chapterRows && chapterFirst[e.job]) {
+                // `pdfContentsChapterLines: 'two'`: the chapter's name, and below it the shelfmark and siglum of each manuscript (the printed volume)
+                if (twoLineChapters) rows.push({ id: '', incipit: (chapterCount > 1 ? chapterNo[e.job] + '. ' : '') + (placeOf(e.job) || siglumOf(e.job)), genre: '', page: e.page, plain: true, indent: 12, depth: 1, sub: membersOf(e.job).map(headOf) });
+                else rows.push({ id: '', incipit: chapterLabelOf(e.job), genre: '', page: e.page, plain: true, indent: 12, depth: 1 });
+              }
               rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: e.page, indent: docIndent, depth: docDepth, num: boxTextOf(e.job), bookmarkOnly: manuscriptsOnly });
             });
-            if (apparatusStarted) {
-              rows.push({ id: '', incipit: L.apparatus, genre: '', page: apparatusPage, plain: true, chapter: true, indent: 0, depth: 0 });
-              for (const ao of apparatusOutline) {
-                if (ao.depth === 1 && chapterRows) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1, bookmarkOnly: contentsApparatus === 'none' });
-                else {
-                  const j = jobs[ao.job];
-                  rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job), bookmarkOnly: contentsApparatus !== 'documents' });
+            const partRows: Record<PdfPartKey, () => void> = {
+              apparatus: () => {
+                if (!apparatusStarted) return;
+                rows.push({ id: '', incipit: L.apparatus, genre: '', page: apparatusPage, plain: true, chapter: true, indent: 0, depth: 0 });
+                for (const ao of apparatusOutline) {
+                  if (ao.depth === 1 && chapterRows) rows.push({ id: '', incipit: ao.label, genre: '', page: ao.page, plain: true, indent: 12, depth: 1, bookmarkOnly: contentsApparatus === 'none' });
+                  else {
+                    const j = jobs[ao.job];
+                    rows.push({ id: j.document.dokumenten_id || '', incipit: j.document.textinitium || '', genre: genreOf(j.document), page: ao.page, indent: docIndent, depth: docDepth, num: boxTextOf(ao.job), bookmarkOnly: contentsApparatus !== 'documents' });
+                  }
                 }
-              }
+              },
+              descriptions: () => {
+                if (!descriptionStarted) return;
+                rows.push({ id: '', incipit: descriptionTitle, genre: '', page: descriptionPage, plain: true, chapter: true, indent: 0, depth: 0 });
+                if (chapterRows) for (const d of descriptionOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
+              },
+              notation: () => {
+                if (!notationStarted) return;
+                rows.push({ id: '', incipit: L.notation, genre: '', page: notationPage, plain: true, chapter: true, indent: 0, depth: 0 });
+                if (chapterRows) for (const d of notationOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
+              },
+            };
+            // `pdfReportTitle` ("Kritischer Bericht"): one heading over the report's text parts and the parts behind the edition,
+            // which move one step in, as in the printed volume
+            const reportTitle = String((s as any).pdfReportTitle || '').trim();
+            const reportFrom = rows.length;
+            for (const t of textPartRows.filter((r) => r.place === 'report')) rows.push({ id: '', incipit: t.title, genre: '', page: t.page, plain: true, chapter: true, indent: 0, depth: 0 });
+            for (const part of partOrder((s as any).pdfPartOrder)) partRows[part]();
+            if (reportTitle && rows.length > reportFrom) {
+              const inner = rows.splice(reportFrom).map((r) => ({ ...r, indent: r.indent + 12, depth: r.depth + 1, chapter: r.depth === 0 ? false : r.chapter }));
+              rows.push({ id: '', incipit: reportTitle, genre: '', page: reportPage || (inner.find((r) => !r.bookmarkOnly)?.page ?? reportStartPage), plain: true, chapter: true, indent: 0, depth: 0 }, ...inner);
             }
-            if (descriptionStarted) {
-              rows.push({ id: '', incipit: descriptionTitle, genre: '', page: descriptionPage, plain: true, chapter: true, indent: 0, depth: 0 });
-              if (chapterRows) for (const d of descriptionOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
-            }
-            if (notationStarted) {
-              rows.push({ id: '', incipit: L.notation, genre: '', page: notationPage, plain: true, chapter: true, indent: 0, depth: 0 });
-              if (chapterRows) for (const d of notationOutline) rows.push({ id: '', incipit: d.label, genre: '', page: d.page, plain: true, indent: 12, depth: 1 });
-            }
+            for (const t of textPartRows.filter((r) => r.place === 'back')) rows.push({ id: '', incipit: t.title, genre: '', page: t.page, plain: true, chapter: true, indent: 0, depth: 0 });
             if (y + 40 > maxContentY) y = startNewTitlePage();
-            y = drawHeading(L.contents, textX, y, textColumnW, 10) + 6;
+            if (volumeParts && textTitleTop) {
+              // like the titles of the text parts: bold and black at the top, no rule (the printed volume)
+              doc.setFont(fontFamily, 'bold');
+              doc.setFontSize(16);
+              doc.setTextColor(0, 0, 0);
+              doc.text(L.contents, pdfMarginLeft, y + 11.3);
+              y += 11.3 + 29.9;
+            } else y = drawHeading(L.contents, textX, y, textColumnW, 10) + 6;
             doc.setFont(fontFamily, 'normal');
             doc.setFontSize(pdfFontSize);
             const idW = Math.min(110, Math.max(0, ...rows.filter((r) => !r.plain).map((r) => doc.getTextWidth(r.id))) + 12);
@@ -2215,6 +2598,16 @@ export class PdfExportService {
               }
               stats.outline.push({ label: [r.id, r.incipit, r.genre].filter(Boolean).join(' | '), page: r.page, depth: r.depth });
               y += lineH;
+              for (const line of r.sub ?? []) {
+                // the shelfmark line below a chapter: smaller, without a page number
+                if (y + lineH > maxContentY) y = startNewTitlePage();
+                doc.setFontSize(pdfFontSize - 1);
+                let t = line;
+                while (t.length > 1 && doc.getTextWidth(t) > pageWidth - pdfMarginRight - ix - 40) t = t.slice(0, -1);
+                doc.text(t === line ? t : t.trimEnd() + '…', ix + 14, y - lineH * 0.25);
+                doc.setFontSize(pdfFontSize);
+                y += lineH * 0.75;
+              }
             }
           }
         }
@@ -2273,7 +2666,12 @@ export class PdfExportService {
               doc.text(num, x, headY);
               doc.setFontSize(pdfHeadlineFontSize);
             };
-            if (mirrorMargins && pageNum % 2 === 0) {
+            if (textPartNames.has(part)) {
+              // a part of running text names only itself
+              const label = fit(part);
+              if (mirrorMargins && pageNum % 2 === 0) { numAt(pdfMarginLeft); doc.text(label, pageWidth - pdfMarginRight - doc.getTextWidth(label), headY); }
+              else { doc.text(label, pdfMarginLeft, headY); numAt(pageWidth - pdfMarginRight - (num ? (doc.setFontSize(pdfPageNumberFontSize), doc.getTextWidth(num)) : 0)); }
+            } else if (mirrorMargins && pageNum % 2 === 0) {
               // a verso, as in the printed volume: the number outside (left), the part and the manuscript on the right
               numAt(pdfMarginLeft);
               const label = fit(part + ' | ' + chapterTitleOf(owner));

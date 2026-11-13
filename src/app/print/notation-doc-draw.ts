@@ -341,28 +341,34 @@ const TREE_LABEL_GAP = 2;
 
 /**
  * The neume tree of a manuscript: a column for each number of notes, left to right, each pattern grown out of
- * the shorter one it contains. Drawn as vector (lines, signs) and monospaced codes under the signs; as large
+ * the shorter one it contains. Drawn as vector (lines, signs) and monospaced codes under the signs (`codes: false`
+ * leaves the codes out, as the printed volumes); as large
  * as the text column allows (at most its own size), and moved to a new page if it does not fit under `y`.
  * Returns the y below it.
  */
-export function drawNeumeTree(h: NotationHost, codes: string[], y: number, heading?: string): number {
+export function drawNeumeTree(h: NotationHost, codes: string[], y: number, heading?: string, opts: { codes?: boolean } = {}): number {
+  const showCodes = opts.codes !== false;
   const tree = buildNeumeTree(codes);
   if (!tree.nodes.length) return y;
   const doc = h.doc;
   doc.setFont('courier', 'normal');
   doc.setFontSize(TREE_LABEL_FS);
-  const labelW = (code: string) => doc.getTextWidth(code);
-  const labelH = TREE_LABEL_FS * 1.1;
+  const labelW = (code: string) => (showCodes ? doc.getTextWidth(code) : 0);
+  const labelH = showCodes ? TREE_LABEL_FS * 1.1 : 0;
   const size = (node: TreeNode) => {
     const g = measureGlyph(node.code);
-    return { w: Math.max(g.w, labelW(node.code)), h: g.h + TREE_LABEL_GAP + labelH, anchorY: g.h / 2 };
+    return { w: Math.max(g.w, labelW(node.code)), h: g.h + (showCodes ? TREE_LABEL_GAP + labelH : 0), anchorY: g.h / 2 };
   };
   let gap = 36;
   let layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5 });
   // narrow the gaps between the columns before shrinking the drawing
   while (layout.width > h.width && gap > 14) { gap -= 4; layout = layoutNeumeTree(tree, size, { columnGap: gap, rowGap: 5 }); }
-  const room = h.bottom - h.top;
-  const scale = Math.min(1, h.width / layout.width, room / layout.height);
+  // a page holds the heading and the tree together: the tree is shrunk to the room under a heading at the top of a page
+  const room = h.bottom - h.top - (heading ? (h.fs + 0.5) * 1.9 + 1 : 0);
+  let scale = Math.min(1, h.width / layout.width, room / layout.height);
+  // rather than leave most of a page empty, the tree shrinks to the room left on it, down to 70 % of its size
+  const left = h.bottom - y - (heading ? (h.fs + 0.5) * 1.9 + 1 : 0);
+  if (layout.height * scale > left && left >= layout.height * scale * 0.7) scale = left / layout.height;
   if (heading) y = headingWithRoom(h, heading, y, layout.height * scale);
   if (y + layout.height * scale > h.bottom) y = h.newPage();
   const ox = h.x + Math.max(0, (h.width - layout.width * scale) / 2);
@@ -389,6 +395,7 @@ export function drawNeumeTree(h: NotationHost, codes: string[], y: number, headi
     const box = layout.boxes.get(node)!;
     const g = measureGlyph(node.code);
     drawNeumeGlyph(doc, node.code, X(box.x + (box.w - g.w) / 2), Y(box.y), scale);
+    if (!showCodes) continue;
     doc.setFont('courier', 'normal');
     doc.setFontSize(TREE_LABEL_FS * scale);
     doc.setTextColor(30, 30, 30);

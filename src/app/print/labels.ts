@@ -38,7 +38,7 @@ export const DEFAULT_LABELS: Record<PrintLanguage, PrintLabels> = {
   de: {
     edition: 'Edition', apparatus: 'Kritischer Apparat', description: 'Die Quelle', descriptions: 'Die Quellen',
     notation: 'Die Notationen', contents: 'Inhaltsverzeichnis', page: 'S.', see: 'siehe',
-    equivalents: 'Transkriptionsäquivalente', inventory: 'Zeichenbestand', tree: 'Neumenbaum', noImage: 'Kein Bild',
+    equivalents: 'Transkriptionsäquivalente', inventory: 'Zeichenbestand', tree: 'Zeichenbaum', noImage: 'Kein Bild',
   },
 };
 

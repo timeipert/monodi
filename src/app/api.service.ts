@@ -780,8 +780,44 @@ export interface ProjectSettings {
   noteFlags?: NoteFlagDef[];
   /** Heading where a document begins in the PDF: fields, labels, styles (see print/doc-heading.ts). Default: ID, reference, genre (genre only where the PDF has several). */
   pdfDocHeadingFields?: HeadingField[];
+  /** Hairline above the heading of each document when several run on (default true); false: no line, and the music
+   *  starts closer below the heading, as in the printed volumes of the Corpus Monodicum. */
+  pdfDocRule?: boolean;
   /** Between the parts of that heading (default three spaces). */
   pdfDocHeadingSeparator?: string;
+  /** PDF of several manuscripts: a source field (own or custom) whose value names the chapter of a manuscript (for example
+   *  the place of origin, or a title written for the print). Default: library town, else place of origin. */
+  pdfChapterTitleField?: string;
+  /** A source field; manuscripts with the same value in it share one chapter (two fragments of one book). Default: none. */
+  pdfChapterGroupField?: string;
+  /** Order of the parts behind the edition: 'apparatus', 'descriptions', 'notation'. Missing keys follow in that order. */
+  pdfPartOrder?: ('apparatus' | 'descriptions' | 'notation')[];
+  /** A source field holding a notation documentation written as Markdown; printed in the part of the notation documentation. */
+  pdfNotationMarkdownField?: string;
+  /** The notation documentation (manuscript headings and Markdown) across the whole type area, margin to margin, as in the
+   *  printed volumes; default: at the text edge of the edition, like the source descriptions. */
+  pdfNotationWide?: boolean;
+  /** A source field with the pattern codes of the manuscript, one per line: with the print option "Neume tree" their tree
+   *  follows a notation documentation written as Markdown (pdfNotationMarkdownField). */
+  pdfNotationPatternsField?: string;
+  /** Neume tree of a manuscript: only patterns of up to this many notes. Default: all. */
+  pdfNeumeTreeMaxNotes?: number;
+  /** Neume tree of a manuscript: false leaves out every pattern with a special sign (liquescence, oriscus, quilisma,
+   *  strophicus …; the virga counts as an ordinary sign). Default true. */
+  pdfNeumeTreeSpecialSigns?: boolean;
+  /** Neume tree: false draws the signs without their pattern codes under them. Default true. */
+  pdfNeumeTreeCodes?: boolean;
+  /** Contents of several manuscripts: 'two' prints a chapter as its name with the shelfmark and siglum of each manuscript
+   *  on the line below (the printed volumes); default one line "name | siglum". */
+  pdfContentsChapterLines?: 'one' | 'two';
+  /** A heading in the contents over the critical report (its own text parts and the parts behind the edition), for
+   *  example "Kritischer Bericht". Default: none. */
+  pdfReportTitle?: string;
+  /** Parts of running text (PdfExportOptions.textParts): 'page' gives the title a page of its own like the other parts;
+   *  'top' sets it at the top of the first page with the text below (the printed volumes). Default 'page'. With 'top' the
+   *  parts behind the edition (sources, notations, apparatus) get their titles the same way, and a page with the
+   *  pdfReportTitle, if set, opens the critical report. */
+  pdfTextPartTitle?: 'page' | 'top';
   /** Import: comments on placeholder notes (old convention) move onto the syllables. Default on. */
   importPlaceholderComments?: boolean;
   /** Import: a syllable that holds nothing but placeholder notes loses them, comment or not. Default on. */
