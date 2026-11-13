@@ -54,11 +54,16 @@ export class SvgRecorder {
       fill: () => this.paintPath(true, false),
       stroke: () => this.paintPath(false, true),
     };
+    // The methods of jsPDF as they are when wrapping. The export measures a block by replacing the drawing methods with
+    // no-ops for a moment (`dryRun` in pdf-export.service.ts); a call that reaches such a replacement draws nothing in
+    // the PDF, so it is not recorded either.
+    const originals: { [name: string]: unknown } = {};
+    for (const name of Object.keys(hooks)) originals[name] = (real as any)[name];
     return new Proxy(real, {
       get: (target, prop) => {
         const v = (target as any)[prop];
         if (typeof v !== 'function') return v;
-        const hook = typeof prop === 'string' ? hooks[prop] : undefined;
+        const hook = typeof prop === 'string' && v === originals[prop] ? hooks[prop] : undefined;
         return (...args: any[]) => {
           if (hook) hook(...args);
           return v.apply(target, args);
