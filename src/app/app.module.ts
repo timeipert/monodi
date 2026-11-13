@@ -52,6 +52,7 @@ import { MetadataGridComponent } from './metadata-grid/metadata-grid.component';
 import { CmImportDialogComponent } from './release/cm-import-dialog.component';
 import { RelationsDialogComponent } from './relations/relations-dialog.component';
 import { FillColumnDialogComponent } from './metadata-grid/fill-column-dialog.component';
+import { ReplaceDialogComponent } from './metadata-grid/replace-dialog.component';
 import { SigleDialogComponent } from './source/sigle-dialog.component';
 
 @NgModule({ declarations: [
@@ -88,6 +89,7 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         CmImportDialogComponent,
         RelationsDialogComponent,
         FillColumnDialogComponent,
+        ReplaceDialogComponent,
         SigleDialogComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,

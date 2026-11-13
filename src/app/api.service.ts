@@ -16,6 +16,7 @@ import { NoteFlagDef, sanitizeNoteFlags, setNoteFlagDefs } from '@monodi/core/do
 import { sanitizeAnnotationRules } from './mei/mei-annotation-rules';
 import { setActiveMeiProfile } from './mei/mei-annotation-context';
 import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings, normalizePatternRule, upgradeMeiProfile, withBuiltInProfiles } from '@monodi/core/mei';
+import { GuidoTemplate, sanitizeGuidoTemplates } from './guido/guido-template';
 import { SavedCommentTemplate } from './comment/comment-templates';
 import { BackupReminderService } from './backup-reminder.service';
 import { PushCache } from './push-cache';
@@ -778,6 +779,8 @@ export interface ProjectSettings {
   activeMeiProfileId?: string;
   /** User-defined note flags (virga etc.), see packages/core/src/document/note-flags.ts. */
   noteFlags?: NoteFlagDef[];
+  /** Templates for the GUIDO (Word) import beyond the built-in one, see guido/guido-template.ts. */
+  guidoImportTemplates?: GuidoTemplate[];
   /** Heading where a document begins in the PDF: fields, labels, styles (see print/doc-heading.ts). Default: ID, reference, genre (genre only where the PDF has several). */
   pdfDocHeadingFields?: HeadingField[];
   /** Hairline above the heading of each document when several run on (default true); false: no line, and the music
@@ -1183,6 +1186,7 @@ export function sanitizeSettings(settings: any): ProjectSettings {
 
   settings.noteFlags = sanitizeNoteFlags(settings.noteFlags);
   setNoteFlagDefs(settings.noteFlags);
+  settings.guidoImportTemplates = sanitizeGuidoTemplates(settings.guidoImportTemplates);
 
   for (const prof of settings.meiProfiles ?? []) {
     upgradeMeiProfile(prof);

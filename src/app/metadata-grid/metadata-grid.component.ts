@@ -14,6 +14,7 @@ import { ANY_COLUMN, FILTER_OPS, GridFilter, opNeedsValue } from './grid-filter'
 import { GridKind, UnregisteredField, buildDocumentsView, buildSourcesView, documentCountOfSources, unregisteredFields, withListedFields } from './grid-data';
 import { parseTsv, toTsv } from './grid-clipboard';
 import { FillPlan } from './grid-fill';
+import { ReplacePlan } from './grid-replace';
 import { EditResult, GridView } from './grid-view';
 
 const TAB_KEY = 'monodi_metadata_tab';
@@ -54,6 +55,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   showImport = false;
   showRelations = false;
   showFill = false;
+  showReplace = false;
   /** Custom values in the data that no field of the settings lists, per table. */
   unregistered: Record<GridKind, UnregisteredField[]> = { documents: [], sources: [] };
   listBusy = false;
@@ -398,6 +400,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
       else if (k === 'z') { (event.shiftKey ? view.redo() : view.undo()); event.preventDefault(); }
       else if (k === 'y') { view.redo(); event.preventDefault(); }
       else if (k === 's') { void this.save(); event.preventDefault(); }
+      else if (k === 'h') { this.commitEdit(); this.showReplace = true; event.preventDefault(); }
       return;
     }
 
@@ -554,6 +557,16 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
     if (!view) return;
     const res = view.setCells(plan.changes);
     this.report(res, 'Filled');
+    this.cdr.markForCheck();
+  }
+
+  /** The plan of "Find and replace" goes into the table as edits: one undo step, saved like the others. */
+  applyReplace(plan: ReplacePlan): void {
+    const view = this.view;
+    this.showReplace = false;
+    if (!view) return;
+    const res = view.setCells(plan.changes);
+    this.report(res, 'Replaced');
     this.cdr.markForCheck();
   }
 
