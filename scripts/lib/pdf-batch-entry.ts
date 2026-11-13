@@ -99,6 +99,8 @@ export interface VolumeResult {
   frontPages?: number;
   outline?: { label: string; page: number; depth: number }[];
   notationProblems?: string[];
+  /** Systems (staff lines) drawn in the edition part; 0 for a chant with notes means its notation was not drawn. */
+  systems?: number;
   error?: string;
 }
 
@@ -146,7 +148,7 @@ export async function renderVolume(docs: VolumeDoc[], job: VolumeJob = {}): Prom
     if (!options.titlePage) options.contents = false;
     const stats = await exporter.exportDocuments(jobs, options);
     const pdf = new Uint8Array(await stats.blob!.arrayBuffer());
-    return { pdf, pages: stats.pages, documents: jobs.length, frontPages: stats.frontPages, outline: stats.outline, notationProblems: stats.notationProblems };
+    return { pdf, pages: stats.pages, documents: jobs.length, frontPages: stats.frontPages, outline: stats.outline, notationProblems: stats.notationProblems, systems: stats.systems };
   } catch (e: any) {
     return { error: String(e?.stack ?? e) };
   }
