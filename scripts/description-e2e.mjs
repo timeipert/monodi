@@ -40,7 +40,8 @@ const md = [
   '## Lagen', '', para + ' Vgl. **Hesbert** 1961 und <sc>Euw</sc> 2001.', '', para, '',
   `![0.4](${png()})`, '',
   '## Inhalt', '', '| Folio | Inhalt |', '| --- | --- |', '| 1–107v | **Graduale**<br>Anlage: Weihnachten |', '| Nach f. 98v Lakune | |', '| 107v–111v | **Tropar** |', '',
-  '## Herkunft', '', para, '', para + ' XIII<sup>e</sup> siècle.', '', para, '', para, '', para, '', para, '', para, '', para, '', para, '', para, '', para, '',
+  // long enough to run over a verso and a recto page in two columns (the layout of the printed volumes, 2026-11-13)
+  '## Herkunft', '', para, '', para + ' XIII<sup>e</sup> siècle.', '', ...Array(36).fill([para, '']).flat(),
   '## Literatur', '', '- **Arlt** 1993b: Wulf **Arlt**, Schichten und Wege in der Überlieferung der älteren Tropen zum Introitus des Petrus-Festes, in: Recherches nouvelles 1993, S. 13–93.',
   '- **Eisenlohr** 1989: Erika **Eisenlohr**, Die älteste Niederschrift der Sequenz Urbs Aquensis im letzten Viertel des 12. Jahrhunderts, Aachen 1989.', '',
 ].join('\n');
