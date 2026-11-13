@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import * as document from './document/index.ts';
 import * as mei from './mei/index.ts';
+import * as pageLayout from './page-layout/index.ts';
 
 describe('entry points', () => {
   it('@monodi/core/mei offers the emitter, the profile and the header mapping', () => {
@@ -15,6 +16,12 @@ describe('entry points', () => {
   it('@monodi/core/document offers the pattern code, the note flags and the kinds of the document model', () => {
     for (const name of ['extractPattern', 'analyzeDocument', 'flagDefsOf', 'findFlagMatches', 'ContainerKind', 'LinePartKind', 'NoteType']) {
       assert.equal(typeof (document as Record<string, unknown>)[name] === 'undefined', false, name);
+    }
+  });
+
+  it('@monodi/core/page-layout offers the vocabulary, the model, the text and the drawings', () => {
+    for (const name of ['VOCABULARY', 'normalisePageLayout', 'describePageLayout', 'pageDiagramSvg', 'staffSampleSvg']) {
+      assert.equal(typeof (pageLayout as Record<string, unknown>)[name] === 'undefined', false, name);
     }
   });
 
