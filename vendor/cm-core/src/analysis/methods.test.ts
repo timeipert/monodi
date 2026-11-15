@@ -81,7 +81,32 @@ describe('overview', () => {
     const r = run('overview', c, { groupBy: 'src:quellensigle' });
     const t = table(r, 'Corpus');
     assert.deepEqual(t.rows.slice(0, 4), [['Chants', 2], ['Chants without notes', 0], ['Syllables', 5], ['Notes', 5]]);
-    assert.equal(table(r, 'Groups').rows.length, 2);
+    // one row per group and a row for the whole corpus
+    assert.deepEqual(table(r, 'Table 1: description of the corpus').rows.map((row) => row[0]), ['A', 'B', 'All']);
+  });
+
+  it('draws a four-panel figure with one series per group, an unbroken pitch axis and a caption', () => {
+    const c = corpusOf([plain([30, 32]), plain([30, 31, 33]), plain([30])], (i) => ({ 'src:quellensigle': i < 2 ? 'A' : 'B' }));
+    const r = run('overview', c, { groupBy: 'src:quellensigle', groupsShown: 4 });
+    const fig = r.views.find((v) => v.kind === 'figure');
+    assert.ok(fig && fig.kind === 'figure');
+    assert.equal(fig.panels.length, 4);
+    const pitch = fig.panels.find((p) => p.title === 'Pitch distribution')!;
+    assert.deepEqual(pitch.items.map((i) => i.label), ['E4', 'F4', 'G4', 'A4']);
+    assert.deepEqual(pitch.series!.map((s) => [s.name, s.n]), [['A', 2], ['B', 1]]);
+    // the series add up to the totals
+    pitch.items.forEach((it, i) => assert.equal(pitch.series!.reduce((a, s) => a + s.values[i], 0), it.value));
+    assert.match(fig.caption, /^Figure 1\. Overview of the corpus: 3 chants/);
+    assert.match(fig.caption, /A \(n = 2\), B \(n = 1\)/);
+  });
+
+  it('draws the whole corpus as one series when there are no groups or one group is asked for', () => {
+    const c = corpusOf([plain([30, 32]), plain([30])], (i) => ({ 'src:quellensigle': i === 0 ? 'A' : 'B' }));
+    for (const params of [{ groupBy: '' }, { groupBy: 'src:quellensigle', groupsShown: 1 }]) {
+      const fig = run('overview', c, params).views.find((v) => v.kind === 'figure');
+      assert.ok(fig && fig.kind === 'figure');
+      assert.ok(fig.panels.every((p) => p.series === undefined));
+    }
   });
 });
 

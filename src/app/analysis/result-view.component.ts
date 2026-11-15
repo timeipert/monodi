@@ -1,45 +1,25 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
-import { cellText, isNotationCell, tableToCsv } from '@monodi/core/analysis';
-import type { BarsView, Cell, MatrixView, NotationCell, PatternUnit, ResultView, ScatterView, TableView, TreeView } from '@monodi/core/analysis';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { DEFAULT_FIGURE_STYLE, FIGURE_WIDTHS_MM, cellText, groupCount, isFigureView, isNotationCell, niceTicks, renderViewSvg, tableToCsv, tickLabel } from '@monodi/core/analysis';
+import type { BarsView, Cell, FigureStyle, FigureView, MatrixView, NotationCell, PatternUnit, RenderedFigure, ResultView, TableView } from '@monodi/core/analysis';
 import { downloadBlob } from '../download';
+import { svgToBlob, svgToPdf, svgToPng } from './figure-export';
 
-/** Sequential blue ramp (steps 100 … 700 of the reference palette) for heat maps. */
-const BLUE_RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+export { niceTicks, tickLabel };
 
-export interface ColumnBar { x: number; y: number; w: number; h: number; path: string; label: string; value: number; peak: boolean; tip: string }
-export interface ColumnChart {
-  width: number; height: number; baseY: number; left: number;
-  bars: ColumnBar[];
-  yTicks: { y: number; label: string }[];
-  xLabels: { x: number; text: string; rotate: boolean }[];
-  unit: string;
-}
+/** Grey ramp (light to dark) for heat maps: the shade carries the value, so no colour is needed. */
+const GREY_RAMP = ['#f2f2f2', '#d9d9d9', '#bfbfbf', '#8c8c8c', '#666666', '#404040', '#1a1a1a'];
+
 export interface RowBar { label: string; notation?: NotationCell['notation']; value: number; pct: number }
 
-interface Tip { x: number; y: number; text: string }
-
-/** Round tick values for an axis from 0 to `max`: a clean step (1, 2, 2.5, 5 times a power of ten). */
-export function niceTicks(max: number, target = 4): number[] {
-  if (!(max > 0)) return [0, 1];
-  const raw = max / target;
-  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw) ?? pow * 10;
-  const out: number[] = [];
-  for (let v = 0; v <= max + step * 0.999; v += step) out.push(Math.round(v * 1e6) / 1e6);
-  return out;
-}
-
-/** 12,345 as `12.3K` on an axis that reaches it; full below 10,000. */
-export function tickLabel(v: number, compact: boolean): string {
-  if (compact && v >= 1000) return `${Math.round((v / 1000) * 10) / 10}K`;
-  return String(v);
-}
+export type FigureFormat = 'svg' | 'png' | 'pdf';
 
 /**
  * Draws one result view of any method: a table (filter, sort, page, notes in cells, CSV), a histogram or a ranking, a
  * heat map, a dendrogram, a scatter plot or text. Methods return plain data (see `@monodi/core/analysis`
- * `ResultView`), so a new method needs no component. Marks follow the reference chart rules: thin columns with a 2 px
- * gap and a rounded data end, hairline grid, one sequential blue, values at the tip or on the peak only.
+ * `ResultView`), so a new method needs no component. Charts are drawn by `renderViewSvg` (core) in black and white, with
+ * colour only as an option to tell groups apart; the SVG on the screen is the one that is downloaded as SVG, PNG (transparent)
+ * or PDF.
  */
 @Component({
   selector: 'app-result-view',
@@ -72,44 +52,91 @@ export class ResultViewComponent implements OnChanges {
   barMax = 0;
 
   // ── charts ──
-  columns: ColumnChart | null = null;
   rankRows: RowBar[] = [];
-  tip: Tip | null = null;
   showData = false;
 
-  // dendrogram and scatter layout
-  treeLinks: { x1: number; y1: number; x2: number; y2: number }[] = [];
-  treeLeaves: { x: number; y: number; label: string }[] = [];
-  treeTicks: { x: number; label: string }[] = [];
-  treeHeight = 0;
-  readonly treeWidth = 620;
-  scatter: { x: number; y: number; label: string }[] = [];
-  readonly plot = { w: 460, h: 320, pad: 26 };
+  /** How a chart is drawn; the start values depend on the view (see `startStyle`). */
+  style: FigureStyle = { ...DEFAULT_FIGURE_STYLE };
+  readonly widths = FIGURE_WIDTHS_MM;
+  /** The drawn figure as markup (built by `renderViewSvg` from escaped text only), or null for views that are not figures. */
+  figureHtml: SafeHtml | null = null;
+  private figure: RenderedFigure | null = null;
+  groups = 1;
+  exporting = '';
+  exportError = '';
+
+  constructor(private readonly sanitizer: DomSanitizer) {}
 
   ngOnChanges(): void {
     this.sortCol = -1;
     this.page = 0;
-    this.tip = null;
     this.textFilter = '';
     this.showData = false;
+    this.exportError = '';
     const v = this.view;
     if (v.kind === 'table') this.prepareTable(v);
     else if (v.kind === 'bars') this.prepareBars(v);
-    else if (v.kind === 'tree') this.layoutTree(v);
-    else if (v.kind === 'scatter') this.layoutScatter(v);
+    if (isFigureView(v) && !(v.kind === 'bars' && (v.layout ?? 'rows') !== 'columns')) {
+      this.groups = groupCount(v);
+      this.style = this.startStyle(v);
+      this.draw();
+    } else {
+      this.figureHtml = null;
+      this.figure = null;
+    }
+  }
+
+  /** A composite figure starts at page width, a single chart at one and a half columns; groups start as shares in panels. */
+  private startStyle(v: ResultView): FigureStyle {
+    return { ...DEFAULT_FIGURE_STYLE, widthMm: v.kind === 'figure' ? 175 : 120, value: groupCount(v) > 1 ? 'share' : 'count' };
+  }
+
+  /** Change one or more style options and draw the figure again. */
+  setStyle(change: Partial<FigureStyle>): void {
+    this.style = { ...this.style, ...change };
+    this.draw();
+  }
+
+  private draw(): void {
+    this.figure = renderViewSvg(this.view, this.style);
+    this.figureHtml = this.figure ? this.sanitizer.bypassSecurityTrustHtml(this.figure.svg) : null;
+  }
+
+  /** The drawn size on the screen in CSS pixels (1 pt = 4/3 px), so a figure is as large as it will be on paper. */
+  get figurePx(): number { return this.figure ? Math.round((this.figure.width * 4) / 3) : 0; }
+  get isFigure(): boolean { return this.figure !== null; }
+  get figureView(): FigureView | null { return this.view.kind === 'figure' ? this.view : null; }
+  /** The panels of the view when it is a histogram or a figure of histograms. */
+  get panels(): BarsView[] { return this.view.kind === 'figure' ? this.view.panels : this.view.kind === 'bars' ? [this.view] : []; }
+
+  /** Download the figure as it is drawn; PNG at 300 dpi. */
+  async download(format: FigureFormat): Promise<void> {
+    if (!this.figure) return;
+    this.exporting = format;
+    this.exportError = '';
+    try {
+      // Files carry no tooltips (`<title>` elements), which a PDF or a program reading the SVG has no use for.
+      const file = renderViewSvg(this.view, { ...this.style, tooltips: false })!;
+      const name = `${this.fileStem}-${slug(this.view.title)}`;
+      if (format === 'svg') downloadBlob(svgToBlob(file.svg), `${name}.svg`);
+      else if (format === 'png') downloadBlob(await svgToPng(file.svg, file.width, file.height, 300), `${name}.png`);
+      else downloadBlob(await svgToPdf(file.svg, file.width, file.height), `${name}.pdf`);
+    } catch (e) {
+      this.exportError = (e as Error)?.message ?? String(e);
+    } finally {
+      this.exporting = '';
+    }
+  }
+
+  /** Copy the caption of a figure to the clipboard. */
+  async copyCaption(): Promise<void> {
+    const c = this.figureView?.caption;
+    if (c && navigator.clipboard) await navigator.clipboard.writeText(c);
   }
 
   get table(): TableView | null { return this.view.kind === 'table' ? this.view : null; }
   get matrix(): MatrixView | null { return this.view.kind === 'matrix' ? this.view : null; }
   get bars(): BarsView | null { return this.view.kind === 'bars' ? this.view : null; }
-
-  // ── tooltip ─────────────────────────────────────────────────────────────
-  showTip(ev: MouseEvent, text: string): void {
-    const box = (ev.currentTarget as Element).closest('.rv-chart')?.getBoundingClientRect();
-    if (!box) return;
-    this.tip = { x: ev.clientX - box.left + 12, y: ev.clientY - box.top - 8, text };
-  }
-  hideTip(): void { this.tip = null; }
 
   // ── table ───────────────────────────────────────────────────────────────
   private prepareTable(t: TableView): void {
@@ -213,13 +240,12 @@ export class ResultViewComponent implements OnChanges {
     downloadBlob(new Blob([tableToCsv(kept)], { type: 'text/csv;charset=utf-8' }), `${this.fileStem}-${slug(t.title)}.csv`);
   }
 
-  // ── bars: columns (histogram) and rows (ranking) ─────────────────────────
+  // ── bars: rankings (histograms are drawn by the figure renderer) ─────────
   private prepareBars(b: BarsView): void {
-    this.columns = null;
     this.rankRows = [];
+    if ((b.layout ?? 'rows') === 'columns') return;
     const max = Math.max(1, ...b.items.map((i) => i.value));
-    if ((b.layout ?? 'rows') === 'columns') this.columns = layoutColumns(b);
-    else this.rankRows = b.items.map((i) => ({ label: i.label, notation: i.notation, value: i.value, pct: (i.value / max) * 100 }));
+    this.rankRows = b.items.map((i) => ({ label: i.label, notation: i.notation, value: i.value, pct: (i.value / max) * 100 }));
   }
 
   // ── matrix ──────────────────────────────────────────────────────────────
@@ -239,7 +265,7 @@ export class ResultViewComponent implements OnChanges {
 
   cellColor(v: number): string { return rampColor(this.strength(v)); }
   cellInk(v: number): string { return this.strength(v) > 0.55 ? '#ffffff' : '#0b0b0b'; }
-  get rampGradient(): string { return `linear-gradient(to right, ${BLUE_RAMP.join(', ')})`; }
+  get rampGradient(): string { return `linear-gradient(to right, ${GREY_RAMP.join(', ')})`; }
   get matrixLow(): string { const [lo, hi] = this.matrixRange(); return String(this.matrix?.lowIsClose ? hi : lo); }
   get matrixHigh(): string { const [lo, hi] = this.matrixRange(); return String(this.matrix?.lowIsClose ? lo : hi); }
 
@@ -251,92 +277,18 @@ export class ResultViewComponent implements OnChanges {
     m.rowLabels.forEach((l, i) => lines.push([esc(l), ...m.values[i].map(String)].join(',')));
     downloadBlob(new Blob([lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' }), `${this.fileStem}-${slug(m.title)}.csv`);
   }
-
-  // ── dendrogram ──────────────────────────────────────────────────────────
-  private layoutTree(t: TreeView): void {
-    const n = t.leaves.length;
-    this.treeLinks = []; this.treeLeaves = []; this.treeTicks = [];
-    if (n === 0) return;
-    const maxH = Math.max(...t.merges.map((m) => m.height), 1e-9);
-    const rowH = 17;
-    const plotW = this.treeWidth - 170;
-    this.treeHeight = n * rowH + 34;
-    const pos = new Map<number, { x: number; y: number }>();
-    const order: number[] = [];
-    const visit = (id: number) => { if (id < n) { order.push(id); return; } const m = t.merges[id - n]; visit(m.a); visit(m.b); };
-    visit(t.merges.length ? n + t.merges.length - 1 : 0);
-    order.forEach((leaf, i) => {
-      pos.set(leaf, { x: plotW, y: 10 + i * rowH });
-      this.treeLeaves.push({ x: plotW + 6, y: 10 + i * rowH + 4, label: t.leaves[leaf] });
-    });
-    t.merges.forEach((m, i) => {
-      const a = pos.get(m.a)!; const b = pos.get(m.b)!;
-      const x = plotW - (m.height / maxH) * (plotW - 8);
-      this.treeLinks.push({ x1: a.x, y1: a.y, x2: x, y2: a.y }, { x1: b.x, y1: b.y, x2: x, y2: b.y }, { x1: x, y1: a.y, x2: x, y2: b.y });
-      pos.set(n + i, { x, y: (a.y + b.y) / 2 });
-    });
-    for (const v of niceTicks(maxH, 4)) {
-      if (v > maxH * 1.0001) continue;
-      this.treeTicks.push({ x: plotW - (v / maxH) * (plotW - 8), label: String(Math.round(v * 100) / 100) });
-    }
-  }
-
-  // ── scatter ─────────────────────────────────────────────────────────────
-  private layoutScatter(s: ScatterView): void {
-    const xs = s.points.map((p) => p.x); const ys = s.points.map((p) => p.y);
-    const { w, h, pad } = this.plot;
-    const lo = (a: number[]) => Math.min(...a); const hi = (a: number[]) => Math.max(...a);
-    const sx = (v: number) => pad + ((v - lo(xs)) / ((hi(xs) - lo(xs)) || 1)) * (w - 2 * pad);
-    const sy = (v: number) => h - pad - ((v - lo(ys)) / ((hi(ys) - lo(ys)) || 1)) * (h - 2 * pad);
-    this.scatter = s.points.map((p) => ({ x: sx(p.x), y: sy(p.y), label: p.label }));
-  }
 }
 
 function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'table';
 }
 
-/** Interpolate the blue ramp at `t` in 0…1. */
+/** Interpolate the grey ramp at `t` in 0…1. */
 export function rampColor(t: number): string {
-  const x = Math.max(0, Math.min(1, t)) * (BLUE_RAMP.length - 1);
-  const i = Math.min(BLUE_RAMP.length - 2, Math.floor(x));
+  const x = Math.max(0, Math.min(1, t)) * (GREY_RAMP.length - 1);
+  const i = Math.min(GREY_RAMP.length - 2, Math.floor(x));
   const f = x - i;
-  const a = hexToRgb(BLUE_RAMP[i]); const b = hexToRgb(BLUE_RAMP[i + 1]);
+  const a = hexToRgb(GREY_RAMP[i]); const b = hexToRgb(GREY_RAMP[i + 1]);
   return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(',')})`;
 }
 function hexToRgb(h: string): number[] { return [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)); }
-
-/**
- * Geometry of a histogram, kept small: columns at most 16 px wide with a 2 px gap, a rounded data end and a square base,
- * three hairlines (0, half, top), the value only on the peak, and about 100 px of height.
- */
-export function layoutColumns(b: BarsView): ColumnChart {
-  const n = b.items.length;
-  const longest = Math.max(1, ...b.items.map((i) => i.label.length));
-  // Few columns with short labels stay upright and get room for the labels; many, or long ones, are tilted.
-  const rotate = n > 12 || (n > 6 && longest > 4);
-  const left = rotate ? 40 : 28; const right = 6; const top = 12; const bottom = rotate ? 26 : 16;
-  const slot = rotate ? Math.max(8, Math.min(20, 400 / Math.max(1, n))) : Math.max(18, Math.min(48, longest * 5.5 + 8));
-  const plotW = Math.max(80, n * slot);
-  const width = left + plotW + right;
-  const height = top + 72 + bottom;
-  const baseY = height - bottom;
-  const max = Math.max(1, ...b.items.map((i) => i.value));
-  const ticks = niceTicks(max, 2);
-  const axisMax = ticks[ticks.length - 1] || max;
-  const compact = axisMax >= 10000;
-  const scale = (baseY - top) / axisMax;
-  const peak = b.items.reduce((best, it, i) => (it.value > b.items[best].value ? i : best), 0);
-  const bars: ColumnBar[] = b.items.map((it, i) => {
-    const w = Math.min(16, slot - 2);
-    const x = left + i * slot + (slot - w) / 2;
-    const h = it.value * scale;
-    const y = baseY - h;
-    const r = Math.min(3, w / 2, h);
-    const path = h <= 0 ? '' : `M${x},${baseY}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${baseY}Z`;
-    return { x, y, w, h, path, label: it.label, value: it.value, peak: i === peak && n > 1, tip: `${it.label}: ${it.value.toLocaleString('en')}${b.unit ? ' ' + b.unit : ''}` };
-  });
-  const every = n > 40 ? Math.ceil(n / 20) : 1;
-  const xLabels = b.items.map((it, i) => ({ x: left + i * slot + slot / 2, text: it.label, rotate })).filter((_, i) => i % every === 0);
-  return { width, height, baseY, left, bars, yTicks: ticks.map((v) => ({ y: baseY - v * scale, label: tickLabel(v, compact) })), xLabels, unit: b.unit ?? '' };
-}

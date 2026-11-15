@@ -1,9 +1,6 @@
 :host {
   display: block;
-  /* Reference chart palette (light): series blue, hairlines, ink. */
-  --viz-s1: #2a78d6;
-  --viz-s1-soft: #86b6ef;
-  --viz-s1-peak: #256abf;
+  /* Charts are black and white; colour is only for telling groups apart (see figure.ts in @monodi/core/analysis). */
   --viz-grid: #e1e0d9;
   --viz-axis: #c3c2b7;
   --viz-muted: #898781;
@@ -22,25 +19,20 @@
 .rv-grid td { vertical-align: middle; border-color: var(--viz-grid); }
 .rv-sort { cursor: pointer; user-select: none; }
 .rv-colfilters th { top: 28px; padding: 2px 4px; background: var(--viz-surface); }
-.rv-databar { background: linear-gradient(to right, rgba(42, 120, 214, 0.18) var(--pct, 0%), transparent var(--pct, 0%)); font-variant-numeric: tabular-nums; }
+.rv-databar { background: linear-gradient(to right, rgba(0, 0, 0, 0.12) var(--pct, 0%), transparent var(--pct, 0%)); font-variant-numeric: tabular-nums; }
 
-/* charts: hairline grid, one hue, values on the peak only */
-.rv-chart { position: relative; display: block; max-width: 100%; }
-.rv-svg { display: block; width: 100%; height: auto; }
-.rv-grid-line { stroke: var(--viz-grid); stroke-width: 1; }
-.rv-axis { stroke: var(--viz-axis); stroke-width: 1; }
-.rv-tick { font: 9px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: var(--viz-muted); font-variant-numeric: tabular-nums; }
-.rv-col { fill: var(--viz-s1-soft); }
-.rv-col:hover { fill: var(--viz-s1); }
-.rv-col-peak { fill: var(--viz-s1-peak); }
-.rv-peak { font: 600 9px system-ui, sans-serif; fill: var(--viz-ink-2); }
-.rv-tip { position: absolute; pointer-events: none; background: var(--viz-ink); color: #fff; font: 12px system-ui, sans-serif; padding: 3px 7px; border-radius: 4px; white-space: nowrap; z-index: 5; }
+/* figures: the drawing is an SVG made by the renderer; it has no background of its own */
+.rv-fig { display: block; width: 100%; }
+.rv-fig ::ng-deep svg { display: block; width: 100%; height: auto; }
+.rv-caption { color: var(--viz-ink-2); max-width: 70ch; }
+.rv-width { width: 6rem; }
+.rv-colour { display: flex; align-items: center; gap: 0.3rem; }
 
 /* ranking */
 .rv-rank-row { display: flex; align-items: center; gap: 0.6rem; min-height: 28px; border-bottom: 1px solid var(--viz-grid); }
 .rv-rank-label { flex: 0 0 10rem; text-align: right; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--viz-ink-2); font-family: ui-monospace, Menlo, Consolas, monospace; }
 .rv-rank-track { position: relative; flex: 1 1 auto; height: 10px; max-width: 420px; }
-.rv-rank-bar { height: 10px; background: #3987e5; border-radius: 0 4px 4px 0; min-width: 2px; }
+.rv-rank-bar { height: 10px; background: #1a1a1a; min-width: 2px; }
 .rv-rank-val { position: absolute; top: -1px; font: 11px system-ui, sans-serif; color: var(--viz-ink-2); font-variant-numeric: tabular-nums; }
 
 /* heat map */
@@ -52,17 +44,8 @@
 .rv-legend { display: flex; align-items: center; gap: 0.4rem; }
 .rv-ramp { display: inline-block; width: 110px; height: 8px; border-radius: 4px; }
 
-/* dendrogram and scatter */
-.rv-tree-line { stroke: var(--viz-ink-2); stroke-width: 1.3; stroke-linecap: round; }
-.rv-leaf { font: 11px system-ui, sans-serif; fill: var(--viz-ink); }
-.rv-plot { background: var(--viz-surface); }
-.rv-frame { fill: none; stroke: var(--viz-axis); }
-.rv-dot { fill: var(--viz-s1); stroke: var(--viz-surface); stroke-width: 2; }
-.rv-dot:hover { fill: var(--viz-s1-peak); }
-.rv-dot-label { font: 10px system-ui, sans-serif; fill: var(--viz-ink-2); pointer-events: none; }
-
 .rv-notes { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; border-radius: 3px; }
-.rv-notes:hover { outline: 2px solid #9ec5f4; }
+.rv-notes:hover { outline: 2px solid #8c8c8c; }
 
 .rv-data-link { font-size: 0.72rem; color: var(--viz-muted); text-decoration: none; }
 .rv-data-link:hover { color: var(--viz-ink-2); text-decoration: underline; }

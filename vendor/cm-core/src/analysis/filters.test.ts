@@ -54,8 +54,8 @@ describe('applyFilters', () => {
   it('every method sees the reduced corpus: word counts drop the stop words, chant counts drop the excluded chants', () => {
     const r = applyFilters(corpus, f({ exclude: [{ field: 'doc:textinitium', mode: 'contains', value: 'kyrie' }], stopWords: { builtIn: false, custom: ['dominus'] } }));
     const out = runMethod('overview', r.corpus, { groupBy: '', words: 20 }, { progress: () => undefined }).result;
-    const t = out.views[0];
-    assert.ok(t.kind === 'table');
+    const t = out.views.find((v) => v.kind === 'table' && v.title === 'Corpus');
+    assert.ok(t && t.kind === 'table');
     assert.equal(t.rows[0][1], 2); // two chants left
   });
 });

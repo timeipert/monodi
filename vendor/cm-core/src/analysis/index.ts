@@ -7,6 +7,7 @@ export * from './corpus';
 export * from './features';
 export * from './fingerprint';
 export * from './result';
+export * from './figure';
 export * from './stats';
 export * from './tokens';
 export * from './grouping';

@@ -23,13 +23,10 @@
           <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']" (click)="isNavCollapsed = true">Search</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['analysis']" (click)="isNavCollapsed = true">Analysis</a>
+          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [class.active]="onStatsPage" [class.text-accent]="onStatsPage" [routerLink]="['analysis']" (click)="isNavCollapsed = true">Analysis</a>
         </li>
         <li class="nav-item">
           <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['metadata']" (click)="isNavCollapsed = true">Metadata</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['stats']" (click)="isNavCollapsed = true">Stats</a>
         </li>
         <li class="nav-item">
           <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['import-export']" (click)="isNavCollapsed = true">Import / Export</a>

@@ -102,41 +102,30 @@
         <header class="rv-head">
           <h6 class="mb-0">{{ b.title }}</h6>
           <span class="flex-grow-1"></span>
+          @if (isFigure && !showData) { <ng-container *ngTemplateOutlet="figureTools"></ng-container> }
           <button type="button" class="btn btn-link p-0 rv-data-link" (click)="showData = !showData">{{ showData ? 'chart' : 'data' }}</button>
         </header>
         @if (b.items.length === 0) {
           <p class="text-muted small fst-italic">No data.</p>
         } @else if (showData) {
-          <table class="table table-sm rv-grid w-auto">
-            <tbody>
-              @for (it of b.items; track $index) { <tr><td>{{ it.label }}</td><td class="text-end">{{ it.value | number: '1.0-2' }}{{ b.unit ? ' ' + b.unit : '' }}</td></tr> }
-            </tbody>
-          </table>
-        } @else if (columns; as c) {
-          <div class="rv-chart" (mouseleave)="hideTip()">
-            <svg class="rv-svg" [attr.viewBox]="'0 0 ' + c.width + ' ' + c.height" [style.max-width.px]="c.width" role="img" [attr.aria-label]="b.title">
-              @for (t of c.yTicks; track t.y) {
-                <line [attr.x1]="c.left" [attr.x2]="c.width - 6" [attr.y1]="t.y" [attr.y2]="t.y" class="rv-grid-line" />
-                <text [attr.x]="c.left - 6" [attr.y]="t.y + 3.5" class="rv-tick" text-anchor="end">{{ t.label }}</text>
+          <div class="rv-scroll">
+            <table class="table table-sm rv-grid w-auto">
+              @if (b.series; as ser) {
+                <thead><tr><th></th><th class="text-end">All</th>@for (s of ser; track $index) { <th class="text-end">{{ s.name }}</th> }</tr></thead>
               }
-              <line [attr.x1]="c.left" [attr.x2]="c.width - 6" [attr.y1]="c.baseY" [attr.y2]="c.baseY" class="rv-axis" />
-              @for (bar of c.bars; track $index) {
-                @if (bar.h > 0) {
-                  <path [attr.d]="bar.path" [class.rv-col-peak]="bar.peak" class="rv-col" />
+              <tbody>
+                @for (it of b.items; track $index; let i = $index) {
+                  <tr>
+                    <td>{{ it.label }}</td><td class="text-end">{{ it.value | number: '1.0-2' }}{{ b.unit && !b.series ? ' ' + b.unit : '' }}</td>
+                    @if (b.series; as ser) { @for (s of ser; track $index) { <td class="text-end">{{ s.values[i] | number: '1.0-2' }}</td> } }
+                  </tr>
                 }
-                <rect [attr.x]="bar.x - 1" [attr.y]="8" [attr.width]="bar.w + 2" [attr.height]="c.baseY - 8" fill="transparent"
-                  (mousemove)="showTip($event, bar.tip)" (mouseenter)="showTip($event, bar.tip)" />
-                @if (bar.peak) {
-                  <text [attr.x]="bar.x + bar.w / 2" [attr.y]="bar.y - 4" text-anchor="middle" class="rv-peak">{{ bar.value | number: '1.0-1' }}</text>
-                }
-              }
-              @for (l of c.xLabels; track $index) {
-                <text class="rv-tick" [attr.x]="l.x" [attr.y]="c.baseY + 11" [attr.text-anchor]="l.rotate ? 'end' : 'middle'"
-                  [attr.transform]="l.rotate ? 'rotate(-45 ' + l.x + ' ' + (c.baseY + 11) + ')' : null">{{ l.text }}</text>
-              }
-            </svg>
-            @if (tip; as t) { <div class="rv-tip" [style.left.px]="t.x" [style.top.px]="t.y">{{ t.text }}</div> }
+              </tbody>
+            </table>
           </div>
+        } @else if (isFigure) {
+          <div class="rv-fig" [style.max-width.px]="figurePx" [innerHTML]="figureHtml" role="img" [attr.aria-label]="b.title"></div>
+          @if (exportError) { <p class="small text-danger mb-0">{{ exportError }}</p> }
         } @else {
           <div class="rv-rank">
             @for (r of rankRows; track $index) {
@@ -160,6 +149,23 @@
       </section>
     }
   }
+  @case ('figure') {
+    @if (figureView; as fv) {
+      <section class="rv-figure">
+        <header class="rv-head">
+          <h6 class="mb-0">{{ fv.title }}</h6>
+          <span class="flex-grow-1"></span>
+          <ng-container *ngTemplateOutlet="figureTools"></ng-container>
+        </header>
+        <div class="rv-fig" [style.max-width.px]="figurePx" [innerHTML]="figureHtml" role="img" [attr.aria-label]="fv.title"></div>
+        @if (exportError) { <p class="small text-danger mb-0">{{ exportError }}</p> }
+        <p class="rv-caption small mb-1">{{ fv.caption }}
+          <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" (click)="copyCaption()" title="Copy the caption to the clipboard"><i class="bi bi-clipboard"></i> Copy</button>
+        </p>
+        @if (fv.note) { <p class="small text-muted">{{ fv.note }}</p> }
+      </section>
+    }
+  }
   @case ('matrix') {
     @if (matrix; as m) {
       <section class="rv-matrix">
@@ -171,6 +177,7 @@
             <span>{{ m.lowIsClose ? '(far … close)' : '(low … high)' }}</span>
           </div>
           <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadMatrix()"><i class="bi bi-download me-1"></i>CSV</button>
+          <ng-container *ngTemplateOutlet="figureTools"></ng-container>
         </header>
         @if (m.note) { <p class="small text-muted mb-1">{{ m.note }}</p> }
         <div class="rv-scroll">
@@ -196,22 +203,13 @@
   @case ('tree') {
     @if (view.kind === 'tree') {
       <section class="rv-tree">
-        <h6>{{ view.title }}</h6>
-        <div class="rv-scroll">
-          <svg [attr.viewBox]="'0 0 ' + treeWidth + ' ' + treeHeight" [attr.height]="treeHeight" [attr.width]="treeWidth" role="img" [attr.aria-label]="view.title">
-            @for (l of treeLinks; track $index) {
-              <line [attr.x1]="l.x1" [attr.y1]="l.y1" [attr.x2]="l.x2" [attr.y2]="l.y2" class="rv-tree-line" />
-            }
-            @for (l of treeLeaves; track $index) {
-              <text [attr.x]="l.x" [attr.y]="l.y" class="rv-leaf">{{ l.label }}</text>
-            }
-            @for (t of treeTicks; track $index) {
-              <line [attr.x1]="t.x" [attr.x2]="t.x" [attr.y1]="treeHeight - 24" [attr.y2]="treeHeight - 19" class="rv-axis" />
-              <text [attr.x]="t.x" [attr.y]="treeHeight - 8" class="rv-tick" text-anchor="middle">{{ t.label }}</text>
-            }
-            <line [attr.x1]="treeTicks.length ? treeTicks[treeTicks.length - 1].x : 0" [attr.x2]="treeWidth - 170" [attr.y1]="treeHeight - 24" [attr.y2]="treeHeight - 24" class="rv-axis" />
-          </svg>
-        </div>
+        <header class="rv-head">
+          <h6 class="mb-0">{{ view.title }}</h6>
+          <span class="flex-grow-1"></span>
+          <ng-container *ngTemplateOutlet="figureTools"></ng-container>
+        </header>
+        <div class="rv-scroll"><div class="rv-fig" [style.max-width.px]="figurePx" [innerHTML]="figureHtml" role="img" [attr.aria-label]="view.title"></div></div>
+        @if (exportError) { <p class="small text-danger mb-0">{{ exportError }}</p> }
         <p class="small text-muted">Distance at which two groups join (left is far, right is close); groups that join early are alike.</p>
       </section>
     }
@@ -219,17 +217,13 @@
   @case ('scatter') {
     @if (view.kind === 'scatter') {
       <section class="rv-scatter">
-        <h6>{{ view.title }}</h6>
-        <div class="rv-chart" (mouseleave)="hideTip()">
-          <svg [attr.viewBox]="'0 0 ' + plot.w + ' ' + plot.h" [attr.width]="plot.w" [attr.height]="plot.h" role="img" [attr.aria-label]="view.title" class="rv-plot">
-            <rect x="0.5" y="0.5" [attr.width]="plot.w - 1" [attr.height]="plot.h - 1" class="rv-frame" />
-            @for (p of scatter; track $index) {
-              <circle [attr.cx]="p.x" [attr.cy]="p.y" r="5" class="rv-dot" (mousemove)="showTip($event, p.label)" (mouseenter)="showTip($event, p.label)" />
-              @if (scatter.length <= 30) { <text [attr.x]="p.x + 8" [attr.y]="p.y + 3" class="rv-dot-label">{{ p.label }}</text> }
-            }
-          </svg>
-          @if (tip; as t) { <div class="rv-tip" [style.left.px]="t.x" [style.top.px]="t.y">{{ t.text }}</div> }
-        </div>
+        <header class="rv-head">
+          <h6 class="mb-0">{{ view.title }}</h6>
+          <span class="flex-grow-1"></span>
+          <ng-container *ngTemplateOutlet="figureTools"></ng-container>
+        </header>
+        <div class="rv-fig" [style.max-width.px]="figurePx" [innerHTML]="figureHtml" role="img" [attr.aria-label]="view.title"></div>
+        @if (exportError) { <p class="small text-danger mb-0">{{ exportError }}</p> }
         @if (view.note) { <p class="small text-muted">{{ view.note }}</p> }
       </section>
     }
@@ -243,3 +237,35 @@
     }
   }
 }
+
+<ng-template #figureTools>
+  @if (groups > 1 && view.kind !== 'matrix') {
+    <div class="btn-group btn-group-sm" role="group" aria-label="How groups are drawn">
+      <button type="button" class="btn btn-outline-secondary py-0" [class.active]="style.groups === 'panels'" (click)="setStyle({ groups: 'panels' })" title="One panel per group, on the same scale">Panels</button>
+      <button type="button" class="btn btn-outline-secondary py-0" [class.active]="style.groups === 'grouped'" (click)="setStyle({ groups: 'grouped' })" title="All groups in one panel, side by side (up to 4 groups, 8 in colour)">Side by side</button>
+    </div>
+    <div class="btn-group btn-group-sm" role="group" aria-label="What the bars show">
+      <button type="button" class="btn btn-outline-secondary py-0" [class.active]="style.value === 'share'" (click)="setStyle({ value: 'share' })" title="Percentage within each group, so groups of different size can be compared">Share</button>
+      <button type="button" class="btn btn-outline-secondary py-0" [class.active]="style.value === 'count'" (click)="setStyle({ value: 'count' })" title="Counts as they are">Counts</button>
+    </div>
+  }
+  @if (view.kind !== 'matrix' && view.kind !== 'tree') {
+    <div class="form-check form-switch mb-0 rv-colour" title="Black and white unless colour is needed to tell groups apart">
+      <input class="form-check-input" type="checkbox" role="switch" [checked]="style.colour" (change)="setStyle({ colour: $any($event.target).checked })" aria-label="Colour" />
+      <label class="form-check-label small">Colour</label>
+    </div>
+  }
+  <select class="form-select form-select-sm rv-width" [ngModel]="style.widthMm" (ngModelChange)="setStyle({ widthMm: +$event })" aria-label="Figure width" title="Width of the figure on paper: single column, one and a half columns, full page">
+    @for (w of widths; track w) { <option [ngValue]="w">{{ w }} mm</option> }
+  </select>
+  <div ngbDropdown placement="bottom-end" class="d-inline-block">
+    <button type="button" class="btn btn-sm btn-outline-secondary py-0" ngbDropdownToggle [disabled]="!!exporting">
+      <i class="bi bi-download me-1"></i>{{ exporting ? 'Making ' + exporting.toUpperCase() + '…' : 'Download' }}
+    </button>
+    <div ngbDropdownMenu>
+      <button type="button" ngbDropdownItem (click)="download('pdf')">PDF <span class="small text-muted">vector, transparent</span></button>
+      <button type="button" ngbDropdownItem (click)="download('png')">PNG <span class="small text-muted">300 dpi, transparent</span></button>
+      <button type="button" ngbDropdownItem (click)="download('svg')">SVG <span class="small text-muted">vector, for editing</span></button>
+    </div>
+  </div>
+</ng-template>

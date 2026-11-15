@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { intervalNotation, pitchNotation } from '@monodi/core/analysis';
 import type { PatternUnit, ResultView, TableView } from '@monodi/core/analysis';
-import { layoutColumns, niceTicks, rampColor, ResultViewComponent, tickLabel } from './result-view.component';
+import { niceTicks, rampColor, ResultViewComponent, tickLabel } from './result-view.component';
 import { NotationSnippetComponent } from './notation-snippet.component';
 
 describe('ResultViewComponent', () => {
@@ -137,12 +137,64 @@ describe('ResultViewComponent', () => {
   });
 
   describe('charts', () => {
-    it('draws a histogram as thin columns on one baseline with the peak marked and its value on top', () => {
+    const grouped: ResultView = {
+      kind: 'bars', layout: 'columns', title: 'Pitch', unit: 'notes',
+      items: [{ label: 'C4', value: 6 }, { label: 'D4', value: 10 }],
+      series: [{ name: 'A', n: 3, values: [4, 6] }, { name: 'B', n: 2, values: [2, 4] }],
+    };
+
+    it('draws a histogram as an SVG in black and white, one bar per value, with no background', () => {
       const el = show({ kind: 'bars', layout: 'columns', title: 'H', items: [{ label: 'a', value: 10 }, { label: 'b', value: 40 }, { label: 'c', value: 20 }], unit: 'notes' });
-      expect(el.querySelectorAll('path.rv-col').length).toBe(3);
-      expect(el.querySelectorAll('path.rv-col-peak').length).toBe(1);
-      expect(el.querySelector('.rv-peak')!.textContent).toContain('40');
-      expect(el.querySelectorAll('line.rv-grid-line').length).toBeGreaterThan(2);
+      const svg = el.querySelector('.rv-fig svg')!;
+      expect(svg).toBeTruthy();
+      expect(svg.querySelectorAll('rect').length).toBe(3);
+      expect(Array.from(svg.querySelectorAll('[fill]')).map((n) => n.getAttribute('fill')).every((f) => f === '#000000')).toBeTrue();
+      expect(el.textContent).not.toContain('Panels'); // one series: nothing to arrange
+    });
+
+    it('offers panels, share and colour for groups and redraws when one is changed', () => {
+      const el = show(grouped);
+      expect(el.textContent).toContain('Panels');
+      expect(el.querySelectorAll('.rv-fig svg rect').length).toBe(4);
+      expect(el.querySelector('.rv-fig svg')!.textContent).toContain('A (n = 3)');
+      comp.setStyle({ colour: true });
+      render();
+      expect(el.querySelector('.rv-fig svg')!.innerHTML).toContain('#2a78d6');
+      comp.setStyle({ groups: 'grouped' });
+      render();
+      expect(el.querySelector('.rv-fig svg')!.textContent).toContain('A (n = 3)');
+    });
+
+    it('starts a group chart as shares and a chart without groups as counts', () => {
+      show(grouped);
+      expect(comp.style.value).toBe('share');
+      show({ kind: 'bars', layout: 'columns', title: 'H', items: [{ label: 'a', value: 1 }] });
+      expect(comp.style.value).toBe('count');
+    });
+
+    it('shows a figure with its caption and a download menu', () => {
+      const el = show({ kind: 'figure', title: 'Figure 1', panels: [grouped as any], caption: 'Figure 1. A caption.' });
+      expect(el.querySelector('.rv-fig svg')).toBeTruthy();
+      expect(el.querySelector('.rv-caption')!.textContent).toContain('Figure 1. A caption.');
+      const items = Array.from(el.querySelectorAll('[ngbDropdownItem]')).map((b) => b.textContent!.trim().split(/\s+/)[0]);
+      expect(items).toEqual(['PDF', 'PNG', 'SVG']);
+      expect(comp.style.widthMm).toBe(175);
+    });
+
+    it('downloads the figure as SVG without tooltips and as PNG and PDF files', async () => {
+      const downloads: Blob[] = [];
+      spyOn(window.URL, 'createObjectURL').and.callFake((b: Blob | MediaSource) => { downloads.push(b as Blob); return 'blob:test'; });
+      show(grouped);
+      await comp.download('svg');
+      expect(downloads.length).toBe(1);
+      const text = await downloads[0].text();
+      expect(text.startsWith('<?xml')).toBeTrue();
+      expect(text).not.toContain('<title>');
+      await comp.download('png');
+      expect(downloads[1].type).toBe('image/png');
+      await comp.download('pdf');
+      expect(downloads[2].type).toBe('application/pdf');
+      expect(comp.exportError).toBe('');
     });
 
     it('draws a ranking with the notes as labels, longest bar scaled to the full width', () => {
@@ -150,13 +202,15 @@ describe('ResultViewComponent', () => {
       const bars = Array.from(el.querySelectorAll('.rv-rank-bar')) as HTMLElement[];
       expect(bars.map((b) => b.style.width)).toEqual(['86%', '43%']);
       expect(el.querySelectorAll('.rv-rank-label app-notation-snippet').length).toBe(1);
+      expect(el.querySelector('.rv-fig')).toBeNull();
     });
 
-    it('can show the data behind a chart as a table', () => {
-      const el = show({ kind: 'bars', layout: 'columns', title: 'H', items: [{ label: 'a', value: 10 }, { label: 'b', value: 5 }] });
+    it('can show the data behind a chart as a table, with a column per group', () => {
+      const el = show(grouped);
       comp.showData = true;
       render();
       expect(el.querySelectorAll('tbody tr').length).toBe(2);
+      expect(Array.from(el.querySelectorAll('thead th')).map((t) => t.textContent!.trim())).toEqual(['', 'All', 'A', 'B']);
     });
 
     it('draws a heat map with one cell per value, darkest where it is closest', () => {
@@ -167,23 +221,22 @@ describe('ResultViewComponent', () => {
       expect(comp.cellInk(1)).toBe('#0b0b0b');
     });
 
-    it('draws a dendrogram with a line pair per merge, every leaf and a distance scale', () => {
+    it('draws a dendrogram as an SVG with every leaf', () => {
       const el = show({ kind: 'tree', title: 'T', leaves: ['A', 'B', 'C'], merges: [{ a: 0, b: 1, height: 1 }, { a: 3, b: 2, height: 4 }] });
-      expect(el.querySelectorAll('svg line.rv-tree-line').length).toBe(6);
-      const labels = Array.from(el.querySelectorAll('svg text.rv-leaf')).map((t) => t.textContent!.trim()).sort();
-      expect(labels).toEqual(['A', 'B', 'C']);
-      expect(comp.treeTicks.length).toBeGreaterThan(1);
+      const labels = Array.from(el.querySelectorAll('.rv-fig svg text')).map((t) => t.textContent!.trim());
+      expect(labels).toEqual(jasmine.arrayContaining(['A', 'B', 'C']));
+      expect(el.querySelectorAll('.rv-fig svg line').length).toBeGreaterThan(6);
     });
 
-    it('draws a scatter plot with a point per entry and a frame', () => {
+    it('draws a scatter plot with a point per entry and a marker per group', () => {
       const el = show({ kind: 'scatter', title: 'S', points: [{ label: 'a', x: 0, y: 0, group: 'g' }, { label: 'b', x: 1, y: 2, group: 'h' }] });
-      expect(el.querySelectorAll('svg circle').length).toBe(2);
-      expect(el.querySelector('svg rect.rv-frame')).toBeTruthy();
+      expect(el.querySelectorAll('.rv-fig svg circle').length).toBeGreaterThanOrEqual(2); // a circle for group g, in the legend too
+      expect(el.querySelector('.rv-fig svg polygon')).toBeTruthy(); // a triangle for group h
     });
   });
 });
 
-describe('chart geometry', () => {
+describe('chart helpers', () => {
   it('niceTicks gives clean steps from 0 up to the maximum', () => {
     expect(niceTicks(7800)).toEqual([0, 2000, 4000, 6000, 8000]);
     expect(niceTicks(12)).toEqual([0, 5, 10, 15]);
@@ -196,27 +249,8 @@ describe('chart geometry', () => {
     expect(tickLabel(500, true)).toBe('500');
   });
 
-  it('layoutColumns keeps columns at most 16 px wide with a gap, rounded at the data end and flat at the base', () => {
-    const c = layoutColumns({ kind: 'bars', title: 't', layout: 'columns', items: [{ label: 'a', value: 5 }, { label: 'b', value: 10 }] });
-    for (const b of c.bars) {
-      expect(b.w).toBeLessThanOrEqual(16);
-      expect(b.y + b.h).toBeCloseTo(c.baseY, 5);
-    }
-    expect(c.bars[1].h).toBeGreaterThan(c.bars[0].h);
-    expect(c.bars[1].x - (c.bars[0].x + c.bars[0].w)).toBeGreaterThanOrEqual(2);
-    expect(c.bars[1].path).toContain('Q');
-    expect(c.bars[1].path.startsWith(`M${c.bars[1].x},${c.baseY}`)).toBeTrue();
-  });
-
-  it('layoutColumns draws nothing for a zero value and thins the x labels of a long axis', () => {
-    const items = Array.from({ length: 100 }, (_, i) => ({ label: `l${i}`, value: i % 7 === 0 ? 0 : i }));
-    const c = layoutColumns({ kind: 'bars', title: 't', layout: 'columns', items });
-    expect(c.bars[0].path).toBe('');
-    expect(c.xLabels.length).toBeLessThan(40);
-  });
-
-  it('rampColor runs from light to dark blue', () => {
-    expect(rampColor(0)).toBe('rgb(205,226,251)');
-    expect(rampColor(1)).toBe('rgb(13,54,107)');
+  it('rampColor runs from light to dark grey', () => {
+    expect(rampColor(0)).toBe('rgb(242,242,242)');
+    expect(rampColor(1)).toBe('rgb(26,26,26)');
   });
 });

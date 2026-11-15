@@ -60,6 +60,12 @@ export interface BarsView {
   items: { label: string; value: number; /** Drawn instead of the label when present. */ notation?: NotationCell['notation'] }[];
   /** Unit shown after the value (`%`, `chants`). */
   unit?: string;
+  /**
+   * The same categories counted separately for each group of the corpus (`values[i]` belongs to `items[i]`). `items[i].value`
+   * stays the total over all groups. With more than one series the renderer draws the groups as separate panels or as
+   * side-by-side bars (see `FigureStyle`).
+   */
+  series?: { name: string; /** Chants (or other units) behind the series, shown next to its name. */ n?: number; values: number[] }[];
   note?: string;
 }
 
@@ -97,7 +103,20 @@ export interface TextView {
   paragraphs: string[];
 }
 
-export type ResultView = TableView | BarsView | MatrixView | TreeView | ScatterView | TextView;
+/**
+ * Several histograms drawn as one figure for a publication (panels a, b, c, ...), with a caption that can be pasted next to
+ * it. Every panel is a `bars` view with `layout: 'columns'`; panels with `series` are drawn once per group.
+ */
+export interface FigureView {
+  kind: 'figure';
+  title: string;
+  panels: BarsView[];
+  /** A caption for the figure: what is shown, how many chants, which groups. */
+  caption: string;
+  note?: string;
+}
+
+export type ResultView = TableView | BarsView | MatrixView | TreeView | ScatterView | TextView | FigureView;
 
 export interface MethodResult {
   /** One line telling what was computed, for the list of results and for citation. */

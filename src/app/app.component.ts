@@ -98,6 +98,9 @@ export class AppComponent implements AfterViewInit {
     return !!this.tools?.breadcrumb && this.router.url.includes('/document/');
   }
 
+  /** The notation statistics are a tab of the Analysis page, so the Analysis link stays lit there. */
+  get onStatsPage(): boolean { return this.router.url.split(/[?#]/)[0].startsWith('/stats'); }
+
   constructor (
     // Injecting it also configures localforage (database and store name) before anything else reads from
     // storage. Do not remove. Whatever this component writes to storage itself must be followed by

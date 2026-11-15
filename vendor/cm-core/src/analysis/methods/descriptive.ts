@@ -8,7 +8,7 @@ import type { Corpus } from '../corpus';
 import { groupDocs } from '../grouping';
 import { intervalsOf } from '../features';
 import { DEFAULT_ROW_CAP, makeTable } from '../result';
-import type { AnalysisMethod, Cell, ParamValues, ResultView } from '../result';
+import type { AnalysisMethod, BarsView, Cell, FigureView, ParamValues, ResultView } from '../result';
 import { mean } from '../stats';
 
 /** Lowest and highest value of a non-empty list (a loop, so very long chants cannot overflow the argument stack). */
@@ -25,61 +25,134 @@ function histogram(values: number[], label: (v: number) => string, order?: (a: n
   return [...counts.entries()].sort((a, b) => (order ? order(a[0], b[0]) : a[0] - b[0])).map(([v, c]) => ({ label: label(v), value: c }));
 }
 
+function bump(m: Map<number, number>, key: number): void { m.set(key, (m.get(key) ?? 0) + 1); }
+
+/**
+ * A histogram over an ordered integer axis, with the counts of each shown group as `series`. The axis has no gaps between its
+ * lowest and highest value (an empty pitch or interval is a gap in the data, and a figure must show it as one).
+ */
+function columnsOf(
+  title: string, unit: string, all: Map<number, number>, perGroup: { name: string; n: number; counts: Map<number, number> }[] | null,
+  label: (v: number) => string,
+): BarsView {
+  const keys = [...all.keys()].sort((a, b) => a - b);
+  const axis: number[] = [];
+  if (keys.length) for (let k = keys[0]; k <= keys[keys.length - 1]; k++) axis.push(k);
+  return {
+    kind: 'bars', layout: 'columns', title, unit,
+    items: axis.map((k) => ({ label: label(k), value: all.get(k) ?? 0 })),
+    ...(perGroup ? { series: perGroup.map((g) => ({ name: g.name, n: g.n, values: axis.map((k) => g.counts.get(k) ?? 0) })) } : {}),
+  };
+}
+
+function median(sorted: number[]): number {
+  if (!sorted.length) return 0;
+  const m = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+}
+
 // ── overview ────────────────────────────────────────────────────────────────
 
 export const overviewMethod: AnalysisMethod = {
   id: 'overview',
-  version: 2,
+  version: 3,
   title: 'Overview',
   group: 'overview',
-  summary: 'Size and shape of the corpus: notes and syllables, pitch and interval distribution, chant lengths, the most frequent words, and one line per group. Answers: what does this corpus look like?',
+  summary: 'Size and shape of the corpus as a publication figure: chant lengths, pitch and interval distribution and notes per syllable (one panel per group, or side by side), with a caption, a description table and the most frequent words. Answers: what does this corpus look like?',
   uses: ['melody', 'text', 'meta'],
   cost: 1,
   params: [
-    { key: 'groupBy', label: 'Group by', type: 'field', optional: true, help: 'One summary row per value of this field.' },
+    { key: 'groupBy', label: 'Group by', type: 'field', optional: true, help: 'One summary row and one panel per value of this field.' },
+    { key: 'groupsShown', label: 'Groups in the figure', type: 'number', min: 1, max: 8, help: 'The largest groups that get their own panel or bars in the figure (1 draws the whole corpus as one). The table lists all groups.' },
     { key: 'words', label: 'Words listed', type: 'number', min: 0, max: 100, help: 'How many of the most frequent text words are listed (0 hides the list).' },
   ],
-  defaults: { groupBy: 'src:quellensigle', words: 20 },
+  defaults: { groupBy: 'src:quellensigle', groupsShown: 4, words: 20 },
   run(corpus: Corpus, p: ParamValues) {
     const grouping = groupDocs(corpus, p['groupBy'] as string, 60);
-    const pitchCounts: number[] = [];
-    const allIntervals: number[] = [];
-    const perSyllable: number[] = [];
-    const lengths: number[] = [];
+    const G = grouping.labels.length;
+    const pitchAll = new Map<number, number>();
+    const intervalAll = new Map<number, number>();
+    const perSyllableAll = new Map<number, number>();
+    const lengthAll = new Map<number, number>();
+    const perG = grouping.labels.map(() => ({ pitch: new Map<number, number>(), interval: new Map<number, number>(), perSyllable: new Map<number, number>(), length: new Map<number, number>(), lengths: [] as number[] }));
     const wordCounts = new Map<string, number>();
     let notes = 0;
     let syllables = 0;
     let accidentals = 0;
     let withoutNotes = 0;
+    const edges = [0, 1, 50, 100, 200, 300, 500, 800, 1200];
+    const lenLabels = ['no notes', ...edges.slice(1).map((e, i) => (i + 2 < edges.length ? `${e}–${edges[i + 2] - 1}` : `${e}+`))];
     const perGroup = grouping.labels.map(() => ({ chants: 0, notes: 0, syllables: 0, low: Infinity, high: -Infinity }));
     corpus.chants.forEach((c, d) => {
+      const gi = grouping.of[d];
+      const mine = perG[gi];
       notes += c.pitches.length;
       syllables += c.sylLen.length;
       accidentals += c.accidentals;
       if (c.pitches.length === 0) withoutNotes++;
-      lengths.push(c.pitches.length);
-      for (const v of c.pitches) pitchCounts.push(v);
-      for (const v of intervalsOf(c.pitches)) allIntervals.push(Math.max(-8, Math.min(8, v)));
-      for (const l of c.sylLen) if (l > 0) perSyllable.push(Math.min(l, 12));
+      let bucket = 0;
+      while (bucket + 1 < edges.length && c.pitches.length >= edges[bucket + 1]) bucket++;
+      bump(lengthAll, bucket); bump(mine.length, bucket);
+      mine.lengths.push(c.pitches.length);
+      for (const v of c.pitches) { bump(pitchAll, v); bump(mine.pitch, v); }
+      for (const v of intervalsOf(c.pitches)) { const k = Math.max(-8, Math.min(8, v)); bump(intervalAll, k); bump(mine.interval, k); }
+      for (const l of c.sylLen) if (l > 0) { const k = Math.min(l, 12); bump(perSyllableAll, k); bump(mine.perSyllable, k); }
       for (const w of c.words) wordCounts.set(w, (wordCounts.get(w) ?? 0) + 1);
-      const g = perGroup[grouping.of[d]];
+      const g = perGroup[gi];
       g.chants++;
       g.notes += c.pitches.length;
       g.syllables += c.sylLen.length;
       for (const v of c.pitches) { if (v < g.low) g.low = v; if (v > g.high) g.high = v; }
     });
-    const lenBuckets = new Map<string, number>();
-    const edges = [0, 1, 50, 100, 200, 300, 500, 800, 1200];
-    for (const l of lengths) {
-      let b = 0;
-      while (b + 1 < edges.length && l >= edges[b + 1]) b++;
-      const label = l === 0 ? 'no notes' : b + 1 < edges.length ? `${edges[b]}–${edges[b + 1] - 1}` : `${edges[b]}+`;
-      lenBuckets.set(label, (lenBuckets.get(label) ?? 0) + 1);
-    }
-    const lenOrder = ['no notes', ...edges.slice(1).map((e, i) => (i + 2 < edges.length ? `${e}–${edges[i + 2] - 1}` : `${e}+`))];
     const wordLimit = p['words'] as number;
     const topWords = [...wordCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, wordLimit);
+
+    // The figure: panels (a) to (d), with one series per shown group when the corpus has groups.
+    const shown = Math.min(G, Math.max(1, Math.round(p['groupsShown'] as number)));
+    const useGroups = G > 1 && shown > 1;
+    const sel = (pick: (g: (typeof perG)[number]) => Map<number, number>) =>
+      (useGroups ? Array.from({ length: shown }, (_, i) => ({ name: grouping.labels[i], n: grouping.sizes[i], counts: pick(perG[i]) })) : null);
+    const lengthPanel = columnsOf('Chant length in notes', 'chants', lengthAll, sel((g) => g.length), (k) => lenLabels[k]);
+    // The length axis lists only buckets that occur, from the first to the last; the unit of the axis is chants.
+    const panels: BarsView[] = [
+      lengthPanel,
+      columnsOf('Pitch distribution', 'notes', pitchAll, sel((g) => g.pitch), pitchLabel),
+      columnsOf('Intervals between consecutive notes (steps, capped at ±8)', 'intervals', intervalAll, sel((g) => g.interval), intervalLabel),
+      columnsOf('Notes per syllable (capped at 12)', 'syllables', perSyllableAll, sel((g) => g.perSyllable), (k) => String(k)),
+    ].filter((v) => v.items.length > 0);
+    const letter = (title: string): string => `(${String.fromCharCode(97 + panels.findIndex((v) => v.title === title))})`;
+    const omitted = useGroups ? G - shown : 0;
+    const groupList = useGroups ? Array.from({ length: shown }, (_, i) => `${grouping.labels[i]} (n = ${grouping.sizes[i]})`).join(', ') : '';
+    const caption =
+      `Figure 1. Overview of the corpus: ${corpus.chants.length} chants with ${notes} notes on ${syllables} syllables. ` +
+      panels.map((v) => `${letter(v.title)} ${v.title.replace(/ \(.*\)$/, '')}`).join('; ') + '. ' +
+      (useGroups ? `Groups, with n the number of chants: ${groupList}${omitted ? `; ${omitted} smaller group${omitted === 1 ? '' : 's'} not shown` : ''}. ` : '') +
+      `Pitches are named by letter and octave of the Monodi data model (the octave starts at C); intervals are counted in diatonic steps. ` +
+      `Only the first voice is read, latent notes and accidental signs are not counted as notes.`;
+    const figure: FigureView = { kind: 'figure', title: 'Figure 1: corpus overview', panels, caption };
+
+    const rows: Cell[][] = perGroup.map((g, i): Cell[] => [
+      grouping.labels[i], g.chants, g.notes, g.syllables, g.syllables ? Math.round((g.notes / g.syllables) * 100) / 100 : 0,
+      Math.round(median([...perG[i].lengths].sort((a, b) => a - b)) * 10) / 10, g.low === Infinity ? null : pitchNotation([g.low, g.high]),
+    ]);
+    if (G > 1) {
+      const all = [...corpus.chants.map((c) => c.pitches.length)].sort((a, b) => a - b);
+      let lo = Infinity; let hi = -Infinity;
+      for (const g of perGroup) { if (g.low < lo) lo = g.low; if (g.high > hi) hi = g.high; }
+      rows.push(['All', corpus.chants.length, notes, syllables, syllables ? Math.round((notes / syllables) * 100) / 100 : 0, Math.round(median(all) * 10) / 10, lo === Infinity ? null : pitchNotation([lo, hi])]);
+    }
     const views: ResultView[] = [
+      figure,
+      makeTable({
+        title: 'Table 1: description of the corpus',
+        columns: [
+          { key: 'g', label: p['groupBy'] === '' ? 'Corpus' : 'Group' }, { key: 'c', label: 'Chants', numeric: true }, { key: 'n', label: 'Notes', numeric: true },
+          { key: 's', label: 'Syllables', numeric: true }, { key: 'm', label: 'Notes per syllable', numeric: true },
+          { key: 'med', label: 'Median notes per chant', numeric: true },
+          { key: 'range', label: 'Range', help: 'Lowest and highest note of the group.' },
+        ],
+        rows,
+      }),
       {
         kind: 'table', title: 'Corpus', totalRows: 6, truncated: false,
         columns: [{ key: 'k', label: 'Measure' }, { key: 'v', label: 'Value', numeric: true }],
@@ -89,25 +162,7 @@ export const overviewMethod: AnalysisMethod = {
           ['Accidental signs skipped', accidentals],
         ],
       },
-      { kind: 'bars', layout: 'columns', title: 'Pitch distribution', items: histogram(pitchCounts, pitchLabel), unit: 'notes' },
-      { kind: 'bars', layout: 'columns', title: 'Intervals (steps, capped at ±8)', items: histogram(allIntervals, intervalLabel), unit: 'intervals' },
-      { kind: 'bars', layout: 'columns', title: 'Notes per syllable (capped at 12)', items: histogram(perSyllable, (v) => String(v)), unit: 'syllables' },
-      { kind: 'bars', layout: 'columns', title: 'Chant length in notes', items: lenOrder.filter((l) => lenBuckets.has(l)).map((l) => ({ label: l, value: lenBuckets.get(l)! })), unit: 'chants' },
     ];
-    if (p['groupBy'] !== '' && grouping.labels.length > 1) {
-      views.push(makeTable({
-        title: 'Groups',
-        columns: [
-          { key: 'g', label: 'Group' }, { key: 'c', label: 'Chants', numeric: true }, { key: 'n', label: 'Notes', numeric: true },
-          { key: 's', label: 'Syllables', numeric: true }, { key: 'm', label: 'Notes per syllable', numeric: true },
-          { key: 'range', label: 'Range', help: 'Lowest and highest note of the group.' },
-        ],
-        rows: perGroup.map((g, i): Cell[] => [
-          grouping.labels[i], g.chants, g.notes, g.syllables, g.syllables ? Math.round((g.notes / g.syllables) * 100) / 100 : 0,
-          g.low === Infinity ? null : pitchNotation([g.low, g.high]),
-        ]),
-      }));
-    }
     if (topWords.length) views.push({ kind: 'bars', layout: 'rows', title: 'Most frequent words', items: topWords.map(([w, c]) => ({ label: w, value: c })), unit: 'times' });
     return {
       summary: `${corpus.chants.length} chants, ${syllables} syllables, ${notes} notes.`,

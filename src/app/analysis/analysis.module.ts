@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { SelectionToolsModule } from '../selection/selection-tools.module';
+import { AnalysisTabsComponent } from '../analysis-tabs.component';
 import { AnalysisPageComponent } from './analysis-page.component';
 import { ParamFormComponent } from './param-form.component';
 import { CorpusPanelComponent } from './corpus-panel.component';
@@ -14,6 +15,7 @@ import { ResultViewComponent } from './result-view.component';
 @NgModule({
   declarations: [AnalysisPageComponent, ParamFormComponent, ResultViewComponent, NotationSnippetComponent, CorpusPanelComponent],
   imports: [
+    AnalysisTabsComponent,
     CommonModule,
     FormsModule,
     NgbModule,
