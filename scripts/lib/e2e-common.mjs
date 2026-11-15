@@ -63,4 +63,10 @@ export async function openPrintDialog(page, base, ids, title = 'e2e') {
     zone.run(() => c.pdfDialog.open({ ids, title }));
   }, ids, title);
   await page.waitForSelector('app-pdf-export-dialog', { timeout: 20000 });
+  // One document opens as "Content only" (no heading, cover or notation documentation); these tests drive the edition options.
+  await page.evaluate(() => {
+    const el = document.querySelector('app-pdf-export-dialog');
+    const c = window.ng.getComponent(el);
+    if (c.o.target !== 'edition') { c.o.target = 'edition'; window.ng.applyChanges(el); }
+  });
 }
