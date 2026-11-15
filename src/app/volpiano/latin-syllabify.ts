@@ -59,7 +59,9 @@ export function syllabifyLatin(word: string): string[] {
       const c2 = chars[consonants[consonants.length - 1]].toLowerCase();
       const mutaCumLiquida = 'pbtdcgf'.includes(c1) && 'lr'.includes(c2);
       const digraph = DIGRAPHS.has(c1 + c2);
-      cutAt = mutaCumLiquida || digraph ? consonants[consonants.length - 2] : consonants[consonants.length - 1];
+      // "s" + p/t before the next vowel opens the next syllable when a consonant precedes it: con-spec-tu.
+      const sImpure = consonants.length >= 3 && c1 === 's' && 'ptcq'.includes(c2);
+      cutAt = mutaCumLiquida || digraph || sImpure ? consonants[consonants.length - 2] : consonants[consonants.length - 1];
     }
     cuts.push(cutAt);
   }

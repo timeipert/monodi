@@ -19,6 +19,7 @@ import {
   DocumentType,
   getSyllables,
   allNotes,
+  getAllLineContainers,
 } from '../types/model';
 import { v4 as UUID } from 'uuid';
 
@@ -186,14 +187,23 @@ describe('Volpiano round trip', () => {
     expect(roundTrip('1---dH---', 'a')).toBe('1---dH---');
   });
 
-  it('round-trips a B-flat with running natural cancellation', () => {
-    // i = b-flat sign for B4 (j), I cancels it. Text keeps the two syllables in one word (--).
+  it('reads a flat sign as an accidental note before the sounding note, and writes it back', () => {
+    // i = b-flat sign for B4 (j), I = natural. Monodi keeps an accidental as a note of its own (Flat / Natural).
     const vol = '1---ij-j--Ij---';
     const { root } = volpianoToRoot(vol, 'a-men');
     const notes = getSyllables(root).flatMap((s) => allNotes(s.notes));
-    // first two B4 flat, last B4 natural
-    expect(notes.map((n) => n.noteType)).toEqual([NoteType.Flat, NoteType.Flat, NoteType.Normal]);
+    expect(notes.map((n) => n.noteType)).toEqual([
+      NoteType.Flat, NoteType.Normal, NoteType.Normal, NoteType.Natural, NoteType.Normal,
+    ]);
+    expect(notes.every((n) => n.base === BaseNote.B && n.octave === 4)).toBe(true);
     expect(rootToVolpiano(root).volpiano).toBe(vol);
+  });
+
+  it('does not split the text at barlines', () => {
+    // CANTUS melody: a double barline (4) and a final barline (3) inside one chant
+    const { root } = volpianoToRoot('1---h---hG--h---4---k--k---3', 'a b-c d e f');
+    expect(getSyllables(root).length).toBe(5);
+    expect(getAllLineContainers(root).length).toBe(1);
   });
 });
 

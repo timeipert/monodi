@@ -22,7 +22,9 @@
  *   ---  triple hyphen — between words (and before/after a clef)
  *
  * B-flat / E-flat are written with a sign character placed before the affected
- * note; the sign stays in force until cancelled by its natural (protocol §6):
+ * note (protocol §6). In Monodi a sign is a note of its own (`NoteType.Flat` / `Natural`)
+ * that stands before the sounding note, so import creates that accidental note plus a
+ * normal note, and export writes only the sign for it:
  *   y/Y = b-flat/natural in the B3 register   w/W = e-flat/natural in the E4 register
  *   i/I = b-flat/natural in the B4 register   x/X = e-flat/natural in the E5 register
  *   z/Z = b-flat/natural in the B5 register
@@ -165,46 +167,46 @@ function syllableToRuns(syllable: Syllable): Note[][] {
   return runs;
 }
 
+/** Accidental notes of Monodi (a flat, natural or sharp is a note of its own that stands before the note it applies to). */
+const ACCIDENTAL_TYPES: NoteType[] = [NoteType.Flat, NoteType.Natural, NoteType.Sharp];
+
 /**
- * Serialise a single note, emitting any B-flat/E-flat or natural sign needed to
- * bring the running accidental state in line with this note. `flatState` holds the
- * diatonic indices currently sounding flat and is mutated as signs are emitted.
+ * Serialise a single note. An accidental note becomes only its Volpiano sign (`y i z w x`, natural `Y I Z W X`) and no
+ * pitch letter; a sounding note becomes its pitch letter. Signs are returned apart (`sign`) so that the caller can put
+ * them in front of the next pitch letter, also when the sign is a run of its own.
  */
-function noteToVolpiano(note: Note, flatState: Set<number>, warnings: string[]): string {
-  const wantFlat = note.noteType === NoteType.Flat;
+function noteToVolpiano(note: Note, warnings: string[]): { sign: string; letter: string } {
   const di = diatonicIndex(note.base, note.octave);
-  let prefix = '';
-
-  if (wantFlat && !flatState.has(di)) {
-    const sign = FLAT_SIGN[di];
-    if (sign) {
-      prefix = sign;
-      flatState.add(di);
-    } else {
-      warnings.push(`no Volpiano flat sign for ${note.base}${note.octave}; exported without accidental`);
+  if (note.noteType !== undefined && ACCIDENTAL_TYPES.includes(note.noteType)) {
+    const sign =
+      note.noteType === NoteType.Flat ? FLAT_SIGN[di] : note.noteType === NoteType.Natural ? NAT_SIGN[di] : undefined;
+    if (!sign) {
+      warnings.push(`no Volpiano sign for ${note.noteType.toLowerCase()} at ${note.base}${note.octave}; left out`);
     }
-  } else if (!wantFlat && flatState.has(di)) {
-    const sign = NAT_SIGN[di];
-    if (sign) {
-      prefix = sign;
-    }
-    flatState.delete(di);
+    return { sign: sign || '', letter: '' };
   }
-
   const res = pitchToVolpianoChar(note.base, note.octave, !!note.liquescent);
   if (res.char === null) {
     warnings.push(res.reason);
-    return '';
+    return { sign: '', letter: '' };
   }
-  return prefix + res.char;
+  return { sign: '', letter: res.char };
 }
 
-/** Serialise one ligature run into a connected Volpiano letter run. */
-function runToVolpiano(run: Note[], flatState: Set<number>, warnings: string[]): string {
+/**
+ * Serialise one ligature run into a connected Volpiano letter run. `pending` holds signs that wait for the next pitch
+ * letter; a run that holds only signs returns '' and leaves them in `pending`.
+ */
+function runToVolpiano(run: Note[], pending: { signs: string }, warnings: string[]): string {
   let out = '';
   for (const note of run) {
     if (note.isLatent) continue;
-    out += noteToVolpiano(note, flatState, warnings);
+    const { sign, letter } = noteToVolpiano(note, warnings);
+    pending.signs += sign;
+    if (letter) {
+      out += pending.signs + letter;
+      pending.signs = '';
+    }
   }
   return out;
 }
@@ -217,7 +219,7 @@ type ExportEvent =
 /** Export a document's notation as a Volpiano string. */
 export function rootToVolpiano(root: RootContainer): VolpianoExportResult {
   const warnings: string[] = [];
-  const flatState = new Set<number>();
+  const pending = { signs: '' };
   const lines: ZeileContainer[] = getAllLineContainers(root);
   const events: ExportEvent[] = [];
 
@@ -230,7 +232,7 @@ export function rootToVolpiano(root: RootContainer): VolpianoExportResult {
         if (syl.syllableType !== SyllableType.WithoutNotes) {
           const runs = syllableToRuns(syl);
           content = runs
-            .map((run) => runToVolpiano(run, flatState, warnings))
+            .map((run) => runToVolpiano(run, pending, warnings))
             .filter((r) => r.length > 0)
             .join('-');
         }
@@ -288,6 +290,18 @@ function makeNote(base: BaseNote, octave: number, liquescent: boolean, flat: boo
   };
 }
 
+/** The accidental note for a Volpiano sign character (`y i z w x` flat, `Y I Z W X` natural), or null. */
+function accidentalFromSign(ch: string): Note | null {
+  const flat = FLAT_CHAR_TO_DI[ch];
+  const natural = NAT_CHAR_TO_DI[ch];
+  const di = flat !== undefined ? flat : natural;
+  if (di === undefined) return null;
+  const { base, octave } = fromDiatonicIndex(di);
+  const note = makeNote(base, octave, false, false);
+  note.noteType = flat !== undefined ? NoteType.Flat : NoteType.Natural;
+  return note;
+}
+
 function runsToSpaced(runs: Note[][]): Spaced {
   return { spaced: runs.map((run) => ({ nonSpaced: [{ grouped: run }] })) };
 }
@@ -343,7 +357,6 @@ export function volpianoToRoot(
   let currentSyllable: ParsedSyllable = { runs: [], wordEnd: false };
   let currentRun: Note[] = [];
   let sawAnyPitchInSyllable = false;
-  const flatState = new Set<number>();
 
   const pushRun = () => {
     if (currentRun.length > 0) {
@@ -394,25 +407,17 @@ export function volpianoToRoot(
       continue;
     }
 
-    // Clef and barlines.
-    if (ch === '1' || ch === '2') {
+    // Clef (1, 2) and barlines (3 single, 4 double, 5 and 6 further barline forms). Barlines are not line breaks:
+    // CANTUS puts them inside the melody of one chant, so they are skipped and do not split the text.
+    if (ch >= '1' && ch <= '6') {
       i++;
-      continue;
-    }
-    if (ch === '3' || ch === '4') {
-      i++;
-      newLine();
       continue;
     }
 
-    // Accidental signs.
-    if (FLAT_CHAR_TO_DI[ch] !== undefined) {
-      flatState.add(FLAT_CHAR_TO_DI[ch]);
-      i++;
-      continue;
-    }
-    if (NAT_CHAR_TO_DI[ch] !== undefined) {
-      flatState.delete(NAT_CHAR_TO_DI[ch]);
+    // Accidental signs become a note of their own before the note they apply to (as in the Monodi editor).
+    const accidental = accidentalFromSign(ch);
+    if (accidental) {
+      currentRun.push(accidental);
       i++;
       continue;
     }
@@ -420,8 +425,7 @@ export function volpianoToRoot(
     // Pitches (normal and liquescent).
     const pitch = volpianoCharToPitch(ch);
     if (pitch) {
-      const di = diatonicIndex(pitch.base, pitch.octave);
-      currentRun.push(makeNote(pitch.base, pitch.octave, pitch.liquescent, flatState.has(di)));
+      currentRun.push(makeNote(pitch.base, pitch.octave, pitch.liquescent, false));
       sawAnyPitchInSyllable = true;
       i++;
       continue;

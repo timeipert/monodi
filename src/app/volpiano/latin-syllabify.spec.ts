@@ -8,6 +8,10 @@ import { volpianoToRoot } from './volpiano';
 import { getSyllables } from '../types/model';
 
 describe('syllabifyLatin', () => {
+  it('opens the next syllable with s + p/t after a consonant', () => {
+    expect(syllabifyLatin('conspectu')).toEqual(['con', 'spec', 'tu']);
+  });
+
   it('splits single intervocalic consonants onto the next syllable', () => {
     expect(syllabifyLatin('Cibavit')).toEqual(['Ci', 'ba', 'vit']);
   });
