@@ -18,6 +18,20 @@ function isVowel(ch: string): boolean {
   return VOWELS.has(ch);
 }
 
+/**
+ * The `u` of "qu" (quod, aqua, qui) and of "ngu" before a vowel (lingua, sanguis) is a consonant: it does not carry a
+ * syllable. Without this rule "Quadraginta" is split as "Qu-a-dra-gin-ta", with a first syllable that has no vowel.
+ */
+function isConsonantalU(chars: string[], i: number): boolean {
+  if (chars[i].toLowerCase() !== 'u') return false;
+  const before = (chars[i - 1] ?? '').toLowerCase();
+  if (before === 'q') return true;
+  return before === 'g' && (chars[i - 2] ?? '').toLowerCase() === 'n' && isVowel(chars[i + 1] ?? '');
+}
+
+/** The token that stands for a melody syllable without text in the aligned text (a whitespace-separated list). */
+export const EMPTY_SYLLABLE = '_';
+
 /** Split a single Latin word into syllables (heuristic; count is corrected later). */
 export function syllabifyLatin(word: string): string[] {
   const chars = word.split('');
@@ -28,9 +42,9 @@ export function syllabifyLatin(word: string): string[] {
   const nuclei: { start: number; end: number }[] = [];
   let i = 0;
   while (i < n) {
-    if (isVowel(chars[i])) {
+    if (isVowel(chars[i]) && !isConsonantalU(chars, i)) {
       const two = (chars[i] + (chars[i + 1] || '')).toLowerCase();
-      if (i + 1 < n && isVowel(chars[i + 1]) && DIPHTHONGS.has(two)) {
+      if (i + 1 < n && isVowel(chars[i + 1]) && !isConsonantalU(chars, i + 1) && DIPHTHONGS.has(two)) {
         nuclei.push({ start: i, end: i + 1 });
         i += 2;
       } else {
@@ -90,22 +104,9 @@ export function forceSyllableCount(sylls: string[], k: number): string[] {
     return [...head, tail];
   }
 
-  // Too few: split the longest syllables until we reach k.
+  // Too few: the melody has more syllables than the word (a melisma over the end of the word). A syllable is never cut
+  // into pieces without a vowel; the remaining melody syllables stay without text.
   const out = sylls.slice();
-  while (out.length < k) {
-    let idx = -1;
-    let maxLen = 1;
-    for (let i = 0; i < out.length; i++) {
-      if (out[i].length > maxLen) {
-        maxLen = out[i].length;
-        idx = i;
-      }
-    }
-    if (idx === -1) break;
-    const s = out[idx];
-    const mid = Math.ceil(s.length / 2);
-    out.splice(idx, 1, s.slice(0, mid), s.slice(mid));
-  }
   while (out.length < k) out.push('');
   return out;
 }
@@ -135,7 +136,7 @@ function splitTextWords(text: string): string[] {
 }
 
 export interface AlignedText {
-  /** Whitespace-separated syllable tokens, one per melody syllable (for `textMode: 'syllables'`). */
+  /** Whitespace-separated syllable tokens, one per melody syllable (for `textMode: 'syllables'`); `_` is a syllable without text. */
   text: string;
   warnings: string[];
 }
@@ -158,7 +159,7 @@ export function alignTextToMelody(volpiano: string, fulltext: string): AlignedTe
   const tokens: string[] = [];
   const wordCount = Math.min(counts.length, words.length);
   for (let i = 0; i < wordCount; i++) {
-    tokens.push(...forceSyllableCount(syllabifyLatin(words[i]), counts[i]));
+    tokens.push(...forceSyllableCount(syllabifyLatin(words[i]), counts[i]).map((t) => (t === '' ? EMPTY_SYLLABLE : t)));
   }
 
   return { text: tokens.join(' '), warnings };

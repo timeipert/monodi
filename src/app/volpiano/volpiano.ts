@@ -456,7 +456,9 @@ export function volpianoToRoot(
       }
       perSyllableText = flatSyllables.map((syl, idx) => {
         const tok = tokens[idx];
-        if (!tok) return '';
+        // `_` marks a melody syllable without text (see `EMPTY_SYLLABLE`); the empty string cannot be a token of a list
+        // split at white space.
+        if (!tok || tok === '_') return '';
         return syl.wordEnd ? tok : tok + '-';
       });
     } else {

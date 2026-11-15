@@ -243,6 +243,10 @@
               @if (checkingUpdates) { <span class="spinner-border spinner-border-sm me-1"></span> }
               Check for updates
             </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="running || manifest.records.length === 0" (click)="addLinks()"
+              title="Write the address of the original page into the comment of every imported chant that has none yet">
+              Add original links
+            </button>
           </div>
           @if (manifest.records.length === 0) {
             <div class="text-muted small">Nothing imported yet.</div>

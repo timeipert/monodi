@@ -68,7 +68,8 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
   cantusMelodyOnly = false;
   cantusSort: CantusSort = 'siglum';
   chantSelection: ChantSelection = 'with-melody';
-  alignText = false;
+  /** On by default: the text of a chant with a melody is placed under its notes (heuristic; the label says so). */
+  alignText = true;
   cantusSelected = new Set<string>();
   cantusMatching: CantusSource[] = [];
   cantusPlan: CantusPlan | null = null;
@@ -444,6 +445,17 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
       this.error = describeImportError(error);
     } finally {
       await this.endRun();
+    }
+  }
+
+  /** Give the documents of earlier imports the link to their original page. */
+  async addLinks(): Promise<void> {
+    if (this.running) return;
+    try {
+      const changed = await this.service.addOriginalLinks();
+      this.toastr.success(changed === 0 ? 'All imported chants have the link already.' : `The link to the original page was added to ${changed} chant(s).`);
+    } catch (error) {
+      this.error = describeImportError(error);
     }
   }
 

@@ -482,6 +482,8 @@ describe('Cantus Corpus', () => {
     assert.equal(doc['festtag'], 'Nicolai');
     assert.equal(doc['textinitium'], 'Omnibus se');
     assert.equal(doc['additionalData'].cantus_chant, 'https://cantusdatabase.org/chant/245439');
+    assert.equal(doc['additionalData'].original_url, 'https://cantusdatabase.org/chant/245439');
+    assert.equal(doc['kommentar'], 'Original record in the Cantus Database: https://cantusdatabase.org/chant/245439');
   });
 
   it('gives chants stable identifiers that are safe in an address and uses a complete link as it is', async () => {
@@ -529,5 +531,36 @@ describe('manifest', () => {
     assert.equal(a, await fingerprintOf(['x', 'y'], sha256Hex));
     assert.notEqual(a, await fingerprintOf(['x', 'z'], sha256Hex));
     assert.match(a, /^[0-9a-f]{64}$/);
+  });
+});
+
+// ── links back to the original page ─────────────────────────────────────────────────────────────────────────────
+
+import { cmDocumentPageUrl, withOriginalLink } from './links.ts';
+
+describe('links back to the original page', () => {
+  it('writes the link into the comment and the custom field', () => {
+    const m = withOriginalLink({ id: 'a', kommentar: '', additionalData: { x: '1' } }, 'https://example.org/c/1', 'Original');
+    assert.equal(m['kommentar'], 'Original: https://example.org/c/1');
+    assert.deepEqual(m['additionalData'], { x: '1', original_url: 'https://example.org/c/1' });
+  });
+
+  it('keeps a comment that is there and adds the link after a blank line', () => {
+    const m = withOriginalLink({ id: 'a', kommentar: 'Folio damaged.' }, 'https://example.org/c/1', 'Original');
+    assert.equal(m['kommentar'], 'Folio damaged.\n\nOriginal: https://example.org/c/1');
+    assert.deepEqual(m['additionalData'], { original_url: 'https://example.org/c/1' });
+  });
+
+  it('adds the same link only once and does not change the metadata it was given', () => {
+    const once = withOriginalLink({ id: 'a', kommentar: '' }, 'https://example.org/c/1', 'Original');
+    const twice = withOriginalLink(once, 'https://example.org/c/1', 'Original');
+    assert.equal(twice['kommentar'], once['kommentar']);
+    const input = { id: 'a', kommentar: 'x' };
+    withOriginalLink(input, 'https://example.org/c/2', 'Original');
+    assert.equal(input.kommentar, 'x');
+  });
+
+  it('the page of a Corpus Monodicum document is the document id under corpus-monodicum.de/d/', () => {
+    assert.equal(cmDocumentPageUrl('8840bf6b-cf61-4e16-aa43-800b50c9a21a'), 'https://corpus-monodicum.de/d/8840bf6b-cf61-4e16-aa43-800b50c9a21a');
   });
 });

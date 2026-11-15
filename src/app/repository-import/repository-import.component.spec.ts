@@ -99,6 +99,10 @@ describe('RepositoryImportComponent', () => {
 
   const text = () => (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
 
+  it('places the text under the melody by default, so the option is ticked when the dialog opens', () => {
+    expect(component.alignText).toBeTrue();
+  });
+
   it('lists the datasets of the catalogue with their licence', () => {
     expect(text()).toContain('Corpus Monodicum');
     expect(text()).toContain('CantusCorpus');

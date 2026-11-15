@@ -206,10 +206,45 @@ describe('RepositoryImportService', () => {
     expect(documents[0].quelle_id).toBe('A 1');
     expect(documents[0].custom?.['Editor']).toBe('Ed');
     expect((await NotesStore.get('uuid-1')).uuid).toBe('root-1');
+    // the link back to the page of the chant, for comparing the copy with the original
+    expect(documents.find((d) => d.id === 'uuid-1')!.kommentar).toContain('Original page on corpus-monodicum.de: https://corpus-monodicum.de/d/');
+    expect(documents.find((d) => d.id === 'uuid-1')!.custom?.['original_url']).toMatch(/^https:\/\/corpus-monodicum\.de\/d\//);
     const manifest = await service.getManifest();
     expect(manifest.records.length).toBe(1);
     expect(manifest.records[0].documentIds.sort()).toEqual(['uuid-1', 'uuid-2']);
     expect(manifest.records[0].upstreamRef).toBe('abc');
+  });
+
+  it('gives the documents of earlier imports the link to the original page, keeps their comments and does it only once', async () => {
+    await importCm();
+    const dataset = await service.openDataset(world.catalog, world.catalog.catalog.datasets[1]);
+    const sources = await service.openCantusIndex(dataset);
+    await service.importCantus(dataset, planCantusImport(sources, 'with-melody'), 'with-melody', { overwrite: false, alignText: false });
+    // documents as an import before the link existed wrote them: no link, a comment that a person wrote
+    const before = (await storedDocuments()).map((d) => {
+      const custom = { ...(d.custom ?? {}) };
+      delete custom['original_url'];
+      return { ...d, kommentar: d.id === 'uuid-1' ? 'Folio damaged.' : '', custom };
+    });
+    await localforage.setItem('monodi_documents', before);
+
+    expect(await service.addOriginalLinks()).toBe(before.length);
+    const after = await storedDocuments();
+    const cm = after.find((d) => d.id === 'uuid-1')!;
+    expect(cm.kommentar).toBe('Folio damaged.\n\nOriginal page on corpus-monodicum.de: https://corpus-monodicum.de/d/uuid-1');
+    expect(cm.custom?.['original_url']).toBe('https://corpus-monodicum.de/d/uuid-1');
+    const cantus = after.find((d) => d.quelle_id === 'cantusdatabase-1')!;
+    expect(cantus.kommentar).toBe('Original record in the Cantus Database: https://cantusdatabase.org/chant/10');
+    expect(await service.addOriginalLinks()).toBe(0);
+  });
+
+  it('adds the link only to documents that an import wrote', async () => {
+    await importCm();
+    await localforage.setItem('monodi_documents', [...(await storedDocuments()), { id: 'mine', quelle_id: 'A 1', dokumenten_id: 'mine', kommentar: '' } as Document]);
+    await service.addOriginalLinks();
+    const mine = (await storedDocuments()).find((d) => d.id === 'mine')!;
+    expect(mine.kommentar).toBe('');
+    expect(mine.custom?.['original_url']).toBeUndefined();
   });
 
   it('leaves a chant that exists already as it is, unless told to replace it', async () => {
@@ -341,6 +376,7 @@ describe('RepositoryImportService', () => {
     expect(documents[0].quelle_id).toBe('cantusdatabase-1');
     expect(documents[0].festtag).toBe('Nicolai');
     expect(documents[0].custom?.['cantus_chant']).toBe('https://cantusdatabase.org/chant/10');
+    expect(documents[0].kommentar).toBe('Original record in the Cantus Database: https://cantusdatabase.org/chant/10');
     const notes = await NotesStore.get(documents[0].id);
     expect(JSON.stringify(notes)).toContain('"noteType"');
     const source = (await storedSources())[0];

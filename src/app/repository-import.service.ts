@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import * as localforage from 'localforage';
 import {
-  DEFAULT_CATALOG_URL, DatasetError, MAX_DOCUMENTS_PER_IMPORT, cantusDocumentId, cantusDocumentMeta,
+  DEFAULT_CATALOG_URL, DatasetError, MAX_DOCUMENTS_PER_IMPORT, cantusDocumentId, cantusDocumentMeta, cmDocumentPageUrl, withOriginalLink,
   cantusSourceFingerprintParts, cantusSourceMeta, cmDocumentUrls, cmSourceFingerprintParts, cmSourceMetaUrl,
   fetchCantusChants, fetchJson, fingerprintOf, loadCantusIndex, loadCatalog, loadCmIndex, loadDataset, makeContext,
   outdatedRecords, parseManifest, prefetch, recordKey, removeRecord, sha256Hex, takesChant, upsertRecord,
@@ -88,6 +88,10 @@ export interface ImportSummary {
   conversionWarnings: number;
 }
 
+/** The words in front of the link to the original page in the comment of an imported document. */
+const CM_LINK_LABEL = 'Original page on corpus-monodicum.de';
+const CANTUS_LINK_LABEL = 'Original record in the Cantus Database';
+
 function yieldToUI(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -166,6 +170,35 @@ class WorkspaceWriter {
     this.listedDocuments = documents.length;
     this.stagedSources.clear();
     this.stagedDocuments.clear();
+  }
+
+  /**
+   * Give the documents of earlier imports the link to their original page (see `withOriginalLink`): a record of the Cantus
+   * Corpus has its address in the custom field `cantus_chant`, a chant of the Corpus Monodicum its page under its id.
+   * Documents that have the link already are left as they are. Returns the number of documents changed and the sources
+   * they belong to.
+   */
+  static async addOriginalLinks(records: readonly ImportRecord[]): Promise<{ changed: number; sourceIds: string[] }> {
+    const wanted = new Map<string, string>();
+    for (const r of records) for (const id of r.documentIds) wanted.set(id, r.workspaceSourceId);
+    const documents = (await localforage.getItem<Document[]>(DOCUMENTS_KEY)) || [];
+    const sourceIds = new Set<string>();
+    let changed = 0;
+    for (const doc of documents) {
+      const sourceId = wanted.get(doc.id);
+      if (sourceId === undefined) continue;
+      const cantusUrl = doc.custom?.['cantus_chant'];
+      const url = typeof cantusUrl === 'string' && cantusUrl !== '' ? cantusUrl : cmDocumentPageUrl(doc.id);
+      const label = typeof cantusUrl === 'string' && cantusUrl !== '' ? CANTUS_LINK_LABEL : CM_LINK_LABEL;
+      const next = withOriginalLink({ kommentar: doc.kommentar ?? '', additionalData: doc.custom ?? {} }, url, label);
+      if (next['kommentar'] === (doc.kommentar ?? '') && doc.custom?.['original_url'] === url) continue;
+      doc.kommentar = next['kommentar'] as string;
+      doc.custom = next['additionalData'] as Document['custom'];
+      sourceIds.add(sourceId);
+      changed++;
+    }
+    if (changed > 0) await localforage.setItem(DOCUMENTS_KEY, documents);
+    return { changed, sourceIds: [...sourceIds] };
   }
 
   /** Remove chants (and the source if no chant is left in it) from the lists as they are now. */
@@ -468,10 +501,13 @@ export class RepositoryImportService {
         let done = 0;
         for (let i = 0; i < documents.length; i++) {
           const d = documents[i];
-          const { docMeta, notes } = (await feed.take()).value;
+          const taken = (await feed.take()).value;
+          const notes = taken.notes;
+          // The link back to the page of the chant, so the copy can be compared with the original.
+          const docMeta = withOriginalLink(taken.docMeta, cmDocumentPageUrl(d.id), CM_LINK_LABEL);
           session.bytesDone += d.meta_bytes + d.notes_bytes;
           done++;
-          const docId: string = docMeta.id || docMeta.dokumenten_id || d.id;
+          const docId = String(docMeta['id'] || docMeta['dokumenten_id'] || d.id);
           if (session.writer.hasDocument(docId) && !options.overwrite) {
             session.summary.keptExisting++;
           } else {
@@ -568,6 +604,14 @@ export class RepositoryImportService {
     if (sourceRemoved) await SyncExclusions.remove([record.workspaceSourceId]);
     this.api.invalidateCache();
     return { documents: removed, sourceRemoved };
+  }
+
+  /** Add the link to the original page to the documents of all earlier imports; returns how many documents were changed. */
+  async addOriginalLinks(): Promise<number> {
+    const manifest = await this.getManifest();
+    const { changed, sourceIds } = await WorkspaceWriter.addOriginalLinks(manifest.records);
+    if (changed > 0) await this.afterImport(sourceIds);
+    return changed;
   }
 
   /** The identifiers of the workspace sources that the GitHub sync leaves out. */

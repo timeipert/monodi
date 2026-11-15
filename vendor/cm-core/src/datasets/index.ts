@@ -11,5 +11,6 @@ export * from './catalog';
 export * from './filter';
 export * from './cm';
 export * from './cantus';
+export * from './links';
 export * from './manifest';
 export * from './limits';

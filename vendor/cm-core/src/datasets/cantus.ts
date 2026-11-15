@@ -8,6 +8,7 @@ import type { LoadedDataset } from './catalog';
 import type { FetchContext } from './client';
 import { fetchJson, DatasetError } from './client';
 import { facet, matchesText, numbersIn } from './filter';
+import { withOriginalLink } from './links';
 import type { CantusChant, CantusChunk, CantusSource, MonodiMeta } from './types';
 import { fileUrl, fillTemplate } from './urls';
 
@@ -160,7 +161,8 @@ export function cantusSourceMeta(source: CantusSource): MonodiMeta {
 /** Metadata of a chant, with the keys that the ZIP import of Monodi-Zero reads (`additionalData` becomes `custom`). */
 export function cantusDocumentMeta(dataset: LoadedDataset, source: CantusSource, chant: CantusChant): MonodiMeta {
   const id = cantusDocumentId(source, chant);
-  return {
+  const url = cantusChantUrl(dataset, source, chant);
+  return withOriginalLink({
     id,
     quelle_id: source.id,
     dokumenten_id: [source.siglum, chant.folio, chant.cantus_id].filter(Boolean).join(' '),
@@ -176,13 +178,13 @@ export function cantusDocumentMeta(dataset: LoadedDataset, source: CantusSource,
       mode: chant.mode,
       feast_code: chant.feast_code,
       position: chant.position,
-      cantus_chant: cantusChantUrl(dataset, source, chant),
+      cantus_chant: url,
       image: chant.image,
       db: chant.db,
       full_text: chant.full_text,
       dataset: 'cantuscorpus',
     },
-  };
+  }, url, 'Original record in the Cantus Database');
 }
 
 /** The parts of the fingerprint of a source: the hashes of its chunk files. */
