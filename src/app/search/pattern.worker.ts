@@ -36,15 +36,18 @@ const DUP_SIMILARITY_THRESHOLD = 0.9;
  *  postMessages on huge libraries. */
 const EMIT_EVERY_MS = 80;
 let lastEmit = 0;
+/** The request that is being worked on; every message back carries it so the page can drop answers of an older run. */
+let currentRunId = 0;
 function emitProgress(phase: string, current: number, total: number) {
   const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   if (now - lastEmit < EMIT_EVERY_MS && current !== total) return;
   lastEmit = now;
   const percent = total > 0 ? Math.round((current / total) * 100) : 0;
-  postMessage({ kind: 'progress', phase, current, total, percent });
+  postMessage({ kind: 'progress', runId: currentRunId, phase, current, total, percent });
 }
 
 addEventListener('message', ({ data }) => {
+  currentRunId = (data as { runId?: number }).runId ?? 0;
   const {
     loadedDocs,
     patternType,
@@ -68,7 +71,7 @@ addEventListener('message', ({ data }) => {
     const excludedDocIds = new Set<string>();
 
     // -------- 1. duplicate detection (only if it'll be used) --------
-    if (patternDeduplicateEnabled || loadedDocs.length > 1) {
+    if (patternDeduplicateEnabled && loadedDocs.length > 1) {
       lastEmit = 0;
       emitProgress('Preparing duplicate check…', 0, loadedDocs.length);
 
@@ -99,6 +102,8 @@ addEventListener('message', ({ data }) => {
         for (let j = i + 1; j < N; j++) {
           donePairs++;
           const doc2 = loadedDocs[j];
+          // The same document listed twice is not a duplicate of itself (and must not be dropped with its twin).
+          if (doc1.doc.id === doc2.doc.id) continue;
 
           // Cheap Jaccard pre-filter. If either text or melody is too far
           // off in their shingle sets we know Levenshtein similarity will
@@ -245,12 +250,13 @@ addEventListener('message', ({ data }) => {
 
     postMessage({
       kind: 'success',
+      runId: currentRunId,
       groups,
       patternTimelineDocs,
       detectedDuplicates,
       excludedDocIds: Array.from(excludedDocIds),
     });
   } catch (err) {
-    postMessage({ kind: 'error', error: (err as Error).message });
+    postMessage({ kind: 'error', runId: currentRunId, error: (err as Error).message });
   }
 });

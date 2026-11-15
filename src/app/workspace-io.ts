@@ -16,6 +16,8 @@ export interface WorkspaceImportResult {
   notesDict: any;
   settings: any;
   schemaVersion: number;
+  /** Saved analyses of the Analysis page (`AnalysisExport[]`); absent in files made before 2026-11-15. */
+  analyses?: unknown[];
 }
 
 export type BackwardsCompatMode = 'none' | 'comment' | 'consecutive_lines' | 'split_documents';
@@ -26,7 +28,8 @@ export function buildWorkspaceExport(
   notesDict: any,
   settings: any,
   backwardsCompatMode: BackwardsCompatMode | boolean = 'none',
-  placeholderNotes = false
+  placeholderNotes = false,
+  analyses: unknown[] = []
 ): any {
   const mode: BackwardsCompatMode = typeof backwardsCompatMode === 'boolean'
     ? (backwardsCompatMode ? 'comment' : 'none')
@@ -88,7 +91,9 @@ export function buildWorkspaceExport(
     sources,
     documents: processedDocuments,
     notes: processedNotes,
-    settings
+    settings,
+    // Saved analyses refer to document ids; the compat mode `split_documents` changes the ids, so they are left out there.
+    ...(analyses.length > 0 && mode !== 'split_documents' ? { analyses } : {})
   };
 }
 
@@ -112,6 +117,7 @@ export function parseWorkspaceImport(json: any): WorkspaceImportResult {
     documents: json.documents,
     notesDict,
     settings: json.settings,
-    schemaVersion
+    schemaVersion,
+    analyses: Array.isArray(json.analyses) ? json.analyses : undefined
   };
 }

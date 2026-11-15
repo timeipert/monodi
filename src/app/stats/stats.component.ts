@@ -7,6 +7,7 @@ import { ActivatedRoute } from '@angular/router';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import * as localforage from 'localforage';
+import { IdSelection } from '../selection/selection-set';
 
 export interface Occurence {
   patternId: string;
@@ -62,6 +63,13 @@ export class StatsComponent implements OnInit, OnDestroy {
   basePatterns: PatternGroup[] = [];
   displayedPatterns: PatternGroup[] = [];
   filteredSources: Source[] = [];
+
+  /** Sources whose row is shown in the matrix. All sources until the user narrows it (every source is selected at first). */
+  readonly sourceSel = new IdSelection();
+  private sourceSelReady = false;
+  /** Sources that match the manuscript search text, before the choice of sources is applied. */
+  textMatchedSources: Source[] = [];
+  textMatchedSourceIds: string[] = [];
   
   // Lookups
   sourceNeumeCount: { [sourceId: string]: number } = {};
@@ -243,6 +251,7 @@ export class StatsComponent implements OnInit, OnDestroy {
     this.sourceSearchText = '';
     this.patternSearchText = '';
     this.minFrequency = 1;
+    this.sourceSel.replace(this.sources.map(s => s.id ?? ''));
     // Reset immediately for better responsiveness
     this.applyFilters();
   }
@@ -476,12 +485,16 @@ export class StatsComponent implements OnInit, OnDestroy {
     this.displayedPatterns = filteredPatterns;
     this.patternPageIndex = 0; // reset pagination
 
-    // 2. Filter Sources
+    // 2. Filter Sources: by the search text, then by the sources the user chose to show (all at first)
+    if (!this.sourceSelReady && this.sources.length > 0) {
+      this.sourceSel.replace(this.sources.map(s => s.id ?? ''));
+      this.sourceSelReady = true;
+    }
     if (!this.sourceSearchText.trim()) {
-      this.filteredSources = this.sources;
+      this.textMatchedSources = this.sources;
     } else {
       const q = this.sourceSearchText.toLowerCase();
-      this.filteredSources = this.sources.filter(s => {
+      this.textMatchedSources = this.sources.filter(s => {
         const sigle = (s.quellensigle || '').toLowerCase();
         const library = (s.bibliothek || '').toLowerCase();
         const place = (s.herkunftsort || '').toLowerCase();
@@ -489,6 +502,8 @@ export class StatsComponent implements OnInit, OnDestroy {
         return sigle.includes(q) || library.includes(q) || place.includes(q) || inst.includes(q);
       });
     }
+    this.textMatchedSourceIds = this.textMatchedSources.map(s => s.id ?? '');
+    this.filteredSources = this.textMatchedSources.filter(s => this.sourceSel.has(s.id ?? ''));
     this.sourcePageIndex = 0; // reset pagination
 
     this.cdr.detectChanges();

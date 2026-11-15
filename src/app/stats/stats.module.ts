@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { NotationsdokumentationModule } from '../notationsdokumentation/notationsdokumentation.module';
 import { StatsComponent } from './stats.component';
+import { SelectionToolsModule } from '../selection/selection-tools.module';
 
 @NgModule({
   declarations: [StatsComponent],
@@ -11,6 +12,7 @@ import { StatsComponent } from './stats.component';
     CommonModule,
     FormsModule,
     NotationsdokumentationModule,
+    SelectionToolsModule,
     RouterModule.forChild([
       { path: '', component: StatsComponent }
     ])

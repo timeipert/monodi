@@ -24,6 +24,18 @@ describe('NotesStore Tests', () => {
     (NotesStore as any).migrationPromise = null;
   });
 
+  it('revision counts the writes, so caches derived from the notes can notice a change', async () => {
+    const r0 = NotesStore.revision;
+    await NotesStore.set('doc-1', { a: 1 });
+    await NotesStore.merge({ 'doc-2': { b: 2 } });
+    await NotesStore.removeMany(['doc-2']);
+    await NotesStore.remove('doc-1');
+    await NotesStore.replaceAll({});
+    expect(NotesStore.revision).toBe(r0 + 5);
+    await NotesStore.get('doc-1');
+    expect(NotesStore.revision).toBe(r0 + 5); // a read changes nothing
+  });
+
   it('set() then get() round-trips a value and adds the id to the index exactly once', async () => {
     await NotesStore.set('doc-1', { notes: 'hello' });
     const val = await NotesStore.get('doc-1');

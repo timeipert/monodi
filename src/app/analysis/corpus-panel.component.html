@@ -1,0 +1,42 @@
+<div class="row g-4">
+  <div class="col-12">
+    <h6 class="mb-2">Search a melodic pattern in these chants</h6>
+    <form class="row g-2 align-items-end" (ngSubmit)="search()">
+      <div class="col-sm-4 col-lg-2">
+        <label class="form-label small mb-0 fw-semibold" for="cp-unit">Pattern of</label>
+        <select id="cp-unit" name="unit" class="form-select form-select-sm" [(ngModel)]="unit">
+          @for (u of units; track u.value) { <option [value]="u.value">{{ u.label }}</option> }
+        </select>
+      </div>
+      <div class="col-sm-8 col-lg-4">
+        <label class="form-label small mb-0 fw-semibold" for="cp-text">Pattern</label>
+        <input id="cp-text" name="text" class="form-control form-control-sm font-monospace" [(ngModel)]="text" [placeholder]="example" autocomplete="off" />
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label small mb-0 fw-semibold" for="cp-dist" title="Insertions, deletions or wrong notes allowed">Differences</label>
+        <select id="cp-dist" name="dist" class="form-select form-select-sm" [(ngModel)]="maxDistance">
+          <option [ngValue]="0">none (exact)</option><option [ngValue]="1">1</option><option [ngValue]="2">2</option><option [ngValue]="3">3</option>
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label small mb-0 fw-semibold" for="cp-win" title="ChantDigger: the notes must occur in this order within this many notes, not necessarily next to each other (exact search only)">Within a window of</label>
+        <input id="cp-win" name="win" type="number" min="0" max="200" class="form-control form-control-sm" [(ngModel)]="window" [disabled]="maxDistance > 0" placeholder="0 = adjacent" />
+      </div>
+      <div class="col-12 col-lg-2">
+        <button type="submit" class="btn btn-primary btn-sm w-100" [disabled]="searching || !text.trim()">
+          @if (searching) { <span class="spinner-border spinner-border-sm me-1"></span>{{ progress.done | number }} / {{ progress.total | number }} } @else { <i class="bi bi-search me-1"></i>Search }
+        </button>
+      </div>
+    </form>
+    @if (error) { <div class="alert alert-warning py-1 small mt-2 mb-0">{{ error }}</div> }
+    <p class="small text-muted mt-1 mb-0">
+      Pitches: letters a–g, with octave numbers (D4) to fix the octave. Intervals are numbers of scale steps (+2 = a third up). Contour: u, d, r.
+      A click on a pattern in a table of the results searches for it here.
+    </p>
+    @if (summary) { <p class="mt-2 mb-1"><strong>{{ summary }}</strong></p> }
+    @if (result) { <app-result-view [view]="result" [fileStem]="def.name + '-pattern'" (openDocs)="openDocs.emit($event)"></app-result-view> }
+  </div>
+  <div class="col-12">
+    @if (docsView) { <app-result-view [view]="docsView" [fileStem]="def.name + '-documents'" (openDocs)="openDocs.emit($event)"></app-result-view> }
+  </div>
+</div>

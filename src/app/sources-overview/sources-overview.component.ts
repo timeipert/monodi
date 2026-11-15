@@ -23,6 +23,7 @@ import { NotesStore } from '../notes-store';
 import { PushCache } from '../push-cache';
 import { WORKSPACE_SCHEMA_VERSION } from '../schema';
 import { buildWorkspaceExport, parseWorkspaceImport, BackwardsCompatMode } from '../workspace-io';
+import { AnalysisStore } from '../analysis/analysis-store';
 import { applyPlaceholderImport, placeholderConfigFromSettings, placeholderImportEnabled, syllableCommentsToPlaceholders } from '../placeholder-comments';
 import { 
   convertToBackwardsCompatibleComment, 
@@ -448,7 +449,8 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const notes = await NotesStore.getAll();
       const settings = await localforage.getItem('monodi_settings');
       
-      const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode, this.exportPlaceholderNotes);
+      const analyses = await AnalysisStore.exportAll();
+      const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode, this.exportPlaceholderNotes, analyses);
       
       const res = await this.fsService.saveFile(JSON.stringify(data, null, 2), {
         suggestedName: `workspace_export_${new Date().toISOString().split('T')[0]}.monodijson`,
@@ -934,6 +936,8 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           // limit when the user re-imports a very large workspace.
           if (data.notesDict) await NotesStore.replaceAll(data.notesDict);
           if (data.settings) await localforage.setItem('monodi_settings', data.settings);
+          // Saved analyses of the Analysis page come back with their results and ids (older files have none).
+          if (data.analyses) await AnalysisStore.restoreAll(data.analyses);
           
           this.api.invalidateCache();
           // Bulk write whose exact effect on individual manuscripts isn't

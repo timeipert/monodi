@@ -113,14 +113,26 @@ export class PatternAnalysisService {
     this.stateChanged$.next();
   }
 
+  /** Ids of the documents analysed by the last run, in the order they were handed to the worker. */
+  lastScopeDocIds: string[] = [];
+  /** Number of the current run; messages of a worker started for an older run are ignored. */
+  private runCounter = 0;
+
+  /**
+   * Group recurring melodic patterns. The documents analysed are `scopeIds` when given (the selection, or the whole
+   * workspace), else the documents behind the hits of `activeTab`. Each document is analysed once, however many hits
+   * it has (a melody search lists a document once per realisation).
+   */
   async runPatternGrouping(
     activeTab: string,
     filteredQuickResults: any[],
     filteredSourceResults: any[],
     filteredDocumentResults: any[],
-    filteredMelodyResults: any[]
+    filteredMelodyResults: any[],
+    scopeIds: string[] | null = null
   ) {
     if (!this.user) return;
+    const runId = ++this.runCounter;
     this.patternSearching = true;
     this.patternCancelled = false;
     this.patternGroups = [];
@@ -147,7 +159,12 @@ export class PatternAnalysisService {
 
       let targetDocs: { doc: Document; sourceSigle: string }[] = [];
 
-      if (activeTab === 'quick') {
+      if (scopeIds) {
+        for (const id of scopeIds) {
+          const doc = docMap.get(id);
+          if (doc) targetDocs.push({ doc, sourceSigle: sourceMap.get(doc.quelle_id)?.quellensigle ?? '' });
+        }
+      } else if (activeTab === 'quick') {
         const docResults = filteredQuickResults.filter(r => r.kind === 'document');
         for (const qr of docResults) {
           const doc = docMap.get(qr.id);
@@ -175,6 +192,12 @@ export class PatternAnalysisService {
           targetDocs.push({ doc: mr.document, sourceSigle: sigle });
         }
       }
+
+      // One entry per document: the melody tab lists a document once per realisation, and a document that is
+      // analysed twice would be taken for a duplicate of itself.
+      const seenTargets = new Set<string>();
+      targetDocs = targetDocs.filter(t => (seenTargets.has(t.doc.id) ? false : (seenTargets.add(t.doc.id), true)));
+      this.lastScopeDocIds = targetDocs.map(t => t.doc.id);
 
       if (targetDocs.length === 0) {
         this.patternProgress = { phase: 'No documents in results to analyze', current: 0, total: 0, percent: 100 };
@@ -262,6 +285,7 @@ export class PatternAnalysisService {
       this.patternWorker = new Worker(new URL('./pattern.worker', import.meta.url), { type: 'module' });
 
       this.patternWorker.onmessage = ({ data }) => {
+        if (data.runId !== undefined && data.runId !== runId) return; // an answer to an older run
         if (this.patternCancelled) {
           if (this.patternWorker) {
             this.patternWorker.terminate();
@@ -323,6 +347,7 @@ export class PatternAnalysisService {
       };
 
       this.patternWorker.postMessage({
+        runId,
         loadedDocs,
         patternType: this.patternType,
         patternLength: this.patternLength,

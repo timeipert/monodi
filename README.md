@@ -24,6 +24,7 @@ Markdown documents of `apps/monodi`. `README.md` and `CLAUDE.md` stay in the app
 | Document | What it is for |
 |---|---|
 | [FEATURES.md](documentation/FEATURES.md) | Full description of all features for users and developers; Electron packaging and related projects. |
+| [ANALYSIS-WORKBENCH.md](documentation/ANALYSIS-WORKBENCH.md) | The Analysis page: methods, saved and cached analyses (fingerprint), results display, the ChantDigger Guided Tour compared with Monodi-Zero, open items. |
 | [CLAUDE.md](CLAUDE.md) | Rules for changes (shared code, headless exports, deployment of monodi.app) and the project-wide writing rules. |
 | [CHANT-SVG.md](documentation/CHANT-SVG.md) | How the headless SVG export draws a chant like the PDF export (`scripts/export-svg-batch.mjs`). |
 | [GITHUB-LOGIN.md](documentation/GITHUB-LOGIN.md) | How "Sign in with GitHub" works (GitHub App, PKCE, proxy) and how it is configured. |

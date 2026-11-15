@@ -24,6 +24,8 @@ import {
   computePatternGroups
 } from './pattern-algo';
 import { safeStorage } from '../safe-storage';
+import { SelectionService } from '../selection/selection.service';
+import { IdSelection, uniqueIds } from '../selection/selection-set';
 
 // ─── Column config ────────────────────────────────────────────────────────────
 
@@ -75,6 +77,13 @@ const DEFAULT_SYNOPSIS_COLS: ColDef<Document>[] = [
   { key: 'kommentar',                label: 'Commentary',           visible: false },
 ];
 
+/** The most selected documents whose ids are written into the address bar (`compare=`). */
+const SELECTION_URL_MAX = 50;
+/** A synopsis of more witnesses than this is hard to read and slow to align; the user is asked first. */
+const SYNOPSIS_MAX_WITNESSES = 20;
+/** Printing or analysing more documents than this asks for a confirmation first. */
+const BIG_SELECTION = 200;
+
 const SRC_RES_KEY  = 'monodi_search_src_cols';
 const DOC_RES_KEY  = 'monodi_search_doc_cols';
 const RECENT_KEY   = 'monodi_search_recent';
@@ -122,8 +131,17 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   subs: Subscription[] = [];
   settings: ProjectSettings | null = null;
 
+  // ── Selection ─────────────────────────────────────────────────────────────
+  /** The picks of the user live in a service, so they survive leaving the page and the Analysis page can use them. */
+  readonly selSvc = inject(SelectionService);
+  get selection(): IdSelection { return this.selSvc.selection; }
+  /** The selected documents: real documents of the workspace index, the same array until the selection changes. */
+  get selectedDocs(): Document[] { return this.selSvc.selectedDocs(); }
+  set selectedDocs(docs: Document[]) { this.selSvc.replaceWith(docs); }
+
   // ── Synoptic Comparison ───────────────────────────────────────────────────
-  selectedDocs: Document[] = [];
+  /** The witnesses shown in the synopsis: the selection, or its first `SYNOPSIS_MAX_WITNESSES` documents. */
+  synopsisDocs: Document[] = [];
   showSynopsis = false;
   private readonly focusSvc = inject(FocusService);
   private readonly pdfDialog = inject(PdfDialogLauncher);
@@ -315,6 +333,18 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   get melodyIncludeTransposed() { return this.searchExecSvc.melodyIncludeTransposed; }
   set melodyIncludeTransposed(v) { this.searchExecSvc.melodyIncludeTransposed = v; }
+
+  get melodyWindow() { return this.searchExecSvc.melodyWindow; }
+  set melodyWindow(v) { this.searchExecSvc.melodyWindow = Math.max(0, Math.min(200, Math.floor(Number(v) || 0))); }
+
+  /** Where the quick and the melody search look: every document, or only the documents of the selection. */
+  searchScope: 'all' | 'selection' = 'all';
+
+  private applySearchScope(): void {
+    const sel = this.searchScope === 'selection' && this.selection.size > 0;
+    this.searchExecSvc.scopeIds = sel ? new Set(this.selection.ids()) : null;
+    this.searchExecSvc.scopeKey = sel ? `sel:${this.selection.version}` : '';
+  }
 
   get melodyOnlyWithinSyllables() { return this.searchExecSvc.melodyOnlyWithinSyllables; }
   set melodyOnlyWithinSyllables(v) { this.searchExecSvc.melodyOnlyWithinSyllables = v; }
@@ -550,6 +580,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       })
     );
 
+    this.subs.push(this.selSvc.changed$.subscribe(() => this.cdRef.markForCheck()));
+
     this.subs.push(
       this.filterSubject.pipe(debounceTime(300)).subscribe(which => {
         switch (which) {
@@ -573,6 +605,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
           }
         });
         await this.loadFromIndexedDB();
+        this.selSvc.ensureIndex(this.user.token).then(() => this.cdRef.markForCheck());
         this.restoreStateFromUrl();
         // If the page was opened with a URL fragment like
         // `#pattern-group-7`, jump directly to that pattern. We do this
@@ -655,6 +688,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   async searchQuick() {
     this.visibleQuickLimit = SearchComponent.INITIAL_RESULT_LIMIT;
     this.updateUrl();
+    this.applySearchScope();
     await this.searchExecSvc.searchQuick(
       (q) => this.addRecentSearch(q),
       () => this.clearFilter('quick')
@@ -703,6 +737,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   async searchMelody() {
     this.visibleMelodyLimit = SearchComponent.INITIAL_RESULT_LIMIT;
     this.updateUrl();
+    this.applySearchScope();
     await this.searchExecSvc.searchMelody();
   }
 
@@ -860,7 +895,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   async loadFromIndexedDB() {
     await this.searchExecSvc.loadFromIndexedDB(
-      () => this.runPatternGrouping(),
       (tab) => { this.activeTab = tab; }
     );
     this.cdRef.markForCheck();
@@ -1194,45 +1228,97 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   toggleDocSelection(doc: Document, event: Event) {
     event.stopPropagation();
-    const idx = this.selectedDocs.findIndex(d => d.id === doc.id);
-    if (idx > -1) {
-      this.selectedDocs.splice(idx, 1);
-    } else {
-      this.selectedDocs.push(doc);
-    }
-    this.updateUrl();
+    this.selSvc.toggle(doc);
+    this.onSelectionChanged();
   }
 
+  /** A document hit of the quick search: toggled by id; the real document comes from the workspace index. */
   toggleQuickResultSelection(r: QuickResult, event: Event) {
     event.stopPropagation();
-    const doc: Document = {
-      id: r.id,
-      quelle_id: r.sourceId || '',
-      dokumenten_id: r.title || r.id,
-      textinitium: r.title || '',
-      gattung1: '',
-      gattung2: '',
-      festtag: '',
-      feier: '',
-      bibliographischerverweis: '',
-      druckausgabe: '',
-      zeilenstart: '',
-      foliostart: '',
-      kommentar: '',
-      editionsstatus: ''
-    };
-    this.toggleDocSelection(doc, event);
+    this.selection.toggle(r.id);
+    this.onSelectionChanged();
   }
 
   isDocSelected(id: string): boolean {
-    return this.selectedDocs.some(d => d.id === id);
+    return this.selection.has(id);
+  }
+
+  /** Select or deselect every document of a source (a checkbox on a source row). */
+  toggleSourceSelection(sourceId: string | undefined, event: Event) {
+    event.stopPropagation();
+    if (!sourceId) return;
+    this.selSvc.toggleSource(sourceId);
+    this.onSelectionChanged();
+  }
+
+  /** `none`, `some` or `all` of the documents of a source are selected (drives a tri-state checkbox). */
+  sourceSelectState(sourceId: string | undefined): 'none' | 'some' | 'all' {
+    return sourceId ? this.selSvc.sourceState(sourceId) : 'none';
   }
 
   clearDocSelection() {
-    this.selectedDocs = [];
+    this.selSvc.clear();
     this.synopsisSvc.exitSynopsis();
-    this.updateUrl();
+    this.synopsisDocs = [];
+    this.onSelectionChanged();
   }
+
+  /** Opens the Analysis page with the documents behind the hits of this tab (and keeps them for its "hits" choice). */
+  openInAnalysis(): void {
+    const ids = this.currentHitDocIds();
+    const what = { quick: `quick search "${this.quickText}"`, sources: 'source search', documents: 'document search', melody: `melody search "${this.melodyPattern}"` }[this.activeTab];
+    this.selSvc.lastHits = { ids, label: `hits of the ${what}, ${ids.length} documents` };
+    this.router.navigate(['/analysis']);
+  }
+
+  /** Called after every change of the selection by a checkbox or by the selection bar. */
+  onSelectionChanged(): void {
+    this.updateUrl();
+    this.cdRef.markForCheck();
+  }
+
+  // ── The "all" of the selection bar: every hit of a tab, not only the page that is shown ──────────
+
+  private hitMemo = new Map<string, { a: unknown; b: unknown; ids: string[] }>();
+
+  private memoHits(name: string, a: unknown, b: unknown, build: () => string[]): string[] {
+    const hit = this.hitMemo.get(name);
+    if (hit && hit.a === a && hit.b === b) return hit.ids;
+    const ids = uniqueIds(build());
+    this.hitMemo.set(name, { a, b, ids });
+    return ids;
+  }
+
+  /** Quick search: the documents among the hits plus all documents of the source hits. */
+  get quickHitDocIds(): string[] {
+    return this.memoHits('quick', this.filteredQuickResults, this.selSvc.indexRevision, () =>
+      this.filteredQuickResults.flatMap(r => (r.kind === 'document' ? [r.id] : this.selSvc.docIdsOfSource(r.id))));
+  }
+  /** Sources tab: all documents of the source hits. */
+  get sourceHitDocIds(): string[] {
+    return this.memoHits('sources', this.filteredSourceResults, this.selSvc.indexRevision, () =>
+      this.selSvc.docIdsOfSources(this.filteredSourceResults.map(s => s.id ?? '')));
+  }
+  get documentHitDocIds(): string[] {
+    return this.memoHits('documents', this.filteredDocumentResults, null, () => this.filteredDocumentResults.map(d => d.id));
+  }
+  /** Melody tab: a document appears once per realisation in the results, here once in all. */
+  get melodyHitDocIds(): string[] {
+    return this.memoHits('melody', this.filteredMelodyResults, null, () => this.filteredMelodyResults.map(r => r.document.id));
+  }
+
+  /** The documents behind the hits of the active tab, without repeats. The single place that answers "which documents are these hits?". */
+  currentHitDocIds(tab: 'quick' | 'sources' | 'documents' | 'melody' = this.activeTab): string[] {
+    switch (tab) {
+      case 'quick': return this.quickHitDocIds;
+      case 'sources': return this.sourceHitDocIds;
+      case 'documents': return this.documentHitDocIds;
+      default: return this.melodyHitDocIds;
+    }
+  }
+
+  /** Quick results: how many source hits the "all documents" count includes. */
+  get quickSourceHitCount(): number { return this.filteredQuickResults.filter(r => r.kind === 'source').length; }
 
   selectTab(tab: 'quick' | 'sources' | 'documents' | 'melody') {
     this.activeTab = tab;
@@ -1242,24 +1328,17 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   /** Ids of the documents a print would contain: the selection, or else all results of the current tab. */
   private printIds(): string[] {
-    if (this.selectedDocs.length) return this.selectedDocs.map((d) => d.id);
-    const ids: string[] = [];
-    switch (this.activeTab) {
-      case 'quick': for (const r of this.filteredQuickResults) if (r.kind === 'document') ids.push(r.id); break;
-      case 'documents': for (const d of this.filteredDocumentResults) ids.push(d.id); break;
-      case 'melody': for (const r of this.filteredMelodyResults) ids.push(r.document.id); break;
-      default: break;
-    }
-    return Array.from(new Set(ids));
+    return this.selection.size ? this.selection.ids() : this.currentHitDocIds();
   }
 
   /** Number shown on the print button: the selection if there is one, else all results. */
-  printCount(): number { return this.printIds().length; }
+  printCount(): number { return this.selection.size || this.currentHitDocIds().length; }
 
   /** Opens the print dialog for the selection — or, with none, for all results of the tab. */
   printResults(): void {
     const ids = this.printIds();
     if (!ids.length) return;
+    if (ids.length > BIG_SELECTION && !confirm(`Print ${ids.length} documents as one PDF? This can take a long time.`)) return;
     this.pdfDialog.open({
       ids,
       docs: this.selectedDocs.length ? [...this.selectedDocs] : undefined,
@@ -1278,7 +1357,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   updateUrl() {
     const queryParams: any = {
       tab: this.activeTab,
-      compare: this.selectedDocs.length > 0 ? this.selectedDocs.map(d => d.id).join(',') : null,
+      // Up to SELECTION_URL_MAX ids go into the address (a shareable link); a larger selection stays in the session.
+      compare: this.selection.size > 0 && this.selection.size <= SELECTION_URL_MAX ? this.selection.ids().join(',') : null,
       synopsis: this.showSynopsis ? 'true' : null,
       align: this.synopsisSvc.alignmentMode || null
     };
@@ -1308,26 +1388,15 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     }
 
     if (params.compare) {
-      const docIds = params.compare.split(',');
-      const observables = docIds.map((id: string) => this.api.getDocument(this.user!.token, id));
-      (forkJoin(observables) as any).subscribe({
-        next: (results: any[]) => {
-          const docs: Document[] = [];
-          for (const res of results) {
-            if (res.kind === 'DocumentRetrieved') {
-              docs.push(res.document);
-            }
-          }
-          this.selectedDocs = docs;
-          
-          if (params.synopsis === 'true' && this.selectedDocs.length >= 2) {
-            this.enterSynopsis();
-          }
-        },
-        error: (err: any) => {
-          console.error('Error restoring compared documents:', err);
+      const docIds: string[] = uniqueIds(String(params.compare).split(','));
+      // The workspace index holds every document, so the picks are restored without one request per id.
+      this.selSvc.ensureIndex(this.user!.token).then(() => {
+        this.selection.replace(docIds.filter(id => !!this.selSvc.docOf(id)));
+        this.cdRef.markForCheck();
+        if (params.synopsis === 'true' && this.selectedDocs.length >= 2) {
+          this.enterSynopsis();
         }
-      });
+      }).catch(err => console.error('Error restoring compared documents:', err));
     }
   }
 
@@ -1369,7 +1438,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   /** How many of the selected witnesses actually contain this aligned section. */
   getMatchedCount(node: AlignedNode): number {
-    const total = this.selectedDocs.length;
+    const total = this.synopsisDocs.length;
     let count = 0;
     for (let i = 0; i < total; i++) {
       const hasContainer = !!(node.containers && node.containers[i]);
@@ -1408,7 +1477,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     await new Promise(resolve => setTimeout(resolve, 60));
     try {
       await this.synopsisSvc.exportSynopsisPDF(
-        this.selectedDocs,
+        this.synopsisDocs,
         this.settings,
         this.visibleSynopsisCols
       );
@@ -1435,10 +1504,17 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   enterSynopsis() {
     if (!this.user || this.selectedDocs.length < 2) return;
+    let witnesses = this.selectedDocs;
+    if (witnesses.length > SYNOPSIS_MAX_WITNESSES) {
+      const ok = confirm(`${witnesses.length} documents are selected. A synopsis of more than ${SYNOPSIS_MAX_WITNESSES} witnesses is slow and hard to read.\n\nCompare the first ${SYNOPSIS_MAX_WITNESSES} selected documents?`);
+      if (!ok) return;
+      witnesses = witnesses.slice(0, SYNOPSIS_MAX_WITNESSES);
+    }
+    this.synopsisDocs = witnesses;
     this.synopsisLoading = true;
     this.showSynopsis = false;
     this.synopsisSvc.enterSynopsis(
-      this.selectedDocs,
+      witnesses,
       (show) => { this.showSynopsis = show; this.cdRef.markForCheck(); },
       (loading) => { this.synopsisLoading = loading; this.cdRef.markForCheck(); },
       () => { this.updateUrl(); this.cdRef.markForCheck(); }
@@ -1449,6 +1525,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   openDashboard() {
     if (!this.user || this.selectedDocs.length < 1) return;
+    if (this.selectedDocs.length > BIG_SELECTION
+      && !confirm(`Analyse ${this.selectedDocs.length} documents at once? Their notes are all read into memory. The Analysis page is better suited to large selections.`)) return;
     const token = this.user.token;
     this.dashboardLoading = true;
     this.cdRef.markForCheck();
@@ -2097,13 +2175,32 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.cdRef.markForCheck();
   }
 
+  /** Which documents the formula analysis reads: the hits of the active tab, the selection, or every document. */
+  patternScope: 'hits' | 'selection' | 'all' = 'hits';
+
+  /** Number of documents in the chosen scope (the hits count each document once). */
+  get patternScopeCount(): number {
+    switch (this.patternScope) {
+      case 'selection': return this.selection.size;
+      case 'all': return this.selSvc.allDocs().length;
+      default: return this.currentHitDocIds().length;
+    }
+  }
+
   async runPatternGrouping() {
+    let scopeIds: string[] | null = null;
+    if (this.patternScope === 'selection') scopeIds = this.selection.ids();
+    else if (this.patternScope === 'all') {
+      if (this.user) await this.selSvc.ensureIndex(this.user.token);
+      scopeIds = this.selSvc.allDocs().map(d => d.id);
+    } else scopeIds = this.currentHitDocIds();
     await this.patternSvc.runPatternGrouping(
       this.activeTab,
       this.filteredQuickResults,
       this.filteredSourceResults,
       this.filteredDocumentResults,
-      this.filteredMelodyResults
+      this.filteredMelodyResults,
+      scopeIds
     );
   }
 

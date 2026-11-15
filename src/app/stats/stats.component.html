@@ -138,6 +138,24 @@
           </div>
         </div>
       </div>
+      <!-- Which manuscripts the matrix shows -->
+      <details class="mb-3 bg-white border rounded-3 p-2 small">
+        <summary class="fw-semibold text-secondary cursor-pointer">
+          Choose manuscripts: {{ sourceSel.size }} of {{ sources.length }} shown
+        </summary>
+        <div class="mt-2">
+          <app-selection-bar [universe]="textMatchedSourceIds" [selection]="sourceSel" noun="manuscripts" (changed)="onFilterChange()"></app-selection-bar>
+          <div class="mt-2 border rounded p-2 overflow-auto" style="max-height: 220px; columns: 3 220px;">
+            @for (s of textMatchedSources; track s.id) {
+              <label class="d-flex align-items-center gap-2 mb-1" style="break-inside: avoid;">
+                <input type="checkbox" class="form-check-input mt-0" [checked]="sourceSel.has(s.id ?? '')" (change)="sourceSel.toggle(s.id ?? ''); onFilterChange()" />
+                <span>{{ s.quellensigle }}</span>
+              </label>
+            }
+          </div>
+          <div class="text-muted mt-1">The list follows the manuscript search above. "Select all" and "Invert" act on every manuscript in the list.</div>
+        </div>
+      </details>
       <!-- Empty State -->
       @if (filteredSources.length === 0 || displayedPatterns.length === 0) {
         <div

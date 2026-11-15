@@ -1,6 +1,48 @@
 <div class="manual-page-single">
   <h1 id="analysis-and-statistics">Analysis &amp; Statistics</h1>
-  <p class="lead">Beyond transcription and search, Monodi-Zero includes three analytical tools that work across your whole corpus: the <strong>Synoptic Comparison</strong> for viewing parallel witnesses side by side, the <strong>Melodic Formula Analysis</strong> for discovering recurring melodic patterns, and the <strong>Notation Statistics</strong> page for quantitative pattern distribution across sources.</p>
+  <p class="lead">Beyond transcription and search, Monodi-Zero includes analytical tools that work across a whole corpus: the <strong>Analysis page</strong> (twelve methods, saved and cached), the <strong>Synoptic Comparison</strong> for viewing parallel witnesses side by side, the <strong>Melodic Formula Analysis</strong> for discovering recurring melodic patterns, and the <strong>Notation Statistics</strong> page for quantitative pattern distribution across sources.</p>
+
+  <h2 id="analysis-page">The Analysis page</h2>
+  <p>The page <strong>Analysis</strong> (main navigation) runs analysis methods on a chosen set of chants and keeps the outcome as a named, saved analysis. Nothing is computed until methods are ticked and run, and a saved analysis opens again without computing anything.</p>
+
+  <h3 id="analysis-corpus">1 · Choose the documents</h3>
+  <p>Start from the search page: select documents (or run a search) and press <strong>Analysis…</strong> in the result toolbar. On the Analysis page the corpus can be the selection, the hits of that search, the documents of chosen sources, or every document of the workspace.</p>
+
+  <h3 id="analysis-methods">2 · Choose the methods</h3>
+  <p>Tick the methods to run; each has parameters (the arrow beside <em>Parameters</em>) and a speed hint. <strong>Run ticked methods</strong> computes them in the background (the page stays usable; <em>Cancel</em> stops the run) and computes only the methods that have no valid stored result.</p>
+  <ul>
+    <li><strong>Overview</strong>: size and shape of the corpus, pitch and interval distribution, chant lengths, frequent words, one line per source or genre.</li>
+    <li><strong>Tonal profile</strong>: range, final, tenor and an estimated mode (1–8) for every chant and group. The mode is a heuristic from the last note, the position of the melody and the most frequent note.</li>
+    <li><strong>Variants of the same chant</strong>: how much witnesses of one chant (same Cantus ID or text incipit) differ.</li>
+    <li><strong>N-gram frequencies</strong>, <strong>Keyness</strong> (what is typical of one source or genre against the rest, by log-likelihood), <strong>Collocations</strong> (which notes or words attract each other) and <strong>Distance between sources</strong> (Burrows' Delta, dendrogram and map).</li>
+    <li><strong>ChantDigger methods</strong> after Max Haas (2014): <em>segments</em> (with four similarity criteria), <em>bridges</em> between segments, shared <em>models</em>, chants of <em>equal length</em>, and the <em>axis</em> (most frequent notes) of a chant.</li>
+  </ul>
+  <p><strong>What is a segment?</strong> The segment methods cut every chant into segments first. ChantDigger cuts by <em>syllable</em> (the notes on one syllable). The parameter <em>A segment is</em> also offers the <em>neume</em> (notes written without a gap), the <em>word</em> (the notes over all syllables of a word) and <em>groups of n notes</em> (a fixed size, independent of text and neumes). <strong>What is a bridge?</strong> Three segments in a row are called Before, Nucleus and After; a bridge is a pair Before–After that occurs with several different long nuclei: the same beginning and end with a different melisma between. <strong>What is n?</strong> In the pattern methods n is the length of a pattern, the number of units that follow each other (with intervals, n = 3 means three steps in a row, four notes); <em>n from … to</em> counts a whole range in one table, and <em>Only inside one</em> counts a melodic pattern only if it lies inside one syllable, neume or word.</p>
+
+  <p><strong>Settings next to the result.</strong> Above every result a bar shows the settings it was computed with; <em>Change</em> opens the parameters, and <em>Recompute with these settings</em> replaces the result. The chants and words left out are shown there too.</p>
+
+  <h4 id="analysis-leave-out">Leave out noise</h4>
+  <p><em>Leave out</em> (above the results) removes what drowns the rest. A <strong>rule</strong> leaves out every chant whose text incipit (or genre, feast, source, any field) contains or is a given text, for example <em>kyrie</em>: chants that are always the same make noise in every count. The most frequent values of a field are offered as buttons. <strong>Stop words</strong> remove frequent function words (a built-in Latin list, plus your own words) from every word count; the melody is not touched. The filters apply to every method and to the corpus search, are saved with the analysis, and mark stored results out of date when changed.</p>
+
+  <h3 id="analysis-results">3 · Read the results</h3>
+  <ul>
+    <li><strong>Notes are drawn as notes.</strong> Absolute pitches (pitch patterns, segments, axes, ranges) stand on the fixed treble staff of the editor with the G clef; intervals and contours have no clef, only the shape and the size of the steps count.</li>
+    <li><strong>Every table can be filtered</strong>: the box filters all columns (every word must occur; notes match by their names, for example <code>D4 F4</code>), <em>Columns</em> adds a filter per column (text, or a minimum for numbers). Headings sort. <em>Open N documents</em> selects the documents behind the shown rows in the search; <em>CSV</em> downloads the shown rows.</li>
+    <li><strong>A click on notes searches them</strong> in the corpus (next section).</li>
+    <li>Every result carries a line that says which method, version, parameters, corpus and fingerprint it comes from, for citation. The results are an aid to scholarly reading, not findings.</li>
+  </ul>
+
+  <h3 id="analysis-corpus-search">4 · Search the corpus</h3>
+  <p>The card <strong>Search the corpus</strong> lists and filters the documents of the analysis and searches them for a melodic pattern: pitches (letters a–g, <code>D4</code> fixes the octave), intervals (<code>+2 -1</code>, steps of the scale) or contour (<code>u d r</code>), exact or with up to three differences, or, for exact searches, with the notes <em>spread inside a window</em> (the notes occur in this order within that many notes). The answer lists the chants with the number of passages and the first passage as notes.</p>
+
+  <h3 id="analysis-saved">Saved analyses, cache and backup</h3>
+  <ul>
+    <li>An analysis is saved as soon as it is created and after every change; results are saved as each method finishes. <em>Saved analyses</em> lists them; they can be renamed, duplicated, deleted, exported to a file (<code>.monodi-analysis.json</code>) and imported again.</li>
+    <li>Each result remembers a <strong>fingerprint</strong> of the documents it was computed from. A comment edit does not change it; a changed melody invalidates the methods that read the melody; a changed text, the methods that read the text. <strong>Check for changes</strong> compares the stored results with the documents and marks results <em>out of date</em>; they stay visible until recomputed.</li>
+    <li>The workspace backup (<em>Export workspace</em>) contains the saved analyses with their results; <em>Settings → Danger zone</em> deletes them. Analyses are not synchronised with GitHub.</li>
+  </ul>
+
+  <hr class="my-4">
 
   <h2 id="synoptic-comparison">Synoptic Comparison</h2>
   <p>The synopsis aligns two or more transcriptions of the same (or related) chants so you can compare their melodies measure-for-measure — the digital equivalent of a synoptic edition page.</p>
@@ -8,7 +50,7 @@
   <h3 id="synopsis-starting">Starting a comparison</h3>
   <ol>
     <li>Run any search on the <strong>Search</strong> page (Quick, Sources, Documents, or Melody tab).</li>
-    <li>Tick the <strong>checkboxes</strong> of the documents you want to compare. A floating action bar appears at the bottom of the screen showing your selection.</li>
+    <li>Tick the <strong>checkboxes</strong> of the documents you want to compare, or use the <strong>selection bar</strong> above each result list: <em>Select all</em> picks every hit (not only the page that is shown), <em>Invert</em> swaps the picks among the hits, <em>Clear</em> empties the selection.</li>
     <li>With two or more documents selected, click <strong>Compare</strong>. The synopsis view opens.</li>
   </ol>
 

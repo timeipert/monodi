@@ -1,3 +1,4 @@
+import { ChangeDetectorRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { RouterTestingModule } from '@angular/router/testing';
@@ -8,6 +9,9 @@ import { HelpButtonComponent } from '../help-button/help-button.component';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
 import { PageTitleService } from '../page-title.service';
+import { Router } from '@angular/router';
+import { SelectionToolsModule } from '../selection/selection-tools.module';
+import { SelectionService } from '../selection/selection.service';
 
 describe('SearchComponent', () => {
   let component: SearchComponent;
@@ -40,7 +44,7 @@ describe('SearchComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       declarations: [SearchComponent, HelpButtonComponent],
-      imports: [FormsModule, RouterTestingModule],
+      imports: [FormsModule, RouterTestingModule, SelectionToolsModule],
       providers: [
         { provide: UserService, useValue: mockUserService },
         { provide: APIService, useValue: mockAPIService },
@@ -307,5 +311,138 @@ describe('computePatternGroups', () => {
     expect(groupsMerge2.length).toBe(2);
     expect(groupsMerge2[0].isCompound).toBeFalse();
     expect(groupsMerge2[0].occurrences[0].notes.length).toBe(5);
+  });
+});
+
+
+describe('SearchComponent selection (all hits, not only the page)', () => {
+  let component: SearchComponent;
+  let fixture: ComponentFixture<SearchComponent>;
+
+  /** 60 documents in 3 sources: s0 holds d0, d3, d6 …; more than the 25 shown on one page. */
+  const docs: any[] = Array.from({ length: 60 }, (_, i) => ({
+    id: `d${i}`, quelle_id: `s${i % 3}`, dokumenten_id: `Doc ${i}`, textinitium: `Incipit ${i}`,
+    gattung1: '', gattung2: '', festtag: '', feier: '', bibliographischerverweis: '', druckausgabe: '',
+    zeilenstart: '', foliostart: '', kommentar: '', editionsstatus: '',
+  }));
+  const api = {
+    getSettings: () => of({ kind: 'SettingsRetrieved', settings: {} }),
+    listSources: () => of({ kind: 'SourcesRetrieved', sources: [] }),
+    listDocuments: () => of({ kind: 'DocumentsRetrieved', documents: docs }),
+    getAllDocumentNotes: () => of({}),
+    querySources: () => of({ kind: 'SourcesRetrieved', sources: [] }),
+    queryDocuments: () => of({ kind: 'DocumentsRetrieved', documents: [] }),
+  };
+
+  beforeEach(async () => {
+    TestBed.configureTestingModule({
+      declarations: [SearchComponent, HelpButtonComponent],
+      imports: [FormsModule, RouterTestingModule, SelectionToolsModule],
+      providers: [
+        { provide: UserService, useValue: { user: of({ token: 't', name: 'u' }) } },
+        { provide: APIService, useValue: api },
+        { provide: PageTitleService, useValue: { set: () => {} } },
+        { provide: ToastrService, useValue: { success: () => {}, error: () => {}, info: () => {}, warning: () => {} } },
+      ],
+    });
+    fixture = TestBed.createComponent(SearchComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await TestBed.inject(SelectionService).ensureIndex('t');
+  });
+
+  it('select all on the documents tab selects every hit, also those on other pages', () => {
+    component.documentResults = docs.slice();
+    component.activeTab = 'documents';
+    expect(component.pagedDocumentResults.length).toBeLessThan(60);
+    const ids = component.currentHitDocIds();
+    expect(ids.length).toBe(60);
+    component.selection.selectAll(ids);
+    expect(component.selectedDocs.length).toBe(60);
+    expect(component.selectedDocs[0].dokumenten_id).toBe('Doc 0'); // the real document, not a stub
+  });
+
+  it('invert keeps the complement of the picks among the hits', () => {
+    component.documentResults = docs.slice();
+    component.selection.add(['d0', 'd1', 'd2']);
+    component.selection.invert(component.documentHitDocIds);
+    expect(component.selection.size).toBe(57);
+    expect(component.isDocSelected('d0')).toBeFalse();
+    expect(component.isDocSelected('d59')).toBeTrue();
+  });
+
+  it('a melody match list counts each document once however many realisations it has', () => {
+    component.melodyResults = [
+      { document: docs[0] } as any, { document: docs[0] } as any, { document: docs[1] } as any,
+    ];
+    expect(component.melodyHitDocIds).toEqual(['d0', 'd1']);
+  });
+
+  it('quick results: a source hit stands for all its documents, a document hit for itself, without repeats', () => {
+    component.quickResults = [
+      { kind: 'source', id: 's0', title: 'S0', subtitle: '', extra: '', score: 1, matchedIn: '' },
+      { kind: 'document', id: 'd0', sourceId: 's0', title: 'Doc 0', subtitle: '', extra: '', score: 1, matchedIn: '' },
+      { kind: 'document', id: 'd1', sourceId: 's1', title: 'Doc 1', subtitle: '', extra: '', score: 1, matchedIn: '' },
+    ];
+    const ids = component.quickHitDocIds;
+    expect(ids.length).toBe(21); // 20 documents of s0 plus d1
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain('d1');
+  });
+
+  it('the checkbox of a source selects and deselects all its documents and shows a partial state', () => {
+    const ev = { stopPropagation: () => {} } as unknown as Event;
+    component.toggleSourceSelection('s1', ev);
+    expect(component.selection.size).toBe(20);
+    expect(component.sourceSelectState('s1')).toBe('all');
+    expect(component.sourceSelectState('s0')).toBe('none');
+    component.selection.remove(['d1']);
+    expect(component.sourceSelectState('s1')).toBe('some');
+    component.toggleSourceSelection('s1', ev);
+    expect(component.sourceSelectState('s1')).toBe('all');
+    component.toggleSourceSelection('s1', ev);
+    expect(component.selection.size).toBe(0);
+  });
+
+  it('picks survive the page: a new component sees the selection of the service', () => {
+    component.selection.add(['d5']);
+    const again = TestBed.createComponent(SearchComponent).componentInstance;
+    expect(again.selectedDocs.map(d => d.id)).toEqual(['d5']);
+  });
+
+  it('writes the picks to the address only up to 50 documents', () => {
+    const router = TestBed.inject(Router);
+    const spy = spyOn(router, 'navigate').and.resolveTo(true);
+    component.selection.add(['d0', 'd1']);
+    component.updateUrl();
+    expect((spy.calls.mostRecent().args[1] as any).queryParams.compare).toBe('d0,d1');
+    component.selection.selectAll(docs.map(d => d.id));
+    component.updateUrl();
+    expect((spy.calls.mostRecent().args[1] as any).queryParams.compare).toBeUndefined();
+  });
+
+  it('asks before a synopsis of more than 20 witnesses and compares only the first 20 when confirmed', () => {
+    const synopsis = (component as any).synopsisSvc;
+    const enter = spyOn(synopsis, 'enterSynopsis');
+    component.selection.selectAll(docs.map(d => d.id));
+    spyOn(window, 'confirm').and.returnValue(false);
+    component.enterSynopsis();
+    expect(enter).not.toHaveBeenCalled();
+    (window.confirm as jasmine.Spy).and.returnValue(true);
+    component.enterSynopsis();
+    expect(enter).toHaveBeenCalled();
+    expect((enter.calls.mostRecent().args[0] as any[]).length).toBe(20);
+    expect(component.synopsisDocs.length).toBe(20);
+  });
+
+  it('the selection bar renders in the documents tab with the number of all hits', () => {
+    component.documentResults = docs.slice();
+    component.activeTab = 'documents';
+    component.documentSearched = true;
+    fixture.debugElement.injector.get(ChangeDetectorRef).detectChanges();
+    const bar = (fixture.nativeElement as HTMLElement).querySelector('app-selection-bar');
+    expect(bar).toBeTruthy();
+    expect(bar!.textContent).toContain('0 of 60 documents selected');
+    expect(bar!.textContent).toContain('Select all 60');
   });
 });

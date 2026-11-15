@@ -2,6 +2,7 @@
 // the entry points must offer what the apps import from them.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import * as analysis from './analysis/index.ts';
 import * as datasets from './datasets/index.ts';
 import * as document from './document/index.ts';
 import * as mei from './mei/index.ts';
@@ -30,6 +31,13 @@ describe('entry points', () => {
     for (const name of ['loadCatalog', 'loadDataset', 'fetchBytes', 'filterCmSources', 'planCmImport', 'filterCantusSources',
       'planCantusImport', 'cantusDocumentMeta', 'upsertRecord', 'DEFAULT_CATALOG_URL']) {
       assert.equal(typeof (datasets as Record<string, unknown>)[name] === 'undefined', false, name);
+    }
+  });
+
+  it('@monodi/core/analysis offers the reading of a document, the fingerprints and the methods', () => {
+    for (const name of ['extractFeatures', 'methodFingerprint', 'diffDigests', 'digestsOf', 'METHODS', 'runMethod', 'getMethod', 'normalizeParams',
+      'tableToCsv', 'buildSegmentIndex', 'windowMatches', 'estimateMode', 'groupableFields']) {
+      assert.equal(typeof (analysis as Record<string, unknown>)[name] === 'undefined', false, name);
     }
   });
 

@@ -4,6 +4,7 @@ import { APIService, SourceQuery, DocumentQuery, Source, Document } from '../api
 import { UserService, User } from '../user.service';
 import { PatternAnalysisService } from './pattern-analysis.service';
 import { NotesStore } from '../notes-store';
+import { windowMatches } from '@monodi/core/analysis';
 import * as localforage from 'localforage';
 import * as VM from '../types/model';
 import {
@@ -500,6 +501,9 @@ export class SearchExecService {
   cachedQuickMode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy' = 'phrase';
   cachedQuickTolerance = true;
   cachedQuickDistance = 2;
+  /** `NotesStore.revision` when the cached results were made; a later write to any document makes the cache stale. */
+  cachedQuickRevision = -1;
+  cachedQuickScope = '';
 
   // Search execution states
   searchProgress = { current: 0, total: 0, matched: 0 };
@@ -558,6 +562,15 @@ export class SearchExecService {
   melodyWithOctave = false;
   melodyIncludeTransposed = false;
   melodyOnlyWithinSyllables = false;
+  /**
+   * Pitch search with spread notes (ChantDigger "d f a c' a g 10"): when above 0 the pattern's notes must occur in order
+   * within this many notes, not next to each other. Exact pitch patterns only (no wildcards, no transposition).
+   */
+  melodyWindow = 0;
+  /** When set, the searches look only at these documents ("Search in: my selection"); `null` searches every document. */
+  scopeIds: Set<string> | null = null;
+  /** Identifies the scope, so a cached quick search is not reused for another scope. */
+  scopeKey = '';
   melodyRangeStartPct = 0;
   melodyRangeEndPct = 100;
   melodyResults: MelodyResult[] = [];
@@ -595,14 +608,16 @@ export class SearchExecService {
     addRecentSearch: (q: string) => void,
     onFilterReset: () => void
   ) {
-    if (!this.user || !this.quickText.trim()) return;
+    if (!this.user || !this.quickText.trim() || this.quickSearching) return;
 
     if (
       this.cachedQuickSearched &&
       this.cachedQuickText === this.quickText &&
       this.cachedQuickMode === this.quickSearchMode &&
       this.cachedQuickTolerance === this.quickMedievalTolerance &&
-      this.cachedQuickDistance === this.quickFuzzyDistance
+      this.cachedQuickDistance === this.quickFuzzyDistance &&
+      this.cachedQuickRevision === NotesStore.revision &&
+      this.cachedQuickScope === this.scopeKey
     ) {
       this.quickResults = this.cachedQuickResults.slice();
       this.quickSearched = true;
@@ -664,7 +679,7 @@ export class SearchExecService {
         }
       }
 
-      const allDocs = docs?.kind === 'DocumentsRetrieved' ? docs.documents : [];
+      const allDocs = (docs?.kind === 'DocumentsRetrieved' ? docs.documents : []).filter((d) => !this.scopeIds || this.scopeIds.has(d.id));
       this.searchProgress = { current: 0, total: allDocs.length, matched: results.length };
       this.notifyChange();
 
@@ -758,6 +773,8 @@ export class SearchExecService {
     this.cachedQuickTolerance = this.quickMedievalTolerance;
     this.cachedQuickDistance = this.quickFuzzyDistance;
     this.cachedQuickResults = this.quickResults.slice();
+    this.cachedQuickRevision = NotesStore.revision;
+    this.cachedQuickScope = this.scopeKey;
     this.cachedQuickSearched = true;
 
     this.saveSearchStateToIndexedDB();
@@ -793,7 +810,7 @@ export class SearchExecService {
   }
 
   async searchMelody() {
-    if (!this.user || !this.melodyPattern.trim()) return;
+    if (!this.user || !this.melodyPattern.trim() || this.melodySearching) return;
     this.melodySearching  = true;
     this.melodySearched   = false;
     this.melodyScanned    = 0;
@@ -811,7 +828,7 @@ export class SearchExecService {
         this.api.listDocuments(this.user.token).toPromise(),
         this.api.listSources(this.user.token).toPromise(),
       ]);
-      const allDocs    = docsRes?.kind    === 'DocumentsRetrieved' ? docsRes.documents  : [];
+      const allDocs    = (docsRes?.kind    === 'DocumentsRetrieved' ? docsRes.documents  : []).filter((d) => !this.scopeIds || this.scopeIds.has(d.id));
       const allSources = sourcesRes?.kind === 'SourcesRetrieved'   ? sourcesRes.sources : [];
       const sourceMap  = new Map<string, Source>(allSources.map(s => [s.id ?? '', s]));
       const results: MelodyResult[] = [];
@@ -842,7 +859,11 @@ export class SearchExecService {
                 ? toContour(notes)
                 : toIntervals(notes);
 
-              let matches = findSubsequenceMatches(sequence, effectivePattern, this.melodyMaxDistance);
+              const useWindow = this.melodyWindow > 0 && this.melodySearchType === 'pitch' && !useTransposedPitch
+                && effectivePattern.every((t) => t !== '.' && t !== '.?' && t !== '?');
+              let matches: SequenceMatch[] = useWindow
+                ? windowMatches(sequence, effectivePattern, this.melodyWindow).map((m) => ({ start: m.start, end: m.end, distance: 0 }))
+                : findSubsequenceMatches(sequence, effectivePattern, this.melodyMaxDistance);
               if (this.melodyOnlyWithinSyllables) {
                 matches = matches.filter(m => {
                   const startNote = m.start;
@@ -962,7 +983,6 @@ export class SearchExecService {
         const currentProgress = Math.min(i + BATCH_SIZE, allDocs.length);
         this.searchProgress.current = currentProgress;
         this.searchProgress.matched = results.length;
-        this.finishMelodySearch(results);
         this.notifyChange();
         await new Promise(resolve => setTimeout(resolve, 0));
       }
@@ -1110,7 +1130,6 @@ export class SearchExecService {
   }
 
   async loadFromIndexedDB(
-    onRetriggerPatternGrouping: () => void,
     onSetActiveTab: (tab: any) => void
   ) {
     try {
@@ -1148,13 +1167,8 @@ export class SearchExecService {
           this.patternSvc.patternDeduplicateEnabled = savedParams.patternDeduplicateEnabled !== false;
           this.patternSvc.patternViewMode         = savedParams.patternViewMode         ?? this.patternSvc.patternViewMode;
           this.patternSvc.patternPage             = savedParams.patternPage             ?? 1;
+          // The view and its parameters come back, the analysis does not run by itself: it needs the user's click.
           this.patternSvc.showPatternAnalysis     = true;
-
-          setTimeout(() => {
-            if (this.patternSvc.showPatternAnalysis && this.patternSvc.patternGroups.length === 0) {
-              onRetriggerPatternGrouping();
-            }
-          }, 0);
         }
       }
 

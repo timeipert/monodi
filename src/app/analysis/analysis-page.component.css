@@ -1,0 +1,7 @@
+.analysis-page .analysis-name { max-width: 24rem; }
+.analysis-page .method-row { padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid transparent; }
+.analysis-page .method-row + .method-row { margin-top: 2px; }
+.analysis-page .method-row.chosen { background: #fdf8f6; border-color: #ead8d2; }
+.analysis-page .nav-pills .nav-link { color: var(--color-text, #222); background: #f3f1ec; }
+.analysis-page .nav-pills .nav-link.active { background: var(--color-primary, #9a2a1f); color: #fff; font-weight: 600; }
+.analysis-page .methods-list { max-height: 60vh; overflow-y: auto; }

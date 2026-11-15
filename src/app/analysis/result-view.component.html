@@ -1,0 +1,245 @@
+@switch (view.kind) {
+  @case ('table') {
+    @if (table; as t) {
+      <section class="rv-table">
+        <header class="rv-head">
+          <h6 class="mb-0">{{ t.title }}</h6>
+          <span class="small text-muted">
+            @if (filtered) { {{ order.length | number }} of }{{ rows.length | number }} row{{ rows.length === 1 ? '' : 's' }}
+            @if (t.truncated) { <span class="text-warning" [title]="'The table holds ' + (t.totalRows | number) + ' rows; the strongest ' + (t.rows.length | number) + ' are kept'">(of {{ t.totalRows | number }})</span> }
+          </span>
+          <span class="flex-grow-1"></span>
+          @if (t.rows.length > 0) {
+            <div class="input-group input-group-sm rv-filter">
+              <span class="input-group-text bg-white"><i class="bi bi-funnel"></i></span>
+              <input type="search" class="form-control" placeholder="Filter rows…" [(ngModel)]="textFilter" (ngModelChange)="refresh()" [attr.aria-label]="'Filter the rows of ' + t.title" />
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" [class.active]="showColFilters" (click)="showColFilters = !showColFilters" title="Filter by column: text, or a minimum for numbers">
+              Columns
+            </button>
+            @if (filtered) { <button type="button" class="btn btn-sm btn-link py-0" (click)="clearFilters()">Clear</button> }
+            @if (t.rowDocs && order.length > 0) {
+              <button type="button" class="btn btn-sm btn-outline-primary py-0" (click)="openDocs.emit(filteredDocs)" title="Select the documents behind the shown rows in the search">
+                <i class="bi bi-box-arrow-up-right me-1"></i>Open {{ filteredDocs.length | number }} document(s)
+              </button>
+            }
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadCsv()" title="Download the shown rows as CSV"><i class="bi bi-download me-1"></i>CSV</button>
+          }
+        </header>
+        @if (t.note) { <p class="small text-muted mb-1">{{ t.note }}</p> }
+        @if (t.rows.length === 0) {
+          <p class="text-muted small fst-italic">No rows.</p>
+        } @else {
+          <div class="table-responsive rv-scroll">
+            <table class="table table-sm mb-1 rv-grid">
+              <thead>
+                <tr>
+                  @for (c of t.columns; track c.key; let ci = $index) {
+                    <th [class.text-end]="c.numeric" [title]="c.help ?? ''" (click)="sortBy(ci)" class="rv-sort">
+                      {{ c.label }}
+                      @if (sortCol === ci) { <i class="bi" [class.bi-caret-up-fill]="sortAsc" [class.bi-caret-down-fill]="!sortAsc"></i> }
+                    </th>
+                  }
+                  @if (t.rowDocs) { <th></th> }
+                </tr>
+                @if (showColFilters) {
+                  <tr class="rv-colfilters">
+                    @for (c of t.columns; track c.key; let ci = $index) {
+                      <th>
+                        <input class="form-control form-control-sm" [class.text-end]="c.numeric" [placeholder]="c.numeric ? '≥' : 'contains'"
+                          [attr.aria-label]="'Filter ' + c.label" [(ngModel)]="colFilters[ci]" (ngModelChange)="refresh()" />
+                      </th>
+                    }
+                    @if (t.rowDocs) { <th></th> }
+                  </tr>
+                }
+              </thead>
+              <tbody>
+                @for (ri of pageRows; track ri) {
+                  <tr>
+                    @for (c of t.columns; track c.key; let ci = $index) {
+                      <td [class.text-end]="c.numeric" [class.rv-databar]="ci === barCol" [style.--pct]="ci === barCol ? barPct(ri) + '%' : null">
+                        @if (isNotes(rows[ri][ci])) {
+                          <button type="button" class="rv-notes" (click)="clickNotes($any(rows[ri][ci]))" [title]="'Search ' + text(rows[ri][ci]) + ' in the corpus'">
+                            <app-notation-snippet [notation]="$any(rows[ri][ci]).notation" [label]="text(rows[ri][ci])"></app-notation-snippet>
+                          </button>
+                        } @else {
+                          {{ rows[ri][ci] }}
+                        }
+                      </td>
+                    }
+                    @if (t.rowDocs) {
+                      <td class="text-nowrap">
+                        @if (rowDocs(ri); as docs) {
+                          <button type="button" class="btn btn-link btn-sm p-0" (click)="openDocs.emit(docs)" title="Select these documents in the search to read or compare them">
+                            <i class="bi bi-box-arrow-up-right"></i> {{ docs.length }}
+                          </button>
+                        }
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (order.length === 0) {
+            <p class="small text-muted fst-italic mb-1">No row matches the filter.</p>
+          }
+          @if (pages > 1) {
+            <nav class="d-flex align-items-center gap-2 small">
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0" [disabled]="page === 0" (click)="page = page - 1">‹</button>
+              <span>page {{ page + 1 }} of {{ pages }}</span>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0" [disabled]="page + 1 >= pages" (click)="page = page + 1">›</button>
+            </nav>
+          }
+        }
+      </section>
+    }
+  }
+  @case ('bars') {
+    @if (bars; as b) {
+      <section class="rv-bars">
+        <header class="rv-head">
+          <h6 class="mb-0">{{ b.title }}</h6>
+          <span class="flex-grow-1"></span>
+          <button type="button" class="btn btn-link p-0 rv-data-link" (click)="showData = !showData">{{ showData ? 'chart' : 'data' }}</button>
+        </header>
+        @if (b.items.length === 0) {
+          <p class="text-muted small fst-italic">No data.</p>
+        } @else if (showData) {
+          <table class="table table-sm rv-grid w-auto">
+            <tbody>
+              @for (it of b.items; track $index) { <tr><td>{{ it.label }}</td><td class="text-end">{{ it.value | number: '1.0-2' }}{{ b.unit ? ' ' + b.unit : '' }}</td></tr> }
+            </tbody>
+          </table>
+        } @else if (columns; as c) {
+          <div class="rv-chart" (mouseleave)="hideTip()">
+            <svg class="rv-svg" [attr.viewBox]="'0 0 ' + c.width + ' ' + c.height" [style.max-width.px]="c.width" role="img" [attr.aria-label]="b.title">
+              @for (t of c.yTicks; track t.y) {
+                <line [attr.x1]="c.left" [attr.x2]="c.width - 6" [attr.y1]="t.y" [attr.y2]="t.y" class="rv-grid-line" />
+                <text [attr.x]="c.left - 6" [attr.y]="t.y + 3.5" class="rv-tick" text-anchor="end">{{ t.label }}</text>
+              }
+              <line [attr.x1]="c.left" [attr.x2]="c.width - 6" [attr.y1]="c.baseY" [attr.y2]="c.baseY" class="rv-axis" />
+              @for (bar of c.bars; track $index) {
+                @if (bar.h > 0) {
+                  <path [attr.d]="bar.path" [class.rv-col-peak]="bar.peak" class="rv-col" />
+                }
+                <rect [attr.x]="bar.x - 1" [attr.y]="8" [attr.width]="bar.w + 2" [attr.height]="c.baseY - 8" fill="transparent"
+                  (mousemove)="showTip($event, bar.tip)" (mouseenter)="showTip($event, bar.tip)" />
+                @if (bar.peak) {
+                  <text [attr.x]="bar.x + bar.w / 2" [attr.y]="bar.y - 4" text-anchor="middle" class="rv-peak">{{ bar.value | number: '1.0-1' }}</text>
+                }
+              }
+              @for (l of c.xLabels; track $index) {
+                <text class="rv-tick" [attr.x]="l.x" [attr.y]="c.baseY + 11" [attr.text-anchor]="l.rotate ? 'end' : 'middle'"
+                  [attr.transform]="l.rotate ? 'rotate(-45 ' + l.x + ' ' + (c.baseY + 11) + ')' : null">{{ l.text }}</text>
+              }
+            </svg>
+            @if (tip; as t) { <div class="rv-tip" [style.left.px]="t.x" [style.top.px]="t.y">{{ t.text }}</div> }
+          </div>
+        } @else {
+          <div class="rv-rank">
+            @for (r of rankRows; track $index) {
+              <div class="rv-rank-row">
+                <div class="rv-rank-label" [title]="r.label">
+                  @if (r.notation) {
+                    <button type="button" class="rv-notes" (click)="clickPattern(r.label, r.notation.mode)" [title]="'Search ' + r.label + ' in the corpus'">
+                      <app-notation-snippet [notation]="r.notation" [label]="r.label" [scale]="0.66"></app-notation-snippet>
+                    </button>
+                  } @else { {{ r.label }} }
+                </div>
+                <div class="rv-rank-track">
+                  <div class="rv-rank-bar" [style.width.%]="r.pct * 0.86"></div>
+                  <div class="rv-rank-val" [style.left]="'calc(' + (r.pct * 0.86) + '% + 6px)'">{{ r.value | number: '1.0-1' }}</div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+        @if (b.note) { <p class="small text-muted mt-1">{{ b.note }}</p> }
+      </section>
+    }
+  }
+  @case ('matrix') {
+    @if (matrix; as m) {
+      <section class="rv-matrix">
+        <header class="rv-head">
+          <h6 class="mb-0">{{ m.title }}</h6>
+          <span class="flex-grow-1"></span>
+          <div class="rv-legend small text-muted">
+            <span>{{ matrixLow }}</span><span class="rv-ramp" [style.background]="rampGradient"></span><span>{{ matrixHigh }}</span>
+            <span>{{ m.lowIsClose ? '(far … close)' : '(low … high)' }}</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadMatrix()"><i class="bi bi-download me-1"></i>CSV</button>
+        </header>
+        @if (m.note) { <p class="small text-muted mb-1">{{ m.note }}</p> }
+        <div class="rv-scroll">
+          <table class="rv-heat">
+            <thead>
+              <tr><th></th>@for (c of m.colLabels; track $index) { <th class="rv-rot"><span>{{ c }}</span></th> }</tr>
+            </thead>
+            <tbody>
+              @for (r of m.rowLabels; track $index; let ri = $index) {
+                <tr>
+                  <th class="text-nowrap text-end">{{ r }}</th>
+                  @for (v of m.values[ri]; track $index; let ci = $index) {
+                    <td [style.background]="cellColor(v)" [style.color]="cellInk(v)" [title]="r + ' – ' + m.colLabels[ci] + ': ' + v">{{ m.colLabels.length <= 24 ? (v | number: '1.' + (m.digits > 2 ? 2 : m.digits) + '-' + (m.digits > 2 ? 2 : m.digits)) : '' }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+  @case ('tree') {
+    @if (view.kind === 'tree') {
+      <section class="rv-tree">
+        <h6>{{ view.title }}</h6>
+        <div class="rv-scroll">
+          <svg [attr.viewBox]="'0 0 ' + treeWidth + ' ' + treeHeight" [attr.height]="treeHeight" [attr.width]="treeWidth" role="img" [attr.aria-label]="view.title">
+            @for (l of treeLinks; track $index) {
+              <line [attr.x1]="l.x1" [attr.y1]="l.y1" [attr.x2]="l.x2" [attr.y2]="l.y2" class="rv-tree-line" />
+            }
+            @for (l of treeLeaves; track $index) {
+              <text [attr.x]="l.x" [attr.y]="l.y" class="rv-leaf">{{ l.label }}</text>
+            }
+            @for (t of treeTicks; track $index) {
+              <line [attr.x1]="t.x" [attr.x2]="t.x" [attr.y1]="treeHeight - 24" [attr.y2]="treeHeight - 19" class="rv-axis" />
+              <text [attr.x]="t.x" [attr.y]="treeHeight - 8" class="rv-tick" text-anchor="middle">{{ t.label }}</text>
+            }
+            <line [attr.x1]="treeTicks.length ? treeTicks[treeTicks.length - 1].x : 0" [attr.x2]="treeWidth - 170" [attr.y1]="treeHeight - 24" [attr.y2]="treeHeight - 24" class="rv-axis" />
+          </svg>
+        </div>
+        <p class="small text-muted">Distance at which two groups join (left is far, right is close); groups that join early are alike.</p>
+      </section>
+    }
+  }
+  @case ('scatter') {
+    @if (view.kind === 'scatter') {
+      <section class="rv-scatter">
+        <h6>{{ view.title }}</h6>
+        <div class="rv-chart" (mouseleave)="hideTip()">
+          <svg [attr.viewBox]="'0 0 ' + plot.w + ' ' + plot.h" [attr.width]="plot.w" [attr.height]="plot.h" role="img" [attr.aria-label]="view.title" class="rv-plot">
+            <rect x="0.5" y="0.5" [attr.width]="plot.w - 1" [attr.height]="plot.h - 1" class="rv-frame" />
+            @for (p of scatter; track $index) {
+              <circle [attr.cx]="p.x" [attr.cy]="p.y" r="5" class="rv-dot" (mousemove)="showTip($event, p.label)" (mouseenter)="showTip($event, p.label)" />
+              @if (scatter.length <= 30) { <text [attr.x]="p.x + 8" [attr.y]="p.y + 3" class="rv-dot-label">{{ p.label }}</text> }
+            }
+          </svg>
+          @if (tip; as t) { <div class="rv-tip" [style.left.px]="t.x" [style.top.px]="t.y">{{ t.text }}</div> }
+        </div>
+        @if (view.note) { <p class="small text-muted">{{ view.note }}</p> }
+      </section>
+    }
+  }
+  @case ('text') {
+    @if (view.kind === 'text') {
+      <section>
+        <h6>{{ view.title }}</h6>
+        @for (p of view.paragraphs; track $index) { <p class="small">{{ p }}</p> }
+      </section>
+    }
+  }
+}

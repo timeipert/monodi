@@ -1742,6 +1742,20 @@
                         </div>
                       </div>
                       <div class="d-flex flex-column gap-2">
+                        <!-- Clear saved analyses -->
+                        <div class="ws-action-row danger">
+                          <div class="ws-action-row-text">
+                            <div class="fw-semibold text-danger">Delete saved analyses</div>
+                            <div class="text-muted small">{{ analysisCount }} saved analysis(es), {{ analysisBytes / 1048576 | number: '1.1-1' }} MB stored in this browser. They are derived from the documents and can be computed again. The documents are not touched.</div>
+                          </div>
+                          <button type="button" class="btn btn-sm"
+                            [class.btn-outline-danger]="armedAction !== 'wipe-analyses'"
+                            [class.btn-danger]="armedAction === 'wipe-analyses'"
+                            [disabled]="busyAction || analysisCount === 0"
+                            (click)="armAction('wipe-analyses')">
+                            <i class="bi bi-trash3 me-1"></i>{{ armedAction === 'wipe-analyses' ? 'Click again to confirm' : 'Delete analyses' }}
+                          </button>
+                        </div>
                         <!-- Wipe documents -->
                         <div class="ws-action-row danger">
                           <div class="ws-action-row-text">

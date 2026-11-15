@@ -29,6 +29,24 @@ describe('WorkspaceIO Tests', () => {
     expect(parsed.settings).toEqual(dummySettings);
   });
 
+  it('has no `analyses` key without saved analyses, so the format of earlier versions is unchanged', () => {
+    const exported = buildWorkspaceExport(dummySources, dummyDocuments, dummyNotes, dummySettings);
+    expect('analyses' in exported).toBeFalse();
+    expect(parseWorkspaceImport(exported).analyses).toBeUndefined();
+  });
+
+  it('carries saved analyses through export and parse', () => {
+    const analyses = [{ format: 'monodi-analysis', version: 1, analysis: { id: 'a1' }, results: [] }];
+    const exported = buildWorkspaceExport(dummySources, dummyDocuments, dummyNotes, dummySettings, 'none', false, analyses);
+    expect(exported.analyses).toEqual(analyses);
+    expect(parseWorkspaceImport(exported).analyses).toEqual(analyses);
+  });
+
+  it('leaves saved analyses out when the compat mode renames the documents', () => {
+    const exported = buildWorkspaceExport(dummySources, dummyDocuments, dummyNotes, dummySettings, 'split_documents', false, [{ x: 1 }]);
+    expect('analyses' in exported).toBeFalse();
+  });
+
   it('parse of an object missing schemaVersion defaults it to 1', () => {
     const incompleteJson = {
       sources: dummySources,

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { ToastrModule } from 'ngx-toastr';
 import { of } from 'rxjs';
+import { NotesStore } from '../notes-store';
 import { SearchExecService, QuickResult, sequenceDistance, parseMelodyPattern } from './search-exec.service';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
@@ -88,6 +89,7 @@ describe('SearchExecService', () => {
       service.cachedQuickMode = 'phrase';
       service.cachedQuickTolerance = true;
       service.cachedQuickDistance = 2;
+      service.cachedQuickRevision = NotesStore.revision;
       const expectedResults: QuickResult[] = [{
         kind: 'source',
         id: '1',

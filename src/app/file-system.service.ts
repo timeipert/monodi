@@ -244,7 +244,8 @@ export class FileSystemService {
       const notes = await NotesStoreModule.NotesStore.getAll();
       const settings = await localforage.getItem('monodi_settings');
       const WorkspaceIoModule = await import('./workspace-io');
-      const data = WorkspaceIoModule.buildWorkspaceExport(sources as any, documents as any, notes, settings as any, 'none');
+      const { AnalysisStore } = await import('./analysis/analysis-store');
+      const data = WorkspaceIoModule.buildWorkspaceExport(sources as any, documents as any, notes, settings as any, 'none', false, await AnalysisStore.exportAll());
       const content = JSON.stringify(data, null, 2);
 
       const success = await this.saveToHandle(handle, content);

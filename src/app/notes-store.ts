@@ -26,6 +26,12 @@ export class NotesStore {
   private static readonly MIGRATION_FLAG = 'monodi_notes_migrated_v1';
   private static readonly ITEM_KEY = (id: string) => `monodi_notes_doc_${id}`;
 
+  /**
+   * Counts the writes made through this class since the page was loaded. Caches that are derived from the notes (the
+   * results of the quick search) include it in their key, so a document edited after the search is not served stale.
+   */
+  static revision = 0;
+
   /** Cached promise so concurrent callers don't re-run the migration. */
   private static migrationPromise: Promise<void> | null = null;
 
@@ -72,6 +78,7 @@ export class NotesStore {
 
   /** Write one document's notes. Updates the index if this is new. */
   static async set(id: string, data: any): Promise<void> {
+    this.revision++;
     await this.ensureMigrated();
     await localforage.setItem(this.ITEM_KEY(id), data);
     const idx = (await localforage.getItem<string[]>(this.INDEX_KEY)) || [];
@@ -83,6 +90,7 @@ export class NotesStore {
 
   /** Delete one document's notes. */
   static async remove(id: string): Promise<void> {
+    this.revision++;
     await this.ensureMigrated();
     await localforage.removeItem(this.ITEM_KEY(id));
     const idx = (await localforage.getItem<string[]>(this.INDEX_KEY)) || [];
@@ -96,6 +104,7 @@ export class NotesStore {
   /** Bulk-delete a list of IDs. Single index write at the end. */
   static async removeMany(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
+    this.revision++;
     await this.ensureMigrated();
     const toRemove = new Set(ids);
     for (const id of ids) {
@@ -113,6 +122,7 @@ export class NotesStore {
   /** Merge a partial dict into the store. Each entry is its own put, so no
    *  single write hits the structured-clone limit. Single index write at end. */
   static async merge(dict: { [id: string]: any }): Promise<void> {
+    this.revision++;
     await this.ensureMigrated();
     const ids = Object.keys(dict);
     if (ids.length === 0) return;
@@ -151,6 +161,7 @@ export class NotesStore {
 
   /** Replace the entire store. Removes anything not present in `dict`. */
   static async replaceAll(dict: { [id: string]: any }): Promise<void> {
+    this.revision++;
     await this.ensureMigrated();
     const newIds = Object.keys(dict);
     const oldIds = await this.getIndex();

@@ -40,6 +40,7 @@ import { NotationsdokumentationModule } from './notationsdokumentation/notations
 import { HelpButtonComponent } from './help-button/help-button.component';
 import { ContextMenuComponent } from './context-menu/context-menu.component';
 import { SharedEditorModule } from './shared-editor.module';
+import { SelectionToolsModule } from './selection/selection-tools.module';
 
 import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selector/subcorpora-selector.component';
 import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
@@ -104,6 +105,7 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         DragDropModule,
         ScrollingModule,
         SharedEditorModule,
+        SelectionToolsModule,
         RouterModule.forRoot([
             {
                 path: 'login',
@@ -128,6 +130,9 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
             }, {
                 path: 'search',
                 component: SearchComponent,
+            }, {
+                path: 'analysis',
+                loadChildren: () => import('./analysis/analysis.module').then(m => m.AnalysisModule),
             }, {
                 path: 'metadata',
                 component: MetadataGridComponent,

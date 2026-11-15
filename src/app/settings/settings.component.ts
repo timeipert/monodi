@@ -21,6 +21,7 @@ import { PushCache } from '../push-cache';
 import * as localforage from 'localforage';
 import { FileSystemService } from '../file-system.service';
 import { buildWorkspaceExport } from '../workspace-io';
+import { AnalysisStore } from '../analysis/analysis-store';
 
 import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from '../notes/editor-shortcuts.service';
 import { safeStorage } from '../safe-storage';
@@ -114,12 +115,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
   /** Tracks which action is currently in-flight so the UI can disable the
    *  whole row of destructive buttons and show a spinner on the active one. */
   busyAction: '' | 'reset-settings' | 'reset-cols' | 'reset-push-cache' | 'orphan-notes' | 'orphan-docs'
-            | 'wipe-docs' | 'wipe-all' = '';
+            | 'wipe-docs' | 'wipe-all' | 'wipe-analyses' = '';
 
   /** Two-step confirmation: clicking a destructive button arms it; the
    *  second click within the same arm window executes the action. */
   armedAction: '' | 'reset-settings' | 'orphan-notes' | 'orphan-docs'
-             | 'wipe-docs' | 'wipe-all' = '';
+             | 'wipe-docs' | 'wipe-all' | 'wipe-analyses' = '';
   private armedTimeout: any;
   previewScale = 0.6;
   user: User | null = null;
@@ -371,6 +372,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.pageTitle.set('Settings');
+    this.refreshAnalysisStats();
     this.shortcutsConfig = { ...this.shortcutsService.getShortcuts() };
     // Allow deep-linking to a specific tab via ?tab=workspace etc.
     // Used by the Sources page gear button to land directly on Workspace.
@@ -1019,6 +1021,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       case 'orphan-docs':    await this.cleanOrphanDocuments(); break;
       case 'wipe-docs':      await this.wipeDocuments();        break;
       case 'wipe-all':       await this.wipeEverything();       break;
+      case 'wipe-analyses':  await this.wipeAnalyses();         break;
     }
   }
 
@@ -1146,10 +1149,36 @@ export class SettingsComponent implements OnInit, OnDestroy {
       localStorage.removeItem('monodi_cached_pattern_stats');
       localStorage.removeItem('monodi_pattern_params');
       await localforage.removeItem('monodi_cached_pattern_stats'); // IndexedDB copy
+      await AnalysisStore.deleteAll(); // saved analyses refer to the documents that are gone
       this.toastr.success('All documents and notes deleted. Sources kept.', 'Documents wiped');
       await this.refreshWorkspaceStats();
     } catch (e) {
       this.toastr.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
+  /** Saved analyses: how many are stored and how much space they take (shown beside "Clear analyses"). */
+  analysisCount = 0;
+  analysisBytes = 0;
+
+  async refreshAnalysisStats(): Promise<void> {
+    const list = await AnalysisStore.list();
+    this.analysisCount = list.length;
+    this.analysisBytes = list.reduce((n, a) => n + a.bytes, 0);
+    this.cdRef.markForCheck();
+  }
+
+  /** Delete every saved analysis. The documents are not touched. */
+  async wipeAnalyses(): Promise<void> {
+    this.busyAction = 'wipe-analyses';
+    try {
+      await AnalysisStore.deleteAll();
+      await this.refreshAnalysisStats();
+      this.toastr.success('Saved analyses deleted. Documents are untouched.', 'Analyses cleared');
+    } catch (e) {
+      this.toastr.error(`Could not delete the analyses: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
     }
@@ -1182,6 +1211,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       localStorage.removeItem('monodi_cached_pattern_stats');
       localStorage.removeItem('monodi_pattern_params');
       await localforage.removeItem('monodi_cached_pattern_stats'); // IndexedDB copy
+      await AnalysisStore.deleteAll();
       this.statsComputed = false;
       this.lastComputedTime = null;
       this.toastr.success('Workspace cleared. Reload the page for a clean slate.', 'Everything wiped');
@@ -1287,7 +1317,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       const documents = await localforage.getItem('monodi_documents');
       const notes = await NotesStore.getAll();
       const settings = await localforage.getItem('monodi_settings');
-      const data = buildWorkspaceExport(sources, documents, notes, settings, 'none');
+      const data = buildWorkspaceExport(sources, documents, notes, settings, 'none', false, await AnalysisStore.exportAll());
       const content = JSON.stringify(data, null, 2);
 
       const success = await this.fsService.saveToHandle(this.linkedBackupHandle, content);

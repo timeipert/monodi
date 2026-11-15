@@ -92,6 +92,10 @@
                       <i class="bi bi-x-lg"></i>
                     </button>
                   }
+                  <select class="form-select flex-grow-0 w-auto" [(ngModel)]="searchScope" aria-label="Where to search" title="Search every document, or only the documents of your selection">
+                    <option value="all">Everywhere</option>
+                    <option value="selection" [disabled]="selection.size === 0">My selection ({{selection.size}})</option>
+                  </select>
                   <button class="btn btn-primary" type="button" (click)="searchQuick()"
                     [disabled]="quickSearching || !quickText.trim()">
                     @if (quickSearching) {
@@ -159,6 +163,20 @@
                 }
               </div>
             </div>
+            @if (quickSearching) {
+              <div class="card shadow-sm mb-3">
+                <div class="card-body py-3">
+                  <div class="d-flex justify-content-between small text-muted mb-1">
+                    <span>Searching {{searchProgress.current | number}} of {{searchProgress.total | number}} documents…</span>
+                    <span>{{searchProgress.matched | number}} hits so far</span>
+                  </div>
+                  <div class="progress" style="height: 6px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" [style.width.%]="searchProgress.total ? (searchProgress.current / searchProgress.total) * 100 : 0"></div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="cancelSearch()">Cancel</button>
+                </div>
+              </div>
+            }
             <!-- Quick results -->
             @if (quickSearched) {
               <div>
@@ -197,6 +215,12 @@
                             Open Synopsis ({{selectedDocs.length}})
                           </button>
                         }
+                        @if (currentHitDocIds().length > 0) {
+                          <button class="btn btn-sm btn-outline-primary" (click)="openInAnalysis()"
+                            title="Analyse the hits of this tab with the methods of the Analysis page: frequencies, keyness, distances, ChantDigger methods; results are saved">
+                            <i class="bi bi-diagram-3 me-1"></i>Analysis…
+                          </button>
+                        }
                         @if (printCount() > 0) {
                           <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
                             title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
@@ -220,6 +244,13 @@
                         </div>
                       </div>
                     }
+                    <div class="mb-2">
+                      <app-selection-bar [universe]="quickHitDocIds" [selection]="selection" noun="documents" (changed)="onSelectionChanged()">
+                        @if (quickSourceHitCount > 0) {
+                          <span class="text-muted">includes the documents of {{quickSourceHitCount}} source hit(s)</span>
+                        }
+                      </app-selection-bar>
+                    </div>
                     <div class="list-group shadow-sm">
                       @for (r of pagedQuickResults; track trackQuick($index, r)) {
                         <div
@@ -237,7 +268,13 @@
                             }
                             <!-- Spacer for Sources to align list elements -->
                             @if (r.kind === 'source') {
-                              <div style="width: 20px; height: 20px; flex-shrink: 0;" class="me-1"></div>
+                              <div class="d-flex align-self-center me-1" (click)="$event.stopPropagation()">
+                                <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
+                                  [checked]="sourceSelectState(r.id) === 'all'" [indeterminate]="sourceSelectState(r.id) === 'some'"
+                                  title="Select all documents of this source" aria-label="Select all documents of this source"
+                                  (change)="toggleSourceSelection(r.id, $event)" />
+                                <span class="ms-2" style="width: 14px;"></span>
+                              </div>
                             }
                             <span class="badge mt-1"
                               [class.bg-primary]="r.kind === 'source'"
@@ -415,6 +452,10 @@
                     </span>
                     <div class="d-flex gap-2 align-items-center">
                       @if (filteredSourceResults.length > 0) {
+                        <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1" (click)="openInAnalysis()"
+                          title="Analyse the documents of these sources with the methods of the Analysis page">
+                          <i class="bi bi-diagram-3"></i> Analysis…
+                        </button>
                         <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
                           (click)="openPatternAnalysis()"
                           title="Identify common melodic patterns within these sources">
@@ -464,10 +505,16 @@
                         </div>
                       </div>
                     }
+                    <div class="px-3 py-2 border-bottom">
+                      <app-selection-bar [universe]="sourceHitDocIds" [selection]="selection" noun="documents of these sources" (changed)="onSelectionChanged()">
+                        <span class="text-muted">{{filteredSourceResults.length | number}} sources</span>
+                      </app-selection-bar>
+                    </div>
                     <div class="table-responsive">
                       <table class="table table-hover mb-0">
                         <thead class="table-light">
                           <tr>
+                            <th style="width: 40px;"></th>
                             @for (col of visibleSrcCols; track col; let first = $first) {
                               <th [class.ps-3]="first"
                                 class="sortable-th" (click)="sortBy(col.key.toString(), 'src')">
@@ -479,6 +526,12 @@
                         <tbody>
                           @for (s of pagedSourceResults; track trackSource($index, s)) {
                             <tr (click)="goToSource(s.id!)" class="cursor-pointer">
+                              <td class="text-center" (click)="$event.stopPropagation()">
+                                <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
+                                  [checked]="sourceSelectState(s.id) === 'all'" [indeterminate]="sourceSelectState(s.id) === 'some'"
+                                  title="Select all documents of this source" aria-label="Select all documents of this source"
+                                  (change)="toggleSourceSelection(s.id, $event)" />
+                              </td>
                               @for (col of visibleSrcCols; track col; let first = $first) {
                                 <td
                                   [class.ps-3]="first" [class.fw-medium]="first" [class.text-accent]="first">
@@ -639,6 +692,12 @@
                             Open Synopsis ({{selectedDocs.length}})
                           </button>
                         }
+                        @if (currentHitDocIds().length > 0) {
+                          <button class="btn btn-sm btn-outline-primary" (click)="openInAnalysis()"
+                            title="Analyse the hits of this tab with the methods of the Analysis page: frequencies, keyness, distances, ChantDigger methods; results are saved">
+                            <i class="bi bi-diagram-3 me-1"></i>Analysis…
+                          </button>
+                        }
                         @if (printCount() > 0) {
                           <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
                             title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
@@ -695,6 +754,9 @@
                           </div>
                         </div>
                       }
+                      <div class="px-3 py-2 border-bottom">
+                        <app-selection-bar [universe]="documentHitDocIds" [selection]="selection" noun="documents" (changed)="onSelectionChanged()"></app-selection-bar>
+                      </div>
                       <div class="table-responsive">
                         <table class="table table-hover mb-0">
                           <thead class="table-light">
@@ -895,6 +957,19 @@
                               When checked, pattern matches across syllable boundaries are excluded.
                             </div>
                           </div>
+                          <!-- Spread notes (window) -->
+                          <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary mb-1" for="melodyWindow">
+                              <i class="bi bi-arrows-expand me-1"></i>Notes in order within a window
+                            </label>
+                            <div class="d-flex align-items-center gap-2">
+                              <input id="melodyWindow" type="number" class="form-control form-control-sm" style="width: 80px;" min="0" max="200" [(ngModel)]="melodyWindow" [disabled]="melodySearchType !== 'pitch' || melodyMaxDistance > 0" />
+                              <span class="small text-muted">notes (0: the notes must follow each other)</span>
+                            </div>
+                            <div class="form-text text-muted" style="font-size: 0.75rem;">
+                              Pitch search only, exact: the notes of the pattern occur in this order inside a window of this many notes, with other notes between them (ChantDigger: "d f a c' a g 10").
+                            </div>
+                          </div>
                           <!-- Max Differences (Allowed Derivations) -->
                           <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary mb-1">
@@ -939,6 +1014,10 @@
                           <i class="bi bi-x-lg"></i>
                         </button>
                       }
+                      <select class="form-select form-select-sm flex-grow-0 w-auto" [(ngModel)]="searchScope" aria-label="Where to search" title="Search every document, or only the documents of your selection">
+                        <option value="all">Everywhere</option>
+                        <option value="selection" [disabled]="selection.size === 0">My selection ({{selection.size}})</option>
+                      </select>
                       <button class="btn btn-primary" type="button"
                         (click)="searchMelody()"
                         [disabled]="melodySearching || !melodyPattern.trim()">
@@ -974,11 +1053,19 @@
                         </div>
                       </div>
                     </div>
-                    <!-- Melody searching spinner -->
+                    <!-- Melody search progress -->
                     @if (melodySearching) {
-                      <div class="text-center py-5 text-muted">
-                        <div class="spinner-border" role="status"></div>
-                        <p class="mt-3">Scanning all transcriptions…</p>
+                      <div class="card shadow-sm mb-3">
+                        <div class="card-body py-3">
+                          <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Scanning {{searchProgress.current | number}} of {{searchProgress.total | number}} transcriptions…</span>
+                            <span>{{searchProgress.matched | number}} matches so far</span>
+                          </div>
+                          <div class="progress" style="height: 6px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" [style.width.%]="searchProgress.total ? (searchProgress.current / searchProgress.total) * 100 : 0"></div>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="cancelSearch()">Cancel</button>
+                        </div>
                       </div>
                     }
                     <!-- Melody results -->
@@ -1121,7 +1208,13 @@
                                     Open Synopsis ({{selectedDocs.length}})
                                   </button>
                                 }
-                                @if (printCount() > 0) {
+                                @if (currentHitDocIds().length > 0) {
+                          <button class="btn btn-sm btn-outline-primary" (click)="openInAnalysis()"
+                            title="Analyse the hits of this tab with the methods of the Analysis page: frequencies, keyness, distances, ChantDigger methods; results are saved">
+                            <i class="bi bi-diagram-3 me-1"></i>Analysis…
+                          </button>
+                        }
+                        @if (printCount() > 0) {
                                   <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
                                     title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
                                     <i class="bi bi-file-pdf me-1"></i>Print PDF ({{printCount()}})
@@ -1146,6 +1239,11 @@
                                 </div>
                               </div>
                             }
+                            <div class="mb-2">
+                              <app-selection-bar [universe]="melodyHitDocIds" [selection]="selection" noun="documents" (changed)="onSelectionChanged()">
+                                <span class="text-muted">{{melodyHitDocIds.length | number}} documents, {{filteredMelodyResults.length | number}} matches</span>
+                              </app-selection-bar>
+                            </div>
                             <!-- Melody results table with 100px chant position minimap -->
                             <div class="card shadow-sm border-0 mb-3">
                               <div class="card-body p-0">
@@ -1420,7 +1518,7 @@
                       <div class="synopsis-masthead-sub">
                         <span class="synopsis-masthead-item">{{ alignmentMode | titlecase }} alignment</span>
                         <span class="synopsis-masthead-dot">·</span>
-                        <span class="synopsis-masthead-item">{{ selectedDocs.length }} witness{{ selectedDocs.length === 1 ? '' : 'es' }}</span>
+                        <span class="synopsis-masthead-item">{{ synopsisDocs.length }} witness{{ synopsisDocs.length === 1 ? '' : 'es' }}</span>
                         @if (settings?.pdfSynopsisShowDate !== false) {
                           <span class="synopsis-masthead-dot">·</span>
                           <span class="synopsis-masthead-item">{{ getPrintDate() }}</span>
@@ -1441,7 +1539,7 @@
                           </tr>
                         </thead>
                         <tbody>
-                          @for (doc of selectedDocs; track doc) {
+                          @for (doc of synopsisDocs; track doc) {
                             <tr>
                               @for (col of visibleSynopsisCols; track col) {
                                 <td
@@ -1497,7 +1595,7 @@
                                     </div>
                                   </div>
                                   <!-- Witness stave rows -->
-                                  @for (doc of selectedDocs; track doc; let docIdx = $index) {
+                                  @for (doc of synopsisDocs; track doc; let docIdx = $index) {
                                     <div class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
                                       <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                                         <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">{{docSigles[doc.id] || doc.dokumenten_id}}</span>
@@ -1562,7 +1660,7 @@
                               }
                               <div class="synopsis-scroll-wrapper overflow-auto w-100" style="background-color: white;">
                                 <div style="min-width: max-content; display: flex; flex-direction: column;">
-                                  @for (doc of selectedDocs; track doc; let docIdx = $index) {
+                                  @for (doc of synopsisDocs; track doc; let docIdx = $index) {
                                     <div class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
                                       <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                                         <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
@@ -1661,7 +1759,7 @@
                       <span>{{node.kind === 'leaf' ? 'Line' : 'Section'}}</span>
                     }</span>
                     <span class="syn-sec-rule"></span>
-                    <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{selectedDocs.length}}</span>
+                    <span class="syn-sec-match" title="Witnesses containing this section">{{getMatchedCount(node)}}/{{synopsisDocs.length}}</span>
                   </div>
                   <div class="syn-sec-body">
                     @if (node.alignedLineElements) {
@@ -1677,7 +1775,7 @@
                 <!-- If the node has paratext -->
                 @if (hasParatext(node.items) && !showSingleLineSynopsis) {
                   <div class="synopsis-leaf-container border rounded p-3 mb-3">
-                    @for (doc of selectedDocs; track doc; let docIdx = $index) {
+                    @for (doc of synopsisDocs; track doc; let docIdx = $index) {
                       <div class="synopsis-stave-row d-flex align-items-center mb-1">
                         <div class="me-2" style="width: 92px; flex-shrink: 0;">
                           <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
@@ -1702,7 +1800,7 @@
                   <div class="synopsis-leaf-container border rounded p-2 mb-2 bg-white">
                     <div class="synopsis-scroll-wrapper overflow-auto w-100" style="background-color: white;">
                       <div style="min-width: max-content; display: flex; flex-direction: column;">
-                        @for (doc of selectedDocs; track doc; let docIdx = $index) {
+                        @for (doc of synopsisDocs; track doc; let docIdx = $index) {
                           <div class="synopsis-stave-row d-flex align-items-center" style="background-color: white;">
                             <div class="me-2 sticky-siglum" style="width: 92px; flex-shrink: 0; position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid var(--color-border); padding-right: 4px;">
                               <span class="siglum-chip text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
@@ -1819,6 +1917,25 @@
               <!-- Settings Card -->
               <div class="card shadow-sm mb-4">
                 <div class="card-body py-3">
+                  <div class="row gx-3 gy-2 align-items-end mb-3 pb-3 border-bottom">
+                    <div class="col-auto">
+                      <label class="form-label text-muted small mb-1" for="patternScope">Documents analysed</label>
+                      <select id="patternScope" class="form-select form-select-sm" [(ngModel)]="patternScope">
+                        <option value="hits">Hits of the {{activeTab}} tab</option>
+                        <option value="selection">My selection</option>
+                        <option value="all">Every document of the workspace</option>
+                      </select>
+                    </div>
+                    <div class="col-auto pb-1">
+                      <span class="badge bg-primary-subtle text-primary">{{patternScopeCount | number}} document(s)</span>
+                      @if (patternScope !== 'all' && patternScopeCount === 0) {
+                        <span class="text-danger small ms-2">Nothing to analyse: {{patternScope === 'selection' ? 'select documents on the search tabs first' : 'run a search first'}}.</span>
+                      }
+                      @if (patternScope === 'all' && patternScopeCount > 2000) {
+                        <span class="text-warning small ms-2">A large corpus: the comparison of all documents can take minutes. The Analysis page is better suited.</span>
+                      }
+                    </div>
+                  </div>
                   <div class="row gx-3 gy-2 align-items-end">
                     <div class="col-auto">
                       <label class="form-label text-muted small mb-1">Type</label>
@@ -1876,6 +1993,20 @@
                   }
                 </div>
               </div>
+              @if (detectedDuplicates.length > 0 && !patternSearching) {
+                <div class="alert alert-info py-2 small">
+                  <strong>{{detectedDuplicates.length}} document(s) were left out as duplicates of another document</strong>
+                  ({{patternDocTotalNotes.size}} analysed). Switch "Exclude Duplicates" off to include them.
+                  <details class="mt-1">
+                    <summary>Show the pairs</summary>
+                    <ul class="mb-0 mt-1">
+                      @for (d of detectedDuplicates.slice(0, 100); track d) {
+                        <li>{{d.doc2.doc.dokumenten_id || d.doc2.doc.id}} ({{d.doc2.sourceSigle}}) repeats {{d.doc1.doc.dokumenten_id || d.doc1.doc.id}} ({{d.doc1.sourceSigle}}), similarity {{d.similarity | percent}}</li>
+                      }
+                    </ul>
+                  </details>
+                </div>
+              }
               @if (patternGroups.length > 0 && !patternSearching) {
                 <div>
                   <!-- Results View Mode Tabs & Actions -->
