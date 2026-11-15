@@ -46,7 +46,6 @@ import {
   LinePartKind,
   ZeileContainer,
   Syllable,
-  Clef,
   Note,
   MiscContainer,
   NoteType,
@@ -503,18 +502,8 @@ export function volpianoToRoot(
     });
   });
 
-  // Prepend a clef to the first line so the staff renders with one.
-  const clef: Clef = {
-    kind: LinePartKind.Clef,
-    uuid: UUID(),
-    focus: false,
-    base: BaseNote.C,
-    octave: 4,
-    shape: 'C',
-  };
-  if (zeilen.length > 0) {
-    zeilen[0].children.unshift(clef);
-  }
+  // No clef is written into the data: Volpiano's clef `1` is a treble clef, and the editor draws the automatic G clef at the
+  // start of a document (see `clef-policy.ts`), so the pitches above are shown on the staff they were read for.
 
   const misc: MiscContainer = {
     kind: ContainerKind.MiscContainer,

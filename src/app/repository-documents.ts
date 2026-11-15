@@ -1,8 +1,8 @@
 import type { CantusChant } from '@monodi/core/datasets';
 import {
-  BaseNote, ContainerKind, DocumentType, emptySyllable, LinePartKind, SyllableType,
+  ContainerKind, DocumentType, emptySyllable, SyllableType,
 } from './types/model';
-import type { Clef, MiscContainer, RootContainer, Syllable, ZeileContainer } from './types/model';
+import type { MiscContainer, RootContainer, Syllable, ZeileContainer } from './types/model';
 import { v4 as UUID } from 'uuid';
 import { alignTextToMelody, syllabifyLatin } from './volpiano/latin-syllabify';
 import { volpianoToRoot } from './volpiano/volpiano';
@@ -47,13 +47,10 @@ export function textOnlyRoot(text: string): RootContainer {
     empty.syllableType = SyllableType.WithoutNotes;
     syllables.push(empty);
   }
-  const clef: Clef = {
-    kind: LinePartKind.Clef, uuid: UUID(), focus: false, base: BaseNote.C, octave: 4, shape: 'C',
-  };
   const line: ZeileContainer = {
     kind: ContainerKind.ZeileContainer,
     uuid: UUID(),
-    children: [clef, ...syllables] as ZeileContainer['children'],
+    children: syllables as ZeileContainer['children'],
   };
   const misc: MiscContainer = {
     kind: ContainerKind.MiscContainer, uuid: UUID(), children: [line] as MiscContainer['children'],

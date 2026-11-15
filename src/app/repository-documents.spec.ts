@@ -15,6 +15,13 @@ function syllableTexts(root: any): string[] {
 }
 
 describe('repository-documents', () => {
+  it('writes no clef into the data of a Cantus chant, with or without melody (the editor draws the G clef)', () => {
+    const hasClef = (root: any) => root.children[0].children.some((line: any) => line.children.some((c: any) => c.kind === 'Clef'));
+    expect(hasClef(textOnlyRoot('Hoc corpus'))).toBeFalse();
+    expect(hasClef(cantusNotes(chant({ volpiano: '1---f--g', full_text: 'ab cd' }), { alignText: false }).root)).toBeFalse();
+    expect(hasClef(cantusNotes(chant({ volpiano: '', incipit: 'Omnibus' }), { alignText: false }).root)).toBeFalse();
+  });
+
   it('splits the text of a chant without melody into syllables and ends every word but its last syllable with a hyphen', () => {
     expect(syllableTexts(textOnlyRoot('Hoc corpus')).join(' ')).toBe('Hoc cor- pus');
   });

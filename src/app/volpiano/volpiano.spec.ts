@@ -137,6 +137,12 @@ describe('rootToVolpiano', () => {
 // ── import ───────────────────────────────────────────────────────────────────
 
 describe('volpianoToRoot', () => {
+  it('writes no clef into the data: the editor draws the G clef that Volpiano\'s clef 1 stands for', () => {
+    const { root } = volpianoToRoot('1---dh-k--h---');
+    const parts = (root.children[0] as any).children.flatMap((line: any) => line.children);
+    expect(parts.some((p: any) => p.kind === 'Clef')).toBeFalse();
+  });
+
   it('parses pitches, ligatures and syllable boundaries', () => {
     const { root, warnings } = volpianoToRoot('1---dh-k--h---');
     expect(warnings).toEqual([]);
