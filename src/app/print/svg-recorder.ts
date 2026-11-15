@@ -105,6 +105,19 @@ export class SvgRecorder {
     });
   }
 
+  /**
+   * The box that the ink of one page covers, in the page's own pt (origin top left), or null when the page has no ink.
+   * The figure export reads it to cut a PDF page to the drawing.
+   */
+  inkBox(page = 1): { x0: number; y0: number; x1: number; y1: number } | null {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const it of this.items) {
+      if (it.page !== page) continue;
+      boundsOf(it, (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+    }
+    return x0 === Infinity ? null : { x0, y0, x1, y1 };
+  }
+
   /** The record as SVG text, or '' when nothing was drawn. */
   toSvg(opts: SvgOptions = {}): string { return buildSvg(this.items, opts); }
 }
@@ -192,21 +205,22 @@ const FAMILIES: { [pdf: string]: string } = {
 };
 const familyOf = (pdfName: string) => FAMILIES[pdfName.replace(/\s+/g, '').toLowerCase()] ?? `${pdfName},serif`;
 
+/** Calls `grow` with the corners of the ink of one recorded item (line widths and text extents included). */
+function boundsOf(it: Item, grow: (x: number, y: number) => void): void {
+  if (it.t === 'line') { const h = it.width / 2; grow(it.x1 - h, it.y1 - h); grow(it.x2 + h, it.y2 + h); }
+  else if (it.t === 'rect') { grow(it.x, it.y); grow(it.x + it.w, it.y + it.h); }
+  else if (it.t === 'path') { const h = it.stroke ? it.width / 2 : 0; for (let k = 0; k < it.ops.length; k++) for (let j = 0; j < it.ops[k].c.length; j += 2) { grow(it.ops[k].c[j] - h, it.ops[k].c[j + 1] - h); grow(it.ops[k].c[j] + h, it.ops[k].c[j + 1] + h); } }
+  else {
+    const left = it.anchor === 'middle' ? it.x - it.width / 2 : it.anchor === 'end' ? it.x - it.width : it.x;
+    grow(left, it.y - it.size * 0.75); grow(left + it.width, it.y + it.size * 0.25);
+  }
+}
+
 function buildSvg(itemsIn: Item[], opts: SvgOptions): string {
   if (itemsIn.length === 0) return '';
   const notation = (opts.notationColor ?? '#333333').toLowerCase();
   const pad = opts.padding ?? 4;
   const gap = opts.pageGap ?? 12;
-
-  const boundsOf = (it: Item, grow: (x: number, y: number) => void): void => {
-    if (it.t === 'line') { const h = it.width / 2; grow(it.x1 - h, it.y1 - h); grow(it.x2 + h, it.y2 + h); }
-    else if (it.t === 'rect') { grow(it.x, it.y); grow(it.x + it.w, it.y + it.h); }
-    else if (it.t === 'path') { const h = it.stroke ? it.width / 2 : 0; for (let k = 0; k < it.ops.length; k++) for (let j = 0; j < it.ops[k].c.length; j += 2) { grow(it.ops[k].c[j] - h, it.ops[k].c[j + 1] - h); grow(it.ops[k].c[j] + h, it.ops[k].c[j + 1] + h); } }
-    else {
-      const left = it.anchor === 'middle' ? it.x - it.width / 2 : it.anchor === 'end' ? it.x - it.width : it.x;
-      grow(left, it.y - it.size * 0.75); grow(left + it.width, it.y + it.size * 0.25);
-    }
-  };
 
   // stack pages: the ink of each page starts `gap` below the ink of the page before (the page margins and the empty rest of a page are left out)
   const pageTop = new Map<number, number>(), pageBottom = new Map<number, number>();

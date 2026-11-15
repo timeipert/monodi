@@ -15,6 +15,7 @@ import { groupItems, volumeFileNames } from './print/groups';
 import { checkPrintSet } from './relations/relations';
 import { RULES_SPLIT, RULE_OPS, VolumeRule, groupByRules, parseRuleValues, usableRules } from './print/volume-rules';
 import { HOLD_REASON_LABEL, holdReasons, isPrintable } from './release/printable';
+import { FigureFormat, renderFigurePdf, renderFigurePng, renderFigureSvg } from './print/figure';
 import { MAX_BLOCKS, TITLE_PRESETS, TitleBlock, TitleTemplate, newBlock, sanitizeTitleTemplate } from './print/title-page';
 
 interface Entry { id: string; doc: Document | null; job: PdfDocJob | null; }
@@ -22,7 +23,22 @@ interface GroupRow { key: string; label: string; count: number; on: boolean; }
 /** A volume rule as it is edited: the values as one text, and the values the selection has in the field as a hint. */
 interface RuleRow { name: string; field: string; op: VolumeRule['op']; valuesText: string; each: boolean; hint: string; }
 
+/**
+ * What the export is for. 'edition': the printed-edition layout with heading, running head, page numbers, title page, cover.
+ * 'content': the chant alone on a normal page (no heading, running head or page number). 'figure-*': the chant alone as a
+ * picture cut to its ink, for a figure in a publication (vector PDF, SVG, PNG).
+ */
+export type ExportTarget = 'edition' | 'content' | 'figure-pdf' | 'figure-svg' | 'figure-png';
+const FIGURE_FORMAT: { [t: string]: FigureFormat | undefined } = { 'figure-pdf': 'pdf', 'figure-svg': 'svg', 'figure-png': 'png' };
+
 interface DialogOptions {
+  target: ExportTarget;
+  /** Figure targets: the critical apparatus below the chant (off by default: a figure is the chant alone). */
+  figureApparatus: boolean;
+  /** PNG: pixels per inch. */
+  figureDpi: number;
+  /** PNG: no white ground. */
+  figureTransparent: boolean;
   titlePage: boolean;
   contents: boolean;
   metadata: boolean;
@@ -148,7 +164,41 @@ const COVER_KEY = 'monodi_pdf_cover_template';
             <!-- Options -->
             <div class="col-md-6 p-3">
               <div class="small fw-semibold text-uppercase text-muted mb-2" style="letter-spacing: .06em;">Options</div>
-              @if (multi || o.cover) {
+              <label class="form-label small text-muted mb-1" for="pdfTarget">Output for</label>
+              <select id="pdfTarget" class="form-select form-select-sm" [(ngModel)]="o.target" [disabled]="busy" (ngModelChange)="save()" data-testid="pdf-target">
+                <option value="edition">Printed edition (heading, running head, title page, cover)</option>
+                @if (!multi) { <option value="content">Content only (the chant on a page, no heading or running head)</option> }
+                <option value="figure-pdf">Figure, vector PDF (cut to the drawing)</option>
+                <option value="figure-svg">Figure, SVG (editable vector)</option>
+                <option value="figure-png">Figure, PNG (pixels)</option>
+              </select>
+              <div class="form-text mt-0 mb-3">
+                @switch (o.target) {
+                  @case ('edition') { The layout of the printed volume. }
+                  @case ('content') { Only the notation and its text, on a normal page: no title, metadata line, running head or page number. }
+                  @default { Only the drawing, cut to its edges, for a figure in a publication{{ multi ? '; one file per document, all in a ZIP' : '' }}. }
+                }
+              </div>
+              @if (figure) {
+                <div class="form-check form-switch mb-1">
+                  <input class="form-check-input" type="checkbox" id="oFigApp" [(ngModel)]="o.figureApparatus" [disabled]="busy" (ngModelChange)="save()">
+                  <label class="form-check-label fw-medium" for="oFigApp">Critical apparatus below the chant</label>
+                </div>
+                @if (o.target === 'figure-png') {
+                  <label class="form-label small text-muted mb-1 mt-2" for="oDpi">Resolution</label>
+                  <select id="oDpi" class="form-select form-select-sm mb-1" [(ngModel)]="o.figureDpi" [disabled]="busy" (ngModelChange)="save()">
+                    <option [ngValue]="300">300 dpi</option>
+                    <option [ngValue]="600">600 dpi (print)</option>
+                    <option [ngValue]="1200">1200 dpi (line art)</option>
+                  </select>
+                  <div class="form-check form-switch mb-1 mt-2">
+                    <input class="form-check-input" type="checkbox" id="oTransp" [(ngModel)]="o.figureTransparent" [disabled]="busy" (ngModelChange)="save()">
+                    <label class="form-check-label fw-medium" for="oTransp">Transparent background</label>
+                  </div>
+                }
+                <div class="form-text mb-3">Line width of the systems: the page width of the settings. The figure PDF keeps text as text and embeds the font.</div>
+              }
+              @if (o.target === 'edition' && (multi || o.cover)) {
                 <label class="form-label small text-muted mb-1" for="pdfTitle">Title <span class="text-muted">(placeholder <code>$titel$</code> on the cover)</span></label>
                 <input id="pdfTitle" class="form-control form-control-sm mb-3" [(ngModel)]="title" [disabled]="busy" (ngModelChange)="previewSoon()" placeholder="Optional">
               }
@@ -159,6 +209,7 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                 <option value="a4">A4</option>
               </select>
 
+              @if (o.target === 'edition') {
               <div class="form-check form-switch mb-1">
                 <input class="form-check-input" type="checkbox" id="oCover" [(ngModel)]="o.cover" [disabled]="busy" (ngModelChange)="save()">
                 <label class="form-check-label fw-medium" for="oCover">Cover page</label>
@@ -193,11 +244,15 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   <div class="form-text mt-0">Running number of each document within its manuscript (every manuscript is a chapter).</div>
                 </div>
               }
+              }
+              @if (!figure) {
               <div class="form-check form-switch mb-1 mt-2">
                 <input class="form-check-input" type="checkbox" id="oApp" [(ngModel)]="o.apparatus" [disabled]="busy" (ngModelChange)="save()">
                 <label class="form-check-label fw-medium" for="oApp">Critical apparatus</label>
                 <div class="form-text mt-0">{{ multi ? 'Collected after the editions, divided by document.' : 'The comments, after the edition.' }}</div>
               </div>
+              }
+              @if (o.target === 'edition') {
               <div class="form-check form-switch mb-1 mt-2">
                 <input class="form-check-input" type="checkbox" id="oDesc" [(ngModel)]="o.sourceDescription" [disabled]="busy" (ngModelChange)="save()">
                 <label class="form-check-label fw-medium" for="oDesc">Source description</label>
@@ -215,7 +270,8 @@ const COVER_KEY = 'monodi_pdf_cover_template';
                   <div class="form-text mt-0">The patterns as a tree: by number of notes from left to right, each grown out of the shorter one it contains.</div>
                 </div>
               }
-              @if (multi) {
+              }
+              @if (multi && o.target === 'edition') {
                 <div class="form-check form-switch mb-1 mt-2">
                   <input class="form-check-input" type="checkbox" id="oNew" [(ngModel)]="o.newPage" [disabled]="busy" (ngModelChange)="save()">
                   <label class="form-check-label fw-medium" for="oNew">Every document on a new page</label>
@@ -236,7 +292,7 @@ const COVER_KEY = 'monodi_pdf_cover_template';
               <label class="form-label small text-muted mb-1 mt-3" for="pdfFile">File name</label>
               <div class="input-group input-group-sm">
                 <input id="pdfFile" class="form-control" [(ngModel)]="fileBase" [disabled]="busy" placeholder="Document">
-                <span class="input-group-text">{{ splitBy && selectedGroupCount > 1 ? '_….pdf in a .zip' : '.pdf' }}</span>
+                <span class="input-group-text">{{ fileSuffix }}</span>
               </div>
             </div>
           </div>
@@ -498,7 +554,7 @@ const COVER_KEY = 'monodi_pdf_cover_template';
           <button type="button" class="btn btn-danger px-4" (click)="run()" [disabled]="busy || !entries.length || loadingMeta || (splitBy && !selectedGroupCount)">
             @if (busy) { <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> }
             @else { <i class="bi bi-printer me-1"></i> }
-            {{ splitBy && selectedGroupCount > 1 ? 'Create ' + selectedGroupCount + ' PDFs (ZIP)' : 'Create PDF' }}
+            {{ splitBy && selectedGroupCount > 1 ? 'Create ' + selectedGroupCount + ' PDFs (ZIP)' : figure ? 'Create figure' : 'Create PDF' }}
           </button>
         </div>
       </div>
@@ -528,7 +584,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   heldTotal = 0;
   /** In the print list although marked "don't publish" (only possible with the switch off). */
   flaggedIn = 0;
-  o: DialogOptions = { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+  o: DialogOptions = { target: 'edition', figureApparatus: false, figureDpi: 600, figureTransparent: false, titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
   fileBase = '';
   busy = false;
   loadingMeta = false;
@@ -577,6 +633,14 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
 
   constructor(private api: APIService, private users: UserService, private pdf: PdfExportService, private sanitizer: DomSanitizer) {}
 
+  /** The target is a figure (cut picture) and not a page layout. */
+  get figure(): boolean { return !!FIGURE_FORMAT[this.o.target]; }
+  /** The ending shown behind the file name. */
+  get fileSuffix(): string {
+    const fmt = FIGURE_FORMAT[this.o.target];
+    if (fmt) return this.multi || this.splitBy ? `_….${fmt} in a .zip` : '.' + fmt;
+    return this.splitBy && this.selectedGroupCount > 1 ? '_….pdf in a .zip' : '.pdf';
+  }
   get multi(): boolean { return this.entries.length + this.held.length > 1; }
   get selectedGroupCount(): number { return this.groups.filter((g) => g.on).length; }
 
@@ -588,6 +652,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
     else this.entries = this.ids.map((id) => ({ id, doc: null, job: null }));
     this.loadOptions();
     this.o = { ...this.o, ...this.startWith };
+    if (Object.keys(this.startWith).length) this.o.target = 'edition';   // notation documentation and descriptions belong to the edition layout
     this.loadTemplate();
     this.fileBase = this.fileName || (this.entries.length === 1 && this.entries[0].doc ? `Document_${this.entries[0].doc.dokumenten_id || 'Export'}` : 'Documents');
 
@@ -925,8 +990,8 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   private loadOptions(): void {
     const multi = this.entries.length > 1;
     this.o = multi
-      ? { titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
-      : { titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
+      ? { target: 'edition' as ExportTarget, figureApparatus: false, figureDpi: 600, figureTransparent: false, titlePage: true, contents: true, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false }
+      : { target: 'content' as ExportTarget, figureApparatus: false, figureDpi: 600, figureTransparent: false, titlePage: false, contents: false, metadata: true, apparatus: true, sourceDescription: false, notationDocumentation: false, neumeTree: false, newPage: false, arrangeRelated: true, relatedBehind: false, pageFormat: 'settings', boxLabel: 'number', cover: false, countFront: false };
     const stored = safeStorage.getJson<Partial<DialogOptions> | null>(OPTIONS_KEY(multi), null);
     if (stored && typeof stored === 'object') this.o = { ...this.o, ...stored };
     if (this.o.boxLabel !== 'none') this.o.boxLabel = 'number';   // older versions stored other labels
@@ -936,6 +1001,35 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
   }
 
   close(): void { this.closed.emit(); }
+
+  /** Figure targets: one picture per document, cut to its drawing; several come as one ZIP. */
+  private async runFigures(jobs: PdfDocJob[], format: FigureFormat, settings: ProjectSettings | null, base: string): Promise<void> {
+    const files: { name: string; blob: Blob }[] = [];
+    const used = new Set<string>();
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i];
+      this.status = `Drawing ${job.document.dokumenten_id || job.document.textinitium || ''} (${i + 1}/${jobs.length})`;
+      this.progress = 40 + (i / jobs.length) * 60;
+      const o = { settings, apparatus: this.o.figureApparatus };
+      try {
+        const blob = format === 'pdf' ? await renderFigurePdf(job, o)
+          : format === 'svg' ? new Blob([await renderFigureSvg(job, o)], { type: 'image/svg+xml' })
+          : await renderFigurePng(job, { ...o, dpi: this.o.figureDpi, transparent: this.o.figureTransparent });
+        let stem = jobs.length === 1 ? base : String(job.document.dokumenten_id || job.document.id).replace(/[\\/:*?"<>|]+/g, '_');
+        for (let n = 2; used.has(stem); n++) stem = `${stem}_${n}`;
+        used.add(stem);
+        files.push({ name: `${stem}.${format}`, blob });
+      } catch (e: any) {
+        this.warnings.push(`${job.document.dokumenten_id || job.document.id}: ${e?.message || e}`);
+      }
+    }
+    if (!files.length) throw new Error(this.warnings.shift() || 'Nothing was drawn.');
+    if (files.length === 1 && jobs.length === 1) { downloadBlob(files[0].blob, files[0].name); return; }
+    this.status = 'Packing the ZIP file';
+    const zip = new JSZip();
+    for (const f of files) zip.file(f.name, f.blob);
+    downloadBlob(await zip.generateAsync({ type: 'blob' }), base + '.zip');
+  }
 
   async run(): Promise<void> {
     this.busy = true;
@@ -978,16 +1072,25 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
       }
 
       const base = (this.fileBase.trim() || 'Documents').replace(/[\\/:*?"<>|]+/g, '_');
+      const figureFormat = FIGURE_FORMAT[this.o.target];
+      if (figureFormat) {
+        await this.runFigures(todo.map((e) => jobOf.get(e)!), figureFormat, settings, base);
+        if (!this.warnings.length) this.close();
+        return;
+      }
       const names = volumeFileNames(base, plan.map((p) => p.label || 'ohne Angabe'));
-      const template = this.o.cover ? this.cleanTemplate() : null;
+      const template = this.o.cover && this.o.target === 'edition' ? this.cleanTemplate() : null;
       const volumes: { name: string; blob: Blob }[] = [];
       for (let gi = 0; gi < plan.length; gi++) {
         const p = plan[gi];
         const stats = await this.pdf.exportDocuments(p.entries.map((e) => jobOf.get(e)!), {
           settings,
-          titlePage: this.o.titlePage,
-          contents: this.o.contents && this.o.titlePage,
-          includeMetadata: this.o.metadata,
+          // 'content': the chant alone, no heading, running head, page number or title page
+          titlePage: this.o.target === 'edition' && this.o.titlePage,
+          contents: this.o.target === 'edition' && this.o.contents && this.o.titlePage,
+          includeMetadata: this.o.target === 'edition' && this.o.metadata,
+          heading: this.o.target === 'edition',
+          runningHead: this.o.target === 'edition',
           apparatus: this.o.apparatus,
           sourceDescriptions: this.o.sourceDescription,
           notationDocumentation: this.o.notationDocumentation,
@@ -999,7 +1102,7 @@ export class PdfExportDialogComponent implements OnInit, OnDestroy {
           pageFormat: this.o.pageFormat === 'settings' ? undefined : this.o.pageFormat,
           title: this.title.trim(),
           countFrontPages: this.o.countFront,
-          cover: template ? { template, group: p.label, groupField: this.splitLabel(), groupParts: this.splitBy ? this.partsOf(p.entries) : undefined } : undefined,
+          cover: template && this.o.target === 'edition' ? { template, group: p.label, groupField: this.splitLabel(), groupParts: this.splitBy ? this.partsOf(p.entries) : undefined } : undefined,
           output: this.splitBy ? 'blob' : 'save',
           fileName: base + '.pdf',
           onProgress: (msg, done, total) => {
