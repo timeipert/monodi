@@ -72,5 +72,30 @@
     tells you to check the text. Always proofread the result.
   </p>
 
+  <h2 id="repository">Import from Repository</h2>
+  <p>
+    <strong>Repository</strong> (Import / Export page, <em>From the web</em>) loads transcriptions from a public GitHub
+    repository after you have filtered what you need. Two datasets are offered:
+  </p>
+  <ul>
+    <li class="mb-2"><strong>Corpus Monodicum</strong> — the edition's transcriptions, with their full notation, comments and readings. Filter the sources by siglum, library, place, century and region, and the chants by text and genre.</li>
+    <li class="mb-2"><strong>CantusCorpus 1.0</strong> — catalogue records of Gregorian chant from the Cantus network. A chant <em>with a melody</em> becomes a document with notes; a chant <em>without</em> one becomes a document that holds its text in syllables, ready for you to transcribe. Choose <em>only those with a melody</em>, <em>only those without</em> or <em>all</em>. Tick <em>Only sources that have melodies</em> to hide the rest of the sources.</li>
+  </ul>
+  <p>
+    Tick the sources you want. The bottom line shows how many chants that is, how much is downloaded, and how much
+    browser storage is free; an import that does not fit is blocked. Nothing is downloaded before you press
+    <em>Import</em>, and every file is checked against a checksum before it is stored.
+  </p>
+  <ul>
+    <li class="mb-2">Chants that are already in your workspace are <strong>left as they are</strong>, so your edits are safe. Tick <em>Replace chants that are already here</em> only if you want the repository's version.</li>
+    <li class="mb-2">The tab <strong>Imported</strong> lists what came from a repository. <em>Check for updates</em> compares the Corpus Monodicum sources with the repository; <em>Update</em> replaces their chants (your edits to them are lost); <em>Remove</em> deletes the imported chants again and the source if nothing else belongs to it. Chants you added yourself stay.</li>
+    <li class="mb-2">Another repository can be read under <em>Use another repository</em> (<code>owner/name</code> or <code>owner/name@tag</code>); it needs a <code>catalog.json</code> in the format of <code>corpus-monodicum/monodi-datasets</code>.</li>
+    <li class="mb-2">If <a routerLink="/settings">GitHub sync</a> is connected, the button <em>Push</em> uploads imported sources too. Use <em>Auswahl…</em> to push only some sources.</li>
+  </ul>
+  <p class="text-muted">
+    Licences: the Corpus Monodicum is CC BY-NC 4.0, the Cantus Corpus CC BY-NC-SA 4.0. Both require attribution; the dialog links
+    the licence and citation of each dataset.
+  </p>
+
   <p><a routerLink="/import-export" class="btn btn-primary mt-3">Open Import / Export</a></p>
 </div>

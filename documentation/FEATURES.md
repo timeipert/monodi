@@ -67,6 +67,7 @@ Monodi-Zero is **local-first**: there is no server, no account, and no transmiss
 - **Backups**: the complete workspace can be exported as a single JSON file at any time (Settings → Workspace), or a **GitHub repository** can be connected for versioned backup and team synchronisation.
 - **Collaboration**: a shared GitHub repository lets a research group or seminar work on a common corpus; each chant is stored as its own file, so contributors rarely conflict.
 - **Portability**: workspaces move between machines via the export/import functions; existing corpora can be brought in from monodi+ or OMMR4all ZIP exports, including very large collections (hundreds of sources).
+- **Import from Repository**: transcriptions of the Corpus Monodicum and the catalogue records of the Cantus Corpus (with melodies, or as chants to transcribe) can be loaded from a public GitHub repository, after filtering by source, century, genre and more, with the size shown before anything is downloaded; every file is checked against a checksum, and an import can be updated or removed again. See [IMPORT-FROM-REPOSITORY.md](IMPORT-FROM-REPOSITORY.md).
 
 **Because the browser owns the storage, the workspace must be backed up regularly: clearing the browser's site data deletes it.**
 

@@ -10,7 +10,8 @@
     "./mei": "./src/mei/index.ts",
     "./document": "./src/document/index.ts",
     "./theme.css": "./src/theme.css",
-    "./page-layout": "./src/page-layout/index.ts"
+    "./page-layout": "./src/page-layout/index.ts",
+    "./datasets": "./src/datasets/index.ts"
   },
   "scripts": {
     "test": "node --import ./src/resolve-ts.mjs --test \"src/**/*.test.ts\""

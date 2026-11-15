@@ -1,0 +1,330 @@
+<div class="modal fade show d-block ri-backdrop" tabindex="-1" role="dialog" aria-label="Import from Repository">
+  <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+    <div class="modal-content shadow-lg border-0 ri-content">
+      <div class="modal-header border-0 pb-1">
+        <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-github text-primary"></i><span>Import from Repository</span>
+        </h5>
+        <button type="button" class="btn-close" aria-label="Close" [disabled]="running" (click)="close()"></button>
+      </div>
+
+      <div class="px-3">
+        <ul class="nav nav-tabs ri-tabs">
+          <li class="nav-item">
+            <button type="button" class="nav-link" [class.active]="tab === 'datasets'" (click)="tab = 'datasets'">Datasets</button>
+          </li>
+          <li class="nav-item">
+            <button type="button" class="nav-link" [class.active]="tab === 'imported'" (click)="tab = 'imported'">
+              Imported
+              @if (manifest.records.length > 0) { <span class="badge bg-secondary ms-1">{{ manifest.records.length }}</span> }
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="modal-body pt-3">
+        @if (tab === 'datasets') {
+          @if (!active) {
+            <!-- ── the catalogue ─────────────────────────────────────────────── -->
+            <p class="text-muted small mb-3">
+              Load transcriptions from a public repository. Pick a dataset, filter its sources and chants, and only
+              what you choose is downloaded. Every file is checked against its checksum before it is stored.
+            </p>
+            @if (loadingCatalog) {
+              <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Reading the catalogue…</div>
+            }
+            @if (catalogError) {
+              <div class="alert alert-warning py-2 small">{{ catalogError }}
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" (click)="loadCatalog()">Try again</button>
+              </div>
+            }
+            @if (datasetError) {
+              <div class="alert alert-warning py-2 small">{{ datasetError }}</div>
+            }
+            @if (loadingDataset) {
+              <div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Reading the index of the dataset…</div>
+            }
+            @if (catalog && !loadingDataset) {
+              <div class="list-group mb-3">
+                @for (entry of catalog.catalog.datasets; track entry.id) {
+                  <button type="button" class="list-group-item list-group-item-action ri-dataset" (click)="openDataset(entry)">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                      <div>
+                        <div class="fw-semibold">{{ entry.title }}</div>
+                        <div class="small text-muted">{{ entry.description }}</div>
+                        <div class="small mt-1">
+                          @if (entry.counts['sources']) { <span class="me-3">{{ entry.counts['sources'] | number }} sources</span> }
+                          @if (entry.counts['documents']) { <span class="me-3">{{ entry.counts['documents'] | number }} chants</span> }
+                          @if (entry.counts['chants']) { <span class="me-3">{{ entry.counts['chants'] | number }} chants</span> }
+                          @if (entry.counts['chants_with_melody']) { <span class="me-3">{{ entry.counts['chants_with_melody'] | number }} with melody</span> }
+                        </div>
+                      </div>
+                      <span class="badge bg-light text-dark border flex-shrink-0">{{ entry.licence.spdx }}</span>
+                    </div>
+                  </button>
+                }
+              </div>
+            }
+            <details class="small">
+              <summary class="text-muted">Use another repository</summary>
+              <form class="input-group input-group-sm mt-2" (ngSubmit)="useRepository()">
+                <input class="form-control" name="repositoryText" [(ngModel)]="repositoryText" placeholder="owner/repository  or  owner/repository@tag">
+                <button class="btn btn-outline-primary" type="submit">Read catalogue</button>
+                <button class="btn btn-outline-secondary" type="button" (click)="resetRepository()">Default</button>
+              </form>
+              <div class="text-muted mt-1">The repository needs a <code>catalog.json</code> in the format of corpus-monodicum/monodi-datasets. Reading from: <code>{{ catalogUrl }}</code></div>
+            </details>
+          } @else {
+            <!-- ── one dataset ───────────────────────────────────────────────── -->
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="running" (click)="backToDatasets()">
+                <i class="bi bi-arrow-left me-1"></i>Datasets
+              </button>
+              <h6 class="mb-0 fw-bold">{{ active.entry.title }}</h6>
+              <span class="badge bg-light text-dark border">{{ active.dataset.licence.spdx }}</span>
+              @if (licenceLink) { <a class="small" [href]="licenceLink" target="_blank" rel="noopener">licence and citation</a> }
+            </div>
+            @if (active.dataset.upstream.note) {
+              <div class="alert alert-info py-1 small mb-2">{{ active.dataset.upstream.note }}</div>
+            }
+
+            @if (isCm) {
+              <!-- Corpus Monodicum -->
+              <div class="row g-2 mb-2">
+                <div class="col-md-4">
+                  <input class="form-control form-control-sm" placeholder="Find a source (siglum, library, place)" name="cmText"
+                    [(ngModel)]="cmText" (ngModelChange)="recompute()">
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm" name="cmRegion" [(ngModel)]="cmRegion" (ngModelChange)="recompute()">
+                    <option value="">All regions</option>
+                    @for (r of cmRegionFacets; track r.value) { <option [value]="r.value">{{ r.value }} ({{ r.count }})</option> }
+                  </select>
+                </div>
+                <div class="col-md-5 d-flex flex-wrap gap-1 align-items-center">
+                  <span class="small text-muted me-1">Century</span>
+                  @for (c of cmCenturyFacets; track c.value) {
+                    <button type="button" class="btn btn-sm ri-chip" [class.active]="cmCenturies.includes(c.value)" (click)="toggleCmCentury(c.value)">{{ c.value }}.</button>
+                  }
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-md-4">
+                  <input class="form-control form-control-sm" placeholder="Only chants matching (incipit, feast, folio)" name="cmChantText"
+                    [(ngModel)]="cmChantText" (ngModelChange)="recompute()">
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm" name="cmGenre" [(ngModel)]="cmGenre" (ngModelChange)="recompute()">
+                    <option value="">All genres</option>
+                    @for (g of cmGenreFacets; track g.value) { <option [value]="g.value">{{ g.value }} ({{ g.count }})</option> }
+                  </select>
+                </div>
+                <div class="col-md-5 small text-muted align-self-center">
+                  The chant filters apply to the sources you tick; a source with no matching chant is skipped.
+                </div>
+              </div>
+              <div class="ri-table">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead><tr><th></th><th>Siglum</th><th>Library</th><th>Dating</th><th>Type</th><th class="text-end">Chants</th><th class="text-end">Size</th></tr></thead>
+                  <tbody>
+                    @for (s of cmShown; track s.id) {
+                      <tr (click)="toggleCm(s.id)" class="ri-row">
+                        <td><input type="checkbox" class="form-check-input" [checked]="cmSelected.has(s.id)" (click)="$event.stopPropagation()" (change)="toggleCm(s.id)" [attr.aria-label]="'Select ' + s.quellensigle"></td>
+                        <td class="fw-semibold text-nowrap">{{ s.quellensigle }}</td>
+                        <td>{{ s.bibliothek }}<span class="text-muted">, {{ s.bibliotheksort }}</span></td>
+                        <td class="text-nowrap">{{ s.datierung }}</td>
+                        <td class="small text-muted">{{ s.quellentyp }}</td>
+                        <td class="text-end">{{ s.documents }}</td>
+                        <td class="text-end text-nowrap">{{ formatBytes(s.bytes) }}</td>
+                      </tr>
+                    }
+                    @if (cmShown.length === 0) { <tr><td colspan="7" class="text-muted text-center py-3">No source matches.</td></tr> }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <!-- Cantus Corpus -->
+              <div class="row g-2 mb-2">
+                <div class="col-md-4">
+                  <input class="form-control form-control-sm" placeholder="Find a source (siglum, title, provenance)" name="cantusText"
+                    [(ngModel)]="cantusText" (ngModelChange)="recompute()">
+                </div>
+                <div class="col-md-2">
+                  <select class="form-select form-select-sm" name="cantusCursus" [(ngModel)]="cantusCursus" (ngModelChange)="recompute()">
+                    <option value="">Any cursus</option>
+                    @for (c of cantusCursusFacets; track c.value) { <option [value]="c.value">{{ c.value }} ({{ c.count }})</option> }
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm" name="cantusHost" [(ngModel)]="cantusHost" (ngModelChange)="recompute()">
+                    <option value="">Any database</option>
+                    @for (h of cantusHostFacets; track h.value) { <option [value]="h.value">{{ h.value }} ({{ h.count }})</option> }
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm" name="cantusSort" [(ngModel)]="cantusSort" (ngModelChange)="recompute()">
+                    <option value="siglum">Sort by siglum</option>
+                    <option value="melodies">Most melodies first</option>
+                    <option value="chants">Most chants first</option>
+                  </select>
+                </div>
+              </div>
+              <div class="d-flex flex-wrap gap-1 align-items-center mb-2">
+                <span class="small text-muted me-1">Century</span>
+                @for (c of cantusCenturyFacets; track c.value) {
+                  <button type="button" class="btn btn-sm ri-chip" [class.active]="cantusCenturies.includes(c.value)" (click)="toggleCantusCentury(c.value)">{{ c.value }}.</button>
+                }
+                <div class="form-check ms-3 mb-0">
+                  <input class="form-check-input" type="checkbox" id="riMelodyOnly" name="cantusMelodyOnly" [(ngModel)]="cantusMelodyOnly" (ngModelChange)="recompute()">
+                  <label class="form-check-label small" for="riMelodyOnly">Only sources that have melodies</label>
+                </div>
+              </div>
+              <fieldset class="mb-2">
+                <legend class="small fw-semibold mb-1">Which chants of the chosen sources?</legend>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" id="riSelMel" name="chantSelection" value="with-melody" [(ngModel)]="chantSelection" (ngModelChange)="recompute()">
+                  <label class="form-check-label small" for="riSelMel">Only those with a melody</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" id="riSelNo" name="chantSelection" value="without-melody" [(ngModel)]="chantSelection" (ngModelChange)="recompute()">
+                  <label class="form-check-label small" for="riSelNo">Only those without (to transcribe)</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" id="riSelAll" name="chantSelection" value="all" [(ngModel)]="chantSelection" (ngModelChange)="recompute()">
+                  <label class="form-check-label small" for="riSelAll">All</label>
+                </div>
+                <div class="small text-muted">
+                  A chant with a melody becomes a document with notes. A chant without one becomes a document that holds its text
+                  split into syllables, ready for the notes.
+                </div>
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="riAlign" name="alignText" [(ngModel)]="alignText">
+                  <label class="form-check-label small" for="riAlign">Place the text under the melody <span class="badge bg-warning-subtle text-warning border">experimental</span></label>
+                </div>
+              </fieldset>
+              <div class="ri-table">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead><tr><th></th><th>Siglum</th><th>Title</th><th>Century</th><th>Provenance</th><th class="text-end">Chants</th><th class="text-end">With melody</th></tr></thead>
+                  <tbody>
+                    @for (s of cantusRows; track s.id) {
+                      <tr (click)="toggleCantus(s.id)" class="ri-row" [class.text-muted]="chantsOf(s) === 0">
+                        <td><input type="checkbox" class="form-check-input" [checked]="cantusSelected.has(s.id)" [disabled]="chantsOf(s) === 0" (click)="$event.stopPropagation()" (change)="toggleCantus(s.id)" [attr.aria-label]="'Select ' + s.siglum"></td>
+                        <td class="fw-semibold text-nowrap">{{ s.siglum }}</td>
+                        <td class="small">{{ s.title }}</td>
+                        <td class="text-nowrap">{{ s.century }}</td>
+                        <td class="small text-muted">{{ s.provenance }}</td>
+                        <td class="text-end">{{ s.n_chants | number }}</td>
+                        <td class="text-end">{{ s.n_with_melody | number }}</td>
+                      </tr>
+                    }
+                    @if (cantusMatching.length === 0) { <tr><td colspan="7" class="text-muted text-center py-3">No source matches.</td></tr> }
+                  </tbody>
+                </table>
+              </div>
+              <div class="small text-muted mt-1">
+                {{ cantusMatching.length | number }} of {{ cantusSources.length | number }} sources match
+                @if (cantusHidden > 0) { — showing the first {{ cantusRows.length }}; narrow the filter to see the rest }
+              </div>
+            }
+
+            <div class="d-flex flex-wrap gap-2 mt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="running" (click)="selectMatching()">
+                Select all {{ isCm ? cmShown.length : cantusMatching.length }} matching
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="running || selectedCount === 0 && !(cmSelected.size || cantusSelected.size)" (click)="clearSelection()">Clear selection</button>
+            </div>
+          }
+        }
+
+        @if (tab === 'imported') {
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <p class="text-muted small mb-0 flex-grow-1">What was imported from repositories into this workspace.</p>
+            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="checkingUpdates || running || manifest.records.length === 0 || !catalog" (click)="checkUpdates()">
+              @if (checkingUpdates) { <span class="spinner-border spinner-border-sm me-1"></span> }
+              Check for updates
+            </button>
+          </div>
+          @if (manifest.records.length === 0) {
+            <div class="text-muted small">Nothing imported yet.</div>
+          } @else {
+            <div class="ri-table">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Dataset</th><th>Source</th><th class="text-end">Chants</th><th>Version</th><th>Imported</th><th></th></tr></thead>
+                <tbody>
+                  @for (r of manifest.records; track r.datasetId + r.sourceId) {
+                    <tr>
+                      <td>{{ r.datasetId }}</td>
+                      <td class="fw-semibold">{{ r.workspaceSourceId }}</td>
+                      <td class="text-end">{{ r.documentIds.length }}</td>
+                      <td class="small text-muted text-nowrap">{{ r.upstreamRef | slice:0:8 }}</td>
+                      <td class="small text-nowrap">{{ r.importedAt | date:'yyyy-MM-dd' }}</td>
+                      <td class="text-end text-nowrap">
+                        @if (isOutdated(r)) {
+                          <span class="badge bg-warning text-dark me-1">changed upstream</span>
+                          <button type="button" class="btn btn-sm btn-outline-primary me-1" [disabled]="running" (click)="updateRecord(r)">Update</button>
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="running" (click)="removeRecord(r)">Remove</button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+
+        @if (error) { <div class="alert alert-warning py-2 small mt-3 mb-0">{{ error }}</div> }
+        @if (summary && !running) {
+          <div class="alert alert-success py-2 small mt-3 mb-0">
+            Imported {{ summary.documents }} chant(s) from {{ summary.sources }} source(s).
+            @if (summary.keptExisting) { {{ summary.keptExisting }} already in the workspace were left as they are. }
+            @if (summary.conversionWarnings) { {{ summary.conversionWarnings }} melody(ies) contained signs that the converter skipped (for example the digits 5 and 6); the pitches are converted. }
+          </div>
+        }
+      </div>
+
+      <!-- ── footer: size, storage, import ───────────────────────────────────── -->
+      @if (tab === 'datasets' && active) {
+        <div class="modal-footer border-0 pt-2 flex-column align-items-stretch gap-2">
+          @if (running && progress) {
+            <div>
+              <div class="d-flex justify-content-between small"><span>{{ progress.message }}</span><span>{{ progressPercent }}%</span></div>
+              <div class="progress" style="height: 8px;"><div class="progress-bar" role="progressbar" [style.width.%]="progressPercent"></div></div>
+              <div class="small text-muted">{{ progress.current }} of {{ progress.total }} sources · {{ formatBytes(progress.bytesDone) }} of {{ formatBytes(progress.bytesTotal) }}</div>
+            </div>
+          }
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="small flex-grow-1">
+              <strong>{{ selectedCount }}</strong> source(s), <strong>{{ itemCount | number }}</strong> chant(s):
+              download <strong>{{ formatBytes(downloadBytes) }}</strong>, about <strong>{{ formatBytes(storedBytes) }}</strong> in the workspace
+              @if (storage) {
+                <span class="text-muted"> · browser storage: {{ formatBytes(storage.usage) }} used of {{ formatBytes(storage.quota) }}</span>
+              }
+              @if (storageState === 'tight') { <div class="text-warning">This takes more than half of the free browser storage.</div> }
+              @if (tooMany) { <div class="text-danger">More than {{ maxChants | number }} chants at once are not taken. Choose fewer sources or filter the chants.</div> }
+              @if (storageState === 'over') { <div class="text-danger">This does not fit into the free browser storage. Choose less.</div> }
+              @if (githubSyncConnected && selectedCount > 0) {
+                <div class="text-warning">GitHub sync is connected: <em>Push</em> would upload these sources too (about {{ formatBytes(storedBytes) }}). Use <em>Auswahl…</em> to push only some.</div>
+              }
+            </div>
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" id="riOverwrite" name="overwrite" [(ngModel)]="overwrite" [disabled]="running">
+              <label class="form-check-label small" for="riOverwrite">Replace chants that are already here</label>
+            </div>
+            @if (running) {
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel()"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+            } @else {
+              <button type="button" class="btn btn-sm btn-success" [disabled]="!canImport" (click)="runImport()">
+                <i class="bi bi-download me-1"></i>Import
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="modal-footer border-0 pt-1">
+          <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="running" (click)="close()">Close</button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

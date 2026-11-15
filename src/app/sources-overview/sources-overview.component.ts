@@ -41,6 +41,7 @@ import { parseAnnotationFile } from '../cm-transkriptionseq-import';
 import { readAnnotationFiles } from '../neume-docs-import';
 import { saveStripImages } from '../notation-strip-images';
 import { mergeMetaAnnotations } from '../zip-source-annotations';
+import { documentFromMeta, sourceFromMeta } from '../workspace-import';
 import { safeStorage } from '../safe-storage';
 import { downloadBlob } from '../download';
 import { jsonForScript } from '../html-escape';
@@ -1139,14 +1140,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       // -----------------------------------------------------------------
       // 5. Sources.
       // -----------------------------------------------------------------
-      const knownSourceKeys: ReadonlySet<string> = new Set<string>([
-        'id', 'quellensigle', 'herkunftsregion', 'herkunftsort', 'herkunftsinstitution',
-        'ordenstradition', 'quellentyp', 'bibliotheksort', 'bibliothek',
-        'bibliothekssignatur', 'kommentar', 'datierung', 'iiifManifestUrl',
-        'equivalents', 'annotationRegions', 'annotationItems',
-        'transcriptionAnnotations', 'custom',
-      ]);
-
       this.updateProgress({
         phase: 'sources',
         message: `Importing sources…`,
@@ -1159,35 +1152,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         if (this.importProgress.cancelled) return;
         const { meta, sourceId } = sourceMetas[i];
 
-        const custom: { [k: string]: string } = { ...(meta.custom ?? {}) };
-        for (const [k, v] of Object.entries(meta)) {
-          if (k === 'manifest') continue;
-          if (knownSourceKeys.has(k)) continue;
-          if (v === null || v === undefined) continue;
-          custom[k] = typeof v === 'string' ? v : JSON.stringify(v);
-        }
-        // earlier exports call the Markdown description `beschreibung`; it is kept as `description`
-        if (custom['beschreibung'] !== undefined) {
-          if (!custom[SOURCE_DESCRIPTION_KEY]) custom[SOURCE_DESCRIPTION_KEY] = custom['beschreibung'];
-          delete custom['beschreibung'];
-        }
-
-        const next: Source = {
-          id:                    sourceId,
-          quellensigle:          meta.quellensigle          || sourceId,
-          herkunftsregion:       meta.herkunftsregion       || '',
-          herkunftsort:          meta.herkunftsort          || '',
-          herkunftsinstitution:  meta.herkunftsinstitution  || '',
-          ordenstradition:       meta.ordenstradition       || '',
-          quellentyp:            meta.quellentyp            || '',
-          bibliotheksort:        meta.bibliotheksort        || '',
-          bibliothek:            meta.bibliothek            || '',
-          bibliothekssignatur:   meta.bibliothekssignatur   || '',
-          kommentar:             meta.kommentar             || '',
-          datierung:             meta.datierung             || '',
-          iiifManifestUrl:       meta.iiifManifestUrl || meta.manifest || undefined,
-          custom:                Object.keys(custom).length ? custom : undefined,
-        };
+        const next = sourceFromMeta(meta, sourceId);
 
         const existing = sourceIndex.get(sourceId);
         if (existing) {
@@ -1213,13 +1178,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       // -----------------------------------------------------------------
       // 6. Documents (and their data.json bodies → notes).
       // -----------------------------------------------------------------
-      const knownDocKeys = new Set([
-        'id', 'quelle_id', 'dokumenten_id', 'gattung1', 'gattung2', 'festtag',
-        'feier', 'textinitium', 'bibliographischerverweis', 'druckausgabe',
-        'zeilenstart', 'foliostart', 'kommentar', 'editionsstatus', 'custom',
-        'genre', 'festum', 'dies', 'rowstart', 'source_id', 'additionalData',
-      ]);
-
       this.updateProgress({
         phase: 'documents',
         message: `Importing documents…`,
@@ -1245,30 +1203,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
             continue;
           }
 
-          const custom: { [k: string]: string } = { ...(meta.additionalData ?? meta.custom ?? {}) };
-          for (const [k, v] of Object.entries(meta)) {
-            if (knownDocKeys.has(k)) continue;
-            if (v === null || v === undefined) continue;
-            custom[k] = typeof v === 'string' ? v : JSON.stringify(v);
-          }
-
-          const next = {
-            id:                       docId,
-            quelle_id:                sourceId,
-            dokumenten_id:            meta.dokumenten_id            || docId,
-            gattung1:                 meta.gattung1 || meta.genre   || '',
-            gattung2:                 meta.gattung2                 || '',
-            festtag:                  meta.festtag  || meta.festum  || '',
-            feier:                    meta.feier    || meta.dies    || '',
-            textinitium:              meta.textinitium              || '',
-            bibliographischerverweis: meta.bibliographischerverweis || '',
-            druckausgabe:             meta.druckausgabe             || '',
-            zeilenstart:              meta.zeilenstart || meta.rowstart || '',
-            foliostart:               meta.foliostart               || '',
-            kommentar:                meta.kommentar                || '',
-            editionsstatus:           meta.editionsstatus           || '',
-            custom:                   Object.keys(custom).length ? custom : {},
-          };
+          const next = documentFromMeta(meta, docId, sourceId);
 
           // Persist this document's notes BEFORE registering the document
           // itself. If the notes write fails for any reason (storage full,

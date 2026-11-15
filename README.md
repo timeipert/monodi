@@ -27,6 +27,7 @@ Markdown documents of `apps/monodi`. `README.md` and `CLAUDE.md` stay in the app
 | [CLAUDE.md](CLAUDE.md) | Rules for changes (shared code, headless exports, deployment of monodi.app) and the project-wide writing rules. |
 | [CHANT-SVG.md](documentation/CHANT-SVG.md) | How the headless SVG export draws a chant like the PDF export (`scripts/export-svg-batch.mjs`). |
 | [GITHUB-LOGIN.md](documentation/GITHUB-LOGIN.md) | How "Sign in with GitHub" works (GitHub App, PKCE, proxy) and how it is configured. |
+| [IMPORT-FROM-REPOSITORY.md](documentation/IMPORT-FROM-REPOSITORY.md) | How *Import / Export → Repository* loads filtered transcriptions from a public repository (Corpus Monodicum, Cantus Corpus) into the workspace. |
 | [INTEGRATION-PLAN.md](documentation/INTEGRATION-PLAN.md) | Plan for the file exchange between Monodi-Zero and the Neume Viewer (annotation exchange). |
 | [NEUME-VIEWER-INTERNALS.md](LLM/NEUME-VIEWER-INTERNALS.md) | Description of the Neume Viewer (the sibling app) as seen from Monodi-Zero: what it reads and writes. |
 

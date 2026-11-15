@@ -45,6 +45,7 @@ import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selec
 import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
 import { MeiStructurePanelComponent } from './mei/mei-structure-panel.component';
 import { ImportExportComponent } from './import-export/import-export.component';
+import { RepositoryImportComponent } from './repository-import/repository-import.component';
 import { SelectionDashboardComponent } from './search/selection-dashboard/selection-dashboard.component';
 import { ChartBarsComponent } from './search/charts/chart-bars.component';
 import { ChartScatterComponent } from './search/charts/chart-scatter.component';
@@ -82,6 +83,7 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         MeiMappingEditorComponent,
         MeiStructurePanelComponent,
         ImportExportComponent,
+        RepositoryImportComponent,
         SelectionDashboardComponent,
         ChartBarsComponent,
         ChartScatterComponent,

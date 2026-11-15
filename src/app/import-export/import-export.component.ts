@@ -20,7 +20,7 @@ interface IoAction {
   hint: string;
   /** File type shown on the right. */
   badge: string;
-  /** Action of the Sources page that does the work (`?ws=`); the Cantus import is a dialog here. */
+  /** Action of the Sources page that does the work (`?ws=`); the Cantus Index and repository imports are dialogs here. */
   ws?: string;
 }
 interface IoGroup { title: string; actions: IoAction[]; }
@@ -47,6 +47,7 @@ const SIDES: IoSide[] = [
         title: 'From the web',
         actions: [
           { id: 'cantus', icon: 'bi-cloud-arrow-down', color: 'text-primary', title: 'Cantus Index', hint: 'Fetch a melody by its ID', badge: 'Volpiano' },
+          { id: 'repository', icon: 'bi-github', color: 'text-primary', title: 'Repository', hint: 'Corpus Monodicum, Cantus Corpus or a repository of your own, with filters', badge: 'GitHub' },
         ],
       },
     ],
@@ -85,6 +86,9 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   readonly sides = SIDES;
   private subs: Subscription[] = [];
 
+  /** Dialog "Import from Repository" (component `app-repository-import`). */
+  showRepositoryDialog = false;
+
   // Cantus Index import dialog
   showCantusDialog = false;
   cantusId = '';
@@ -117,6 +121,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
 
   /** A row was clicked: the Sources page runs the action (file picker or dialog), Cantus Index has its own dialog here. */
   run(a: IoAction): void {
+    if (a.id === 'repository') { this.showRepositoryDialog = true; return; }
     if (!a.ws) { this.openCantusDialog(); return; }
     this.router.navigate(['/sources'], { queryParams: { ws: a.ws } });
   }

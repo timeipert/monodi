@@ -2,6 +2,7 @@
 // the entry points must offer what the apps import from them.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import * as datasets from './datasets/index.ts';
 import * as document from './document/index.ts';
 import * as mei from './mei/index.ts';
 import * as pageLayout from './page-layout/index.ts';
@@ -22,6 +23,13 @@ describe('entry points', () => {
   it('@monodi/core/page-layout offers the vocabulary, the model, the text and the drawings', () => {
     for (const name of ['VOCABULARY', 'normalisePageLayout', 'describePageLayout', 'pageDiagramSvg', 'staffSampleSvg']) {
       assert.equal(typeof (pageLayout as Record<string, unknown>)[name] === 'undefined', false, name);
+    }
+  });
+
+  it('@monodi/core/datasets offers the client, the filters of both datasets and the record of imports', () => {
+    for (const name of ['loadCatalog', 'loadDataset', 'fetchBytes', 'filterCmSources', 'planCmImport', 'filterCantusSources',
+      'planCantusImport', 'cantusDocumentMeta', 'upsertRecord', 'DEFAULT_CATALOG_URL']) {
+      assert.equal(typeof (datasets as Record<string, unknown>)[name] === 'undefined', false, name);
     }
   });
 
