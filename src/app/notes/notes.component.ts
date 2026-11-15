@@ -36,8 +36,6 @@ import { Router } from '@angular/router';
 import { SearchExecService } from '../search/search-exec.service';
 import { ManuscriptViewService } from '../manuscript-view.service';
 
-declare const $: any;
-
 /** First note of the syllable's main melody. */
 function firstNoteOfSyllable(s: VM.Syllable): VM.Note | undefined {
   for (const neume of s.notes?.spaced ?? []) { const n = firstNoteOf(neume); if (n) return n; }

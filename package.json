@@ -57,7 +57,6 @@
     "core-js": "^3.29.0",
     "handlebars": "^4.7.9",
     "hyphen": "^1.14.1",
-    "jquery": "^4.0.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "jszip": "^3.10.1",

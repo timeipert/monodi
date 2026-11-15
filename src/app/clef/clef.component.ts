@@ -11,8 +11,6 @@ import { Focusable, Focus, FocusChange } from '../types/Focus';
 import { UndoService } from '../undoService';
 import { ContextMenuService } from '../context-menu/context-menu.service';
 
-declare const $: any;
-
 @Component({
     selector: 'app-clef',
     templateUrl: './clef.component.html',

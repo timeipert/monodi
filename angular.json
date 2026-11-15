@@ -35,9 +35,7 @@
               "vendor/cm-core/src/theme.css",
               "src/styles.css"
             ],
-            "scripts": [
-              "./node_modules/jquery/dist/jquery.min.js"
-            ],
+            "scripts": [],
             "aot": false,
             "preserveSymlinks": true,
             "vendorChunk": true,
