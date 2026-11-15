@@ -136,6 +136,47 @@ describe('ResultViewComponent', () => {
     });
   });
 
+  describe('LaTeX', () => {
+    it('copies the rows that pass the filter, in the order shown, as a booktabs table', async () => {
+      const written: string[] = [];
+      spyOn(navigator.clipboard, 'writeText').and.callFake((t: string) => { written.push(t); return Promise.resolve(); });
+      const el = show(table([['alpha', 3], ['beta', 9], ['gamma_x', 1]], { title: 'Table 2: words & counts' }));
+      comp.textFilter = 'a';
+      comp.refresh();
+      comp.sortBy(1);
+      comp.sortBy(1); // numeric columns sort descending first, so the second click is ascending
+      render();
+      expect(el.textContent).toContain('LaTeX');
+      await comp.copyLatex();
+      expect(written.length).toBe(1);
+      const t = written[0];
+      expect(t).toContain('\\begin{tabular}{lrr}');
+      expect(t).toContain('\\caption{words \\& counts}');
+      expect(t.indexOf('gamma\\_x')).toBeLessThan(t.indexOf('alpha'));
+      expect(t.indexOf('alpha')).toBeLessThan(t.indexOf('beta'));
+      expect(comp.latexCopied).toBeTrue();
+    });
+
+    it('copies a matrix with the labels as first column', async () => {
+      const written: string[] = [];
+      spyOn(navigator.clipboard, 'writeText').and.callFake((t: string) => { written.push(t); return Promise.resolve(); });
+      show({ kind: 'matrix', title: 'Distance matrix', rowLabels: ['A', 'B'], colLabels: ['A', 'B'], values: [[0, 1.5], [1.5, 0]], digits: 1, lowIsClose: true });
+      await comp.copyMatrixLatex();
+      expect(written[0]).toContain('\\begin{tabular}{lrr}');
+      expect(written[0]).toContain('A & 0 & 1.5');
+    });
+
+    it('hands the code over as a file when the clipboard is not available', async () => {
+      spyOn(navigator.clipboard, 'writeText').and.returnValue(Promise.reject(new Error('denied')));
+      const files: Blob[] = [];
+      spyOn(window.URL, 'createObjectURL').and.callFake((b: Blob | MediaSource) => { files.push(b as Blob); return 'blob:x'; });
+      show(table([['a', 1]]));
+      await comp.copyLatex();
+      expect(files.length).toBe(1);
+      expect(files[0].type).toContain('x-tex');
+    });
+  });
+
   describe('charts', () => {
     const grouped: ResultView = {
       kind: 'bars', layout: 'columns', title: 'Pitch', unit: 'notes',

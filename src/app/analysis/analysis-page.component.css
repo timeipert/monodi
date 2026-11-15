@@ -5,3 +5,4 @@
 .analysis-page .nav-pills .nav-link { color: var(--color-text, #222); background: #f3f1ec; }
 .analysis-page .nav-pills .nav-link.active { background: var(--color-primary, #9a2a1f); color: #fff; font-weight: 600; }
 .analysis-page .methods-list { max-height: 60vh; overflow-y: auto; }
+.algo-text { white-space: pre-wrap; word-break: break-word; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 90ch; color: #333; max-height: 28rem; overflow: auto; }

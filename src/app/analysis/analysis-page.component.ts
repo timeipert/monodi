@@ -1,9 +1,10 @@
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, TemplateRef } from '@angular/core';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { Subscription } from 'rxjs';
-import { describeFilters, filtersKey, frequentValues, getMethod, groupableFields, LATIN_STOP_WORDS, METHODS, METHOD_GROUPS, NO_FILTERS, normalizeParams, parseWordList, ruleMatches } from '@monodi/core/analysis';
-import type { AnalysisMethod, CorpusFilters, DocInfo, ExcludeRule, FieldOption, ParamValues } from '@monodi/core/analysis';
+import { describeFilters, filtersKey, frequentValues, getMethod, groupableFields, LATIN_STOP_WORDS, methodReport, METHODS, SOFTWARE_URL, METHOD_GROUPS, NO_FILTERS, normalizeParams, parseWordList, ruleMatches } from '@monodi/core/analysis';
+import type { AnalysisMethod, CorpusFilters, DocInfo, ExcludeRule, FieldOption, MethodReport, ParamValues } from '@monodi/core/analysis';
 import { APIService, Source } from '../api.service';
 import { downloadBlob } from '../download';
 import { PageTitleService } from '../page-title.service';
@@ -83,6 +84,7 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
     private readonly userService: UserService,
     private readonly pageTitle: PageTitleService,
     private readonly toastr: ToastrService,
+    private readonly modal: NgbModal,
     private readonly cdr: ChangeDetectorRef,
     readonly selSvc: SelectionService,
     private readonly runner: AnalysisRunnerService,
@@ -457,6 +459,37 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
     const when = new Date(rec.computedAt).toISOString().slice(0, 16).replace('T', ' ');
     const f = describeFilters(this.current?.filters);
     return `${m?.title ?? rec.methodId} (version ${rec.methodVersion}) on ${this.current?.corpus.label ?? 'the corpus'}, ${rec.result.docCount} documents${f ? ` (${f})` : ''}; ${p || 'default parameters'}; computed ${when}; fingerprint ${rec.fingerprint.slice(0, 12)}.`
+  }
+
+  // ── how a result was computed, for citation ──────────────────────────────
+
+  readonly softwareUrl = SOFTWARE_URL;
+  private reportFor: { key: string; report: MethodReport | null } | null = null;
+
+  /** The description of what the method did for this result (settings as stored with it). */
+  report(rec: ResultRecord): MethodReport | null {
+    const same = (rec.filtersKey ?? '') === filtersKey(this.current?.filters);
+    const key = `${rec.methodId}|${rec.fingerprint}|${same}|${this.fields.length}`;
+    if (this.reportFor?.key !== key) this.reportFor = { key, report: methodReport(rec.methodId, rec.params, same ? this.current?.filters ?? NO_FILTERS : 'unknown', (k) => this.fields.find((f) => f.key === k)?.label) };
+    return this.reportFor.report;
+  }
+
+  /** The algorithm and references of the method in a popup (opened on request; the page shows one line only). */
+  openAlgorithm(content: TemplateRef<unknown>): void {
+    this.modal.open(content, { size: 'lg', scrollable: true });
+  }
+
+  /** Copy the description as plain text, LaTeX or BibTeX. */
+  async copyReport(rec: ResultRecord, kind: 'text' | 'latex' | 'bibtex'): Promise<void> {
+    const r = this.report(rec);
+    if (!r) return;
+    const label = { text: 'text', latex: 'LaTeX', bibtex: 'BibTeX' }[kind];
+    try {
+      await navigator.clipboard.writeText(kind === 'text' ? r.text : kind === 'latex' ? r.latex : r.bibtex);
+      this.toastr.success(`The description of the method was copied as ${label}.`);
+    } catch {
+      this.toastr.error('The browser did not allow copying. Select the text and copy it.');
+    }
   }
 
   openDocs(ids: string[]): void {

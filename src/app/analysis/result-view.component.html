@@ -24,6 +24,10 @@
               </button>
             }
             <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadCsv()" title="Download the shown rows as CSV"><i class="bi bi-download me-1"></i>CSV</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyLatex()"
+              [title]="'Copy the shown rows as a LaTeX table (booktabs; at most ' + latexMaxRows + ' rows, the CSV has all)'">
+              <i class="bi me-1" [class.bi-clipboard]="!latexCopied" [class.bi-clipboard-check]="latexCopied"></i>{{ latexCopied ? 'Copied' : 'LaTeX' }}
+            </button>
           }
         </header>
         @if (t.note) { <p class="small text-muted mb-1">{{ t.note }}</p> }
@@ -177,6 +181,9 @@
             <span>{{ m.lowIsClose ? '(far … close)' : '(low … high)' }}</span>
           </div>
           <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadMatrix()"><i class="bi bi-download me-1"></i>CSV</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyMatrixLatex()" title="Copy the matrix as a LaTeX table (booktabs)">
+            <i class="bi me-1" [class.bi-clipboard]="!latexCopied" [class.bi-clipboard-check]="latexCopied"></i>{{ latexCopied ? 'Copied' : 'LaTeX' }}
+          </button>
           <ng-container *ngTemplateOutlet="figureTools"></ng-container>
         </header>
         @if (m.note) { <p class="small text-muted mb-1">{{ m.note }}</p> }

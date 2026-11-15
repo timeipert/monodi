@@ -96,6 +96,27 @@ State 2026-11-15. The charts of a result (histograms, composite figure, scatter 
 - **Download** (menu on every figure): **PDF** (vector, text as text in Helvetica, no background), **PNG** (300 dpi, transparent background), **SVG** (vector, for editing). Files carry no tooltips. Implementation: [`figure-export.ts`](../src/app/analysis/figure-export.ts) (PNG through a canvas that is not painted on; PDF through jsPDF and svg2pdf.js, loaded only when needed).
 - **Not covered.** Rankings with notation cells are not figures; the heat map is drawn as an HTML table on the screen and as SVG in the download; the 17-source or 60-group cases rely on the *Groups in the figure* limit.
 
+## 3d. Citing a method, and tables as LaTeX
+
+State 2026-11-15.
+
+- **Method line and popup.** Under every result one line names the method and its version and links to the software (the Monodi-Zero analysis library). *Algorithm and references* opens a popup with the exact description for the method section of a paper: the settings stored with the result (grouping fields by their names), the rules and stop words that left chants out, the preparation of the corpus (reading rule, pitch as diatonic index, syllables, neumes and words, groups), the numbered steps, the formulas, the cost and limits and the references. Buttons copy it as plain text, as LaTeX (`enumerate` list, formulas as display math, `\cite{key}`) and the BibTeX entries of exactly the references used. If the rules for leaving chants out were changed after the result was computed, the text says that the rules used are not recorded.
+- **Where the text lives.** [`algorithms.ts`](../../../packages/core/src/analysis/algorithms.ts) holds one description per method (`ALGORITHMS`), the shared preparation (`PREPARATION`) and the references (`REFERENCES`). It is derived from the code of the methods and must be changed with it: a change to a method that alters its result also raises `version` of the method, and the description is revised in the same commit. `algorithms.test.ts` checks that every method has a description, that every cited reference exists, that every setting of every method appears in the report, and that LaTeX and BibTeX agree.
+- **Literature behind the methods.**
+
+| Method | Follows |
+|---|---|
+| Overview, axis, syllable groups | counts and medians; ChantDigger (Haas 2014) for axis and syllable groups |
+| Tonal profile | final, ambitus and tenor of the eight modes after the traditional scheme (Hiley 1993); the estimate is a documented heuristic |
+| Variants | Levenshtein 1966 (edit distance, banded after Ukkonen 1985), normalised by the longer sequence |
+| N-grams | counting of overlapping windows; frequency per 10,000 windows |
+| Keyness | log-likelihood G2 (Dunning 1993; Rayson and Garside 2000), log ratio (Hardie 2014) |
+| Collocations | log-Dice (Rychlý 2008), pointwise mutual information and t-score (Church and Hanks 1990; Evert 2008) |
+| Distance between sources | Burrows' Delta (Burrows 2002), cosine (Salton and McGill 1983), Jaccard (1901); average linkage (Sokal and Michener 1958); classical multidimensional scaling (Torgerson 1952; Gower 1966) |
+| Segments, bridges, models | the program ChantDigger (Haas 2014); one documented deviation in the direction rule of the shape criteria (section 4) |
+
+- **Tables as LaTeX.** Every table has a **LaTeX** button beside **CSV**: it copies the rows that pass the filter, in the order shown, as a `table` with `booktabs` rules (`\usepackage{booktabs}`), numbers right-aligned, special characters escaped, the title as caption (a leading "Table 1:" is dropped) and a label. At most 100 rows are written; a longer table says so in a comment, and the CSV has all rows. A distance matrix has the same button. Where the browser refuses to write to the clipboard, the code is downloaded as a `.tex` file. Implementation: [`latex.ts`](../../../packages/core/src/analysis/latex.ts).
+
 ## 3b. Searching the corpus of an analysis
 
 The card *Search the corpus* lists the documents of the analysis (filterable, with metadata) and searches them for a **melodic pattern**: pitches (letters a–g, optionally with octave numbers; without them the octave is ignored), intervals (signed steps), or contour (u, d, r), exact or with up to 3 differences (insertions, deletions, wrong notes; approximate substring matching after Sellers), or, for exact search, with the notes **spread inside a window** (ChantDigger: "d f a c' a g 10"). The result is a table of chants with the number of passages, the fewest differences, the position of the first passage and that passage as notes. The notes of the corpus are read once and kept while the analysis is open. Implementation: [`search.ts`](../../../packages/core/src/analysis/search.ts).
@@ -178,7 +199,7 @@ State 2026-11-15.
 
 ## 8. How it is checked
 
-- `cd packages/core && npm test`: the methods, fingerprints, statistics and the ChantDigger criteria (hand-computed expectations); the figure renderer (`figure.test.ts`: well-formed SVG, size in points, no background, only greys unless colour is on, escaped text, share versus count, panels versus side by side); `exports.test.ts` loads the entry point in Node.
+- `cd packages/core && npm test`: the methods, fingerprints, statistics and the ChantDigger criteria (hand-computed expectations); the method descriptions and LaTeX output (`algorithms.test.ts`), the figure renderer (`figure.test.ts`: well-formed SVG, size in points, no background, only greys unless colour is on, escaped text, share versus count, panels versus side by side); `exports.test.ts` loads the entry point in Node.
 - `cd apps/monodi && npx ng test --watch=false --browsers=ChromeHeadless`: selection helper and bar, search integration (all hits across pages, invert, source checkbox, address cap, synopsis guard), store (round trip, compression, quota message, export and import), runner (cache hit, parameter change, stale after melody or text edit, comment edit keeps results), result renderer (figure markup, style switches, SVG, PNG with the right type and PDF downloads).
 - `npx ng build --configuration production` and `npm run check:templates`.
 - Benchmark: `node --import ./src/resolve-ts.mjs src/analysis/bench.ts 22000` in `packages/core`.

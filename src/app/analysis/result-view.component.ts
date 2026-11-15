@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { DEFAULT_FIGURE_STYLE, FIGURE_WIDTHS_MM, cellText, groupCount, isFigureView, isNotationCell, niceTicks, renderViewSvg, tableToCsv, tickLabel } from '@monodi/core/analysis';
+import { DEFAULT_FIGURE_STYLE, FIGURE_WIDTHS_MM, cellText, groupCount, isFigureView, isNotationCell, LATEX_MAX_ROWS, niceTicks, renderViewSvg, tableToCsv, tableToLatex, tickLabel } from '@monodi/core/analysis';
 import type { BarsView, Cell, FigureStyle, FigureView, MatrixView, NotationCell, PatternUnit, RenderedFigure, ResultView, TableView } from '@monodi/core/analysis';
 import { downloadBlob } from '../download';
 import { svgToBlob, svgToPdf, svgToPng } from './figure-export';
@@ -231,6 +231,36 @@ export class ResultViewComponent implements OnChanges {
     const out = new Set<string>();
     for (const i of this.order) for (const d of t.rowDocs[i] ?? []) { out.add(d); if (out.size >= 2000) return [...out]; }
     return [...out];
+  }
+
+  /** LaTeX copied: shown on the button for a moment. */
+  latexCopied = false;
+  readonly latexMaxRows = LATEX_MAX_ROWS;
+
+  /** Copy the rows that pass the filter, in the order shown, as a LaTeX table (the first `LATEX_MAX_ROWS`; the CSV has all). */
+  async copyLatex(): Promise<void> {
+    const t = this.table;
+    if (!t) return;
+    await this.putLatex(tableToLatex({ title: t.title, columns: t.columns, rows: this.order.map((i) => t.rows[i]) }), t.title);
+  }
+
+  /** Copy a matrix as a LaTeX table (the first column holds the row labels). */
+  async copyMatrixLatex(): Promise<void> {
+    const m = this.matrix;
+    if (!m) return;
+    const columns = [{ key: 'r', label: '' }, ...m.colLabels.map((l, i) => ({ key: `c${i}`, label: l, numeric: true }))];
+    await this.putLatex(tableToLatex({ title: m.title, columns, rows: m.rowLabels.map((l, i) => [l, ...m.values[i]]) }), m.title);
+  }
+
+  private async putLatex(code: string, title: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(code);
+      this.latexCopied = true;
+      setTimeout(() => { this.latexCopied = false; }, 2000);
+    } catch {
+      // No clipboard (an insecure page, a refused permission): hand the code over as a file instead.
+      downloadBlob(new Blob([code], { type: 'text/x-tex;charset=utf-8' }), `${this.fileStem}-${slug(title)}.tex`);
+    }
   }
 
   downloadCsv(): void {

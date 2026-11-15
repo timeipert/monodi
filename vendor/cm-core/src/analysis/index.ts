@@ -23,3 +23,5 @@ export { estimateMode, tenorOf } from './methods/descriptive';
 export type { ModeEstimate } from './methods/descriptive';
 export { chantAxis, syllableCount } from './methods/chantdigger';
 export { tableToCsv } from './csv';
+export * from './latex';
+export * from './algorithms';
