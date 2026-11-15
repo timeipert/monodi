@@ -1,41 +1,100 @@
-<div class="container py-4" style="max-width: 1040px;">
-  <div class="d-flex align-items-center gap-2 mb-4">
-    <i class="bi bi-arrow-down-up text-primary fs-4"></i>
-    <h3 class="fw-bold mb-0">Import / Export</h3>
-  </div>
+<div class="container py-4 io-page">
+  <header class="mb-3">
+    <h3 class="fw-bold mb-1 d-flex align-items-center gap-2"><i class="bi bi-arrow-down-up text-primary"></i>Import / Export</h3>
+    <p class="text-muted mb-0">Bring chant data into this workspace, or take it out.</p>
+  </header>
 
-  <div class="row g-4">
-    @for (side of sides; track side.title) {
-      <div class="col-lg-6">
-        <h5 class="fw-semibold mb-3"><i class="bi me-2" [ngClass]="side.icon"></i>{{ side.title }}</h5>
-        @for (group of side.groups; track group.title) {
-          <div class="io-group-title">{{ group.title }}</div>
-          <div class="d-flex flex-column gap-2 mb-3">
-            @for (a of group.actions; track a.id) {
-              <button type="button" class="io-row" (click)="run(a)">
-                <i class="bi io-icon" [ngClass]="[a.icon, a.color]"></i>
-                <span class="io-text">
-                  <span class="io-title">{{ a.title }}</span>
-                  <span class="io-hint">{{ a.hint }}</span>
-                </span>
-                <span class="io-badge">{{ a.badge }}</span>
-                <i class="bi bi-chevron-right io-go"></i>
-              </button>
-            }
+  <!-- ── the workspace at a glance ─────────────────────────────────────────── -->
+  <section class="io-status mb-4" [class.io-status-ok]="backupState === 'ok'" [class.io-status-warn]="backupState !== 'ok'" aria-label="Workspace status">
+    <div class="io-status-main">
+      @if (status) {
+        <div class="io-status-count">
+          <strong>{{ status.sources | number }}</strong> sources · <strong>{{ status.documents | number }}</strong> chants
+        </div>
+        <div class="io-status-backup">
+          <i class="bi" [ngClass]="backupState === 'ok' ? 'bi-shield-check text-success' : 'bi-exclamation-triangle text-warning'"></i>
+          {{ backupText }}
+        </div>
+        @if (status.importedSources > 0) {
+          <div class="io-status-imported">
+            <i class="bi bi-github"></i>
+            {{ status.importedChants | number }} chants of {{ status.importedSources }} sources came from repositories
+            <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" (click)="openImported()">Manage</button>
           </div>
         }
-      </div>
+      } @else {
+        <div class="text-muted">Reading the workspace…</div>
+      }
+    </div>
+    <button type="button" class="btn btn-sm flex-shrink-0" [ngClass]="backupState === 'ok' ? 'btn-outline-success' : 'btn-success'"
+      (click)="startGoal(goals[0])"><i class="bi bi-archive me-1"></i>Back up now</button>
+  </section>
+
+  <!-- ── what do you want to do? ───────────────────────────────────────────── -->
+  <div class="io-tabs" role="tablist" aria-label="Import or export">
+    <button type="button" role="tab" class="io-tab" [class.active]="tab === 'import'" [attr.aria-selected]="tab === 'import'" (click)="setTab('import')">
+      <i class="bi bi-box-arrow-in-down me-2"></i>Import <span class="io-tab-hint">into this workspace</span>
+    </button>
+    <button type="button" role="tab" class="io-tab" [class.active]="tab === 'export'" [attr.aria-selected]="tab === 'export'" (click)="setTab('export')">
+      <i class="bi bi-box-arrow-up me-2"></i>Export <span class="io-tab-hint">out of this workspace</span>
+    </button>
+  </div>
+
+  <div role="tabpanel">
+    @for (section of sections; track section.id) {
+      <section class="io-section">
+        <h2 class="io-section-title">{{ section.title }}</h2>
+        <p class="io-section-text">{{ section.description }}</p>
+        <div class="io-grid">
+          @for (a of section.actions; track a.id) {
+            <button type="button" class="io-card" [class.io-card-recommended]="a.recommended" (click)="run(a)">
+              <i class="bi io-icon" [ngClass]="[a.icon, a.color]"></i>
+              <span class="io-text">
+                <span class="io-title">
+                  {{ a.title }}
+                  @if (a.recommended) { <span class="io-flag io-flag-recommended">Recommended</span> }
+                </span>
+                <span class="io-hint">{{ a.hint }}</span>
+                <span class="io-keeps">
+                  <i class="bi" [ngClass]="a.complete ? 'bi-check-circle-fill text-success' : 'bi-dot'"></i>{{ a.keeps }}
+                </span>
+              </span>
+              <span class="io-side">
+                <span class="io-badge">{{ a.format }}</span>
+                @if (a.online) { <span class="io-flag" title="Needs an internet connection"><i class="bi bi-wifi"></i> online</span> }
+              </span>
+              <i class="bi bi-chevron-right io-go"></i>
+            </button>
+          }
+        </div>
+      </section>
     }
   </div>
 
-  <p class="text-muted small mt-2 mb-0">
+  <!-- ── which one do I need? ──────────────────────────────────────────────── -->
+  <details class="io-goals mt-4">
+    <summary>Which one do I need?</summary>
+    <table class="table table-sm align-middle mb-0 mt-2">
+      <tbody>
+        @for (g of goals; track g.goal) {
+          <tr>
+            <td class="fw-medium">{{ g.goal }}</td>
+            <td class="text-muted">{{ g.answer }}</td>
+            <td class="text-end"><button type="button" class="btn btn-link btn-sm py-0" (click)="startGoal(g)">Start <i class="bi bi-arrow-right"></i></button></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </details>
+
+  <p class="text-muted small mt-3 mb-0">
     <i class="bi bi-info-circle me-1"></i>One document only? Use <strong>File</strong> in its toolbar (JSON, PDF, MEI, Volpiano).
   </p>
 </div>
 
 <!-- ── Import from Repository dialog ───────────────────────────────────── -->
 @if (showRepositoryDialog) {
-  <app-repository-import (closed)="showRepositoryDialog = false"></app-repository-import>
+  <app-repository-import [startTab]="repositoryStartTab" (closed)="showRepositoryDialog = false; loadStatus()"></app-repository-import>
 }
 
 <!-- ── Cantus Index import dialog ───────────────────────────────────────── -->

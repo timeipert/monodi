@@ -2,6 +2,7 @@ import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { LocalWorkspaceSource, ORPHAN_BUNDLE_ID } from './workspace-source';
 import { PushCache } from './push-cache';
+import { SyncExclusions } from './sync-exclusions';
 
 /**
  * These guard the streaming push path: it must produce exactly the same
@@ -148,6 +149,38 @@ describe('LocalWorkspaceSource', () => {
     await seed([], [], {});
     mockStore.set('monodi_settings', { theme: 'dark' });
     expect(await new LocalWorkspaceSource().loadSettings()).toEqual({ theme: 'dark' });
+  });
+
+  describe('with sources that the sync leaves out', () => {
+    it('does not offer them to a push and never reads their notes', async () => {
+      await seed(
+        [{ id: 'ms-a' }, { id: 'ms-b' }],
+        [{ id: 'd1', quelle_id: 'ms-a' }, { id: 'd2', quelle_id: 'ms-b' }],
+        { d1: { n: 1 }, d2: { n: 2 } }
+      );
+      await SyncExclusions.add(['ms-a']);
+
+      const src = new LocalWorkspaceSource();
+      const ids = await src.listIds();
+      expect(ids).toEqual(['ms-b']);
+      for (const id of ids) await src.load(id);
+      const touched = (localforage.getItem as jasmine.Spy).calls.allArgs().map(a => a[0]);
+      expect(touched).not.toContain('monodi_notes_doc_d1');
+    });
+
+    it('offers a source again once it is included', async () => {
+      await seed([{ id: 'ms-a' }], [{ id: 'd1', quelle_id: 'ms-a' }], { d1: { n: 1 } });
+      await SyncExclusions.add(['ms-a']);
+      expect(await new LocalWorkspaceSource().listIds()).toEqual([]);
+      await SyncExclusions.remove(['ms-a']);
+      expect(await new LocalWorkspaceSource().listIds()).toEqual(['ms-a']);
+    });
+
+    it('still rescues orphan notes, which belong to no source', async () => {
+      await seed([{ id: 'ms-a' }], [{ id: 'd1', quelle_id: 'ms-a' }], { d1: { n: 1 }, lost: { n: 9 } });
+      await SyncExclusions.add(['ms-a']);
+      expect(await new LocalWorkspaceSource().listIds()).toEqual([ORPHAN_BUNDLE_ID]);
+    });
   });
 
   describe('with PushCache (repeat-push performance)', () => {

@@ -249,7 +249,7 @@
           } @else {
             <div class="ri-table">
               <table class="table table-sm align-middle mb-0">
-                <thead><tr><th>Dataset</th><th>Source</th><th class="text-end">Chants</th><th>Version</th><th>Imported</th><th></th></tr></thead>
+                <thead><tr><th>Dataset</th><th>Source</th><th class="text-end">Chants</th><th>Version</th><th>Imported</th><th>GitHub sync</th><th></th></tr></thead>
                 <tbody>
                   @for (r of manifest.records; track r.datasetId + r.sourceId) {
                     <tr>
@@ -258,6 +258,11 @@
                       <td class="text-end">{{ r.documentIds.length }}</td>
                       <td class="small text-muted text-nowrap">{{ r.upstreamRef | slice:0:8 }}</td>
                       <td class="small text-nowrap">{{ r.importedAt | date:'yyyy-MM-dd' }}</td>
+                      <td class="small text-nowrap">
+                        <button type="button" class="btn btn-sm py-0" [class.btn-outline-secondary]="!isSynced(r)" [class.btn-outline-primary]="isSynced(r)"
+                          [title]="isSynced(r) ? 'Push uploads this source. Click to leave it out.' : 'Push leaves this source out. Click to include it.'"
+                          (click)="toggleSynced(r)">{{ isSynced(r) ? 'included' : 'left out' }}</button>
+                      </td>
                       <td class="text-end text-nowrap">
                         @if (isOutdated(r)) {
                           <span class="badge bg-warning text-dark me-1">changed upstream</span>
@@ -303,13 +308,21 @@
               @if (storageState === 'tight') { <div class="text-warning">This takes more than half of the free browser storage.</div> }
               @if (tooMany) { <div class="text-danger">More than {{ maxChants | number }} chants at once are not taken. Choose fewer sources or filter the chants.</div> }
               @if (storageState === 'over') { <div class="text-danger">This does not fit into the free browser storage. Choose less.</div> }
-              @if (githubSyncConnected && selectedCount > 0) {
-                <div class="text-warning">GitHub sync is connected: <em>Push</em> would upload these sources too (about {{ formatBytes(storedBytes) }}). Use <em>Auswahl…</em> to push only some.</div>
+              @if (githubSyncConnected && selectedCount > 0 && !keepOutOfSync) {
+                <div class="text-warning">GitHub sync is connected: <em>Push</em> would upload these sources too (about {{ formatBytes(storedBytes) }}).</div>
               }
             </div>
-            <div class="form-check mb-0">
-              <input class="form-check-input" type="checkbox" id="riOverwrite" name="overwrite" [(ngModel)]="overwrite" [disabled]="running">
-              <label class="form-check-label small" for="riOverwrite">Replace chants that are already here</label>
+            <div class="small">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="riOverwrite" name="overwrite" [(ngModel)]="overwrite" [disabled]="running">
+                <label class="form-check-label" for="riOverwrite">Replace chants that are already here</label>
+              </div>
+              @if (githubSyncConnected) {
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" id="riKeepOut" name="keepOutOfSync" [(ngModel)]="keepOutOfSync" [disabled]="running">
+                  <label class="form-check-label" for="riKeepOut">Keep new sources out of the GitHub sync</label>
+                </div>
+              }
             </div>
             @if (running) {
               <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel()"><i class="bi bi-x-lg me-1"></i>Cancel</button>

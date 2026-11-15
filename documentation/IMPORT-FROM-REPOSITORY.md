@@ -80,6 +80,23 @@ serves each file from a cache that is slower for a file nobody asked for recentl
 - **The filters and plans are fast enough** and are not cached: on the real indexes a filter of the 2,278 Cantus sources takes
   3 ms, a plan of all 6,870 chants of the Corpus Monodicum 1 to 4 ms, and reading and parsing both indexes about 0.5 s.
 
+## Imports and the GitHub sync
+
+The button *Push* uploads every source of the workspace to the repository that the person connected, and an import of the whole
+Corpus Monodicum (468 MB of notes) would fill that repository. Therefore **the sources that an import creates are left out of the
+GitHub sync** (state 2026-11-15; the option *Keep new sources out of the GitHub sync* is on by default and shown when the sync is
+connected).
+
+- The list of the sources that the sync leaves out is the row `monodi_sync_excluded` of the workspace storage
+  (`src/app/sync-exclusions.ts`). `LocalWorkspaceSource.listIds` (`workspace-source.ts`) does not offer them to a push, so they are
+  not scanned, not uploaded, and their files on GitHub are not touched or deleted.
+- A source that was in the workspace before the import keeps its sync status; only sources that the import created are put on the list.
+- The tab *Imported* has a button per source (*included* / *left out*), and the selective push dialog (*Auswahl…*) shows a source that is
+  left out with the badge *nicht synchronisiert* and the link *einbeziehen*; a source that is left out cannot be chosen there.
+- Removing an import does not mark a source that the sync leaves out as deleted, so a copy that another person or an earlier push put on
+  GitHub stays. A source that was included in the sync is marked as deleted, as any other source.
+- The list is not part of the workspace backup; after a restore of a backup, imported sources are included in the sync again.
+
 ## The manifest
 
 `monodi_dataset_imports` (IndexedDB, next to the workspace lists) holds one record per imported source: dataset,
@@ -124,8 +141,7 @@ The in-app manual describes the dialog in the section *Import from Repository* o
 
 | No. | Question | Context | Options | Who decides |
 |---|---|---|---|---|
-| 1 | Imports and the GitHub sync | A workspace that is connected to a GitHub repository pushes every source, including imported ones, with the button *Push* (the button *Auswahl…* pushes only chosen sources). An import of the whole Corpus Monodicum (468 MB of notes) would fill the repository of the person. State 2026-11-14: the dialog warns, with the size, when the sync is connected; nothing else is done. | keep the warning; mark imported sources as "do not sync" in the push (changes `github.service.ts`); ask before the first push of imported sources | maintainer of Monodi-Zero |
-| 2 | Fixed tag in the default address | `DEFAULT_CATALOG_URL` points to the tag `v1`. A dataset added to the catalogue, or an upstream version that changes the layout, reaches users only with a release of the app (state 2026-11-14). | keep the tag (stable); read `main` (immediate, but a change in the repository reaches everyone at once) | maintainer of Monodi-Zero with the maintainer of the repository |
-| 3 | Estimates of the storage of imports | The constants `CM_STORED_RATIO`, `ESTIMATED_BYTES_PER_DOCUMENT` and `ESTIMATED_BYTES_PER_MELODY` are measured on four sources (state 2026-11-14, values in the comments of `packages/core/src/datasets/cm.ts` and `cantus.ts`). Longer melodies take more. | measure on a larger sample of the corpus | maintainer of Monodi-Zero |
-| 4 | neume-docs | The core module has no framework code; the dialog and the writing into the storage of neume-docs are not built. | build them in `apps/neume-docs` on top of `@monodi/core/datasets` | maintainer of neume-docs |
-| 5 | Updates of the Cantus Corpus | The Cantus data is a snapshot (release 1.0), so the update check covers the Corpus Monodicum only. | add it when a second release is published | maintainer of the repository |
+| 1 | Fixed tag in the default address | `DEFAULT_CATALOG_URL` points to the tag `v1`. A dataset added to the catalogue, or an upstream version that changes the layout, reaches users only with a release of the app (state 2026-11-14). | keep the tag (stable); read `main` (immediate, but a change in the repository reaches everyone at once) | maintainer of Monodi-Zero with the maintainer of the repository |
+| 2 | Estimates of the storage of imports | The constants `CM_STORED_RATIO`, `ESTIMATED_BYTES_PER_DOCUMENT` and `ESTIMATED_BYTES_PER_MELODY` are measured on four sources (state 2026-11-14, values in the comments of `packages/core/src/datasets/cm.ts` and `cantus.ts`). Longer melodies take more. | measure on a larger sample of the corpus | maintainer of Monodi-Zero |
+| 3 | neume-docs | The core module has no framework code; the dialog and the writing into the storage of neume-docs are not built. | build them in `apps/neume-docs` on top of `@monodi/core/datasets` | maintainer of neume-docs |
+| 4 | Updates of the Cantus Corpus | The Cantus data is a snapshot (release 1.0), so the update check covers the Corpus Monodicum only. | add it when a second release is published | maintainer of the repository |

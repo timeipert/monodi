@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { UserService, User } from '../user.service';
@@ -8,72 +8,13 @@ import { PageTitleService } from '../page-title.service';
 import { VolpianoService } from '../volpiano.service';
 import { alignTextToMelody } from '../volpiano/latin-syllabify';
 import { CantusIndexService, CantusChant, CantusInfo } from '../cantus-index.service';
+import { BackupReminderService } from '../backup-reminder.service';
+import { RepositoryImportService } from '../repository-import.service';
+import {
+  IO_GOALS, IoAction, IoGoal, IoTab, describeAgo, findAction, sectionsOf, tabOfAction,
+} from './import-export-actions';
 
 type SelectableChant = CantusChant & { selected: boolean };
-
-interface IoAction {
-  id: string;
-  icon: string;
-  color: string;
-  title: string;
-  /** One short line. */
-  hint: string;
-  /** File type shown on the right. */
-  badge: string;
-  /** Action of the Sources page that does the work (`?ws=`); the Cantus Index and repository imports are dialogs here. */
-  ws?: string;
-}
-interface IoGroup { title: string; actions: IoAction[]; }
-interface IoSide { title: string; icon: string; groups: IoGroup[]; }
-
-/** Everything the page offers, by what the user wants to do. */
-const SIDES: IoSide[] = [
-  {
-    title: 'Import',
-    icon: 'bi-box-arrow-in-down text-primary',
-    groups: [
-      {
-        title: 'From a file',
-        actions: [
-          { id: 'import-workspace', ws: 'import-workspace', icon: 'bi-archive', color: 'text-secondary', title: 'Backup', hint: 'Restore your workspace', badge: '.monodijson' },
-          { id: 'import-zip', ws: 'import-zip', icon: 'bi-file-earmark-zip', color: 'text-secondary', title: 'ZIP', hint: 'monodi+ or OMMR4all', badge: 'ZIP' },
-          { id: 'import-mei', ws: 'import-mei', icon: 'bi-filetype-xml', color: 'text-secondary', title: 'MEI', hint: 'Neume or premensural notation, several files at once', badge: 'MEI' },
-          { id: 'import-csv', ws: 'import-csv', icon: 'bi-filetype-csv', color: 'text-secondary', title: 'Spreadsheet', hint: 'Each row becomes a document', badge: 'CSV' },
-          { id: 'import-guido', ws: 'import-guido', icon: 'bi-file-earmark-word', color: 'text-secondary', title: 'GUIDO (Word)', hint: 'Chant in the GUIDO font, a document per source', badge: 'DOCX' },
-          { id: 'import-annotations', ws: 'import-annotations', icon: 'bi-images', color: 'text-secondary', title: 'Annotations', hint: 'Neumen-Editor or Neume Viewer', badge: 'JSON' },
-        ],
-      },
-      {
-        title: 'From the web',
-        actions: [
-          { id: 'cantus', icon: 'bi-cloud-arrow-down', color: 'text-primary', title: 'Cantus Index', hint: 'Fetch a melody by its ID', badge: 'Volpiano' },
-          { id: 'repository', icon: 'bi-github', color: 'text-primary', title: 'Repository', hint: 'Corpus Monodicum, Cantus Corpus or a repository of your own, with filters', badge: 'GitHub' },
-        ],
-      },
-    ],
-  },
-  {
-    title: 'Export',
-    icon: 'bi-box-arrow-up text-success',
-    groups: [
-      {
-        title: 'Print & publish',
-        actions: [
-          { id: 'export-pdf', ws: 'export-pdf', icon: 'bi-file-pdf', color: 'text-danger', title: 'PDF edition', hint: 'Pick documents, then page options', badge: 'PDF' },
-          { id: 'export-html', ws: 'export-html', icon: 'bi-globe', color: 'text-warning', title: 'Website', hint: 'Browse offline', badge: 'HTML' },
-        ],
-      },
-      {
-        title: 'Share & back up',
-        actions: [
-          { id: 'export-workspace', ws: 'export-workspace', icon: 'bi-archive', color: 'text-success', title: 'Backup', hint: 'Everything in one file', badge: '.monodijson' },
-          { id: 'export-zip', ws: 'export-zip', icon: 'bi-file-earmark-zip', color: 'text-info', title: 'ZIP', hint: 'For monodi+ or OMMR4all', badge: 'ZIP' },
-          { id: 'export-csv', ws: 'export-csv', icon: 'bi-filetype-csv', color: 'text-success', title: 'Spreadsheet', hint: 'Metadata, melody and text', badge: 'CSV' },
-        ],
-      },
-    ],
-  },
-];
 
 @Component({
     selector: 'app-import-export',
@@ -83,11 +24,25 @@ const SIDES: IoSide[] = [
 })
 export class ImportExportComponent implements OnInit, OnDestroy {
   user: User | null = null;
-  readonly sides = SIDES;
   private subs: Subscription[] = [];
 
-  /** Dialog "Import from Repository" (component `app-repository-import`). */
+  /** The tab that is shown; kept in the address (`?tab=export`) so that a reload and a link keep it. */
+  tab: IoTab = 'import';
+  readonly goals: IoGoal[] = IO_GOALS;
+
+  get sections() {
+    return sectionsOf(this.tab);
+  }
+
+  /** What the workspace holds and when it was backed up last (`null` while the numbers are being read). */
+  status: {
+    sources: number; documents: number; importedSources: number; importedChants: number;
+    lastBackup: number; unbacked: boolean;
+  } | null = null;
+
+  /** Dialog "Import from Repository" (component `app-repository-import`) and the tab it opens with. */
   showRepositoryDialog = false;
+  repositoryStartTab: 'datasets' | 'imported' = 'datasets';
 
   // Cantus Index import dialog
   showCantusDialog = false;
@@ -107,12 +62,75 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     private toastr: ToastrService,
     private pageTitle: PageTitleService,
     private volpiano: VolpianoService,
-    private cantus: CantusIndexService
+    private cantus: CantusIndexService,
+    private route: ActivatedRoute,
+    private backup: BackupReminderService,
+    private repository: RepositoryImportService
   ) {}
 
   ngOnInit(): void {
     this.pageTitle.set('Import / Export');
     this.subs.push(this.userService.user.subscribe((u) => (this.user = u)));
+    this.subs.push(this.route.queryParamMap.subscribe((params) => {
+      this.tab = params.get('tab') === 'export' ? 'export' : 'import';
+    }));
+    void this.loadStatus();
+  }
+
+  /** Read the counts and the backup state shown at the top of the page. */
+  async loadStatus(): Promise<void> {
+    const token = this.user?.token;
+    if (!token) return;
+    try {
+      const [sources, documents, manifest] = await Promise.all([
+        firstValueFrom(this.api.listSources(token)),
+        firstValueFrom(this.api.listDocuments(token)),
+        this.repository.getManifest(),
+      ]);
+      this.status = {
+        sources: sources.kind === 'SourcesRetrieved' ? sources.sources.length : 0,
+        documents: documents.kind === 'DocumentsRetrieved' ? documents.documents.length : 0,
+        importedSources: manifest.records.length,
+        importedChants: manifest.records.reduce((n, r) => n + r.documentIds.length, 0),
+        lastBackup: this.backup.lastBackupAt(),
+        unbacked: this.backup.hasUnbackedChanges(),
+      };
+    } catch (e) {
+      console.warn('Could not read the workspace status', e);
+    }
+  }
+
+  setTab(tab: IoTab): void {
+    this.router.navigate([], { relativeTo: this.route, queryParams: { tab: tab === 'import' ? null : tab }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
+
+  /** The state of the backup in words, for the strip at the top. */
+  get backupText(): string {
+    const s = this.status;
+    if (!s) return '';
+    if (s.lastBackup === 0) return 'No backup made in this browser yet';
+    const when = describeAgo(s.lastBackup, Date.now());
+    return s.unbacked ? `Last backup ${when}; later changes are not backed up` : `Last backup ${when}; nothing changed since`;
+  }
+
+  get backupState(): 'none' | 'old' | 'ok' {
+    const s = this.status;
+    if (!s || s.lastBackup === 0) return 'none';
+    return s.unbacked ? 'old' : 'ok';
+  }
+
+  /** A goal of the list "Which one do I need?": go to its tab and start it. */
+  startGoal(goal: IoGoal): void {
+    const action = findAction(goal.actionId);
+    if (!action) return;
+    const tab = tabOfAction(action.id);
+    if (tab && tab !== this.tab) this.setTab(tab);
+    this.run(action);
+  }
+
+  openImported(): void {
+    this.repositoryStartTab = 'imported';
+    this.showRepositoryDialog = true;
   }
 
   ngOnDestroy(): void {
@@ -121,7 +139,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
 
   /** A row was clicked: the Sources page runs the action (file picker or dialog), Cantus Index has its own dialog here. */
   run(a: IoAction): void {
-    if (a.id === 'repository') { this.showRepositoryDialog = true; return; }
+    if (a.id === 'repository') { this.repositoryStartTab = 'datasets'; this.showRepositoryDialog = true; return; }
     if (!a.ws) { this.openCantusDialog(); return; }
     this.router.navigate(['/sources'], { queryParams: { ws: a.ws } });
   }

@@ -425,11 +425,17 @@
             <div class="list-group">
               @for (m of filteredManuscripts; track m.id) {
                 <label class="list-group-item d-flex align-items-center gap-2">
-                  <input class="form-check-input m-0" type="checkbox" [(ngModel)]="m.selected">
+                  <input class="form-check-input m-0" type="checkbox" [(ngModel)]="m.selected" [disabled]="isLockedForPush(m)">
                   <span class="flex-grow-1">
                     <span class="fw-medium">{{ m.sigle }}</span>
                     @if (m.region) { <span class="text-muted small">· {{ m.region }}</span> }
                     @if (m.remoteOnly) { <span class="badge bg-info text-dark ms-1">nur GitHub</span> }
+                    @if (m.excluded) {
+                      <span class="badge bg-secondary ms-1" title="Von der GitHub-Synchronisation ausgenommen (zum Beispiel aus einem Repository importiert)">nicht synchronisiert</span>
+                      @if (syncDialogAction === 'push') {
+                        <button type="button" class="btn btn-link btn-sm py-0 ms-1" (click)="$event.preventDefault(); includeInSync(m)">einbeziehen</button>
+                      }
+                    }
                     @if (currentUserName && m.assigned.includes(currentUserName)) { <span class="badge bg-primary ms-1">mir zugeteilt</span> }
                   </span>
                 </label>

@@ -12,6 +12,7 @@ import * as _ from 'lodash';
 import { NotesStore } from './notes-store';
 import { LocalWorkspaceSource } from './workspace-source';
 import { PushCache } from './push-cache';
+import { SyncExclusions } from './sync-exclusions';
 import { inSyncManuscripts } from './sync-guards';
 
 /** One manuscript's worth of merge conflicts, grouped for the merge dialog. */
@@ -227,7 +228,7 @@ export class AppComponent implements AfterViewInit {
   // ---- Selective sync (choose which manuscripts to pull/push) ----
   showSyncDialog = false;
   syncDialogAction: 'pull' | 'push' = 'push';
-  manuscriptList: { id: string; sigle: string; region: string; assigned: string[]; remoteOnly: boolean; selected: boolean }[] = [];
+  manuscriptList: { id: string; sigle: string; region: string; assigned: string[]; remoteOnly: boolean; selected: boolean; excluded: boolean }[] = [];
   syncFilterText = '';
   syncOnlyMine = false;
   loadingManuscripts = false;
@@ -261,6 +262,7 @@ export class AppComponent implements AfterViewInit {
     this.showSyncDialog = true;
 
     const localSources = await localforage.getItem<any[]>('monodi_sources') || [];
+    const excludedFromSync = await SyncExclusions.getAll();
     const byId = new Map<string, any>();
     for (const s of localSources) if (s && s.id) byId.set(s.id, s);
 
@@ -272,7 +274,8 @@ export class AppComponent implements AfterViewInit {
         region: s.herkunftsregion || '',
         assigned: Array.isArray(s.assignedTo) ? s.assignedTo : [],
         remoteOnly: false,
-        selected: false
+        selected: false,
+        excluded: excludedFromSync.has(s.id)
       }));
 
     // For a pull, also offer manuscripts that exist on the remote but not locally.
@@ -282,7 +285,7 @@ export class AppComponent implements AfterViewInit {
         for (const id of remoteIds) {
           if (id === '__unassigned__') continue;
           if (!byId.has(id)) {
-            list.push({ id, sigle: '(nur auf GitHub)', region: '', assigned: [], remoteOnly: true, selected: false });
+            list.push({ id, sigle: '(nur auf GitHub)', region: '', assigned: [], remoteOnly: true, selected: false, excluded: false });
           }
         }
       } catch { /* offline / empty repo: local list only */ }
@@ -309,8 +312,20 @@ export class AppComponent implements AfterViewInit {
     return this.manuscriptList.filter(m => m.selected).length;
   }
 
+  /** A source that the sync leaves out cannot be chosen for a push; it can be included again (`includeInSync`). */
+  isLockedForPush(m: { excluded: boolean }): boolean {
+    return m.excluded && this.syncDialogAction === 'push';
+  }
+
   selectAllVisible(selected: boolean) {
-    for (const m of this.filteredManuscripts) m.selected = selected;
+    for (const m of this.filteredManuscripts) m.selected = selected && !this.isLockedForPush(m);
+  }
+
+  /** Take a source back into the sync (the import from a repository leaves its sources out). */
+  async includeInSync(m: { id: string; excluded: boolean }) {
+    await SyncExclusions.remove([m.id]);
+    await PushCache.markDirty(m.id);
+    m.excluded = false;
   }
 
   /** Tags the selected manuscripts as assigned to the current user (locally). */

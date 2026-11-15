@@ -14,6 +14,7 @@ import { APIService } from './api.service';
 import type { Document, Source } from './api.service';
 import { NotesStore } from './notes-store';
 import { PushCache } from './push-cache';
+import { SyncExclusions } from './sync-exclusions';
 import { normalizeDocumentComments } from './types/model';
 import { applyPlaceholderImport, placeholderImportEnabled } from './placeholder-comments';
 import { mergeMetaAnnotations } from './zip-source-annotations';
@@ -69,6 +70,11 @@ export interface ImportProgress {
 export interface ImportOptions {
   /** Replace documents (and source metadata) that exist in the workspace. Off by default. */
   overwrite: boolean;
+  /**
+   * Leave the sources that this import creates out of the GitHub sync (`SyncExclusions`). On unless set to false. A source
+   * that was in the workspace before is not touched: its sync status stays as it is.
+   */
+  keepOutOfSync?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: ImportProgress) => void;
 }
@@ -190,6 +196,8 @@ interface SourceRun {
 class ImportSession {
   readonly summary: ImportSummary = { sources: 0, documents: 0, keptExisting: 0, conversionWarnings: 0 };
   readonly touched: string[] = [];
+  /** Sources that this import created and that the GitHub sync leaves out. */
+  readonly leftOutOfSync: string[] = [];
   bytesDone = 0;
 
   constructor(
@@ -357,6 +365,9 @@ export class RepositoryImportService {
           // a source that this import added but that got no chant (an error came first) is not left behind
           if (run.sourceWasNew && run.imported.length === 0) session.writer.unstageSource(run.workspaceSourceId);
           session.touched.push(run.workspaceSourceId);
+          if (run.sourceWasNew && run.imported.length > 0 && job.options.keepOutOfSync !== false) {
+            session.leftOutOfSync.push(run.workspaceSourceId);
+          }
           if (run.imported.length > 0) {
             session.manifest = upsertRecord(session.manifest, {
               datasetId: job.datasetId,
@@ -379,6 +390,7 @@ export class RepositoryImportService {
         try {
           await session.commit();
         } finally {
+          await SyncExclusions.add(session.leftOutOfSync);
           await this.afterImport(session.touched);
         }
       }
@@ -548,10 +560,26 @@ export class RepositoryImportService {
     await NotesStore.removeMany(Array.from(ids));
     const { removed, sourceRemoved } = await WorkspaceWriter.remove(ids, record.workspaceSourceId);
     await this.saveManifest(removeRecord(await this.getManifest(), record.datasetId, record.sourceId));
-    if (sourceRemoved) await PushCache.markDeleted(record.workspaceSourceId);
+    // A source that the sync leaves out was never uploaded by this person; removing it here must not delete a copy that
+    // another person (or an earlier push) put on GitHub.
+    const leftOut = await SyncExclusions.has(record.workspaceSourceId);
+    if (sourceRemoved && !leftOut) await PushCache.markDeleted(record.workspaceSourceId);
     else await PushCache.markDirty(record.workspaceSourceId);
+    if (sourceRemoved) await SyncExclusions.remove([record.workspaceSourceId]);
     this.api.invalidateCache();
     return { documents: removed, sourceRemoved };
+  }
+
+  /** The identifiers of the workspace sources that the GitHub sync leaves out. */
+  syncLeftOut(): Promise<Set<string>> {
+    return SyncExclusions.getAll();
+  }
+
+  /** Include a source in the GitHub sync, or leave it out again. */
+  async setSynced(workspaceSourceId: string, synced: boolean): Promise<void> {
+    if (synced) await SyncExclusions.remove([workspaceSourceId]);
+    else await SyncExclusions.add([workspaceSourceId]);
+    await PushCache.markDirty(workspaceSourceId);
   }
 
   /** The workspace changed without the API service knowing: tell the sync which manuscripts to look at again. */

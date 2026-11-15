@@ -9,9 +9,17 @@
 
   <h2 id="overview">Where the actions live</h2>
   <ul>
-    <li><strong>Import / Export page</strong> (nav bar) — the hub: workspace backups, ZIP, HTML edition, CSV, and Cantus import.</li>
+    <li><strong>Import / Export page</strong> (nav bar) — the hub: workspace backups, ZIP, HTML edition, CSV, and the imports from a public repository and from Cantus Index.</li>
     <li><strong>Document toolbar</strong> — per-document exports: JSON, PDF, MEI and <strong>Volpiano</strong>.</li>
     <li><strong>Source page</strong> — <em>New Document</em>, <em>Import Volpiano</em>; the document page also has <em>Import Text</em>.</li>
+  </ul>
+
+  <h2 id="page">How the page is arranged</h2>
+  <ul>
+    <li class="mb-2">The <strong>strip at the top</strong> shows how many sources and chants the workspace holds, when the last backup was made (green: nothing changed since; amber: changes since, or no backup yet) and, if you imported from repositories, how much of the workspace came from there. <em>Back up now</em> starts a workspace backup.</li>
+    <li class="mb-2">The tabs <strong>Import</strong> and <strong>Export</strong> hold the actions as cards, in sections by what you want to do: <em>Start from existing data</em>, <em>Add chants</em>, <em>Add manuscript annotations</em>; <em>Publish and print</em>, <em>Back up and share</em>. Each card says what the action does, its file type, and what that format keeps; <em>online</em> marks the actions that need the internet, and the workspace backup is marked <em>Recommended</em>.</li>
+    <li class="mb-2">The address keeps the tab (<code>#/import-export?tab=export</code>), so a reload or a link opens the same tab.</li>
+    <li class="mb-2"><em>Which one do I need?</em> at the bottom lists common goals (a safe copy, another computer, monodi+, a spreadsheet, printing) and starts the right action.</li>
   </ul>
 
   <h2 id="workspace-formats">Workspace formats</h2>
@@ -90,7 +98,7 @@
     <li class="mb-2">Chants that are already in your workspace are <strong>left as they are</strong>, so your edits are safe. Tick <em>Replace chants that are already here</em> only if you want the repository's version.</li>
     <li class="mb-2">The tab <strong>Imported</strong> lists what came from a repository. <em>Check for updates</em> compares the Corpus Monodicum sources with the repository; <em>Update</em> replaces their chants (your edits to them are lost); <em>Remove</em> deletes the imported chants again and the source if nothing else belongs to it. Chants you added yourself stay.</li>
     <li class="mb-2">Another repository can be read under <em>Use another repository</em> (<code>owner/name</code> or <code>owner/name@tag</code>); it needs a <code>catalog.json</code> in the format of <code>corpus-monodicum/monodi-datasets</code>.</li>
-    <li class="mb-2">If <a routerLink="/settings">GitHub sync</a> is connected, the button <em>Push</em> uploads imported sources too. Use <em>Auswahl…</em> to push only some sources.</li>
+    <li class="mb-2">The sources that an import creates are <strong>left out of the <a routerLink="/settings">GitHub sync</a></strong>, so the button <em>Push</em> does not upload a whole corpus into your repository. The tab <em>Imported</em> shows <em>left out</em> or <em>included</em> for each source; click it to change. The selective push (<em>Auswahl…</em>) marks such sources with <em>nicht synchronisiert</em> and the link <em>einbeziehen</em>.</li>
   </ul>
   <p class="text-muted">
     Licences: the Corpus Monodicum is CC BY-NC 4.0, the Cantus Corpus CC BY-NC-SA 4.0. Both require attribution; the dialog links

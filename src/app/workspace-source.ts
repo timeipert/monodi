@@ -2,6 +2,7 @@ import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { Bundle, ManuscriptSource } from './github.service';
 import { PushCache } from './push-cache';
+import { SyncExclusions } from './sync-exclusions';
 
 /** Bundle id used for documents/notes that have no owning manuscript. */
 export const ORPHAN_BUNDLE_ID = '__unassigned__';
@@ -68,8 +69,10 @@ export class LocalWorkspaceSource implements ManuscriptSource {
     const noteIds = await NotesStore.getIndex();
     if (noteIds.some(id => !this.knownDocIds!.has(id))) ids.add(ORPHAN_BUNDLE_ID);
 
+    // Sources that the sync leaves out are not offered at all: not uploaded, and their files on GitHub stay as they are.
+    const excluded = await SyncExclusions.getAll();
     const clean = await PushCache.getCleanIds();
-    return Array.from(ids).filter(id => !clean.has(id));
+    return Array.from(ids).filter(id => !clean.has(id) && !excluded.has(id));
   }
 
   async loadMeta(id: string): Promise<{ source: any | null; documents: any[] }> {

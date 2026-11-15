@@ -59,7 +59,7 @@ describe('RepositoryImportComponent', () => {
     storage = { usage: 0, quota: 100_000_000 };
     cantusSources = [cantusSource(60_000)];
     const service = jasmine.createSpyObj<RepositoryImportService>('RepositoryImportService', [
-      'openCatalog', 'openDataset', 'openCmIndex', 'openCantusIndex', 'getManifest', 'storageEstimate',
+      'openCatalog', 'openDataset', 'openCmIndex', 'openCantusIndex', 'getManifest', 'storageEstimate', 'syncLeftOut', 'setSynced',
     ]);
     (service as any).defaultCatalogUrl = 'https://example.test/catalog.json';
     service.openCatalog.and.callFake(async () => catalog);
@@ -71,6 +71,8 @@ describe('RepositoryImportComponent', () => {
     service.openCantusIndex.and.callFake(async () => cantusSources);
     service.getManifest.and.callFake(async () => ({ version: 1, records: [] }));
     service.storageEstimate.and.callFake(async () => storage);
+    service.syncLeftOut.and.callFake(async () => new Set<string>());
+    service.setSynced.and.callFake(async () => undefined);
 
     await TestBed.configureTestingModule({
       declarations: [RepositoryImportComponent],

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
 import {
   DatasetError, MAX_DOCUMENTS_PER_IMPORT, catalogUrlForRepository, chantsIn, cmDocumentFacets, cmSourceFacets, filterCantusSources, filterCmSources,
   planCantusImport, planCmImport, cantusSourceFacets, recordKey,
@@ -25,6 +25,8 @@ type CantusSort = 'siglum' | 'chants' | 'melodies';
 })
 export class RepositoryImportComponent implements OnInit, OnDestroy {
   @Output() closed = new EventEmitter<void>();
+  /** The tab that is open first: the datasets, or what was imported before. */
+  @Input() startTab: Tab = 'datasets';
 
   tab: Tab = 'datasets';
 
@@ -40,6 +42,8 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
   loadingDataset = false;
   datasetError = '';
   overwrite = false;
+  /** Leave the sources that the import creates out of the GitHub sync (on by default). */
+  keepOutOfSync = true;
 
   // Corpus Monodicum
   cmIndex: CmIndex | null = null;
@@ -82,6 +86,8 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
 
   // earlier imports
   manifest: ImportManifest = { version: 1, records: [] };
+  /** Workspace sources that the GitHub sync leaves out. */
+  syncLeftOut = new Set<string>();
   outdated = new Set<string>();
   checkingUpdates = false;
   private updateTargets = new Map<string, { dataset: LoadedDataset; index: CmIndex }>();
@@ -89,6 +95,7 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
   constructor(private service: RepositoryImportService, private toastr: ToastrService, private github: GithubService) {}
 
   ngOnInit(): void {
+    this.tab = this.startTab;
     this.catalogUrl = this.service.defaultCatalogUrl;
     void this.loadCatalog();
     void this.refreshManifest();
@@ -349,7 +356,10 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
   async runImport(): Promise<void> {
     if (!this.active || !this.canImport) return;
     const controller = this.beginRun();
-    const options = { overwrite: this.overwrite, signal: controller.signal, onProgress: (p: ImportProgress) => (this.progress = p) };
+    const options = {
+      overwrite: this.overwrite, keepOutOfSync: this.keepOutOfSync, signal: controller.signal,
+      onProgress: (p: ImportProgress) => (this.progress = p),
+    };
     try {
       if (this.isCm && this.cmIndex && this.cmPlan) {
         this.summary = await this.service.importCm(this.active, this.cmIndex, this.cmPlan, options);
@@ -374,6 +384,17 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
 
   async refreshManifest(): Promise<void> {
     this.manifest = await this.service.getManifest();
+    this.syncLeftOut = await this.service.syncLeftOut();
+  }
+
+  /** The GitHub sync (button Push) uploads this source. */
+  isSynced(record: ImportRecord): boolean {
+    return !this.syncLeftOut.has(record.workspaceSourceId);
+  }
+
+  async toggleSynced(record: ImportRecord): Promise<void> {
+    await this.service.setSynced(record.workspaceSourceId, !this.isSynced(record));
+    await this.refreshManifest();
   }
 
   isOutdated(record: ImportRecord): boolean {

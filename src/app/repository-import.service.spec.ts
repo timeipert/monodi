@@ -8,6 +8,8 @@ import type { CantusSource, CmDocument, CmSource, FetchContext, LoadedCatalog } 
 import { APIService } from './api.service';
 import type { Document, Source } from './api.service';
 import { NotesStore } from './notes-store';
+import { PushCache } from './push-cache';
+import { SYNC_EXCLUDED_KEY, SyncExclusions } from './sync-exclusions';
 import { IMPORT_MANIFEST_KEY, RepositoryImportService } from './repository-import.service';
 
 /** A repository served from memory: one Corpus Monodicum source with two chants and one Cantus source with three. */
@@ -173,7 +175,7 @@ describe('RepositoryImportService', () => {
   async function clearWorkspace() {
     await NotesStore.ensureMigrated();
     await NotesStore.removeMany(await NotesStore.getIndex());
-    for (const key of ['monodi_sources', 'monodi_documents', IMPORT_MANIFEST_KEY]) await localforage.removeItem(key);
+    for (const key of ['monodi_sources', 'monodi_documents', IMPORT_MANIFEST_KEY, SYNC_EXCLUDED_KEY]) await localforage.removeItem(key);
   }
 
   beforeEach(async () => {
@@ -373,6 +375,54 @@ describe('RepositoryImportService', () => {
     expect(await NotesStore.get('uuid-1')).toBeNull();
     expect((await NotesStore.get('mine')).own).toBeTrue();
     expect((await service.getManifest()).records.length).toBe(0);
+  });
+
+  it('leaves the sources that it creates out of the GitHub sync, and only those', async () => {
+    await localforage.setItem('monodi_sources', [{ id: 'Own', quellensigle: 'Own' } as Source]);
+    await importCm();
+    expect(Array.from(await SyncExclusions.getAll())).toEqual(['A 1']);
+    // a source that existed before is not touched: import into it again, the status stays as it is
+    await SyncExclusions.remove(['A 1']);
+    await importCm(true);
+    expect((await SyncExclusions.getAll()).size).toBe(0);
+  });
+
+  it('puts nothing out of the sync when the person asks for it', async () => {
+    const dataset = await service.openDataset(world.catalog, world.catalog.catalog.datasets[0]);
+    const index = await service.openCmIndex(dataset);
+    await service.importCm(dataset, index, planCmImport(index, new Set(['A_1'])), { overwrite: false, keepOutOfSync: false });
+    expect((await SyncExclusions.getAll()).size).toBe(0);
+  });
+
+  it('leaves the Cantus sources out of the sync as well', async () => {
+    const dataset = await service.openDataset(world.catalog, world.catalog.catalog.datasets[1]);
+    const sources = await service.openCantusIndex(dataset);
+    await service.importCantus(dataset, planCantusImport(sources, 'all'), 'all', { overwrite: false, alignText: false });
+    expect(Array.from(await SyncExclusions.getAll())).toEqual(['cantusdatabase-1']);
+  });
+
+  it('includes a source in the sync and leaves it out again', async () => {
+    await importCm();
+    expect((await service.syncLeftOut()).has('A 1')).toBeTrue();
+    await service.setSynced('A 1', true);
+    expect((await service.syncLeftOut()).has('A 1')).toBeFalse();
+    await service.setSynced('A 1', false);
+    expect((await service.syncLeftOut()).has('A 1')).toBeTrue();
+  });
+
+  it('does not mark a source that the sync leaves out as deleted when its import is removed', async () => {
+    await importCm();
+    await service.removeImport((await service.getManifest()).records[0]);
+    expect((await PushCache.getPendingDeletions()).has('A 1')).toBeFalse();
+    expect((await SyncExclusions.getAll()).size).toBe(0);
+  });
+
+  it('marks a source that was included in the sync as deleted when its import is removed', async () => {
+    await importCm();
+    await service.setSynced('A 1', true);
+    await service.removeImport((await service.getManifest()).records[0]);
+    expect((await PushCache.getPendingDeletions()).has('A 1')).toBeTrue();
+    await PushCache.clearDeleted(['A 1']);
   });
 
   it('removes the source as well when nothing else belongs to it', async () => {
