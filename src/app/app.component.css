@@ -28,6 +28,9 @@ svg {
 .navbar .nav-link:hover,
 .navbar .nav-link.active { color: var(--color-text) !important; }
 .navbar .nav-link.active { background: var(--color-surface-muted); }
+/* GitHub mark at the end of the navigation: black, greyed until hovered. */
+.navbar .github-link { color: var(--color-text-light) !important; font-size: 1.05rem; padding-left: .5rem; padding-right: .5rem; }
+.navbar .github-link:hover { color: var(--color-text) !important; }
 
 /* ── Toolbar strip (note editor toolbar) ─────────────
    One tone lighter than the navbar — a warm dark strip.

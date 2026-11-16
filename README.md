@@ -4,6 +4,8 @@
 
 [Monodi-Zero](https://monodi.app) runs in the browser, with no server and no account: a keyboard-driven notation editor, a IIIF (manuscript image) viewer, a critical apparatus, corpus search and synopsis, and export to PDF, MEI (Music Encoding Initiative XML), HTML and ZIP.
 
+monodi was created within the [Corpus Monodicum](https://corpus-monodicum.de), the digital edition of medieval monophonic chant: it is the tool in which the chants of the edition are transcribed and from which the edition's data is taken. It is developed in the open and used by the edition's editors; the app links to this page from its navigation bar.
+
 **The browser owns the storage: clearing its site data deletes the workspace, so make regular backups.**
 
 - **Using it:** open the app and read *Manual* in its navigation bar. All features: [FEATURES.md](documentation/FEATURES.md).
