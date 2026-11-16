@@ -36,7 +36,7 @@
   </div>
 
   @if (sheet) {
-    <app-metadata-grid [embedded]="true"></app-metadata-grid>
+    <app-metadata-grid [embedded]="true" (changed)="updateList()"></app-metadata-grid>
   } @else {
   <table class="sources-list">
       <thead (mouseleave)="hoverCol = ''">
@@ -69,7 +69,11 @@
       </tbody>
     </table>
     @if (rows.length === 0) {
-      <p class="sources-empty">{{ sources.length ? 'No match.' : 'No sources.' }}</p>
+      <p class="sources-empty">
+        @if (sources.length) { No match. } @else {
+          No source. <a [routerLink]="['/source']">Create one</a> or <a [routerLink]="['/import-export']">import a file</a>.
+        }
+      </p>
     }
   }
 </div>

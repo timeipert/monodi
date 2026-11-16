@@ -270,7 +270,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy, HasChanges {
     // and we kick off the matching action automatically. Once consumed we
     // strip the param so a back-button trip doesn't re-fire it.
     this.subs.push(this.route.queryParamMap.subscribe(params => {
-      this.sheet = params.get('view') === 'sheet';
+      const sheet = params.get('view') === 'sheet';
+      if (this.sheet && !sheet) this.updateList();   // back to the list: show what the sheet saved
+      this.sheet = sheet;
       this.cdRef.markForCheck();
       const ws = params.get('ws');
       if (!ws) return;

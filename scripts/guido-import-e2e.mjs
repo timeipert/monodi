@@ -69,7 +69,7 @@ const pick = async () => {
   await page.waitForFunction(() => /syllables/.test(document.getElementById('guido-import-dialog')?.innerText ?? ''), { timeout: 20000 });
 };
 const click = (sel) => page.evaluate((sel) => document.querySelector(sel).click(), sel);
-const toasts = () => page.evaluate(() => [...document.querySelectorAll('.toast-message')].map((e) => e.innerText).join(' | '));
+const toasts = () => page.evaluate(() => [...document.querySelectorAll('.status-line')].map((e) => e.innerText).join(' | '));
 
 try {
   await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });

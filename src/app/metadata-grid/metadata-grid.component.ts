@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, HostListener, Input, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Input, NgZone, Output, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
 import { Router } from '@angular/router';
 import { StatusLineService } from '../status-line.service';
@@ -50,6 +50,9 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   /** The siglum of one source: the grid then shows only the documents of that source (a filter rule on the Source column). */
   @Input() sourceSigle = '';
   private scopedTo = '';
+  /** The stored data changed (a save, a delete, a fill, an import): the page around the sheet reloads its own list at once. */
+  @Output() changed = new EventEmitter<void>();
+  private loadedOnce = false;
 
   active: GridKind = safeStorage.get(TAB_KEY) === 'sources' ? 'sources' : 'documents';
   views: Record<GridKind, GridView | null> = { documents: null, sources: null };
@@ -201,6 +204,9 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
+      // Every load after the first follows a change of the stored data (save, delete, fill, import, relations).
+      if (this.loadedOnce && !this.loadError) this.changed.emit();
+      this.loadedOnce = true;
     }
   }
 

@@ -81,8 +81,8 @@ async function seed({ docs = DOCS() } = {}) {
 async function openDialog(id) {
   await page.goto(BASE + '/#/source/' + id, { waitUntil: 'networkidle0' });
   await page.reload({ waitUntil: 'networkidle0' });
-  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => /Edit Metadata/.test(b.textContent)), { timeout: 20000 });
-  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Edit Metadata/.test(b.textContent)).click());
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => /Edit metadata/.test(b.textContent)), { timeout: 20000 });
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Edit metadata/.test(b.textContent)).click());
   await page.waitForSelector('[data-testid=sigle-open]');
   await page.click('[data-testid=sigle-open]');
   await page.waitForSelector('[data-testid=sigle-dialog]');

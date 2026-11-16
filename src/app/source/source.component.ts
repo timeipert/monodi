@@ -240,6 +240,17 @@ export class SourceComponent implements OnInit, HasChanges {
     else this.router.navigate(['/source', keepId]);
   }
 
+  /** Reads this source's documents again (the sheet changed them; the list shows the new values at once). */
+  reloadDocuments(): void {
+    const id = this.source?.id;
+    if (!this.user || !id) return;
+    this.api.listDocuments(this.user.token).subscribe(res => {
+      if (res.kind !== 'DocumentsRetrieved') return;
+      this.documents = res.documents.filter(d => d.quelle_id === id);
+      this.cdr.markForCheck();
+    });
+  }
+
   retrieveForId(id: string): void {
     if (this.user) {
       this.api.getSource(this.user.token, id).subscribe(res => {

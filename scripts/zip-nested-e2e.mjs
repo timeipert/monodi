@@ -41,7 +41,7 @@ const docs = () => page.evaluate(() => new Promise((res) => {
   r.onsuccess = () => { const q = r.result.transaction('monodi_data').objectStore('monodi_data').get('monodi_documents'); q.onsuccess = () => res(q.result ?? []); q.onerror = () => res([]); };
   r.onerror = () => res([]);
 }));
-const toasts = () => page.evaluate(() => [...document.querySelectorAll('.toast-message')].map((e) => e.textContent.trim()).join(' | '));
+const toasts = () => page.evaluate(() => [...document.querySelectorAll('.status-line')].map((e) => e.textContent.trim()).join(' | '));
 
 try {
   await page.goto(BASE + '/#/sources', { waitUntil: 'networkidle0' });

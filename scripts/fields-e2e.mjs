@@ -48,7 +48,7 @@ const heads = () => page.$$eval('.mg-head', (h) => h.map((e) => e.textContent.tr
 
 // The messages of the steps before sit over the toolbar for a few seconds (the "Relations" button included): a click
 // on a covered button lands on the message, the dialog never opens and the test times out. So wait for them to go.
-const noToast = () => page.waitForFunction(() => !document.querySelector('.toast-message'), { timeout: 20000 });
+const noToast = () => page.waitForFunction(() => !document.querySelector('.status-line'), { timeout: 20000 });
 // Open the relations dialog and wait until its fields table is there; on a timeout report what the page showed.
 const openRelations = async () => {
   await noToast();
@@ -58,7 +58,7 @@ const openRelations = async () => {
   } catch (e) {
     const state = await page.evaluate(() => ({
       dialog: !!document.querySelector('[data-testid=relations-dialog]'),
-      toasts: [...document.querySelectorAll('.toast-message')].map((t) => t.textContent.trim()),
+      toasts: [...document.querySelectorAll('.status-line')].map((t) => t.textContent.trim()),
       error: document.querySelector('[data-testid=relations-error]')?.textContent.trim() ?? null,
       body: document.body.innerText.replace(/\s+/g, ' ').slice(0, 300),
     }));
@@ -134,9 +134,9 @@ try {
   expect(/3/.test(await text('[data-testid=mg-dirty]')), 'the filled cells are edits, not saved yet: ' + await text('[data-testid=mg-dirty]'));
   expect((await idb('monodi_documents')).every((d) => !d.custom?.unit_id), 'nothing is stored before saving');
   // the messages of the steps before sit over the toolbar for a few seconds
-  await page.waitForFunction(() => !document.querySelector('.toast-message'), { timeout: 20000 });
+  await page.waitForFunction(() => !document.querySelector('.status-line'), { timeout: 20000 });
   await page.click('[data-testid=mg-save]');
-  await page.waitForFunction(() => !document.querySelector('[data-testid=mg-dirty]'), { timeout: 15000 }).catch(async () => problems.push('the edits must be saved; ' + norm(await page.evaluate(() => [...document.querySelectorAll('.toast-message, .mg-dirty')].map((e) => e.textContent).join(' | ')))));
+  await page.waitForFunction(() => !document.querySelector('[data-testid=mg-dirty]'), { timeout: 15000 }).catch(async () => problems.push('the edits must be saved; ' + norm(await page.evaluate(() => [...document.querySelectorAll('.status-line, .mg-dirty')].map((e) => e.textContent).join(' | ')))));
   const stored = Object.fromEntries((await idb('monodi_documents')).map((d) => [d.dokumenten_id, d.custom?.unit_id]));
   expect(stored.P1 === 'play-1' && stored.P2 === 'play-1' && stored.P3 === 'play-2' && !stored.T1, 'the values are stored: ' + JSON.stringify(stored));
 } catch (e) {

@@ -282,7 +282,7 @@
             } @else if (documentsLoaded && documents.length === 0) {
               <p class="text-center text-muted py-5 mb-0">No documents.</p>
             } @else if (docView === 'sheet') {
-            <app-metadata-grid [embedded]="true" [sourceSigle]="source.quellensigle ?? ''"></app-metadata-grid>
+            <app-metadata-grid [embedded]="true" [sourceSigle]="source.quellensigle ?? ''" (changed)="reloadDocuments()"></app-metadata-grid>
             } @else {
             <app-smart-table
               [objects]="documents"
