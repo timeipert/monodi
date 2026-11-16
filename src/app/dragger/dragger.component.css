@@ -43,7 +43,7 @@
 /* Depth accent — left border only */
 .middle.depth-0 { border-left: 3px solid transparent; }
 .middle.depth-1 { border-left: 3px solid var(--color-primary-muted); }
-.middle.depth-2 { border-left: 3px solid #60a5fa; }
+.middle.depth-2 { border-left: 3px solid #9c9c9c; }
 .middle.depth-3 { border-left: 3px solid var(--color-primary); }
 .middle.depth-4 { border-left: 3px solid var(--color-primary); }
 

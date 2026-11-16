@@ -3,7 +3,7 @@ import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { APIService, ProjectSettings, Document as MonodiDocument } from '../api.service';
 import { UserService } from '../user.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { v4 as uuidv4 } from 'uuid';
 import { NoteFlagDef, RESERVED_FLAG_KEYS, flagShortcutKey, parseSvgToGlyph, validateFlagKey } from '@monodi/core/document';
 import { MEI_PRESETS, MeiMappingProfileV2, MeiPatternRule, MeiSyllableTypeForm, MeiSyllableTypeKey, MeiSyllableTypeRule, DEFAULT_SYLLABLE_TYPES, DEFAULT_STAFF, syllableTypeRule, normalizePatternRule, patternBaseCode, patternNoteCount, defaultMeiProfile, upgradeMeiProfile, bodyStructureIssues, ENTITY_FIELDS, MEI_ELEMENT_SUGGESTIONS, MeiEntityKey, MeiEntityRule, emitMei, AttrIssue, MeiAttrDef, MeiSchemaCatalog, attributesOf, checkAttribute, findAttribute } from '@monodi/core/mei';
@@ -80,7 +80,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   private settingsChange$ = new Subject<void>();
 
   constructor(
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private api: APIService,
     private userService: UserService,
     private schemas: MeiSchemaRegistry,
@@ -177,7 +177,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   }
 
   private fallbackToSample(message: string) {
-    this.toastr.warning(message);
+    this.statusLine.warning(message);
     this.previewSourceId = 'sample';
     this.previewRoot = SAMPLE_DOCUMENT;
     this.previewMeta = SAMPLE_META;
@@ -457,7 +457,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     this.armedResetEntity = null;
     this.activeProfile.entities[key] = JSON.parse(JSON.stringify(this.defaultProfile.entities[key]));
     this.emitChange(true);
-    this.toastr.success(`"${key}" reset to default.`);
+    this.statusLine.success(`"${key}" reset to default.`);
   }
 
   // --- Note flags (user-defined, e.g. virga) ---
@@ -531,7 +531,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     const label = value.charAt(0).toUpperCase() + value.slice(1);
     const free = this.freeFlagKeys;
     const key = label.toUpperCase().split('').find(c => free.includes(c)) ?? free[0];
-    if (!key) { this.toastr.error('All letters are taken.'); return; }
+    if (!key) { this.statusLine.error('All letters are taken.'); return; }
     this.noteFlags.push({ key, label, abbrev: key, mei: { type: value } });
     this.emitChange(true);
   }
@@ -604,7 +604,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     if (!file) return;
     const glyph = parseSvgToGlyph(await file.text());
     if (!glyph) {
-      this.toastr.error('No <path> with a viewBox found in this SVG.');
+      this.statusLine.error('No <path> with a viewBox found in this SVG.');
     } else {
       fd.svgPath = glyph.d;
       fd.viewBox = glyph.viewBox;
@@ -670,7 +670,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   addPatternRule() {
     const code = patternBaseCode(this.newPatternCode);
     if (!code || patternNoteCount(code) === 0) {
-      this.toastr.warning('Enter a pattern code such as [*ud] or *uu.');
+      this.statusLine.warning('Enter a pattern code such as [*ud] or *uu.');
       return;
     }
     if (!this.patternRules.some(r => r.pattern === code && !r.sigle)) {
@@ -772,9 +772,9 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
         n++;
       }
       this.emitChange(true);
-      this.toastr.success(`${n} pattern rule(s) imported.`);
+      this.statusLine.success(`${n} pattern rule(s) imported.`);
     } catch {
-      this.toastr.error('Not a valid pattern library JSON.');
+      this.statusLine.error('Not a valid pattern library JSON.');
     }
     (event.target as HTMLInputElement).value = '';
   }
@@ -876,12 +876,12 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     if (this.previewXml) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(this.previewXml).then(() => {
-          this.toastr.success('XML copied to clipboard!');
+          this.statusLine.success('XML copied to clipboard!');
         }).catch(() => {
-          this.toastr.error('Failed to copy XML.');
+          this.statusLine.error('Failed to copy XML.');
         });
       } else {
-        this.toastr.error('Clipboard API not supported on this origin (requires HTTPS or secure context).');
+        this.statusLine.error('Clipboard API not supported on this origin (requires HTTPS or secure context).');
       }
     }
   }
@@ -956,7 +956,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
     this.settings.meiProfiles.push(newProfile);
     this.settings.activeMeiProfileId = newProfile.id;
     this.emitChange(true);
-    this.toastr.success(`Profile "${newProfile.name}" created from the preset "${preset.name}".`);
+    this.statusLine.success(`Profile "${newProfile.name}" created from the preset "${preset.name}".`);
   }
 
   /** Names of the voices from one text field: separated by `;`. */
@@ -978,7 +978,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       this.settings.meiProfiles.push(newProfile);
       this.settings.activeMeiProfileId = newProfile.id;
       this.emitChange(true);
-      this.toastr.success(`Profile "${newProfile.name}" created.`);
+      this.statusLine.success(`Profile "${newProfile.name}" created.`);
     }
   }
 
@@ -996,7 +996,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       this.settings.meiProfiles?.push(duplicatedProfile);
       this.settings.activeMeiProfileId = duplicatedProfile.id;
       this.emitChange(true);
-      this.toastr.success(`Profile duplicated as "${duplicatedProfile.name}".`);
+      this.statusLine.success(`Profile duplicated as "${duplicatedProfile.name}".`);
     }
   }
 
@@ -1030,7 +1030,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
           this.settings.activeMeiProfileId = this.settings.meiProfiles[0].id;
         }
         this.emitChange(true);
-        this.toastr.success('Profile deleted.');
+        this.statusLine.success('Profile deleted.');
       }
     }
   }
@@ -1047,7 +1047,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       this.activeProfile.structure = def.structure;
       for (const k of ['schemaConformant', 'syllableTypes', 'staff', 'lineBreaks', 'voices', 'adiastematic', 'accidentals', 'notation'] as const) delete this.activeProfile[k];
       this.emitChange(true);
-      this.toastr.success('Profile reset to defaults.');
+      this.statusLine.success('Profile reset to defaults.');
     }
   }
 
@@ -1101,9 +1101,9 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
         this.settings.activeMeiProfileId = newProfile.id;
         
         this.emitChange(true);
-        this.toastr.success(`Profile imported as "${newProfile.name}".`);
+        this.statusLine.success(`Profile imported as "${newProfile.name}".`);
       } catch (err: any) {
-        this.toastr.error(err.message || 'Error parsing imported profile file.');
+        this.statusLine.error(err.message || 'Error parsing imported profile file.');
       }
       
       input.value = '';

@@ -106,7 +106,7 @@ describe('AnalysisStore', () => {
     });
 
     it('rejects files that are not analyses or come from a newer version', () => {
-      expect(() => AnalysisStore.parseExport({ nope: 1 })).toThrowError(AnalysisStoreError, /not a Monodi-Zero analysis/);
+      expect(() => AnalysisStore.parseExport({ nope: 1 })).toThrowError(AnalysisStoreError, /not a monodi analysis/);
       expect(() => AnalysisStore.parseExport({ format: 'monodi-analysis', version: 99, analysis: {} })).toThrowError(/newer version/);
       expect(() => AnalysisStore.parseExport({ format: 'monodi-analysis', version: 1, analysis: { id: 'x' } })).toThrowError(/incomplete/);
     });

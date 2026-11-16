@@ -6,7 +6,7 @@ import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { SourcesOverviewComponent } from './sources-overview.component';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { PageTitleService } from '../page-title.service';
 
 describe('SourcesOverviewComponent', () => {
@@ -25,7 +25,7 @@ describe('SourcesOverviewComponent', () => {
     logout: () => {}
   };
 
-  const mockToastrService = {
+  const mockStatusLineService = {
     error: () => {},
     success: () => {},
     info: () => {},
@@ -44,7 +44,7 @@ describe('SourcesOverviewComponent', () => {
       providers: [
         { provide: APIService, useValue: mockAPIService },
         { provide: UserService, useValue: mockUserService },
-        { provide: ToastrService, useValue: mockToastrService },
+        { provide: StatusLineService, useValue: mockStatusLineService },
         { provide: PageTitleService, useValue: mockPageTitleService }
       ]
     })

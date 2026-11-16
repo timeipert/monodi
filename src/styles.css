@@ -1,261 +1,79 @@
-/* Tokens and base look come from the shared theme (vendor/cm-core/src/theme.css, shared with neume-docs).
-   The names below are the older names used by the components of this app; they point to the shared tokens, so
-   a change of a value in the theme reaches this app. Prefer the shared names (--color-*) in new code. */
-body {
-  --primary-color: var(--color-text);
-  --secondary-color: var(--color-text-muted);
-  --accent-color: var(--color-primary);
-  --accent-hover: var(--color-primary-hover);
-  --bg-color: var(--color-bg);
-  --surface-color: var(--color-surface);
-  --text-color: var(--color-text);
-  --text-muted: var(--color-text-muted);
-  --border-color: var(--color-border);
-  --border-radius: var(--radius-lg);
+/*
+ * Global look of monodi (Monodi-Zero). State 2026-11-16.
+ *
+ * Design: black, white and greys. Colour is kept only where it carries meaning: red for destructive actions and
+ * errors (--color-danger), the colour keys of the MEI annotation sources (--mei-*), and the overlays on manuscript
+ * images in the IIIF viewer. Tokens and base rules come from the shared theme (vendor/cm-core/src/theme.css, shared
+ * with neume-docs); the values below replace some of them for this app only. This file loads after the theme and
+ * after Bootstrap (angular.json, "styles"), so equal selectors win here. Components use the tokens
+ * (var(--color-text), …), never fixed colours.
+ */
 
-  /* Bootstrap 5 reads these for body text, links and borders. */
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+body {
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f5f5;
+  --color-nav-bg: #ffffff;
+  --color-border: #e5e5e5;
+  --color-border-hover: #bdbdbd;
+  --color-text: #111111;
+  --color-text-muted: #5c5c5c;
+  --color-text-light: #8c8c8c;
+  --color-primary: #111111;
+  --color-primary-hover: #000000;
+  --color-primary-active: #000000;
+  --color-primary-light: #f2f2f2;
+  --color-primary-dark: #000000;
+  --color-primary-muted: #cfcfcf;
+  --color-accent: #111111;
+  --color-accent-light: #f2f2f2;
+  --color-accent-dark: #000000;
+  --color-success: #111111;
+  --color-success-dark: #111111;
+  --color-success-light: #f5f5f5;
+  --color-success-muted: #d4d4d4;
+  --color-warning: #111111;
+  --color-warning-dark: #111111;
+  --color-warning-light: #f5f5f5;
+  --color-warning-muted: #d4d4d4;
+  --color-danger: #b42318;
+  --color-danger-light: #fdf0ee;
+  --color-danger-muted: #f0b8b2;
+  --shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.10);
+  --ring: 0 0 0 2px rgba(0, 0, 0, 0.30);
+
+  /* Bootstrap 5.3 reads these for text, links, borders and its coloured utilities (text-success, bg-info-subtle,
+     badges, spinners). All point to black and greys; only "danger" stays red. */
   --bs-body-bg: var(--color-bg);
   --bs-body-color: var(--color-text);
   --bs-body-font-family: var(--serif);
   --bs-border-color: var(--color-border);
-  --bs-link-color: var(--color-primary);
-  --bs-link-hover-color: var(--color-primary-hover);
   --bs-secondary-color: var(--color-text-muted);
-  --bs-primary: var(--color-primary);
-  --bs-primary-rgb: 154, 42, 31;
-  --bs-success: var(--color-success-dark);
-  --bs-danger: var(--color-danger);
-  --bs-warning: var(--color-warning);
+  --bs-link-color: var(--color-text);
+  --bs-link-color-rgb: 17, 17, 17;
+  --bs-link-hover-color: #000000;
+  --bs-link-hover-color-rgb: 0, 0, 0;
   --bs-border-radius: var(--radius-md);
   --bs-border-radius-sm: var(--radius-sm);
   --bs-border-radius-lg: var(--radius-lg);
-  --bs-focus-ring-color: rgba(154, 42, 31, 0.25);
+  --bs-focus-ring-color: rgba(0, 0, 0, 0.25);
+  --bs-primary: #111111; --bs-primary-rgb: 17, 17, 17;
+  --bs-secondary: #5c5c5c; --bs-secondary-rgb: 92, 92, 92;
+  --bs-success: #111111; --bs-success-rgb: 17, 17, 17;
+  --bs-info: #5c5c5c; --bs-info-rgb: 92, 92, 92;
+  --bs-warning: #5c5c5c; --bs-warning-rgb: 92, 92, 92;
+  --bs-danger: #b42318; --bs-danger-rgb: 180, 35, 24;
+  --bs-primary-text-emphasis: #111111; --bs-secondary-text-emphasis: #111111; --bs-success-text-emphasis: #111111;
+  --bs-info-text-emphasis: #111111; --bs-warning-text-emphasis: #111111;
+  --bs-primary-bg-subtle: #f2f2f2; --bs-secondary-bg-subtle: #f5f5f5; --bs-success-bg-subtle: #f2f2f2;
+  --bs-info-bg-subtle: #f5f5f5; --bs-warning-bg-subtle: #f5f5f5;
+  --bs-primary-border-subtle: #d4d4d4; --bs-secondary-border-subtle: #d4d4d4; --bs-success-border-subtle: #d4d4d4;
+  --bs-info-border-subtle: #d4d4d4; --bs-warning-border-subtle: #d4d4d4;
 }
-
-html, body {
-	height: 100%;
-	width: 100%;
-    margin: 0;
-    padding: 0;
-    font-family: var(--serif);
-    background-color: var(--bg-color);
-    color: var(--text-color);
-}
-
-app-root {
-	display: block;
-	height: 100%;
-	overflow: auto;
-}
-
-/* Card Styling */
-.card {
-    background-color: var(--surface-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -2px rgba(15, 23, 42, 0.05) !important;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* Buttons */
-.btn {
-    border-radius: var(--radius-md);
-    font-weight: 500;
-    padding: 0.5rem 1.25rem;
-    transition: all 0.2s ease;
-}
-
-.btn-primary {
-    background-color: var(--color-primary);
-    border-color: var(--color-primary);
-    color: #ffffff;
-}
-
-.btn-primary:hover {
-    background-color: var(--color-primary-hover);
-    border-color: var(--color-primary-hover);
-    color: #ffffff;
-}
-
-.btn-outline-secondary {
-    color: var(--secondary-color);
-    border-color: var(--border-color);
-    background-color: var(--surface-color);
-}
-
-.btn-outline-secondary:hover {
-    background-color: var(--bg-color);
-    color: var(--primary-color);
-    border-color: var(--secondary-color);
-}
-
-/* Form Elements */
-.form-control, .form-select {
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    padding: 0.6rem 1rem;
-}
-
-.form-control:focus, .form-select:focus {
-    border-color: var(--accent-color);
-    box-shadow: var(--ring);
-}
-
-/* Typography Utilities */
-.text-primary {
-    color: var(--primary-color) !important;
-}
-
-.text-accent {
-    color: var(--accent-color) !important;
-}
-
-.text-muted {
-    color: var(--text-muted) !important;
-}
-
-.bg-light {
-    background-color: var(--bg-color) !important;
-}
-
-/* Shared page header — used by Sources, Search, Settings */
-.page-title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--color-text);
-    letter-spacing: -0.3px;
-    margin: 0;
-}
-
-/* Prevent child elements inside dragger from capturing drag events (stops enter/leave flicker) */
-body.is-dragging app-dragger .middle > * {
-    pointer-events: none;
-}
-
-/* Navbar styling is handled in app.component.css */
-
-
-@media print {
-	app-root {
-		
-	}
-}
-
-/* ── Comment Modal Window Custom Styling ─────────────────────────────────── */
-@media (min-width: 992px) {
-  .comment-modal-window .modal-dialog {
-    width: 94vw !important;
-    max-width: 1500px !important;
-    height: 92vh !important;
-    margin: 4vh auto !important;
-  }
-  .comment-modal-window .modal-content {
-    height: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-  }
-  .comment-modal-window .modal-header,
-  .comment-modal-window .modal-footer,
-  .comment-modal-window .apparatus-preview-strip {
-    flex-shrink: 0 !important;
-  }
-  .comment-modal-window .modal-body {
-    flex: 1 !important;
-    overflow-y: auto !important;
-  }
-}
-
-
-/* ── Clickable affordance ──────────────────────────────────────────────────
-   Buttons, tabs, pills and anything wired as a click target should show the
-   pointer cursor. Bootstrap 5 drops it on hrefless <a>/.nav-link, and many
-   tabs in this app are click handlers on <a>/<div>, so make it global. */
-button:not(:disabled),
-.btn:not(:disabled),
-.nav-link,
-.nav-item > .nav-link,
-a[role="button"],
-[role="button"],
-[role="tab"],
-.cursor-pointer,
-label.form-check-label,
-summary {
-  cursor: pointer;
-}
-
-/* Disabled controls must not look clickable. */
-button:disabled,
-.btn:disabled,
-.btn.disabled,
-[disabled] {
-  cursor: not-allowed;
-}
-
-/* Dropdown menus (ngb/bootstrap) must render above the sticky-top nav
-   (position: sticky; z-index: 1020) — e.g. the section drag-handle actions
-   menu, which otherwise slips underneath the top menu bar. */
-.dropdown-menu.show {
-  z-index: 1080;
-}
-
-
-/* ── Bootstrap components in the shared look ────────────────────────────────
-   Bootstrap sets its blue on each component class, not on a variable, so these
-   point the components used in this app to the shared tokens. */
-.btn-primary {
-    --bs-btn-bg: var(--color-primary);
-    --bs-btn-border-color: var(--color-primary);
-    --bs-btn-hover-bg: var(--color-primary-hover);
-    --bs-btn-hover-border-color: var(--color-primary-hover);
-    --bs-btn-active-bg: var(--color-primary-active);
-    --bs-btn-active-border-color: var(--color-primary-active);
-    --bs-btn-disabled-bg: var(--color-primary);
-    --bs-btn-disabled-border-color: var(--color-primary);
-}
-.btn-outline-primary {
-    --bs-btn-color: var(--color-primary);
-    --bs-btn-border-color: var(--color-primary);
-    --bs-btn-hover-bg: var(--color-primary);
-    --bs-btn-hover-border-color: var(--color-primary);
-    --bs-btn-active-bg: var(--color-primary-hover);
-    --bs-btn-active-border-color: var(--color-primary-hover);
-}
-.btn-outline-secondary, .btn-secondary {
-    --bs-btn-color: var(--color-text);
-    --bs-btn-border-color: var(--color-border-hover);
-    --bs-btn-hover-bg: var(--color-surface-muted);
-    --bs-btn-hover-color: var(--color-text);
-    --bs-btn-hover-border-color: var(--color-border-hover);
-    --bs-btn-active-bg: var(--color-surface-muted);
-    --bs-btn-active-color: var(--color-text);
-}
-.btn-outline-success { --bs-btn-color: var(--color-success-dark); --bs-btn-border-color: var(--color-success-dark); --bs-btn-hover-bg: var(--color-success-dark); }
-.btn-success { --bs-btn-bg: var(--color-success-dark); --bs-btn-border-color: var(--color-success-dark); --bs-btn-hover-bg: var(--color-success-dark); --bs-btn-hover-border-color: var(--color-success-dark); }
-.btn-outline-danger { --bs-btn-color: var(--color-danger); --bs-btn-border-color: var(--color-danger); --bs-btn-hover-bg: var(--color-danger); }
-.btn-danger { --bs-btn-bg: var(--color-danger); --bs-btn-border-color: var(--color-danger); }
-.text-primary { color: var(--color-primary) !important; }
-.bg-primary { background-color: var(--color-primary) !important; }
-.border-primary { border-color: var(--color-primary) !important; }
-.bg-light { background-color: var(--color-surface-muted) !important; }
-.badge.bg-light { color: var(--color-text-muted) !important; }
-.progress-bar { background-color: var(--color-primary); }
-.form-check-input:checked { background-color: var(--color-primary); border-color: var(--color-primary); }
-.form-control:focus, .form-select:focus, .form-check-input:focus { border-color: var(--color-primary); box-shadow: var(--ring); }
-.nav-tabs .nav-link.active, .nav-pills .nav-link.active { color: var(--color-primary); }
-.nav-pills .nav-link.active { background-color: var(--color-primary-light); }
-.list-group-item.active { background-color: var(--color-primary); border-color: var(--color-primary); }
-.page-link { color: var(--color-primary); }
-.page-item.active .page-link { background-color: var(--color-primary); border-color: var(--color-primary); }
-.alert-info { --bs-alert-bg: var(--color-primary-light); --bs-alert-border-color: var(--color-primary-muted); --bs-alert-color: var(--color-primary-dark); }
-.alert-warning { --bs-alert-bg: var(--color-warning-light); --bs-alert-border-color: var(--color-warning-muted); --bs-alert-color: var(--color-warning-dark); }
-.alert-danger { --bs-alert-bg: var(--color-danger-light); --bs-alert-border-color: var(--color-danger-muted); --bs-alert-color: #991b1b; }
-.alert-success { --bs-alert-bg: var(--color-success-light); --bs-alert-border-color: var(--color-success-muted); --bs-alert-color: var(--color-success-dark); }
-.dropdown-item.active, .dropdown-item:active { background-color: var(--color-primary); }
-.modal-content, .dropdown-menu { border-color: var(--color-border); box-shadow: var(--shadow-lg); }
-.table { --bs-table-border-color: var(--color-border); }
 
 /* MEI annotations: colours of the sources of an attribute, the same in the sidebar, the dialog and the staff
-   (MEI_SOURCE_COLOR in src/app/mei/mei-view-prefs.ts). */
+   (MEI_SOURCE_COLOR in src/app/mei/mei-view-prefs.ts). Colour carries meaning here. */
 :root {
   --mei-hand: #1f5fbf;
   --mei-flag: #7c3aed;
@@ -263,16 +81,103 @@ button:disabled,
   --mei-mapping: #6b7280;
 }
 
-/* Flag buttons of the MEI attribute dialog (mei-annotation-dialog.component.html). */
+/* ── Base ───────────────────────────────────────────────────────────────── */
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--serif);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+app-root { display: block; height: 100%; overflow: auto; }
+
+/* Title of a document, printed only (document.component.html). */
+.page-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
+
+/* Child elements of the dragger must not capture drag events (stops enter/leave flicker). */
+body.is-dragging app-dragger .middle > * { pointer-events: none; }
+
+/* Buttons, tabs and anything wired as a click target show the pointer; Bootstrap drops it on hrefless <a>. */
+button:not(:disabled), .btn:not(:disabled), .nav-link, a[role="button"], [role="button"], [role="tab"],
+.cursor-pointer, label.form-check-label, summary { cursor: pointer; }
+button:disabled, .btn:disabled, .btn.disabled, [disabled] { cursor: not-allowed; }
+
+/* Tabs inside a page (Search: Text | Melody; Analysis: Methods | Neume statistics): words with an underline. */
+.page-tabs { display: flex; gap: 1.5rem; border-bottom: 1px solid var(--color-border); margin-bottom: 1.25rem; }
+.page-tabs > a, .page-tabs > button {
+  border: 0; background: none; padding: .4rem 0; margin-bottom: -1px; text-decoration: none;
+  color: var(--color-text-muted); border-bottom: 2px solid transparent;
+}
+.page-tabs > a.active, .page-tabs > button.active { color: var(--color-text); border-bottom-color: var(--color-text); }
+
+/* Dropdown menus must render above the sticky navigation bar (z-index 1020). */
+.dropdown-menu.show { z-index: 1080; }
+
+/* Comment dialog: almost full screen on wide displays. */
+@media (min-width: 992px) {
+  .comment-modal-window .modal-dialog { width: 94vw !important; max-width: 1500px !important; height: 92vh !important; margin: 4vh auto !important; }
+  .comment-modal-window .modal-content { height: 100% !important; display: flex !important; flex-direction: column !important; }
+  .comment-modal-window .modal-header, .comment-modal-window .modal-footer { flex-shrink: 0 !important; }
+  .comment-modal-window .modal-body { flex: 1 !important; overflow-y: auto !important; }
+}
+
+/* ── Bootstrap components in black and white ────────────────────────────── */
+.card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: none !important; }
+.btn { border-radius: var(--radius-md); font-weight: 500; }
+.form-control, .form-select { border-radius: var(--radius-md); border-color: var(--color-border); }
+.form-control:focus, .form-select:focus, .form-check-input:focus { border-color: var(--color-text); box-shadow: var(--ring); }
+.form-check-input:checked { background-color: #111111; border-color: #111111; }
+
+.btn-primary, .btn-success, .btn-info, .btn-warning {
+  --bs-btn-color: #fff; --bs-btn-bg: #111; --bs-btn-border-color: #111;
+  --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #000; --bs-btn-hover-border-color: #000;
+  --bs-btn-active-color: #fff; --bs-btn-active-bg: #000; --bs-btn-active-border-color: #000;
+  --bs-btn-disabled-color: #fff; --bs-btn-disabled-bg: #111; --bs-btn-disabled-border-color: #111;
+}
+.btn-outline-primary, .btn-outline-success, .btn-outline-info, .btn-outline-warning {
+  --bs-btn-color: #111; --bs-btn-border-color: var(--color-border-hover);
+  --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #111; --bs-btn-hover-border-color: #111;
+  --bs-btn-active-color: #fff; --bs-btn-active-bg: #000; --bs-btn-active-border-color: #000;
+}
+.btn-outline-secondary, .btn-secondary {
+  --bs-btn-color: var(--color-text); --bs-btn-bg: var(--color-surface); --bs-btn-border-color: var(--color-border-hover);
+  --bs-btn-hover-color: var(--color-text); --bs-btn-hover-bg: var(--color-surface-muted); --bs-btn-hover-border-color: var(--color-border-hover);
+  --bs-btn-active-color: var(--color-text); --bs-btn-active-bg: var(--color-surface-muted);
+}
+.btn-outline-danger { --bs-btn-color: var(--color-danger); --bs-btn-border-color: var(--color-danger); --bs-btn-hover-bg: var(--color-danger); --bs-btn-hover-border-color: var(--color-danger); }
+.btn-danger { --bs-btn-bg: var(--color-danger); --bs-btn-border-color: var(--color-danger); }
+
+.text-primary, .text-success, .text-info, .text-warning { color: var(--color-text) !important; }
+.text-muted { color: var(--color-text-muted) !important; }
+.bg-primary, .bg-success, .bg-info, .bg-warning { background-color: #111111 !important; color: #ffffff !important; }
+.bg-light, .bg-primary-subtle, .bg-success-subtle, .bg-info-subtle, .bg-warning-subtle { background-color: var(--color-surface-muted) !important; }
+.badge.bg-light { color: var(--color-text-muted) !important; }
+.border-primary, .border-success, .border-info, .border-warning,
+.border-primary-subtle, .border-success-subtle, .border-info-subtle, .border-warning-subtle { border-color: var(--color-border-hover) !important; }
+.progress-bar { background-color: #111111 !important; }
+
+.nav-tabs .nav-link.active, .nav-pills .nav-link.active { color: var(--color-text); }
+.nav-pills .nav-link.active { background-color: var(--color-surface-muted); }
+.list-group-item.active, .dropdown-item.active, .dropdown-item:active { background-color: #111111; border-color: #111111; color: #fff; }
+.page-link { color: var(--color-text); }
+.page-item.active .page-link { background-color: #111111; border-color: #111111; }
+.alert-info, .alert-warning, .alert-success, .alert-primary, .alert-secondary {
+  --bs-alert-bg: var(--color-surface-muted); --bs-alert-border-color: var(--color-border); --bs-alert-color: var(--color-text);
+}
+.alert-danger { --bs-alert-bg: var(--color-danger-light); --bs-alert-border-color: var(--color-danger-muted); --bs-alert-color: var(--color-danger); }
+.modal-content, .dropdown-menu { border-color: var(--color-border); box-shadow: var(--shadow-lg); }
+.table { --bs-table-border-color: var(--color-border); }
+
+/* ── MEI flag buttons of the attribute dialog (mei-annotation-dialog.component.html) ── */
 .mei-flag-btn {
   display: inline-flex; align-items: baseline; gap: .35rem;
-  border: 1px solid var(--color-border, #d6d3cd); background: #fff; color: inherit;
+  border: 1px solid var(--color-border); background: var(--color-surface); color: inherit;
   padding: .15rem .5rem; font-size: .8rem;
 }
-.mei-flag-btn .mei-flag-key {
-  font-family: var(--font-mono, ui-monospace, monospace); font-weight: 700; color: var(--mei-flag);
-}
-.mei-flag-btn .mei-flag-writes { font-family: var(--font-mono, ui-monospace, monospace); font-size: .72rem; color: #6b7280; }
-.mei-flag-btn.on { border-color: var(--mei-flag); background: #f3edff; }
+.mei-flag-btn .mei-flag-key { font-family: ui-monospace, monospace; font-weight: 700; color: var(--mei-flag); }
+.mei-flag-btn .mei-flag-writes { font-family: ui-monospace, monospace; font-size: .72rem; color: var(--color-text-muted); }
+.mei-flag-btn.on { border-color: var(--mei-flag); }
 .mei-flag-btn.on .mei-flag-writes { color: var(--mei-flag); }
 .mei-flag-hint { color: var(--mei-flag); }

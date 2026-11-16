@@ -26,7 +26,7 @@ const SETTINGS_TABS = ['metadata', 'containers', 'editor', 'shortcuts', 'pdf', '
 const ROUTES = [
   '/#/sources', '/#/source', '/#/source/src1', '/#/source/src1?tab=notation', '/#/source/src1?tab=description',
   '/#/document/src1/doc-1', '/#/document/src1/doc-2', '/#/document/src1',
-  '/#/search', '/#/metadata', '/#/stats', '/#/import-export', '/#/manual',
+  '/#/search', '/#/sources?view=sheet', '/#/stats', '/#/import-export', '/#/manual',
   ...SETTINGS_TABS.map((t) => `/#/settings?tab=${t}`),
 ];
 
@@ -60,12 +60,14 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // The rows of both tables must open what they show. A click that lands on a row which is replaced between press
 // and release does nothing, so this goes through the real mouse (press + release), not `element.click()`.
-const clickRow = (route, expectedHash) => async ({ page, note }) => {
+// `rowSelector` names the first clickable cell of the list: the sources list is a plain table
+// (sources-overview), the documents of a source are a smart table.
+const clickRow = (route, expectedHash, rowSelector = 'app-smart-table tbody tr td.td-smart-row') => async ({ page, note }) => {
   try {
     await reload(page, route);
-    await page.waitForSelector('app-smart-table tbody tr td.td-smart-row', { timeout: 15000 });
+    await page.waitForSelector(rowSelector, { timeout: 15000 });
     await tick(800);                                              // let the document counts arrive and re-render
-    await (await page.$('app-smart-table tbody tr td.td-smart-row')).click();
+    await (await page.$(rowSelector)).click();
     await page.waitForFunction((h) => location.hash === h, { timeout: 5000 }, expectedHash);
   } catch (e) { note(`click did not open ${expectedHash}: ` + String(e).split('\n')[0]); }
 };
@@ -107,7 +109,7 @@ const checks = [
       await tick(1200);
     } catch (e) { note('interaction: ' + String(e).split('\n')[0]); }
   } },
-  { label: 'click: source row opens the source', run: clickRow('/#/sources', '#/source/src1') },
+  { label: 'click: source row opens the source', run: clickRow('/#/sources', '#/source/src1', '.sources-list tbody tr td:nth-child(2)') },
   { label: 'click: document row opens the document', run: clickRow('/#/source/src1', '#/document/src1/doc-1') },
 ];
 

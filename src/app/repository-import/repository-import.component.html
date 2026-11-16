@@ -3,7 +3,7 @@
     <div class="modal-content shadow-lg border-0 ri-content">
       <div class="modal-header border-0 pb-1">
         <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
-          <i class="bi bi-github text-primary"></i><span>Import from Repository</span>
+          <span>Import from Repository</span>
         </h5>
         <button type="button" class="btn-close" aria-label="Close" [disabled]="running" (click)="close()"></button>
       </div>
@@ -78,7 +78,7 @@
             <!-- ── one dataset ───────────────────────────────────────────────── -->
             <div class="d-flex align-items-center gap-2 mb-2">
               <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="running" (click)="backToDatasets()">
-                <i class="bi bi-arrow-left me-1"></i>Datasets
+                Datasets
               </button>
               <h6 class="mb-0 fw-bold">{{ active.entry.title }}</h6>
               <span class="badge bg-light text-dark border">{{ active.dataset.licence.spdx }}</span>
@@ -329,10 +329,10 @@
               }
             </div>
             @if (running) {
-              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel()"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel()">Cancel</button>
             } @else {
               <button type="button" class="btn btn-sm btn-success" [disabled]="!canImport" (click)="runImport()">
-                <i class="bi bi-download me-1"></i>Import
+                Import
               </button>
             }
           </div>

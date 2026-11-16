@@ -11,7 +11,7 @@
         @if (showGClef) {
           <path class="auto-clef" [attr.d]="gClefPath" [attr.fill]="color" style="pointer-events: none;" />
         }
-        <text [attr.x]="showGClef ? 27 : 5" [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : color" [attr.fill]="hasCurrentFocus()? '#5bf186' : color" [attr.y]="getY() + 6">{{this.model.shape}}</text>
+        <text [attr.x]="showGClef ? 27 : 5" [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#c9c9c9' : color" [attr.fill]="hasCurrentFocus()? '#c9c9c9' : color" [attr.y]="getY() + 6">{{this.model.shape}}</text>
       </g>
     </svg>
   </div>

@@ -57,7 +57,7 @@ try {
     db.close();
   }, { docs, sources });
 
-  await page.goto(BASE + '/#/metadata', { waitUntil: 'networkidle0' });
+  await page.goto(BASE + '/#/sources?view=sheet', { waitUntil: 'networkidle0' });
   await page.reload({ waitUntil: 'networkidle0' });
   await page.waitForSelector('[data-testid=mg-grid]', { timeout: 20000 });
   await waitCount(N);

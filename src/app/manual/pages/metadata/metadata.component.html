@@ -1,7 +1,7 @@
 <div class="manual-page-split">
   <div class="manual-page-text">
     <h1 id="metadata-exporting">Metadata &amp; Exporting</h1>
-    <p class="lead">To support academic cataloging and interoperability, Monodi-Zero includes an advanced metadata indexing system and support for standard scholarly exports (MEI and PDF).</p>
+    <p class="lead">To support academic cataloging and interoperability, monodi includes an advanced metadata indexing system and support for standard scholarly exports (MEI and PDF).</p>
 
     <h2 id="editing-metadata">Document Metadata Fields</h2>
     <p>The **Metadata Panel** is located in the document sidebar. Keeping this metadata accurate is essential for project-wide searching and cataloging. Hover over the fields below to see them highlighted in the mock sidebar panel on the right:</p>
@@ -24,7 +24,7 @@
     </ul>
 
     <h2 id="pdf-export">PDF Vector Export</h2>
-    <p>Monodi-Zero features a built-in rendering engine that translates the internal digital representation of staff lines, clefs, syllables, and neumes directly into a publication-quality <strong>vector PDF</strong> — no browser print dialog involved:</p>
+    <p>monodi features a built-in rendering engine that translates the internal digital representation of staff lines, clefs, syllables, and neumes directly into a publication-quality <strong>vector PDF</strong> — no browser print dialog involved:</p>
     <ol>
       <li>Click the <strong>PDF Export</strong> button in the editor toolbar (to print several documents at once, use <a routerLink="/import-export">Import / Export</a> → <em>PDF edition</em>).</li>
       <li>The A4 sheet is drawn natively: staves and neumes as true vector paths, lyrics and metadata as selectable text, and critical-apparatus segments with lemma brackets. Everything scales without pixelation.</li>
@@ -35,12 +35,14 @@
     <h2 id="mei-export">MEI (Music Encoding Initiative) Export</h2>
     <p>The **Music Encoding Initiative (MEI)** is an open, XML-based standard for encoding musical scores, widely used in digital humanities research. When you export to MEI:</p>
     <ul>
-      <li>Monodi-Zero translates the syllables, staff lines, clefs, and notes into structural XML elements like <code>&lt;syllable&gt;</code>, <code>&lt;neume&gt;</code>, and <code>&lt;nc&gt;</code> (neume component) wrapped inside <code>&lt;staff&gt;</code> and <code>&lt;layer&gt;</code> tags.</li>
+      <li>monodi translates the syllables, staff lines, clefs, and notes into structural XML elements like <code>&lt;syllable&gt;</code>, <code>&lt;neume&gt;</code>, and <code>&lt;nc&gt;</code> (neume component) wrapped inside <code>&lt;staff&gt;</code> and <code>&lt;layer&gt;</code> tags.</li>
       <li>All metadata edited in the sidebar is automatically mapped to standard MEI header tags (<code>&lt;meiHead&gt;</code>) representing the title, genre, liturgy, and source.</li>
       <li>The exported <code>.mei</code> XML file can be read and rendered by standard music notation tools (e.g., Verovio) or used for advanced computational corpus analysis.</li>
       <li>The emitted XML structure and tag names are fully configurable via <a routerLink="/manual/settings" fragment="mei-tag-mappings">Settings → MEI</a>.</li>
     </ul>
 
+    <h3 id="sheet">Editing many at once: the Sheet</h3>
+    <p>The <strong>Sources</strong> page has two views, <em>List</em> and <em>Sheet</em>. The Sheet shows the metadata as a spreadsheet: type into cells, paste from Excel, fill a column, find and replace, filter per column, and relate documents to units. A source page has the same switch on its <em>Documents</em> tab, then limited to that source's documents. Edits are collected and saved with one click.</p>
     <p><a routerLink="/sources" class="btn btn-primary mt-3">Go to Sources to Edit Metadata</a></p>
   </div>
 
@@ -57,19 +59,19 @@
           <span class="text-uppercase text-muted fw-bold d-block mb-3 border-bottom pb-1" style="font-size: 0.75rem;">Document Metadata</span>
           
           <!-- Doc ID -->
-          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'doc-id'" [style.border]="activeHighlightId === 'doc-id' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'doc-id'" [style.border]="activeHighlightId === 'doc-id' ? '1px solid var(--color-primary)' : '1px solid transparent'">
             <label class="form-label text-muted small fw-semibold d-block mb-1">Document ID</label>
             <input class="form-control form-control-sm" [(ngModel)]="docId">
           </div>
 
           <!-- Initium -->
-          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'initium'" [style.border]="activeHighlightId === 'initium' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'initium'" [style.border]="activeHighlightId === 'initium' ? '1px solid var(--color-primary)' : '1px solid transparent'">
             <label class="form-label text-muted small fw-semibold d-block mb-1">Text Initium</label>
             <input class="form-control form-control-sm" [(ngModel)]="initium">
           </div>
 
           <!-- Genres -->
-          <div class="row g-2 mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'genres'" [style.border]="activeHighlightId === 'genres' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+          <div class="row g-2 mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'genres'" [style.border]="activeHighlightId === 'genres' ? '1px solid var(--color-primary)' : '1px solid transparent'">
             <label class="form-label text-muted small fw-semibold d-block mb-1 col-12" style="margin-left: 4px;">Genres</label>
             <div class="col-6">
               <input class="form-control form-control-sm" [(ngModel)]="genre1">
@@ -80,13 +82,13 @@
           </div>
 
           <!-- Feast -->
-          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'feast'" [style.border]="activeHighlightId === 'feast' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'feast'" [style.border]="activeHighlightId === 'feast' ? '1px solid var(--color-primary)' : '1px solid transparent'">
             <label class="form-label text-muted small fw-semibold d-block mb-1">Feast / Celebration</label>
             <input class="form-control form-control-sm" [(ngModel)]="feast">
           </div>
 
           <!-- Custom Fields -->
-          <div class="p-2 rounded transition border-top pt-2" [class.bg-warning-subtle]="activeHighlightId === 'custom-fields'" [style.border]="activeHighlightId === 'custom-fields' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+          <div class="p-2 rounded transition border-top pt-2" [class.bg-warning-subtle]="activeHighlightId === 'custom-fields'" [style.border]="activeHighlightId === 'custom-fields' ? '1px solid var(--color-primary)' : '1px solid transparent'">
             <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.65rem;">Custom Schema Fields</span>
             <label class="form-label text-muted small fw-semibold d-block mb-1">{{customFieldName}}</label>
             <input class="form-control form-control-sm" [(ngModel)]="customFieldValue">

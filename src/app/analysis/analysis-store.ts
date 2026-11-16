@@ -241,8 +241,8 @@ export class AnalysisStore {
   /** Check that a parsed file is an analysis export; throws a readable error otherwise. */
   static parseExport(json: unknown): AnalysisExport {
     const f = json as Partial<AnalysisExport> | null;
-    if (!f || typeof f !== 'object' || f.format !== ANALYSIS_FORMAT) throw new AnalysisStoreError('This file is not a Monodi-Zero analysis (format "monodi-analysis" expected).');
-    if (typeof f.version !== 'number' || f.version > ANALYSIS_FORMAT_VERSION) throw new AnalysisStoreError('This analysis was written by a newer version of Monodi-Zero and cannot be read.');
+    if (!f || typeof f !== 'object' || f.format !== ANALYSIS_FORMAT) throw new AnalysisStoreError('This file is not a monodi analysis (format "monodi-analysis" expected).');
+    if (typeof f.version !== 'number' || f.version > ANALYSIS_FORMAT_VERSION) throw new AnalysisStoreError('This analysis was written by a newer version of monodi and cannot be read.');
     const a = f.analysis;
     if (!a || typeof a.id !== 'string' || !a.corpus || !Array.isArray(a.corpus.docIds) || !Array.isArray(a.methods)) throw new AnalysisStoreError('The analysis in this file is incomplete.');
     return { format: ANALYSIS_FORMAT, version: f.version, exportedAt: f.exportedAt ?? 0, analysis: a, results: Array.isArray(f.results) ? f.results : [] };

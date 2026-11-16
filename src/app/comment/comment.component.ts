@@ -14,7 +14,7 @@ import { CommentTemplateService } from './comment-template.service';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { Event } from '../section/Event';
 import * as MS from '../types/modelStorage';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 
 interface CommentHistory {
   past: string[];
@@ -144,7 +144,7 @@ export class CommentComponent implements OnInit, OnDestroy {
 
   constructor(
     public activeModal: NgbActiveModal,
-    private toaster: ToastrService,
+    private toaster: StatusLineService,
     private api: APIService,
     private userService: UserService,
     private templateService: CommentTemplateService

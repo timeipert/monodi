@@ -118,7 +118,7 @@ export function convertNeumeDocs(bundle: any): ExchangeFile {
     throw new Error('This documentation does not say which version of the format it uses.');
   }
   if (bundle.version > KNOWN_VERSION) {
-    throw new Error('This documentation was written by a newer version of the Neumen-Editor. Update Monodi-Zero to read it.');
+    throw new Error('This documentation was written by a newer version of the Neumen-Editor. Update monodi to read it.');
   }
   const entries: any[] = (Array.isArray(bundle.manuscripts) ? bundle.manuscripts : []).filter(plain).slice(0, MAX_MANUSCRIPTS);
   if (entries.length && !entries.some(e => plain(e.data))) {

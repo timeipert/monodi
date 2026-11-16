@@ -9,7 +9,7 @@ import { UserService, User } from '../user.service';
 import { APIService, Document, ProjectSettings, Source } from '../api.service';
 import { assertNever } from '../../utils';
 import { ToolsService } from '../tools.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { Subscription, combineLatest, finalize } from 'rxjs';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { FlagPatternsDialogComponent } from '../notes/flag-patterns-dialog.component';
@@ -219,10 +219,10 @@ export class DocumentComponent implements OnInit, DoCheck {
       this.save();
       this.cdr.detectChanges();
       this.cdr.markForCheck();
-      this.toastr.success('Replaced 1 occurrence.');
+      this.statusLine.success('Replaced 1 occurrence.');
       this.onSearchQueryChange();
     } else {
-      this.toastr.error(result.error || 'Failed to replace occurrence.');
+      this.statusLine.error(result.error || 'Failed to replace occurrence.');
     }
   }
 
@@ -249,15 +249,15 @@ export class DocumentComponent implements OnInit, DoCheck {
       this.save();
       this.cdr.detectChanges();
       this.cdr.markForCheck();
-      this.toastr.success(`Replaced ${result.replacedCount} occurrence(s).`);
+      this.statusLine.success(`Replaced ${result.replacedCount} occurrence(s).`);
       this.onSearchQueryChange();
     } else {
-      this.toastr.info('No occurrences found to replace.');
+      this.statusLine.info('No occurrences found to replace.');
     }
 
     if (result.errors && result.errors.length > 0) {
       for (const err of result.errors) {
-        this.toastr.warning(err);
+        this.statusLine.warning(err);
       }
     }
   }
@@ -365,9 +365,6 @@ export class DocumentComponent implements OnInit, DoCheck {
     catch { return false; }
   })();
 
-  isOnline: boolean = navigator.onLine;
-  @HostListener('window:online') onBrowserOnline(): void { this.isOnline = true; }
-  @HostListener('window:offline') onBrowserOffline(): void { this.isOnline = false; }
 
   /** Time of the last save that worked, and whether the last attempt failed; both feed the status bar. */
   private lastSavedAt?: Date;
@@ -465,7 +462,7 @@ export class DocumentComponent implements OnInit, DoCheck {
     private userService: UserService,
     private undoService: UndoService,
     private route: ActivatedRoute,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private modalService: NgbModal,
     private location: Location,
     private toolService: ToolsService,
@@ -608,7 +605,7 @@ export class DocumentComponent implements OnInit, DoCheck {
         this.undoService.beforeChange();
         const errorMessage = VM.move(this.cont, from, zipper);
         if (errorMessage !== undefined) {
-          this.toastr.error(errorMessage);
+          this.statusLine.error(errorMessage);
         } else {
           this.save();
           this.cont = { ...this.cont };
@@ -660,7 +657,7 @@ export class DocumentComponent implements OnInit, DoCheck {
   deleteContainerAt(zipper: number[]): void {
     if (!this.cont) return;
     if (!this.canDeleteContainer(zipper)) {
-      this.toastr.warning("This section cannot be deleted because it is the only one at this level.");
+      this.statusLine.warning("This section cannot be deleted because it is the only one at this level.");
       return;
     }
     this.undoService.beforeChange();
@@ -972,13 +969,13 @@ export class DocumentComponent implements OnInit, DoCheck {
     this.undoService.beforeChange(action);
     const out: VM.RootContainer = JSON.parse(JSON.stringify(this.cont));
     const n = edit(out);
-    if (n === 0) { this.toastr.info('Nothing to change.'); return; }
+    if (n === 0) { this.statusLine.info('Nothing to change.'); return; }
     this.cont = out;
     this.contJsonClone = JSON.stringify(this.cont);
     this.save();
     this.refreshMeiReview(true);
     this.cdr.detectChanges();
-    this.toastr.success(message(n));
+    this.statusLine.success(message(n));
   }
 
   // ---- Note view: flags of the note, actions on a row -------------------------------------------------------------------------
@@ -1112,7 +1109,7 @@ export class DocumentComponent implements OnInit, DoCheck {
         this.save();
         this.cont = { ...this.cont } as VM.RootContainer;
       }
-      this.toastr.success("Syllable hyphens corrected.");
+      this.statusLine.success("Syllable hyphens corrected.");
       return;
     }
     if (e.kind === 'DocumentUpdated') {
@@ -1137,7 +1134,7 @@ export class DocumentComponent implements OnInit, DoCheck {
         if (region) {
           region.lineUUID = e.uuid;
           this.saveSourceData();
-          this.toastr.success(`"${this.linkModeRegionName}" linked to the selected line`);
+          this.statusLine.success(`"${this.linkModeRegionName}" linked to the selected line`);
         }
         this.isLinkingMode = false;
         this.linkModeRegionId = '';
@@ -1179,7 +1176,7 @@ export class DocumentComponent implements OnInit, DoCheck {
     this.isLinkingMode = true;
     this.linkModeRegionId = data.regionId;
     this.linkModeRegionName = data.regionName;
-    this.toastr.info(`Now click a line-change in the transcription to link it to "${data.regionName}"`, '', { timeOut: 8000 });
+    this.statusLine.info(`Now click a line-change in the transcription to link it to "${data.regionName}"`, '', { timeOut: 8000 });
   }
 
   @HostListener('document:click', ['$event'])
@@ -1279,9 +1276,9 @@ export class DocumentComponent implements OnInit, DoCheck {
     if (this.user && this.sourceData) {
       this.api.updateSource(this.user.token, this.sourceData).subscribe(res => {
         if (res.kind === 'Ok') {
-          // this.toastr.success('Source annotations saved successfully');
+          // this.statusLine.success('Source annotations saved successfully');
         } else {
-          this.toastr.error('Failed to save source annotations');
+          this.statusLine.error('Failed to save source annotations');
         }
       });
     }
@@ -1353,7 +1350,7 @@ export class DocumentComponent implements OnInit, DoCheck {
     const b = this.citationBits();
     const q = b.qualifier ? ` (${b.qualifier})` : '';
     const src = b.source ? ` Source: ${b.source}.` : '';
-    return `${b.title}${q}.${src} Corpus Monodicum, transcribed with monodi-zero. Retrieved ${b.date} from ${b.url}.`;
+    return `${b.title}${q}.${src} Corpus Monodicum, transcribed with monodi. Retrieved ${b.date} from ${b.url}.`;
   }
 
   /** A BibTeX @misc entry for the same edition. */
@@ -1365,7 +1362,7 @@ export class DocumentComponent implements OnInit, DoCheck {
       `@misc{${key},`,
       `  author       = {{Corpus Monodicum}},`,
       `  title        = {${b.title}},`,
-      `  howpublished = {Corpus Monodicum; transcribed with monodi-zero},`,
+      `  howpublished = {Corpus Monodicum; transcribed with monodi},`,
       note ? `  note         = {${note}},` : '',
       `  year         = {${b.year}},`,
       `  url          = {${b.url}},`,
@@ -1377,8 +1374,8 @@ export class DocumentComponent implements OnInit, DoCheck {
   copyCitation(text: string): void {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(
-        () => this.toastr.success('Citation copied to clipboard.'),
-        () => this.toastr.error('Could not copy to clipboard.')
+        () => this.statusLine.success('Citation copied to clipboard.'),
+        () => this.statusLine.error('Could not copy to clipboard.')
       );
     }
   }
@@ -1418,7 +1415,7 @@ export class DocumentComponent implements OnInit, DoCheck {
       });
     } catch (err) {
       console.error('PDF Generation failed:', err);
-      this.toastr.error('Failed to generate PDF.', 'Error');
+      this.statusLine.error('Failed to generate PDF.', 'Error');
     } finally {
       this.isPrinting = false;
     }
@@ -1667,7 +1664,7 @@ export class DocumentComponent implements OnInit, DoCheck {
       this.save();
       this.cont = { ...this.cont } as VM.RootContainer;
     }
-    this.toastr.success('Syllable hyphens corrected.');
+    this.statusLine.success('Syllable hyphens corrected.');
   }
 
   /** "Flag neumes by pattern" dialog; the dialog edits this.cont in place, we refresh and save afterwards. */
@@ -1681,7 +1678,7 @@ export class DocumentComponent implements OnInit, DoCheck {
       this.cont = JSON.parse(JSON.stringify(this.cont));
       this.save();
       this.cdr.detectChanges();
-      this.toastr.success(`${res.action === 'add' ? 'Set' : 'Removed'} flag ${res.key} on ${res.notes} note(s) in ${res.matches} neume(s).`);
+      this.statusLine.success(`${res.action === 'add' ? 'Set' : 'Removed'} flag ${res.key} on ${res.notes} note(s) in ${res.matches} neume(s).`);
     }).catch(() => { /* dismissed */ });
   }
 
@@ -1742,7 +1739,7 @@ export class DocumentComponent implements OnInit, DoCheck {
             this.cont = VM.emptyRootContainer();
             this.contJsonClone = JSON.stringify(this.cont);
             this.setFirstSyllable();
-            this.toastr.warning(
+            this.statusLine.warning(
               'No transcription data was found for this document. Starting from an empty edition — re-import to restore the original notes.',
               'Notes missing'
             );
@@ -1780,7 +1777,7 @@ export class DocumentComponent implements OnInit, DoCheck {
     if (Array.isArray(arr) && !arr.includes(val)) {
       arr.push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`Added ${val} to ${category}`);
+        this.statusLine.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -1793,7 +1790,7 @@ export class DocumentComponent implements OnInit, DoCheck {
     if (!this.settings.customLists[category].includes(val)) {
       this.settings.customLists[category].push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`Added ${val} to ${category}`);
+        this.statusLine.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -1824,7 +1821,7 @@ export class DocumentComponent implements OnInit, DoCheck {
           switch (res.kind) {
             case 'LoginRequired': this.userService.logout(); break;
             case 'DocumentCreated': 
-              this.toastr.success("Saved successfully");
+              this.statusLine.success("Saved successfully");
               this.markSaved();
               this.document!.id = res.id;
               this.location.replaceState('/document/' + doc.quelle_id + '/' + res.id); 
@@ -1863,7 +1860,7 @@ export class DocumentComponent implements OnInit, DoCheck {
     // Autosave retries on every edit: tell the person once in a while, not with every keystroke.
     if (Date.now() - this.lastSaveErrorToast < 10_000) return;
     this.lastSaveErrorToast = Date.now();
-    this.toastr.error(
+    this.statusLine.error(
       'The document could not be saved: ' + (error instanceof Error ? error.message : String(error)) +
       '. Your changes are still here; export the document as JSON to keep them.', 'Save failed');
   }
@@ -1882,12 +1879,12 @@ export class DocumentComponent implements OnInit, DoCheck {
           switch (res.kind) {
             case 'LoginRequired': this.userService.logout(); break;
             case 'Ok': 
-              // Removed toastr to prevent spamming on autosave
+              // Removed statusLine to prevent spamming on autosave
               this.resetClones(); 
               this.markSaved();
               break;
-            case 'DocumentNotFound': this.saveError = true; this.toastr.error("It looks like this document was deleted in the meantime."); break;
-            case 'InsufficientPermissions': this.saveError = true; this.toastr.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
+            case 'DocumentNotFound': this.saveError = true; this.statusLine.error("It looks like this document was deleted in the meantime."); break;
+            case 'InsufficientPermissions': this.saveError = true; this.statusLine.error("You don't have permission to save this document. You can download it as JSON, request access, then re-upload it to avoid losing data.", "Save failed."); break;
             default: assertNever(res);
           }
         },
@@ -1915,14 +1912,14 @@ export class DocumentComponent implements OnInit, DoCheck {
       count = out.comments.filter((c, i) => c.startUUID + '|' + c.endUUID !== before[i]).length;
     }
     if (!count) {
-      this.toastr.info(toSyllables ? 'No comments on placeholder notes found.' : 'No comments on empty syllables found.');
+      this.statusLine.info(toSyllables ? 'No comments on placeholder notes found.' : 'No comments on empty syllables found.');
       return;
     }
     this.cont = out;
     this.contJsonClone = JSON.stringify(this.cont);
     this.save();
     this.cdr.detectChanges();
-    this.toastr.success(`${count} comment(s) moved ${toSyllables ? 'onto the syllables' : 'onto placeholder notes'}.`);
+    this.statusLine.success(`${count} comment(s) moved ${toSyllables ? 'onto the syllables' : 'onto placeholder notes'}.`);
   }
 
   showJsonExportDialog = false;
@@ -1937,7 +1934,7 @@ export class DocumentComponent implements OnInit, DoCheck {
   /** Export the current document as a Volpiano string: download a .txt and copy to clipboard. */
   exportVolpiano(): void {
     if (!this.cont) {
-      this.toastr.error('No document open to export.');
+      this.statusLine.error('No document open to export.');
       return;
     }
     try {
@@ -1945,17 +1942,17 @@ export class DocumentComponent implements OnInit, DoCheck {
       const result = this.volpiano.exportAndDownload(this.cont, baseId + '.volpiano.txt');
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(result.volpiano).then(
-          () => this.toastr.success('Volpiano copied to clipboard and downloaded as .txt.'),
-          () => this.toastr.success('Volpiano downloaded as .txt.')
+          () => this.statusLine.success('Volpiano copied to clipboard and downloaded as .txt.'),
+          () => this.statusLine.success('Volpiano downloaded as .txt.')
         );
       } else {
-        this.toastr.success('Volpiano downloaded as .txt.');
+        this.statusLine.success('Volpiano downloaded as .txt.');
       }
       if (result.warnings.length > 0) {
-        this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano export warnings');
+        this.statusLine.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano export warnings');
       }
     } catch (e) {
-      this.toastr.error('Volpiano export failed: ' + e);
+      this.statusLine.error('Volpiano export failed: ' + e);
     }
   }
 
@@ -2009,12 +2006,12 @@ export class DocumentComponent implements OnInit, DoCheck {
         this.api.verifyNotes(this.user.token, newCont).subscribe(res => {
           switch (res.kind) {
             case 'LoginRequired': this.userService.logout(); break;
-            case 'Failed': this.toastr.error("Invalid format", "Upload failed!"); break;
+            case 'Failed': this.statusLine.error("Invalid format", "Upload failed!"); break;
             case 'NotesRetrieved':
               this.cont = VM.normalizeDocumentComments(res.data);
               applyPlaceholderImport(this.cont, this.settings);
               this.contJsonClone = JSON.stringify(this.cont);
-              this.toastr.success("Upload successful!");
+              this.statusLine.success("Upload successful!");
               this.checkSecondVoiceComments(this.cont);
               this.setFirstSyllable();
               break;
@@ -2044,7 +2041,7 @@ export class DocumentComponent implements OnInit, DoCheck {
       this.cont = result.root;
       this.contJsonClone = JSON.stringify(this.cont);
       this.save();
-      this.toastr.success(`${result.count} 2nd voice comment(s) incorporated into native polyphonic staves!`);
+      this.statusLine.success(`${result.count} 2nd voice comment(s) incorporated into native polyphonic staves!`);
     }
     this.showSecondVoiceImportDialog = false;
   }
@@ -2065,14 +2062,14 @@ export class DocumentComponent implements OnInit, DoCheck {
     try {
       const syncRes = await this.fsService.syncWorkspaceToOsFile();
       if (syncRes.synced) {
-        this.toastr.success(`Document saved and synced to ${syncRes.filename || 'OS file'}.`, 'Saved & Synced');
+        this.statusLine.success(`Document saved and synced to ${syncRes.filename || 'OS file'}.`, 'Saved & Synced');
       } else if (syncRes.error) {
-        this.toastr.info('Document saved locally. (OS backup file: ' + syncRes.error + ')', 'Saved');
+        this.statusLine.info('Document saved locally. (OS backup file: ' + syncRes.error + ')', 'Saved');
       } else {
-        this.toastr.success('Document saved successfully.', 'Saved');
+        this.statusLine.success('Document saved successfully.', 'Saved');
       }
     } catch (e) {
-      this.toastr.success('Document saved successfully.', 'Saved');
+      this.statusLine.success('Document saved successfully.', 'Saved');
     }
   }
 
@@ -2173,9 +2170,9 @@ export class DocumentComponent implements OnInit, DoCheck {
       VM.removeStaleComments(this.cont);
       this.save();
       this.cont = { ...this.cont };
-      this.toastr.success('Zeile mit nächster Zeile zusammengeführt.');
+      this.statusLine.success('Zeile mit nächster Zeile zusammengeführt.');
     } else {
-      this.toastr.warning('Es gibt keine folgende Zeile zum Zusammenführen.');
+      this.statusLine.warning('Es gibt keine folgende Zeile zum Zusammenführen.');
     }
   }
 
@@ -2221,12 +2218,12 @@ export class DocumentComponent implements OnInit, DoCheck {
           VM.removeStaleComments(this.cont);
           this.save();
           this.cont = { ...this.cont };
-          this.toastr.success('Abschnitt mit nächstem Abschnitt zusammengeführt.');
+          this.statusLine.success('Abschnitt mit nächstem Abschnitt zusammengeführt.');
           return;
         }
       }
     }
-    this.toastr.warning('Es gibt keinen folgenden Abschnitt zum Zusammenführen.');
+    this.statusLine.warning('Es gibt keinen folgenden Abschnitt zum Zusammenführen.');
   }
 
   executeMergeAllLines(): void {
@@ -2244,9 +2241,9 @@ export class DocumentComponent implements OnInit, DoCheck {
     this.save();
     this.cont = { ...this.cont };
     if (count > 0) {
-      this.toastr.success(`${count} Zeile(n) erfolgreich innerhalb der Abschnitte zusammengeführt.`);
+      this.statusLine.success(`${count} Zeile(n) erfolgreich innerhalb der Abschnitte zusammengeführt.`);
     } else {
-      this.toastr.info('Keine Zeilen zum Zusammenführen vorhanden.');
+      this.statusLine.info('Keine Zeilen zum Zusammenführen vorhanden.');
     }
   }
 
@@ -2289,7 +2286,7 @@ export class DocumentComponent implements OnInit, DoCheck {
         this.modalService.dismissAll();
       } else {
         console.error(result);
-        this.toastr.error("Technical details are available in the console.", "Could not parse text");
+        this.statusLine.error("Technical details are available in the console.", "Could not parse text");
         this.modalService.dismissAll();
       }
     }
@@ -2333,7 +2330,7 @@ export class DocumentComponent implements OnInit, DoCheck {
           this.textImportErrors.push('Two tabs in lines without a page break were found in these lines: ' + errors[3]);
         }
       }
-      this.toastr.error('Errors were found in the input.');
+      this.statusLine.error('Errors were found in the input.');
     }
     return result;
   }

@@ -1,30 +1,30 @@
 <div tabindex="-1" class="hit-target">
   <svg width="10px" height="10px" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="5" cy="5" r="5" fill="#475569" />
+    <circle cx="5" cy="5" r="5" fill="#535353" />
     <circle class="center" cx="5" cy="5" r="2" fill="#ffffff" />
   </svg>
   <div class="menu-panel">
-    <div tabindex="-1" class="action text-danger" (click)="doDelete()"><i class="bi bi-trash"></i> Delete</div>
+    <div tabindex="-1" class="action text-danger" (click)="doDelete()">Delete</div>
 
-    <div tabindex="-1" class="action" [class.active]="currentJustification() === 'Left'" (click)="doSetJustificationLeft()"><i class="bi bi-text-left"></i> Alignment: left</div>
+    <div tabindex="-1" class="action" [class.active]="currentJustification() === 'Left'" (click)="doSetJustificationLeft()">Alignment: left</div>
 
     <div tabindex="-1" class="action" [class.active]="currentJustification() === 'Center'"
-      (click)="doSetJustificationCenter()"><i class="bi bi-text-center"></i> Alignment: center</div>
+      (click)="doSetJustificationCenter()">Alignment: center</div>
 
       <div tabindex="-1" class="action" [class.active]="currentJustification() === 'Right'"
-        (click)="doSetJustificationRight()"><i class="bi bi-text-right"></i> Alignment: right</div>
+        (click)="doSetJustificationRight()">Alignment: right</div>
 
         <div tabindex="-1" class="action" [class.active]="currentJustification() === undefined"
-          (click)="doSetJustificationNone()"><i class="bi bi-justify"></i> Alignment: default</div>
+          (click)="doSetJustificationNone()">Alignment: default</div>
 
           @if (supportsSettingContext) {
             <div tabindex="-1" class="action" [class.active]="showContextSet()"
-              (click)="doSetContext(true)"><i class="bi bi-magic"></i> Generate automatic context</div>
+              (click)="doSetContext(true)">Generate automatic context</div>
             }
 
             @if (supportsSettingContext) {
               <div tabindex="-1" class="action" [class.active]="!showContextSet()"
-                (click)="doSetContext(false)"><i class="bi bi-slash-circle"></i> No automatic context</div>
+                (click)="doSetContext(false)">No automatic context</div>
               }
             </div>
           </div>

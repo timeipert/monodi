@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Octokit } from '@octokit/rest';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from './status-line.service';
 import * as localforage from 'localforage';
 import { PushCache } from './push-cache';
 import { GithubSessionService } from './github-session.service';
@@ -229,7 +229,7 @@ export class GithubService {
   /** Multiplies the waits between the outer pull/push attempts (5 s, 10 s ...). Tests shrink it; the app leaves it at 1. */
   public retryWaitScale = 1;
 
-  constructor(private toastr: ToastrService, private session: GithubSessionService) {
+  constructor(private statusLine: StatusLineService, private session: GithubSessionService) {
     this.loadConfig();
     // Signing out (or a failed renewal) must disconnect sync at once.
     this.session.changes.subscribe(() => {
@@ -531,12 +531,12 @@ export class GithubService {
           return { sources: [], documents: [], notes: {}, settings: null };
         }
         if (e?.nonRetriable) {
-          this.toastr.error(e.message);
+          this.statusLine.error(e.message);
           return null;
         }
         console.error(`Pull attempt ${attempt}/${maxAttempts} failed`, e);
         if (attempt === maxAttempts) {
-          this.toastr.error('Pull failed after several attempts. Please check your connection and try again.');
+          this.statusLine.error('Pull failed after several attempts. Please check your connection and try again.');
           return null;
         }
         const waitMs = 4000 * attempt;
@@ -645,7 +645,7 @@ export class GithubService {
       } catch (e) {
         console.error(`Push attempt ${attempt}/${maxAttempts} failed`, e);
         if (attempt === maxAttempts) {
-          this.toastr.error('Push failed after several attempts. Progress committed so far is saved on GitHub — press Push again to resume.');
+          this.statusLine.error('Push failed after several attempts. Progress committed so far is saved on GitHub — press Push again to resume.');
           return false;
         }
         const waitMs = 5000 * attempt;
@@ -685,8 +685,8 @@ export class GithubService {
              owner: this.config.owner,
              repo: this.config.repo,
              path: 'README.md',
-             message: 'Initial commit by Monodi-Light',
-             content: btoa('Repository initialized by Monodi-Light'),
+             message: 'Initial commit by monodi',
+             content: btoa('Repository initialized by monodi'),
              branch: this.config.branch
            });
            
@@ -1064,7 +1064,7 @@ export class GithubService {
       return found;
     } catch (e: any) {
       console.error(e);
-      this.toastr.error('Failed to load manuscript from GitHub');
+      this.statusLine.error('Failed to load manuscript from GitHub');
       return null;
     }
   }
@@ -1138,7 +1138,7 @@ export class GithubService {
       return true;
     } catch (e) {
       console.error(e);
-      this.toastr.error('Failed to save manuscript to GitHub');
+      this.statusLine.error('Failed to save manuscript to GitHub');
       return false;
     }
   }

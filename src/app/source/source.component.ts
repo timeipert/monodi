@@ -9,8 +9,7 @@ import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UserService, User } from '../user.service';
 import { APIService, Source, Document } from '../api.service'
 import { VolpianoService } from '../volpiano.service';
-import { ToastrService } from 'ngx-toastr';
-import { ToolsService } from '../tools.service';
+import { StatusLineService } from '../status-line.service';
 import { assertNever, compareNatural } from '../../utils';
 import { Subscription, combineLatest, finalize, firstValueFrom } from 'rxjs';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
@@ -26,6 +25,8 @@ import { NotesStore } from '../notes-store';
 import { ContainerKind, RootContainer } from '../types/model';
 import { sourceDescription, setSourceDescription } from '../source-description';
 import { safeStorage } from '../safe-storage';
+import { HasChanges } from '../ConfirmDeactivateGuard';
+import { MetadataGridComponent } from '../metadata-grid/metadata-grid.component';
 
 /** A document's notes with what the notation analysis needs to know about it. */
 interface NotationInput {
@@ -67,7 +68,14 @@ const DOC_COLS_KEY = 'monodi_doc_cols';
     styleUrls: ['./source.component.css'],
     standalone: false
 })
-export class SourceComponent implements OnInit {
+export class SourceComponent implements OnInit, HasChanges {
+  /** Documents tab: the list, or the sheet (this source's documents edited like a spreadsheet). Kept in this browser. */
+  docView: 'list' | 'sheet' = safeStorage.get('monodi_source_docs_view') === 'sheet' ? 'sheet' : 'list';
+  @ViewChild(MetadataGridComponent) private grid?: MetadataGridComponent;
+  setDocView(v: 'list' | 'sheet'): void { this.docView = v; safeStorage.set('monodi_source_docs_view', v); }
+  /** Leaving with unsaved edits in the sheet asks first (router guard). */
+  hasChanges(): boolean { return this.grid?.hasChanges() ?? false; }
+
   subs: Subscription[] = [];
   source: Source | undefined = undefined;
   documents: Document[] = [];
@@ -150,9 +158,8 @@ export class SourceComponent implements OnInit {
     private router: Router,
     private userService: UserService,
     private route: ActivatedRoute,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private location: Location,
-    private toolService: ToolsService,
     private cdr: ChangeDetectorRef,
     private modalService: NgbModal,
     private volpiano: VolpianoService,
@@ -226,29 +233,6 @@ export class SourceComponent implements OnInit {
     }));
   }
 
-  promptForName() {
-    this.showMetadataPanel = true;
-    setTimeout(() => {
-      const el = document.getElementById('quellensigle-input') as HTMLInputElement;
-      if (el) {
-        el.focus();
-        el.select();
-      }
-    }, 50);
-  }
-
-  updateQuellensigle(quellensigle: string) {
-    this.toolService.remove(this);
-    this.toolService.addStack({
-      source: this,
-      tools: [
-        {
-          title: 'Quellensigle: ' + quellensigle
-        },
-      ]
-    });
-  }
-
   /** The siglum was renamed, or this source merged into another: show the source that stays. */
   sigleChanged(keepId: string): void {
     this.showSigleDialog = false;
@@ -268,7 +252,6 @@ export class SourceComponent implements OnInit {
           case 'SourceRetrieved':
             this.source = res.source;
             if (!this.source.custom) this.source.custom = {};
-            this.updateQuellensigle(this.source.quellensigle);
             this.pageTitle.set(
               this.source.quellensigle || this.source.bibliothekssignatur || 'Source',
               this.source.herkunftsinstitution || undefined
@@ -328,7 +311,7 @@ export class SourceComponent implements OnInit {
           switch (res.kind) {
             case 'LoginRequired': this.userService.logout(); break;
             case 'SourceCreated': 
-              this.toastr.success("Saved successfully.");
+              this.statusLine.success("Saved successfully.");
               if (this.source) this.source.id = res.id;
               this.location.replaceState('/source/' + res.id);
               break;
@@ -352,10 +335,9 @@ export class SourceComponent implements OnInit {
             case 'Ok':
               // Removed toast to prevent spamming on autosave
               if (this.source && this.source.quellensigle) {
-                this.updateQuellensigle(this.source.quellensigle);
-              }
+                  }
               break;
-            case 'SourceNotFound': this.toastr.error("It looks like this source was deleted in the meantime."); break;
+            case 'SourceNotFound': this.statusLine.error("It looks like this source was deleted in the meantime."); break;
             default: assertNever(res);
           }
         },
@@ -375,7 +357,7 @@ export class SourceComponent implements OnInit {
     console.error('Saving the source failed', error);
     if (Date.now() - this.lastSaveErrorToast < 10_000) return;
     this.lastSaveErrorToast = Date.now();
-    this.toastr.error('The source could not be saved: ' + (error instanceof Error ? error.message : String(error)), 'Save failed');
+    this.statusLine.error('The source could not be saved: ' + (error instanceof Error ? error.message : String(error)), 'Save failed');
   }
 
   deleteDocument(d: Document): void {
@@ -383,7 +365,7 @@ export class SourceComponent implements OnInit {
       if (this.user) {
         this.api.removeDocument(this.user.token, d.id).subscribe(res => {
           if (res.kind === 'Ok') {
-            this.toastr.success("Document deleted.");
+            this.statusLine.success("Document deleted.");
             if (this.source?.id) {
               this.retrieveForId(this.source.id);
             }
@@ -435,8 +417,8 @@ export class SourceComponent implements OnInit {
       switch (res.kind) {
         case 'LoginRequired': this.userService.logout(); break;
         case 'DocumentCreated':
-          if (result.warnings.length > 0) this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'MEI import warnings');
-          this.toastr.success('Document created from MEI.');
+          if (result.warnings.length > 0) this.statusLine.warning(result.warnings.slice(0, 5).join('; '), 'MEI import warnings');
+          this.statusLine.success('Document created from MEI.');
           this.modalService.dismissAll();
           this.router.navigate(['/document', this.source!.id, res.id]);
           break;
@@ -458,7 +440,7 @@ export class SourceComponent implements OnInit {
     if (!this.user || !this.source || !this.source.id) return;
     const raw = this.volpianoImportText.trim();
     if (!raw) {
-      this.toastr.error('Please paste a Volpiano string.');
+      this.statusLine.error('Please paste a Volpiano string.');
       return;
     }
 
@@ -466,7 +448,7 @@ export class SourceComponent implements OnInit {
     try {
       result = this.volpiano.import(raw, this.volpianoImportAlignedText.trim() || undefined);
     } catch (e) {
-      this.toastr.error('Could not read Volpiano: ' + e);
+      this.statusLine.error('Could not read Volpiano: ' + e);
       return;
     }
     this.volpianoImportWarnings = result.warnings;
@@ -494,9 +476,9 @@ export class SourceComponent implements OnInit {
         case 'LoginRequired': this.userService.logout(); break;
         case 'DocumentCreated':
           if (result.warnings.length > 0) {
-            this.toastr.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano import warnings');
+            this.statusLine.warning(result.warnings.slice(0, 5).join('; '), 'Volpiano import warnings');
           }
-          this.toastr.success('Document created from Volpiano.');
+          this.statusLine.success('Document created from Volpiano.');
           this.modalService.dismissAll();
           this.router.navigate(['/document', this.source!.id, res.id]);
           break;
@@ -512,7 +494,7 @@ export class SourceComponent implements OnInit {
     if (Array.isArray(arr) && !arr.includes(val)) {
       arr.push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`Added ${val} to ${category}`);
+        this.statusLine.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -620,7 +602,7 @@ export class SourceComponent implements OnInit {
         this.transcriptionIndex = buildIndex(neumes);
       } catch (e) {
         console.error('Analysing the notation failed', e);
-        this.toastr.error('The notation of this source could not be analysed.');
+        this.statusLine.error('The notation of this source could not be analysed.');
       } finally {
         this.transcriptionIndex ??= buildIndex([]);   // read or not, the documentation stops waiting for it
         this.isLoadingNotation = false;
@@ -638,7 +620,7 @@ export class SourceComponent implements OnInit {
     if (!this.settings.customLists[category].includes(val)) {
       this.settings.customLists[category].push(val);
       this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        this.toastr.success(`Added ${val} to ${category}`);
+        this.statusLine.success(`Added ${val} to ${category}`);
       });
     }
   }
@@ -647,7 +629,6 @@ export class SourceComponent implements OnInit {
     for (const s of this.subs) {
       s.unsubscribe();
     }
-    this.toolService.remove(this);
   }
 
   docHeaders: Header<Document>[] = [];
@@ -688,12 +669,12 @@ export class SourceComponent implements OnInit {
 
     this.api.deleteDocuments(this.user.token, JSON.stringify(ids)).subscribe(res => {
       if (res.kind === 'UploadFinished') {
-        this.toastr.success(`${ids.length} document(s) successfully deleted.`);
+        this.statusLine.success(`${ids.length} document(s) successfully deleted.`);
         if (this.source?.id) {
           this.retrieveForId(this.source.id);
         }
       } else {
-        this.toastr.error('Error deleting documents.');
+        this.statusLine.error('Error deleting documents.');
       }
     });
   }
@@ -719,7 +700,7 @@ export class SourceComponent implements OnInit {
         console.warn('Failed to update document:', doc.id, e);
       }
     }
-    this.toastr.success(`Updated ${count} document(s).`);
+    this.statusLine.success(`Updated ${count} document(s).`);
     if (this.source?.id) {
       this.retrieveForId(this.source.id);
     }

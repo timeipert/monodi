@@ -1,91 +1,77 @@
-<div class="container py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div class="d-flex align-items-center">
-      <h2 class="page-title">Sources</h2>
-    </div>
-    <div class="d-flex gap-2 align-items-center">
-      <!-- Import / export / HTML edition live on the Import / Export page (route /import-export). The file
-      inputs and dialog state stay on this page; the Import / Export page triggers them with `?ws=<action>`. -->
-      <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
-      <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
-      <input type="file" id="importCsvFile" (change)="importCsv($event)" style="display: none" accept=".csv,text/csv" />
-      <input type="file" id="importGuidoFile" (change)="onGuidoFilePicked($event)" style="display: none" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
-      <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" style="display: none" multiple accept=".json,application/json,.zip,.png,.jpg,.jpeg,.webp,.gif,.svg" />
-      <a [routerLink]="['/import-export']"
-        class="btn btn-sm btn-outline-secondary"
-        title="Import data; export a PDF edition, ZIP, spreadsheet or backup">
-        <i class="bi bi-arrow-down-up me-1"></i>Import / Export
-      </a>
-      <button class="btn btn-sm btn-primary" title="Add a new source (manuscript)" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>New source</button>
-    </div>
-  </div>
+<!-- Sources page. It does two things:
+     1. Find a source (a manuscript) and open it: search field, sortable columns with a filter each, click a row
+        (Enter opens the first).
+     2. Add a source: "New source".
+     Editing and deleting several sources at once is done on the Metadata page (tab Sources), import and export on
+     the Import / Export page; this page repeats none of them. -->
+<div class="sources-page">
+  <!-- File inputs and dialog state of import / export stay on this page; the Import / Export page (route
+  /import-export) triggers them with `?ws=<action>`. -->
+  <input type="file" id="importFile" (change)="importWorkspace($event)" hidden accept=".monodijson" />
+  <input type="file" id="importOmmrFile" (change)="importZip($event)" hidden accept=".zip" />
+  <input type="file" id="importCsvFile" (change)="importCsv($event)" hidden accept=".csv,text/csv" />
+  <input type="file" id="importGuidoFile" (change)="onGuidoFilePicked($event)" hidden accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+  <input type="file" id="importAnnotationsFile" (change)="onAnnotationFilePicked($event)" hidden multiple accept=".json,application/json,.zip,.png,.jpg,.jpeg,.webp,.gif,.svg" />
 
-  <div class="row mt-3">
-    <div class="col">
-      <!-- Column picker toggle -->
-      @if (sources.length > 0) {
-      <div class="d-flex justify-content-end mb-2 position-relative">
-        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-          (click)="showColPicker = !showColPicker"
-          id="col-picker-toggle">
-          <i class="bi bi-layout-three-columns"></i> Columns
-        </button>
-
-        <!-- Floating column picker panel -->
-        @if (showColPicker) {
-          <div class="col-picker-panel shadow-lg border rounded-3 bg-white"
-            style="position:absolute; top: 2.2rem; right: 0; z-index: 200; min-width: 240px; padding: 1rem;">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
-              <button class="btn-close btn-sm" (click)="showColPicker = false"></button>
-            </div>
-            <div class="d-flex flex-column gap-2">
-              @for (col of cols; track col) {
-                <div class="form-check form-switch mb-0">
-                  <input class="form-check-input" type="checkbox" [id]="'col-' + col.key"
-                    [(ngModel)]="col.visible" (change)="saveCols()" />
-                  <label class="form-check-label" [for]="'col-' + col.key"
-                  style="font-size:.85rem;">{{col.label}}</label>
-                </div>
-              }
-            </div>
-          </div>
-        }
-      </div>
-      }
-
-      <!-- Empty state -->
-      @if (sources.length === 0) {
-        <div class="empty-state text-center py-5 text-muted">
-          <i class="bi bi-journal-x" style="font-size: 3rem; opacity: 0.35;"></i>
-          <p class="mt-3 mb-1 fw-semibold" style="font-size: 1.1rem;">No sources yet</p>
-          <p class="small mb-4">A source is a manuscript. Create one, then add its chant documents.</p>
-          <div class="d-flex justify-content-center gap-2 flex-wrap">
-            <button class="btn btn-primary" [routerLink]="['/source']">
-              <i class="bi bi-plus-lg me-1"></i>New source
-            </button>
-            <a class="btn btn-outline-secondary" [routerLink]="['/import-export']">
-              <i class="bi bi-box-arrow-in-down me-1"></i>Import existing data
-            </a>
-          </div>
+  <div class="sources-bar">
+    <nav class="page-tabs sources-view" aria-label="View">
+      <button type="button" [class.active]="!sheet" (click)="showSheet(false)">List</button>
+      <button type="button" [class.active]="sheet" (click)="showSheet(true)" title="Edit the metadata of many sources or documents like a spreadsheet">Sheet</button>
+    </nav>
+    @if (!sheet) {
+      <input class="sources-search" type="search" placeholder="Find a source" aria-label="Find a source"
+        [(ngModel)]="query" (keydown.enter)="openFirst()" autofocus />
+      <details class="sources-cols">
+        <summary class="btn btn-outline-secondary">Columns</summary>
+        <div class="sources-cols-menu">
+          @for (c of cols; track c.key) {
+            <label><input type="checkbox" class="form-check-input" [checked]="c.shown" [disabled]="c.key === 'siglum'" (change)="toggleCol(c)" /> {{ c.label }}</label>
+          }
         </div>
-      }
-
-      @if (sources.length > 0) {
-        <app-smart-table
-          (onDelete)="delete($event)"
-          (onBatchDelete)="onBatchDeleteSources($event)"
-          (onBatchEdit)="onBatchEditSources($event)"
-          (onRowClick)="goToSource($event)"
-          [canDelete]="true"
-          [headers]="headers"
-          [objects]="sources"
-          [batchFields]="sourceBatchFields"
-          storageKey="sources_overview_table"
-        ></app-smart-table>
-      }
-    </div>
+      </details>
+    } @else {
+      <span class="flex-grow-1"></span>
+    }
+    <button class="btn btn-primary" [routerLink]="['/source']">New source</button>
   </div>
+
+  @if (sheet) {
+    <app-metadata-grid [embedded]="true"></app-metadata-grid>
+  } @else {
+  <table class="sources-list">
+      <thead (mouseleave)="hoverCol = ''">
+        <tr>
+          @for (c of shownCols; track c.key) {
+            <th [class.num]="c.num" (mouseenter)="hoverCol = c.key" (click)="sortBy(c.key)" [attr.aria-sort]="sortKey === c.key ? (sortAsc ? 'ascending' : 'descending') : null"
+              [title]="c.key === 'docs' ? 'Transcribed / all documents. Click to sort.' : 'Click to sort'">{{ c.label }} {{ arrow(c.key) }}</th>
+          }
+        </tr>
+        <tr class="filter-row">
+          @for (c of shownCols; track c.key) {
+            <th [class.num]="c.num" (mouseenter)="hoverCol = c.key"><input type="search" placeholder="Filter" [attr.aria-label]="'Filter ' + c.label"
+              [class.visible]="hoverCol === c.key || !!colFilter[c.key]"
+              [ngModel]="colFilter[c.key] ?? ''" (ngModelChange)="colFilter[c.key] = $event" /></th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of rows; track r.source.id) {
+          <tr (click)="goToSource(r.source)">
+            @for (c of shownCols; track c.key) {
+              @if (c.key === 'siglum') {
+                <td class="siglum"><a [routerLink]="['/source', r.source.id]" (click)="$event.stopPropagation()">{{ r.cells['siglum'] || '—' }}</a></td>
+              } @else {
+                <td [class.num]="c.num">{{ r.cells[c.key] }}</td>
+              }
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+    @if (rows.length === 0) {
+      <p class="sources-empty">{{ sources.length ? 'No match.' : 'No sources.' }}</p>
+    }
+  }
 </div>
 
 <!-- ZIP Import Progress Modal -->
@@ -96,7 +82,7 @@
     <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
       <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
         <div class="modal-header border-0 pb-2"
-          [style.background]="importProgress.phase === 'done' ? '#e6f4ea' : '#eef3ff'">
+          [style.background]="importProgress.phase === 'done' ? '#f0f0f0' : '#f3f3f3'">
           <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
             <i class="bi"
              [ngClass]="{
@@ -123,10 +109,10 @@
               <div class="progress-bar progress-bar-striped progress-bar-animated"
                 role="progressbar"
                 [style.width.%]="importProgressPct"
-               [style.background]="importProgress.phase === 'sources' ? '#16a34a'
-                                  : importProgress.phase === 'documents' ? '#2563eb'
-                                  : importProgress.phase === 'saving' ? '#9333ea'
-                                  : '#0ea5e9'">
+               [style.background]="importProgress.phase === 'sources' ? '#111'
+                                  : importProgress.phase === 'documents' ? '#444'
+                                  : importProgress.phase === 'saving' ? '#777'
+                                  : '#999'">
               </div>
             </div>
           }
@@ -147,34 +133,34 @@
           <!-- Per-phase detail line -->
           @if (importProgress.details) {
             <p class="small text-muted mb-3" style="min-height: 1.2em;">
-              <i class="bi bi-chevron-right me-1"></i>{{ importProgress.details }}
+              {{ importProgress.details }}
             </p>
           }
           <!-- Running summary chips -->
           <div class="d-flex flex-wrap gap-2 mb-1">
             @if (importProgress.counts.newSources) {
               <span class="badge bg-light text-dark border">
-                <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newSources }} new source{{ importProgress.counts.newSources === 1 ? '' : 's' }}
+                {{ importProgress.counts.newSources }} new source{{ importProgress.counts.newSources === 1 ? '' : 's' }}
               </span>
             }
             @if (importProgress.counts.updatedSources) {
               <span class="badge bg-light text-dark border">
-                <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedSources }} source{{ importProgress.counts.updatedSources === 1 ? '' : 's' }} updated
+                {{ importProgress.counts.updatedSources }} source{{ importProgress.counts.updatedSources === 1 ? '' : 's' }} updated
               </span>
             }
             @if (importProgress.counts.newDocs) {
               <span class="badge bg-light text-dark border">
-                <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newDocs }} new document{{ importProgress.counts.newDocs === 1 ? '' : 's' }}
+                {{ importProgress.counts.newDocs }} new document{{ importProgress.counts.newDocs === 1 ? '' : 's' }}
               </span>
             }
             @if (importProgress.counts.updatedDocs) {
               <span class="badge bg-light text-dark border">
-                <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedDocs }} document{{ importProgress.counts.updatedDocs === 1 ? '' : 's' }} updated
+                {{ importProgress.counts.updatedDocs }} document{{ importProgress.counts.updatedDocs === 1 ? '' : 's' }} updated
               </span>
             }
             @if (importProgress.counts.missingData) {
               <span class="badge bg-light border text-warning">
-                <i class="bi bi-exclamation-triangle me-1"></i>{{ importProgress.counts.missingData }} skipped
+                {{ importProgress.counts.missingData }} skipped
               </span>
             }
           </div>
@@ -183,13 +169,13 @@
           @if (importProgress.phase !== 'done') {
             <button type="button" class="btn btn-sm btn-outline-secondary"
               (click)="cancelImport()">
-              <i class="bi bi-x-lg me-1"></i>Cancel
+              Cancel
             </button>
           }
           @if (importProgress.phase === 'done') {
             <button type="button" class="btn btn-sm btn-success"
               (click)="finishImport(true)">
-              <i class="bi bi-check-lg me-1"></i>Close
+              Close
             </button>
           }
         </div>
@@ -205,7 +191,7 @@
       <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
         <div class="modal-header border-0 pb-2">
           <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
-            <i class="bi bi-file-earmark-word text-primary"></i><span>Import GUIDO (Word)</span>
+            <span>Import GUIDO (Word)</span>
           </h5>
           <button type="button" class="btn-close" aria-label="Close" (click)="closeGuidoImport()" [disabled]="isApplyingGuido"></button>
         </div>
@@ -226,7 +212,7 @@
             </select>
             <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
               (click)="guidoImport.showTemplate = !guidoImport.showTemplate">
-              <i class="bi bi-sliders me-1"></i>Edit
+              Edit
             </button>
           </div>
           @if (guidoImport.showTemplate) {
@@ -234,15 +220,15 @@
               <textarea class="form-control form-control-sm font-monospace" rows="12" id="guido-template-json"
                 [(ngModel)]="guidoImport.templateJson" spellcheck="false"></textarea>
               @for (e of guidoImport.templateErrors; track $index) {
-                <p class="text-danger small mb-0"><i class="bi bi-x-circle me-1"></i>{{ e }}</p>
+                <p class="text-danger small mb-0">{{ e }}</p>
               }
               <div class="d-flex gap-2 mt-2">
                 <button type="button" class="btn btn-sm btn-outline-primary" (click)="saveGuidoTemplate()">
-                  <i class="bi bi-save me-1"></i>Save as template
+                  Save as template
                 </button>
                 @if (!guidoIsBuiltin) {
                   <button type="button" class="btn btn-sm btn-outline-danger" (click)="deleteGuidoTemplate()">
-                    <i class="bi bi-trash me-1"></i>Delete this template
+                    Delete this template
                   </button>
                 }
                 <span class="text-muted small align-self-center">The built-in template is never changed; saving needs another id.</span>
@@ -251,7 +237,7 @@
           }
 
           @if (guidoImport.error) {
-            <p class="text-danger small"><i class="bi bi-x-circle me-1"></i>{{ guidoImport.error }}</p>
+            <p class="text-danger small">{{ guidoImport.error }}</p>
           }
           @if (guidoImport.result; as r) {
             @if (r.title.raw) {
@@ -276,7 +262,7 @@
               <p class="text-muted small">Nothing attested, so not imported: {{ r.skipped.join(', ') }}.</p>
             }
             @for (w of r.warnings; track $index) {
-              <p class="text-warning small mb-1"><i class="bi bi-exclamation-triangle me-1"></i>{{ w }}</p>
+              <p class="text-warning small mb-1">{{ w }}</p>
             }
             @if (guidoExisting) {
               <div class="border rounded p-2 mb-2" id="guido-conflicts">
@@ -306,11 +292,11 @@
         </div>
         <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeGuidoImport()" [disabled]="isApplyingGuido">
-            <i class="bi bi-x-lg me-1"></i>Cancel
+            Cancel
           </button>
           <button type="button" class="btn btn-sm btn-primary" id="guido-confirm" (click)="confirmGuidoImport()"
             [disabled]="isApplyingGuido || !guidoImport.result || !guidoWillWrite">
-            <i class="bi bi-check-lg me-1"></i>Import
+            Import
           </button>
         </div>
       </div>
@@ -326,7 +312,7 @@
       <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
         <div class="modal-header border-0 pb-2">
           <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
-            <i class="bi bi-images text-primary"></i><span>Import annotations</span>
+            <span>Import annotations</span>
           </h5>
           <button type="button" class="btn-close" aria-label="Close" (click)="closeAnnotationImport()" [disabled]="isApplyingAnnotations"></button>
         </div>
@@ -345,7 +331,7 @@
                   <span class="text-muted small d-block">{{ describePlan(plan) || 'Nothing new.' }}</span>
                   @if (plan.counts.itemsDropped) {
                     <span class="text-warning small d-block">
-                      <i class="bi bi-exclamation-triangle me-1"></i>{{ plan.counts.itemsDropped }} snippet{{ plan.counts.itemsDropped === 1 ? '' : 's' }} left out: their line region is not in the file.
+                      {{ plan.counts.itemsDropped }} snippet{{ plan.counts.itemsDropped === 1 ? '' : 's' }} left out: their line region is not in the file.
                     </span>
                   }
                 </li>
@@ -354,23 +340,23 @@
           }
           @for (warning of annotationImport.preview.warnings; track $index) {
             <p class="text-warning small mt-3 mb-0">
-              <i class="bi bi-exclamation-triangle me-1"></i>{{ warning }}
+              {{ warning }}
             </p>
           }
           @if (annotationImport.preview.unmatched.length) {
             <p class="text-warning small mt-3 mb-0">
-              <i class="bi bi-exclamation-triangle me-1"></i>Not in this workspace, so skipped:
+              Not in this workspace, so skipped:
               {{ annotationImport.preview.unmatched.slice(0, 5).join(', ') }}{{ annotationImport.preview.unmatched.length > 5 ? ', …' : '' }}.
             </p>
           }
         </div>
         <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeAnnotationImport()" [disabled]="isApplyingAnnotations">
-            <i class="bi bi-x-lg me-1"></i>Cancel
+            Cancel
           </button>
           <button type="button" class="btn btn-sm btn-primary" (click)="confirmAnnotationImport()"
             [disabled]="isApplyingAnnotations || !annotationPlansWithChanges.length">
-            <i class="bi bi-check-lg me-1"></i>Import
+            Import
           </button>
         </div>
       </div>
@@ -383,13 +369,13 @@
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
         <div class="modal-header border-0 pb-2">
-          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2"><i class="bi bi-filetype-xml text-secondary"></i><span>Import MEI</span></h5>
+          <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2"><span>Import MEI</span></h5>
           <button type="button" class="btn-close" aria-label="Close" (click)="closeMeiImport()"></button>
         </div>
         <div class="modal-body pt-2">
           <p class="text-muted small mb-3">
             MEI is the XML format of the Music Encoding Initiative. Every file becomes one document. The staves of a section are read as the
-            voices of one line; attributes that Monodi has no field for (for example <code>name</code> or <code>lig</code>) are kept as MEI
+            voices of one line; attributes that monodi has no field for (for example <code>name</code> or <code>lig</code>) are kept as MEI
             attributes of the notes.
           </p>
           <div class="row g-3 mb-3">
@@ -437,9 +423,9 @@
           }
         </div>
         <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
-          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeMeiImport()"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeMeiImport()">Cancel</button>
           <button type="button" class="btn btn-sm btn-primary" [disabled]="!meiImportReady" (click)="confirmMeiImport()">
-            <i class="bi bi-box-arrow-in-down me-1"></i>Import {{ meiImportFiles.length }} file(s)
+            Import {{ meiImportFiles.length }} file(s)
           </button>
         </div>
       </div>
@@ -454,7 +440,7 @@
       <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
         <div class="modal-header border-0 pb-2">
           <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
-            <i class="bi bi-filetype-csv text-success"></i><span>Export CSV</span>
+            <span>Export CSV</span>
           </h5>
           <button type="button" class="btn-close" aria-label="Close" (click)="closeCsvExportDialog()"></button>
         </div>
@@ -487,10 +473,10 @@
         </div>
         <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeCsvExportDialog()">
-            <i class="bi bi-x-lg me-1"></i>Cancel
+            Cancel
           </button>
           <button type="button" class="btn btn-sm btn-success" (click)="confirmCsvExport()">
-            <i class="bi bi-download me-1"></i>Export CSV
+            Export CSV
           </button>
         </div>
       </div>
@@ -506,7 +492,7 @@
         <div class="modal-header bg-light border-0 px-4 pt-4 pb-2">
           <h5 class="modal-title fw-bold text-dark">
             <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : exportMode === 'pdf' ? 'bi-file-pdf text-danger' : 'bi-globe text-warning'"></i>
-            {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : exportMode === 'pdf' ? 'Print documents as PDF' : 'Export Static HTML Edition' }}
+            {{ exportMode === 'zip' ? 'Export ZIP for monodi / OMMR' : exportMode === 'pdf' ? 'Print documents as PDF' : 'Export Static HTML Edition' }}
           </h5>
           <button type="button" class="btn-close" (click)="closeExportDialog()" [disabled]="isExporting"></button>
         </div>
@@ -522,11 +508,11 @@
           <!-- Backwards Compatibility Option for ZIP export -->
           @if (!isExporting && exportMode === 'zip') {
             <div class="mt-3 p-3 bg-white border rounded shadow-sm">
-              <label class="form-label fw-bold text-dark mb-2">Backwards-Compatible Polyphony Export (Monodi v1)</label>
+              <label class="form-label fw-bold text-dark mb-2">Backwards-Compatible Polyphony Export (monodi v1)</label>
               <div class="form-check mb-2">
                 <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeNone" value="none" [(ngModel)]="exportBackwardsCompatMode">
                 <label class="form-check-label text-dark fw-medium ms-1" for="zipModeNone">
-                  Standard Format (Monodi-Zero)
+                  Standard Format (monodi)
                 </label>
               </div>
               <div class="form-check mb-2">
@@ -571,9 +557,7 @@
               <span class="spinner-border spinner-border-sm me-2"></span>
             }
             {{ exportMode === 'zip' ? 'Generate & Download ZIP' : exportMode === 'pdf' ? 'Continue to print options' : 'Generate & Download HTML' }}
-            @if (!isExporting) {
-              <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : exportMode === 'pdf' ? 'bi-file-pdf ms-1' : 'bi-globe ms-1'"></i>
-            }
+            
           </button>
         </div>
       </div>

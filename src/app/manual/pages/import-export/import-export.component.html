@@ -11,16 +11,11 @@
   <ul>
     <li><strong>Import / Export page</strong> (nav bar) — the hub: workspace backups, ZIP, HTML edition, CSV, and the imports from a public repository and from Cantus Index.</li>
     <li><strong>Document toolbar</strong> — per-document exports: JSON, PDF, MEI and <strong>Volpiano</strong>.</li>
-    <li><strong>Source page</strong> — <em>New Document</em>, <em>Import Volpiano</em>; the document page also has <em>Import Text</em>.</li>
+    <li><strong>Source page</strong> — <em>New document</em>, with its menu <em>From Volpiano</em> and <em>From an MEI file</em>; the document page also has <em>Import text</em>.</li>
   </ul>
 
   <h2 id="page">How the page is arranged</h2>
-  <ul>
-    <li class="mb-2">The <strong>strip at the top</strong> shows how many sources and chants the workspace holds, when the last backup was made (green: nothing changed since; amber: changes since, or no backup yet) and, if you imported from repositories, how much of the workspace came from there. <em>Back up now</em> starts a workspace backup.</li>
-    <li class="mb-2">The tabs <strong>Import</strong> and <strong>Export</strong> hold the actions as cards, in sections by what you want to do: <em>Start from existing data</em>, <em>Add chants</em>, <em>Add manuscript annotations</em>; <em>Publish and print</em>, <em>Back up and share</em>. Each card says what the action does, its file type, and what that format keeps; <em>online</em> marks the actions that need the internet, and the workspace backup is marked <em>Recommended</em>.</li>
-    <li class="mb-2">The address keeps the tab (<code>#/import-export?tab=export</code>), so a reload or a link opens the same tab.</li>
-    <li class="mb-2"><em>Which one do I need?</em> at the bottom lists common goals (a safe copy, another computer, monodi+, a spreadsheet, printing) and starts the right action.</li>
-  </ul>
+  <p>Two columns, <strong>Import</strong> and <strong>Export</strong>, each in sections by purpose: <em>Start from existing data</em>, <em>Add chants</em>, <em>Add manuscript annotations</em>; <em>Publish and print</em>, <em>Back up and share</em>. Each row names the action and its file type; the tooltip of a row says what the format keeps. One click starts the action.</p>
 
   <h2 id="workspace-formats">Workspace formats</h2>
   <ul>
@@ -44,7 +39,7 @@
 
   <h2 id="volpiano">Volpiano</h2>
   <p>
-    <strong>Volpiano</strong> is the plain-text chant encoding used by the CANTUS Database. Monodi-Zero reads and
+    <strong>Volpiano</strong> is the plain-text chant encoding used by the CANTUS Database. monodi reads and
     writes it following the CANTUS <em>Volpiano Protocols</em>.
   </p>
   <ul>
@@ -74,7 +69,7 @@
   <p>
     The tick-box <strong>Split text into syllables (experimental)</strong> additionally places the Latin text under
     the notes. The databases do not serve a pre-split text — and <code>cantusdatabase.org</code> cannot be read
-    directly from the browser — so Monodi-Zero uses the <strong>melody's own syllable structure</strong> (the
+    directly from the browser — so monodi uses the <strong>melody's own syllable structure</strong> (the
     <code>--</code>/<code>---</code> boundaries) to split the text locally with a Latin heuristic. It is
     <em>best-effort</em>: where the text and melody don't line up exactly, the chant is imported anyway and a notice
     tells you to check the text. Always proofread the result.

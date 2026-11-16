@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, EventEmitter, Output } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
 import { CmImportPlan, CmParse, OddCell, parseCmExport, planCmImport } from './cm-export';
@@ -90,7 +90,7 @@ export class CmImportDialogComponent {
   /** The release columns are not among the custom fields yet. */
   needsFields = false;
 
-  constructor(private api: APIService, private users: UserService, private toastr: ToastrService, private cdr: ChangeDetectorRef) {}
+  constructor(private api: APIService, private users: UserService, private statusLine: StatusLineService, private cdr: ChangeDetectorRef) {}
 
   close(): void { this.closed.emit(); }
 
@@ -139,7 +139,7 @@ export class CmImportDialogComponent {
       }
       const res = await firstValueFrom(this.api.updateDocumentsMetadata(token, this.plan.patches));
       if (res.kind !== 'MetadataUpdated') throw new Error('Saving failed.');
-      this.toastr.success(`${res.updated} documents updated, ${this.plan.flagged} held back from the print.`);
+      this.statusLine.success(`${res.updated} documents updated, ${this.plan.flagged} held back from the print.`);
       this.applied.emit();
       this.close();
     } catch (e: any) {

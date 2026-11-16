@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
 import { FieldChoice, SiglePlan, sigleText } from '../source-sigle';
@@ -129,7 +129,7 @@ export class SigleDialogComponent implements OnInit {
   private choices: { [key: string]: FieldChoice } = {};
   private seq = 0;
 
-  constructor(private api: APIService, private users: UserService, private toastr: ToastrService, private cdr: ChangeDetectorRef) {}
+  constructor(private api: APIService, private users: UserService, private statusLine: StatusLineService, private cdr: ChangeDetectorRef) {}
 
   get canApply(): boolean {
     return !this.busy && !!this.plan && this.plan.kind !== 'none' && this.plan.problems.length === 0;
@@ -189,7 +189,7 @@ export class SigleDialogComponent implements OnInit {
     try {
       const res = await firstValueFrom(this.api.changeSigle(await this.token(), { sourceId: this.sourceId, newSigle: this.newSigle, choices: this.choices }));
       if (res.kind === 'SigleChanged') {
-        this.toastr.success(res.plan.kind === 'merge' ? `Merged into ${res.plan.newSigle}.` : `Renamed to ${res.plan.newSigle}.`);
+        this.statusLine.success(res.plan.kind === 'merge' ? `Merged into ${res.plan.newSigle}.` : `Renamed to ${res.plan.newSigle}.`);
         this.changed.emit(res.plan.keepId);
       } else if (res.kind === 'SigleChangeRefused') {
         this.plan = res.plan;

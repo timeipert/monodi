@@ -5,7 +5,7 @@ import { ToolsService } from '../tools.service';
 import { UndoService } from '../undoService';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { ContextMenuService } from '../context-menu/context-menu.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 
 describe('ClefComponent', () => {
   let component: ClefComponent;
@@ -33,7 +33,7 @@ describe('ClefComponent', () => {
     open: () => {}
   };
 
-  const mockToastrService = {
+  const mockStatusLineService = {
     info: () => {},
     warning: () => {},
     error: () => {},
@@ -49,7 +49,7 @@ describe('ClefComponent', () => {
         { provide: UndoService, useValue: mockUndoService },
         { provide: NgbModal, useValue: mockNgbModal },
         { provide: ContextMenuService, useValue: mockContextMenuService },
-        { provide: ToastrService, useValue: mockToastrService }
+        { provide: StatusLineService, useValue: mockStatusLineService }
       ]
     })
     .compileComponents();

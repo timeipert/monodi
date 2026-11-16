@@ -1,6 +1,5 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { ToastrModule } from 'ngx-toastr';
 import { of } from 'rxjs';
 import { NotesStore } from '../notes-store';
 import { SearchExecService, QuickResult, sequenceDistance, parseMelodyPattern } from './search-exec.service';
@@ -22,7 +21,6 @@ describe('SearchExecService', () => {
     TestBed.configureTestingModule({
       imports: [
         HttpClientTestingModule,
-        ToastrModule.forRoot()
       ],
       providers: [
         SearchExecService,
@@ -106,7 +104,7 @@ describe('SearchExecService', () => {
       service.quickMedievalTolerance = true;
       service.quickFuzzyDistance = 2;
 
-      await service.searchQuick(() => {}, () => {});
+      await service.searchQuick();
 
       expect(service.quickResults).toEqual(expectedResults);
       expect(service.quickSearched).toBeTrue();

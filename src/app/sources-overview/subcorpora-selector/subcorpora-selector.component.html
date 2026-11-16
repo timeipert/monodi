@@ -3,10 +3,10 @@
   <div class="filters-panel p-3 mb-3 bg-white rounded shadow-sm border">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="fw-bold mb-0 text-secondary">
-        <i class="bi bi-funnel-fill me-1 text-primary"></i> Metadata Filters (AND Combination)
+        Metadata Filters (AND Combination)
       </h6>
       <button class="btn btn-sm btn-primary" (click)="addFilter()">
-        <i class="bi bi-plus-lg me-1"></i> Add Filter
+        Add Filter
       </button>
     </div>
 
@@ -113,7 +113,7 @@
         <!-- Column selector dropdown -->
         <div ngbDropdown class="d-inline-block">
           <button class="btn btn-sm btn-outline-secondary text-nowrap" id="selColumns" ngbDropdownToggle>
-            <i class="bi bi-layout-three-columns me-1"></i> Columns
+            Columns
           </button>
           <div ngbDropdownMenu aria-labelledby="selColumns" class="p-2 shadow dropdown-menu-end">
             @for (col of docCols; track col) {
@@ -198,7 +198,7 @@
 
       @if (countTotalFiltered === 0) {
         <div class="text-center py-5 text-muted small bg-light rounded border border-dashed">
-          <i class="bi bi-info-circle me-1" style="font-size: 1.25rem;"></i> No sources or documents match the current filters and search text.
+          No sources or documents match the current filters and search text.
         </div>
       }
     </div>

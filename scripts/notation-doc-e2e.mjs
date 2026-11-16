@@ -76,6 +76,7 @@ if (!real) {
 
 // ── print ───────────────────────────────────────────────────────────────────────────────────────
 await openPrintDialog(page, BASE, ids);
+await page.waitForSelector('#oNot', { timeout: 20000 });
 await page.evaluate(() => { const c = document.querySelector('#oNot'); if (!c.checked) c.click(); });
 await page.waitForSelector('#oTree');
 await page.evaluate(() => { const c = document.querySelector('#oTree'); if (!c.checked) c.click(); });

@@ -77,8 +77,8 @@ describe('Push performance (repeat pushes and dirty tracking)', () => {
     (PushCache as any).cleanIds = null;
     (PushCache as any).deletedIds = null;
 
-    const toastr = jasmine.createSpyObj('ToastrService', ['error', 'success', 'info']);
-    github = new GithubService(toastr, new GithubSessionService());
+    const statusLine = jasmine.createSpyObj('StatusLineService', ['error', 'success', 'info']);
+    github = new GithubService(statusLine, new GithubSessionService());
     (github as any).octokit = makeOctokitMock();
     (github as any).config = { token: 'x', owner: 'o', repo: 'r', branch: 'main' };
   });

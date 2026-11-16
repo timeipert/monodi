@@ -3,7 +3,7 @@ import { maxNoteBottomOf, minNoteYOf, requiredPadBottom, requiredPadTop } from '
 import { PRINT_PDF_DEFAULTS, pdfPageFormat } from '../pdf-defaults';
 import { Injectable, inject } from '@angular/core';
 import { forkJoin, Subscription } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { APIService, Document, ProjectSettings } from '../api.service';
@@ -220,7 +220,7 @@ export class SynopsisService {
   constructor(
     private api: APIService,
     private userService: UserService,
-    private toastr: ToastrService
+    private statusLine: StatusLineService
   ) {
     this.subs.push(this.userService.user.subscribe(user => {
       this.user = user;
@@ -773,10 +773,10 @@ export class SynopsisService {
   }
 
   async exportSynopsisPDF(selectedDocs: Document[], settings: ProjectSettings | null, visibleSynopsisCols: any[]) {
-    this.toastr.info('Generating PDF\u2026', 'Export');
+    this.statusLine.info('Generating PDF\u2026', 'Export');
     const root = document.querySelector('.synopsis-view') as HTMLElement;
     if (!root) {
-      this.toastr.error('Synopsis element not found');
+      this.statusLine.error('Synopsis element not found');
       return;
     }
 
@@ -1036,10 +1036,10 @@ export class SynopsisService {
 
       const suffix = singleLine ? 'single-line-' : '';
       doc.save(`synopsis-${suffix}${new Date().toISOString().slice(0, 10)}.pdf`);
-      this.toastr.success('Synopsis PDF exported successfully!');
+      this.statusLine.success('Synopsis PDF exported successfully!');
     } catch (err) {
       console.error('Error generating PDF:', err);
-      this.toastr.error('Failed to export PDF');
+      this.statusLine.error('Failed to export PDF');
     }
   }
 }

@@ -2,7 +2,7 @@
   <!-- ===== Header: profile and result ===== -->
   <div class="card-header bg-light">
     <div class="d-flex align-items-center flex-wrap gap-2">
-      <h6 class="mb-0 fw-semibold me-auto"><i class="bi bi-music-note-beamed me-2 text-secondary"></i>MEI export profile</h6>
+      <h6 class="mb-0 fw-semibold me-auto">MEI export profile</h6>
       <select id="meiProfileSelect" class="form-select form-select-sm w-auto pe-5" style="min-width: 12rem;" aria-label="Profile"
         [ngModel]="settings.activeMeiProfileId"
         (change)="onProfileChange($event)">
@@ -17,24 +17,24 @@
         @if (manageOpen) {
         <div class="mei-backdrop" (click)="manageOpen = false"></div>
         <ul class="dropdown-menu dropdown-menu-end show" style="right: 0;" (click)="manageOpen = false">
-          <li><button class="dropdown-item" (click)="onNewProfile()"><i class="bi bi-plus-lg me-2"></i>New profile</button></li>
+          <li><button class="dropdown-item" (click)="onNewProfile()">New profile</button></li>
           @for (preset of presets; track preset.id) {
-            <li><button class="dropdown-item" (click)="onNewProfileFromPreset(preset.id)" [title]="preset.description"><i class="bi bi-magic me-2"></i>New from preset: {{ preset.name }}</button></li>
+            <li><button class="dropdown-item" (click)="onNewProfileFromPreset(preset.id)" [title]="preset.description">New from preset: {{ preset.name }}</button></li>
           }
-          <li><button class="dropdown-item" (click)="onDuplicateProfile()" [disabled]="!activeProfile"><i class="bi bi-files me-2"></i>Duplicate</button></li>
-          <li><button class="dropdown-item" (click)="onRenameProfile()" [disabled]="!activeProfile"><i class="bi bi-pencil me-2"></i>Rename</button></li>
+          <li><button class="dropdown-item" (click)="onDuplicateProfile()" [disabled]="!activeProfile">Duplicate</button></li>
+          <li><button class="dropdown-item" (click)="onRenameProfile()" [disabled]="!activeProfile">Rename</button></li>
           <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item" (click)="onExportProfile()" [disabled]="!activeProfile"><i class="bi bi-download me-2"></i>Export as JSON</button></li>
-          <li><label class="dropdown-item mb-0 cursor-pointer"><i class="bi bi-upload me-2"></i>Import from JSON
+          <li><button class="dropdown-item" (click)="onExportProfile()" [disabled]="!activeProfile">Export as JSON</button></li>
+          <li><label class="dropdown-item mb-0 cursor-pointer">Import from JSON
             <input type="file" accept=".json" class="d-none" (change)="onImportProfile($event)"></label></li>
           <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item" (click)="onResetProfile()" [disabled]="!activeProfile"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset to defaults</button></li>
-          <li><button class="dropdown-item text-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0"><i class="bi bi-trash me-2"></i>Delete profile</button></li>
+          <li><button class="dropdown-item" (click)="onResetProfile()" [disabled]="!activeProfile">Reset to defaults</button></li>
+          <li><button class="dropdown-item text-danger" (click)="onDeleteProfile()" [disabled]="!activeProfile || settings.meiProfiles?.length === 0">Delete profile</button></li>
         </ul>
         }
       </div>
       <button class="btn btn-sm" [ngClass]="showPreview ? 'btn-secondary' : 'btn-outline-secondary'" (click)="togglePreview()" title="Show the MEI that this profile produces">
-        <i class="bi bi-code-square me-1"></i>Result
+        Result
       </button>
     </div>
   </div>
@@ -45,7 +45,7 @@
       @if (validationErrors && validationErrors.length > 0) {
         <details class="mei-checks px-4 pt-2" [open]="hasValidationError">
           <summary class="small" [class.text-danger]="hasValidationError" [class.text-warning-emphasis]="!hasValidationError">
-            <i class="bi me-1" [ngClass]="hasValidationError ? 'bi-x-circle-fill' : 'bi-exclamation-triangle-fill'"></i>{{ validationErrors.length }} {{ validationErrors.length === 1 ? 'problem' : 'problems' }} found
+            {{ validationErrors.length }} {{ validationErrors.length === 1 ? 'problem' : 'problems' }} found
           </summary>
           @for (err of validationErrors; track err) {
             <div class="small ms-4 mt-1" [class.text-danger]="err.isError">
@@ -55,7 +55,7 @@
           }
         </details>
       } @else {
-        <div class="px-4 pt-2 small text-success"><i class="bi bi-check-circle-fill me-1"></i>Checks passed.</div>
+        <div class="px-4 pt-2 small text-success">Checks passed.</div>
       }
     }
 
@@ -65,7 +65,7 @@
         @for (g of groups; track g.id) {
           <li class="nav-item" role="presentation">
             <button type="button" class="nav-link" role="tab" [class.active]="group.id === g.id" (click)="setGroup(g.id)">
-              <i class="bi me-2" [ngClass]="g.icon"></i><span class="fw-medium">{{ g.label }}</span>
+              <span class="fw-medium">{{ g.label }}</span>
               @if (groupCount(g) !== null) { <span class="badge bg-secondary ms-1">{{ groupCount(g) }}</span> }
             </button>
           </li>
@@ -206,7 +206,7 @@
                     <option value="contour">Contour: &#64;intm (u, d, s), no pitch</option>
                     <option value="pitch">Stored pitches: &#64;pname and &#64;oct</option>
                   </select>
-                  <small class="text-muted d-block mt-1">The notes of such a line were typed as a contour, so the pitches that Monodi stores are not read from the manuscript. The staff gets <code>type="adiastematic"</code>.</small>
+                  <small class="text-muted d-block mt-1">The notes of such a line were typed as a contour, so the pitches that monodi stores are not read from the manuscript. The staff gets <code>type="adiastematic"</code>.</small>
                 </div>
               }
               <div>
@@ -221,9 +221,7 @@
                         <button class="btn btn-link py-0 px-1" (click)="moveWrapper(i, 1)" [disabled]="last"><i class="bi bi-caret-right-fill" style="font-size: 0.6rem;"></i></button>
                       </div>
                       <button class="btn btn-link text-danger p-0 ms-2" (click)="removeWrapper(i)"><i class="bi bi-x-circle"></i></button>
-                      @if (!last) {
-                        <i class="bi bi-arrow-right ms-2 wrapper-separator"></i>
-                      }
+                      
                     </div>
                   }
                   @if (activeProfile.skeleton.length === 0) {
@@ -313,13 +311,13 @@
                   <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
                     [class.text-warning]="armedResetEntity === selectedNodeId"
                     (click)="resetEntityToDefault()">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i>{{ armedResetEntity === selectedNodeId ? 'Click again to confirm' : 'Reset this entity to default' }}
+                    {{ armedResetEntity === selectedNodeId ? 'Click again to confirm' : 'Reset this entity to default' }}
                   </button>
                 </div>
               }
               @if (!activeRule.enabled) {
                 <div class="alert alert-secondary py-2 mb-4">
-                  <i class="bi bi-info-circle me-2"></i> This entity is disabled and will be omitted from the MEI output. (Children of a structural entity will still be emitted, flattened).
+                  This entity is disabled and will be omitted from the MEI output. (Children of a structural entity will still be emitted, flattened).
                 </div>
               }
               <div class="mb-4" [class.opacity-50]="!activeRule.enabled">
@@ -408,7 +406,7 @@
                     </tbody>
                   </table>
                 </div>
-                <button class="btn btn-sm btn-outline-secondary" (click)="addAttribute()" [disabled]="!activeRule.enabled"><i class="bi bi-plus"></i> Add Attribute</button>
+                <button class="btn btn-sm btn-outline-secondary" (click)="addAttribute()" [disabled]="!activeRule.enabled">Add Attribute</button>
               </div>
               <div [class.opacity-50]="!activeRule.enabled">
                 <label class="form-label fw-medium">Text Content</label>
@@ -469,7 +467,7 @@
                 @if (selectedPattern) {
                   <div class="d-flex align-items-center mb-3">
                     <h5 class="font-monospace mb-0 me-auto">{{ selectedPattern }}</h5>
-                    <button class="btn btn-link btn-sm text-danger text-decoration-none" (click)="removePattern(selectedPattern)"><i class="bi bi-trash me-1"></i>Delete</button>
+                    <button class="btn btn-link btn-sm text-danger text-decoration-none" (click)="removePattern(selectedPattern)">Delete</button>
                   </div>
 
                   <div class="mb-3">
@@ -587,7 +585,7 @@
                       <span class="small text-muted" title="With a note selected in the editor, press this key to set or clear the flag">key <kbd>{{ dk }}</kbd></span>
                     }
                     <input type="text" class="form-control form-control-sm w-auto fw-medium" [(ngModel)]="fd.label" (ngModelChange)="emitChange()" title="Name">
-                    <button class="btn btn-link text-danger btn-sm ms-auto text-decoration-none" (click)="removeNoteFlag(fi)"><i class="bi bi-trash me-1"></i>Delete</button>
+                    <button class="btn btn-link text-danger btn-sm ms-auto text-decoration-none" (click)="removeNoteFlag(fi)">Delete</button>
                   </div>
                   <div class="p-3">
                     <div class="row g-3">
@@ -662,9 +660,9 @@
         @if (showPreview) {
         <div class="col-12 col-xxl-5 bg-light p-4 d-flex flex-column mei-preview">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="fw-semibold text-secondary mb-0"><i class="bi bi-code-square me-2"></i>Result</h6>
+            <h6 class="fw-semibold text-secondary mb-0">Result</h6>
             <button class="btn btn-sm btn-outline-secondary" (click)="copyXml()" [disabled]="!previewXml || previewXml.startsWith('<!--')">
-              <i class="bi bi-clipboard"></i> Copy
+              Copy
             </button>
           </div>
           <!-- Preview source selector -->
@@ -689,7 +687,7 @@
             </select>
             @if (previewTruncated) {
               <div class="small text-warning-emphasis mt-1 d-flex align-items-center">
-                <i class="bi bi-scissors me-1"></i>Preview truncated to the first 2 lines.
+                Preview truncated to the first 2 lines.
               </div>
             }
           </div>

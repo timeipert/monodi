@@ -54,13 +54,13 @@
   border-radius: 0.25rem;
 
   &.hovered-row {
-    background-color: rgba(13, 93, 128, 0.05);
+    background-color: rgba(79, 79, 79, 0.05);
   }
   &.hovered-col {
-    background-color: rgba(13, 93, 128, 0.03);
+    background-color: rgba(79, 79, 79, 0.03);
   }
   &.hovered-row.hovered-col {
-    background-color: rgba(13, 93, 128, 0.1);
+    background-color: rgba(79, 79, 79, 0.1);
   }
 
   &:hover {

@@ -78,14 +78,14 @@ button.nd-box:hover { border-color: var(--color-primary-muted); background: #f6f
 .nd-tline-head { font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: var(--color-text-muted); font-weight: 600; align-self: center; margin-right: .3rem; }
 .nd-tneume { display: inline-flex; flex-direction: column; align-items: center; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 0 2px; min-width: 1.6rem; }
 .nd-tneume:hover { border-color: var(--color-border-hover); background: var(--color-surface); }
-.nd-tneume-doc { background: #e8f4ee; border-color: #a3cfbb; }
+.nd-tneume-doc { background: #f1f1f1; border-color: #c4c4c4; }
 .nd-tneume.on { background: var(--color-primary-light); border-color: var(--color-primary-muted); }
 .nd-syl { font-size: .72rem; font-style: italic; color: var(--color-text); line-height: 1.1; white-space: nowrap; }
 .nd-lbl { font: 700 .62rem ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--color-success-dark); }
 .nd-grid-head { margin: 1rem 0 .4rem; font-size: .85rem; color: var(--color-text-muted); }
 .nd-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .6rem; }
 .nd-card { display: flex; flex-direction: column; gap: 2px; padding: 5px; border: 1px solid var(--bs-border-color); border-radius: .4rem; background: var(--color-surface); }
-.nd-card-target { box-shadow: 0 0 0 2px #fd7e14; }
+.nd-card-target { box-shadow: 0 0 0 2px #919191; }
 .nd-card-pic { border: none; background: transparent; padding: 0; cursor: zoom-in; }
 .nd-card-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: .72rem; }
 .nd-card-meta code { color: var(--color-text-muted); max-width: 6rem; overflow: hidden; text-overflow: ellipsis; }

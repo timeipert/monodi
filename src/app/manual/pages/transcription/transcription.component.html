@@ -1,9 +1,9 @@
 <div class="manual-page-single">
   <h1 id="the-transcription-editor">The Transcription Editor</h1>
-  <p class="lead">The transcription editor is the core of Monodi-Zero. It is designed around keyboard efficiency, allowing you to transcribe manuscript staves quickly and accurately without constantly switching to a mouse.</p>
+  <p class="lead">The transcription editor is the core of monodi. It is designed around keyboard efficiency, allowing you to transcribe manuscript staves quickly and accurately without constantly switching to a mouse.</p>
 
   <h2 id="basic-layout">Basic Concepts & Structure</h2>
-  <p>Transcription in Monodi-Zero follows a logical, hierarchical block model. Rather than working with unstructured text, you manipulate distinct musical objects:</p>
+  <p>Transcription in monodi follows a logical, hierarchical block model. Rather than working with unstructured text, you manipulate distinct musical objects:</p>
   <ul>
     <li><strong>Folio Changes</strong>: Page breaks in the source manuscript (e.g. <code>1r</code>, <code>2v</code>). Loading a folio automatically triggers the IIIF viewer to load that folio's manuscript page.</li>
     <li><strong>Line Changes</strong>: Physical staff lines in the source. This is the unit used to link transcriptions directly to drawn zones in the IIIF image editor.</li>
@@ -12,7 +12,7 @@
   </ul>
 
   <h2 id="clefs-and-staffs">Clefs & Staff Lines</h2>
-  <p>Chant notation in Monodi-Zero uses a standard 5-line staff representation. To establish the pitch space, you must place a clef at the start of a staff line:</p>
+  <p>Chant notation in monodi uses a standard 5-line staff representation. To establish the pitch space, you must place a clef at the start of a staff line:</p>
   <ul>
     <li><strong>C Clef (Do)</strong>: Indicates that whichever staff line it sits on represents the pitch <strong>C</strong> (Do). Can be positioned on lines 1, 2, 3, 4, or 5.</li>
     <li><strong>F Clef (Fa)</strong>: Indicates that whichever staff line it sits on represents the pitch <strong>F</strong> (Fa). Can be positioned on lines 1, 2, 3, 4, or 5.</li>
@@ -20,7 +20,7 @@
   <p>Any notes positioned after a clef will dynamically compute their musical pitch relative to it. If you shift the clef up or down, all subsequent notes automatically adjust their staff position to maintain the correct auditory pitch.</p>
 
   <h2 id="scholarly-note-shapes">Scholarly Note Shapes & Ornaments</h2>
-  <p>Monodi-Zero supports several standard chant neume types to ensure scholarly accuracy when transcribing medieval manuscripts. You can toggle these shapes using keyboard keys:</p>
+  <p>monodi supports several standard chant neume types to ensure scholarly accuracy when transcribing medieval manuscripts. You can toggle these shapes using keyboard keys:</p>
   <ul>
     <li><strong>Normal Punctum (<kbd>n</kbd>)</strong>: The standard square/lozenge note. Used for regular, plain chant notes.</li>
     <li><strong>Liquescent (<kbd>l</kbd>)</strong>: Renders as a smaller note symbol with a descending hook. Used to transcribe syllables containing diphthongs (e.g., <em>au</em>, <em>ei</em>) or liquid/nasal consonants (e.g., <em>l</em>, <em>m</em>, <em>n</em>, <em>r</em>), indicating a vocal slide or softened articulation.</li>

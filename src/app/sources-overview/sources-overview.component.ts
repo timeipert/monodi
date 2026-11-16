@@ -6,7 +6,7 @@ import { FocusService } from '../focus.service';
 import { PdfDialogLauncher } from '../pdf-export-dialog.component';
 import { sanitizeNotationColor } from '../notation-color';
 import { sanitizeClefDisplayMode } from '../clef-policy';
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, NgZone, ViewChild, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService, User } from '../user.service';
 import { APIService, Source, Document } from '../api.service'
@@ -14,9 +14,7 @@ import { assertNever, compareNatural } from '../../utils';
 import { buildWorkspaceCsv, parseWorkspaceCsv } from '../workspace-csv';
 import { BackupReminderService } from '../backup-reminder.service';
 import { Subscription, firstValueFrom } from 'rxjs';
-import { Header, BatchField } from '../smart-table/smart-table.component';
-import { ToastrService } from 'ngx-toastr';
-import { ContextMenuService } from '../context-menu/context-menu.service';
+import { StatusLineService } from '../status-line.service';
 import * as localforage from 'localforage';
 import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
@@ -43,36 +41,47 @@ import { readAnnotationFiles } from '../neume-docs-import';
 import { saveStripImages } from '../notation-strip-images';
 import { mergeMetaAnnotations } from '../zip-source-annotations';
 import { documentFromMeta, sourceFromMeta } from '../workspace-import';
-import { safeStorage } from '../safe-storage';
 import { downloadBlob } from '../download';
 import { jsonForScript } from '../html-escape';
 import { GuidoImportResult, parseGuidoDocx } from '../guido/guido-import';
 import { BUILTIN_TEMPLATE_ID, GuidoTemplate, allGuidoTemplates, parseGuidoTemplate } from '../guido/guido-template';
 import { GuidoConflictMode, GuidoPlan, applyGuidoImport, mergeNoteFlags, planGuidoImport } from '../guido/guido-apply';
 import { NoteFlagDef } from '@monodi/core/document';
+import { safeStorage } from '../safe-storage';
+import { HasChanges } from '../ConfirmDeactivateGuard';
+import { MetadataGridComponent } from '../metadata-grid/metadata-grid.component';
 
-export interface SourceColDef {
-  key: keyof Source | string;
+/** A column of the list of sources: its key, heading, and how to read its text from a source. */
+interface SourceCol {
+  key: string;
   label: string;
-  visible: boolean;
+  text: (s: Source, counts: { transcribed: number; total: number }) => string;
+  /** Shown unless the user hid it. */
+  shown: boolean;
+  num?: boolean;
 }
 
-const DEFAULT_SOURCE_COLS: SourceColDef[] = [
-  { key: 'quellensigle',         label: 'Source Siglum',       visible: true  },
-  { key: 'datierung',            label: 'Dating',              visible: true  },
-  { key: 'herkunftsregion',      label: 'Region of Origin',    visible: false },
-  { key: 'herkunftsort',         label: 'Place of Origin',     visible: true  },
-  { key: 'herkunftsinstitution', label: 'Institution',         visible: true  },
-  { key: 'ordenstradition',      label: 'Order Tradition',     visible: false },
-  { key: 'quellentyp',           label: 'Source Type',         visible: true  },
-  { key: 'docCounts',            label: 'Docs',                visible: true  },
-  { key: 'bibliotheksort',       label: 'Library Location',    visible: false },
-  { key: 'bibliothek',           label: 'Library',             visible: false },
-  { key: 'bibliothekssignatur',  label: 'Library Signature',   visible: false },
-  { key: 'kommentar',            label: 'Comment',             visible: false },
+const SOURCE_COLS: SourceCol[] = [
+  { key: 'siglum', label: 'Siglum', text: s => s.quellensigle ?? '', shown: true },
+  { key: 'dating', label: 'Dating', text: s => s.datierung ?? '', shown: true },
+  { key: 'origin', label: 'Origin', text: s => [s.herkunftsort, s.herkunftsinstitution].filter(Boolean).join(', '), shown: true },
+  { key: 'region', label: 'Region', text: s => s.herkunftsregion ?? '', shown: false },
+  { key: 'type', label: 'Type', text: s => s.quellentyp ?? '', shown: false },
+  { key: 'order', label: 'Order', text: s => s.ordenstradition ?? '', shown: false },
+  { key: 'library', label: 'Library', text: s => [s.bibliotheksort, s.bibliothek, s.bibliothekssignatur].filter(Boolean).join(', '), shown: false },
+  { key: 'docs', label: 'Documents', text: (_, c) => (c.transcribed === c.total ? `${c.total}` : `${c.transcribed}/${c.total}`), shown: true, num: true },
 ];
+const COLS_KEY = 'monodi_sources_cols';
 
-const STORAGE_KEY = 'monodi_source_cols';
+/** One line of the list of sources: the text of every column, worked out once per change of the list or the filters. */
+interface SourceRow {
+  source: Source;
+  cells: Record<string, string>;
+  /** Number of documents, for sorting the Documents column. */
+  total: number;
+}
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 interface GuidoImportState {
   fileName: string;
@@ -96,7 +105,20 @@ interface GuidoImportState {
     styleUrls: ['./sources-overview.component.css'],
     standalone: false
 })
-export class SourcesOverviewComponent implements OnInit, OnDestroy {
+export class SourcesOverviewComponent implements OnInit, OnDestroy, HasChanges {
+  /** The list (find a source, open it) or the sheet (edit the metadata of many sources or documents like a spreadsheet). */
+  sheet = false;
+  @ViewChild(MetadataGridComponent) private grid?: MetadataGridComponent;
+
+  /** Leaving the page with unsaved edits in the sheet asks first (router guard). */
+  hasChanges(): boolean { return this.grid?.hasChanges() ?? false; }
+
+  /** Switches between list and sheet; the address keeps it (`?view=sheet`) so a reload or a link opens the same view. */
+  showSheet(on: boolean): void {
+    if (on === this.sheet) return;
+    void this.router.navigate([], { relativeTo: this.route, queryParams: { view: on ? 'sheet' : null }, queryParamsHandling: 'merge' });
+  }
+
   private readonly focusSvc = inject(FocusService);
   private readonly pdfDialog = inject(PdfDialogLauncher);
   subs: Subscription[] = [];
@@ -104,8 +126,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   user: User | null = null;
   docCountsMap = new Map<string, { transcribed: number; total: number }>();
 
-  showColPicker = false;
-  cols: SourceColDef[] = [];
 
   showExportDialog = false;
   exportMode: 'zip' | 'html' | 'pdf' = 'zip';
@@ -154,60 +174,83 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     cancelled: false,
   };
 
-  get isOnline(): boolean {
-    return navigator.onLine;
+  /** Text typed into the search field above the list (every word must occur somewhere in the row). */
+  query = '';
+  /** The filter typed under a column heading, by column key (every word must occur in that column). */
+  colFilter: Record<string, string> = {};
+  /** The column the list is sorted by and the direction; the siglum, ascending, until a heading is clicked. */
+  sortKey = 'siglum';
+  sortAsc = true;
+  /** The columns, with the user's choice of which are shown (kept in this browser). */
+  readonly cols: SourceCol[] = (() => {
+    const saved = safeStorage.getJson<unknown>(COLS_KEY, null);
+    const keys = Array.isArray(saved) ? saved : null;
+    return SOURCE_COLS.map(c => ({ ...c, shown: keys ? keys.includes(c.key) : c.shown }));
+  })();
+  private rowCache: { sources: Source[] | null; counts: unknown; sig: string; rows: SourceRow[] } =
+    { sources: null, counts: null, sig: '', rows: [] };
+
+  /** The column under the mouse; only its filter field (and fields with text) are drawn. */
+  hoverCol = '';
+
+  get shownCols(): SourceCol[] { return this.cols.filter(c => c.shown); }
+
+  /** Click on a heading: sort by it; a second click reverses. */
+  sortBy(key: string): void {
+    if (this.sortKey === key) this.sortAsc = !this.sortAsc;
+    else { this.sortKey = key; this.sortAsc = true; }
   }
 
-  headers: Header<Source>[] = [];
+  /** "▲" or "▼" after the heading of the column the list is sorted by. */
+  arrow(key: string): string { return this.sortKey === key ? (this.sortAsc ? '▲' : '▼') : ''; }
 
-  /** A field, not a getter: it feeds an `@Input`, and a getter would hand the table a new array on every
-   *  change-detection pass. */
-  readonly sourceBatchFields: BatchField[] = [
-    { key: 'quellensigle', label: 'Source Siglum' },
-    { key: 'datierung', label: 'Dating' },
-    { key: 'herkunftsregion', label: 'Region of Origin' },
-    { key: 'herkunftsort', label: 'Place of Origin' },
-    { key: 'herkunftsinstitution', label: 'Institution' },
-    { key: 'ordenstradition', label: 'Order Tradition' },
-    { key: 'quellentyp', label: 'Source Type' },
-    { key: 'bibliotheksort', label: 'Library Location' },
-    { key: 'bibliothek', label: 'Library' },
-    { key: 'bibliothekssignatur', label: 'Library Signature' },
-    { key: 'kommentar', label: 'Comment' },
-  ];
+  toggleCol(col: SourceCol): void {
+    col.shown = !col.shown;
+    if (!col.shown) delete this.colFilter[col.key];
+    safeStorage.setJson(COLS_KEY, this.cols.filter(c => c.shown).map(c => c.key));
+  }
 
-  updateHeaders() {
-    this.headers = this.cols
-      .filter(c => c.visible)
-      .map(c => ({
-        name: c.label,
-        key: c.key as string,
-        makeCell: (x: Source) => {
-          if (c.key === 'docCounts') {
-            const counts = this.docCountsMap.get(x.id ?? '') ?? { transcribed: 0, total: 0 };
-            const isSame = counts.transcribed === counts.total;
-            const text = isSame ? `${counts.total}` : `${counts.transcribed}/${counts.total}`;
-            const title = isSame
-              ? `${counts.total} total documents (all ${counts.transcribed} transcribed)`
-              : `${counts.transcribed} transcribed / ${counts.total} total documents`;
+  /** The sources that match the search and the column filters, in the chosen order (numbers natural: "Aa 2" before "Aa 13"). */
+  get rows(): SourceRow[] {
+    const c = this.rowCache;
+    const sig = JSON.stringify([this.query, this.colFilter, this.sortKey, this.sortAsc]);
+    if (c.sources === this.sources && c.counts === this.docCountsMap && c.sig === sig) return c.rows;
+    const words = this.query.toLowerCase().split(/\s+/).filter(Boolean);
+    const filters = Object.entries(this.colFilter)
+      .map(([key, v]) => ({ key, words: v.toLowerCase().split(/\s+/).filter(Boolean) }))
+      .filter(f => f.words.length);
+    const rows = (this.sources ?? [])
+      .map(source => this.toRow(source))
+      .filter(r => {
+        const all = Object.values(r.cells).join(' ').toLowerCase();
+        return words.every(w => all.includes(w))
+          && filters.every(f => f.words.every(w => (r.cells[f.key] ?? '').toLowerCase().includes(w)));
+      })
+      .sort((a, b) => {
+        const d = this.sortKey === 'docs' ? a.total - b.total : collator.compare(a.cells[this.sortKey] ?? '', b.cells[this.sortKey] ?? '');
+        return (this.sortAsc ? d : -d) || collator.compare(a.cells['siglum'], b.cells['siglum']);
+      });
+    this.rowCache = { sources: this.sources, counts: this.docCountsMap, sig, rows };
+    return rows;
+  }
 
-            return {
-              kind: 'text' as const,
-              text,
-              title,
-              sortValue: counts.total
-            };
-          }
-          return { kind: 'text' as const, text: (x as any)[c.key] ?? '' };
-        }
-      }));
+  private toRow(source: Source): SourceRow {
+    const counts = this.docCountsMap.get(source.id ?? '') ?? { transcribed: 0, total: 0 };
+    const cells: Record<string, string> = {};
+    for (const c of this.cols) cells[c.key] = c.text(source, counts);
+    return { source, cells, total: counts.total };
+  }
+
+  /** Enter in the search field opens the first source of the list. */
+  openFirst(): void {
+    const first = this.rows[0];
+    if (first) this.goToSource(first.source);
   }
 
   constructor(
     private api: APIService,
     private userService: UserService,
-    private toastr: ToastrService,
-    private contextMenuService: ContextMenuService,
+    private statusLine: StatusLineService,
     private router: Router,
     private pageTitle: PageTitleService,
     private cdRef: ChangeDetectorRef,
@@ -219,7 +262,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.pageTitle.set('Sources');
-    this.loadCols();
     this.subs.push(this.userService.user.subscribe(u => {
       this.user = u;
       this.updateList();
@@ -228,12 +270,14 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     // and we kick off the matching action automatically. Once consumed we
     // strip the param so a back-button trip doesn't re-fire it.
     this.subs.push(this.route.queryParamMap.subscribe(params => {
+      this.sheet = params.get('view') === 'sheet';
+      this.cdRef.markForCheck();
       const ws = params.get('ws');
       if (!ws) return;
       // Defer so the file inputs / dialog state are mounted and the
       // sources list has had a chance to load.
       setTimeout(() => this.handleWorkspaceAction(ws), 50);
-      this.router.navigate([], { relativeTo: this.route, queryParams: {} });
+      this.router.navigate([], { relativeTo: this.route, queryParams: { ws: null }, queryParamsHandling: 'merge' });
     }));
   }
 
@@ -278,30 +322,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     }
   }
 
-  loadCols() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: SourceColDef[] = JSON.parse(saved);
-        // Merge saved visibility into defaults (supports new columns added later)
-        this.cols = DEFAULT_SOURCE_COLS.map(def => {
-          const match = parsed.find(p => p.key === def.key);
-          return match ? { ...def, visible: match.visible } : def;
-        });
-      } else {
-        this.cols = DEFAULT_SOURCE_COLS.map(c => ({ ...c }));
-      }
-    } catch {
-      this.cols = DEFAULT_SOURCE_COLS.map(c => ({ ...c }));
-    }
-    this.updateHeaders();
-  }
-
-  saveCols() {
-    safeStorage.setJson(STORAGE_KEY, this.cols);
-    this.updateHeaders();
-  }
-
   updateList(): void {
     if (this.user) {
       this.api.listSources(this.user.token).subscribe(res => {
@@ -330,7 +350,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         if (persisted && typeof persisted === 'object') {
           this.docCountsMap = new Map(Object.entries(persisted));
           SourcesOverviewComponent.cachedDocCountsMap = this.docCountsMap;
-          this.updateHeaders();
           this.cdRef.markForCheck();
         }
       }
@@ -365,7 +384,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         this.docCountsMap = countsMap;
         SourcesOverviewComponent.cachedDocCountsMap = countsMap;
         localforage.setItem('monodi_doc_counts_cache', plainObjectCache).catch(() => {});
-        this.updateHeaders();
         this.cdRef.markForCheck();
       }
     } catch (e) {
@@ -381,63 +399,13 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   goToSource(s: Source) {
     if (!s?.id) {
-      this.toastr.warning('This source has no id and cannot be opened. Export a backup and re-import it to repair it.', 'Source not opened');
+      this.statusLine.warning('This source has no id and cannot be opened. Export a backup and re-import it to repair it.', 'Source not opened');
       return;
     }
     this.router.navigate(['/source', s.id]).catch(e => {
       console.error('Could not open source', s.id, e);
-      this.toastr.error('Could not open this source.');
+      this.statusLine.error('Could not open this source.');
     });
-  }
-
-  delete(s: Source): void {
-    if (confirm(`Are you sure you want to permanently delete the source ${s.quellensigle}? \n\nWARNING: This will also delete all documents and annotations belonging to this source!`)) {
-      if (this.user && s.id) {
-        this.api.deleteSources(this.user.token, JSON.stringify([s.id])).subscribe(res => {
-          if (res.kind === 'UploadFinished') {
-            this.toastr.success("Source successfully deleted.");
-            this.updateList();
-          } else {
-            this.toastr.error("Error deleting source.");
-          }
-        });
-      }
-    }
-  }
-
-  onBatchDeleteSources(sources: Source[]): void {
-    const ids = sources.map(s => s.id).filter((id): id is string => !!id);
-    if (ids.length === 0 || !this.user) return;
-
-    this.api.deleteSources(this.user.token, JSON.stringify(ids)).subscribe(res => {
-      if (res.kind === 'UploadFinished') {
-        this.toastr.success(`${ids.length} source(s) successfully deleted.`);
-        this.updateList();
-      } else {
-        this.toastr.error("Error deleting sources.");
-      }
-    });
-  }
-
-  async onBatchEditSources(evt: { items: Source[]; key: string; value: string }): Promise<void> {
-    if (!this.user || evt.items.length === 0) return;
-    let count = 0;
-    for (const source of evt.items) {
-      if (!source.id) continue;
-      if (source.custom && Object.prototype.hasOwnProperty.call(source.custom, evt.key)) {
-        source.custom[evt.key] = evt.value;
-      } else {
-        (source as any)[evt.key] = evt.value;
-      }
-      try {
-        await firstValueFrom(this.api.updateSource(this.user.token, source));
-        count++;
-      } catch (e) {
-        console.warn('Failed to update source:', source.id, e);
-      }
-    }
-    this.toastr.success(`Updated ${count} source(s).`);
-    this.updateList();
   }
 
   async exportWorkspace() {
@@ -462,10 +430,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       });
       if (res.saved) {
         this.backupReminder.markBackup();
-        this.toastr.success("Workspace exported successfully.");
+        this.statusLine.success("Workspace exported successfully.");
       }
     } catch (e) {
-      this.toastr.error("Export failed: " + e);
+      this.statusLine.error("Export failed: " + e);
     }
   }
 
@@ -549,10 +517,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       }
       this.updateList();
       this.showMeiImportDialog = false;
-      this.toastr.success(`${made} document(s) created from MEI.`);
-      if (warnings > 0) this.toastr.warning(`${warnings} note(s) about things the import could not carry over; see the dialog next time before importing.`, 'MEI import');
+      this.statusLine.success(`${made} document(s) created from MEI.`);
+      if (warnings > 0) this.statusLine.warning(`${warnings} note(s) about things the import could not carry over; see the dialog next time before importing.`, 'MEI import');
     } catch (e) {
-      this.toastr.error('MEI import failed: ' + (e instanceof Error ? e.message : e));
+      this.statusLine.error('MEI import failed: ' + (e instanceof Error ? e.message : e));
     } finally {
       this.meiImportBusy = false;
       this.cdRef.markForCheck();
@@ -566,7 +534,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   async confirmCsvExport() {
     this.showCsvExportDialog = false;
     if (!this.csvIncludeSourceMeta && !this.csvIncludeDocumentMeta && !this.csvIncludeContent) {
-      this.toastr.error('Please select at least one column group.');
+      this.statusLine.error('Please select at least one column group.');
       return;
     }
     await this.exportCsv();
@@ -586,9 +554,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
       downloadBlob(blob, `workspace_export_${new Date().toISOString().split('T')[0]}.csv`);
-      this.toastr.success('CSV exported successfully.');
+      this.statusLine.success('CSV exported successfully.');
     } catch (e) {
-      this.toastr.error('CSV export failed: ' + e);
+      this.statusLine.error('CSV export failed: ' + e);
     }
   }
 
@@ -619,13 +587,13 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const preview = planImport(parsed, this.sources);
       this.annotationImport = { fileName: files.length === 1 ? files[0].name : `${files.length} files`, preview };
       if (!preview.plans.length) {
-        this.toastr.warning(preview.unmatched.length
+        this.statusLine.warning(preview.unmatched.length
           ? `None of the manuscripts in this file are here: ${preview.unmatched.slice(0, 3).join(', ')}.`
           : 'The file holds no manuscripts.', 'Nothing to import');
       }
     } catch (err: any) {
       this.annotationImport = null;
-      this.toastr.error(err?.message || String(err), 'Could not read the annotation file');
+      this.statusLine.error(err?.message || String(err), 'Could not read the annotation file');
     }
     this.cdRef.markForCheck();
   }
@@ -652,13 +620,13 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         if (!local) continue;
         const res = await firstValueFrom(this.api.updateSource(this.user.token, applyPlan(local, plan)));
         if (res.kind === 'Ok') applied++;
-        else { this.toastr.error(`${plan.label} could not be saved.`); continue; }
+        else { this.statusLine.error(`${plan.label} could not be saved.`); continue; }
         if (plan.images) {
           try { await saveStripImages(plan.sourceId, plan.images); }
-          catch { this.toastr.error(`The line pictures of ${plan.label} could not be kept; the notation documentation prints without them.`); }
+          catch { this.statusLine.error(`The line pictures of ${plan.label} could not be kept; the notation documentation prints without them.`); }
         }
       }
-      if (applied) this.toastr.success(`Annotations added to ${applied} manuscript${applied === 1 ? '' : 's'}.`);
+      if (applied) this.statusLine.success(`Annotations added to ${applied} manuscript${applied === 1 ? '' : 's'}.`);
     } finally {
       this.isApplyingAnnotations = false;
       this.annotationImport = null;
@@ -687,7 +655,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       await this.refreshGuido();
     } catch (err: any) {
       this.guidoImport = null;
-      this.toastr.error(err?.message || String(err), 'Could not read the Word file');
+      this.statusLine.error(err?.message || String(err), 'Could not read the Word file');
     }
     this.cdRef.markForCheck();
   }
@@ -778,7 +746,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     await firstValueFrom(this.api.updateSettings(this.user.token, settings));
     g.templates = allGuidoTemplates(settings.guidoImportTemplates);
     g.templateId = template.id;
-    this.toastr.success(`Template "${template.name}" saved.`);
+    this.statusLine.success(`Template "${template.name}" saved.`);
     await this.refreshGuido();
   }
 
@@ -814,9 +782,9 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
         counts.copies && `${counts.copies} copied`,
         counts.skipped && `${counts.skipped} kept as they were`,
       ].filter(Boolean).join(', ');
-      this.toastr.success(`${counts.newSources} new source${counts.newSources === 1 ? '' : 's'}; documents: ${parts || 'none'}.`, 'GUIDO import');
+      this.statusLine.success(`${counts.newSources} new source${counts.newSources === 1 ? '' : 's'}; documents: ${parts || 'none'}.`, 'GUIDO import');
     } catch (err: any) {
-      this.toastr.error(err?.message || String(err), 'GUIDO import failed');
+      this.statusLine.error(err?.message || String(err), 'GUIDO import failed');
     } finally {
       this.isApplyingGuido = false;
       this.guidoImport = null;
@@ -892,15 +860,15 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           await PushCache.invalidateAll();
           this.updateList();
 
-          this.toastr.success(
+          this.statusLine.success(
             `CSV imported: ${createdSources} new / ${updatedSources} updated sources, ` +
               `${createdDocs} new / ${updatedDocs} updated documents.`
           );
           if (parsed.warnings.length > 0) {
-            this.toastr.warning(parsed.warnings.slice(0, 5).join('; '), 'CSV import warnings');
+            this.statusLine.warning(parsed.warnings.slice(0, 5).join('; '), 'CSV import warnings');
           }
         } catch (err) {
-          this.toastr.error('CSV import failed: ' + err);
+          this.statusLine.error('CSV import failed: ' + err);
         }
 
         event.target.value = '';
@@ -926,7 +894,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           const data = parseWorkspaceImport(json);
           
           if (data.schemaVersion > WORKSPACE_SCHEMA_VERSION) {
-            this.toastr.error("Import failed: the file's schema version (" + data.schemaVersion + ") is newer than the version this app supports (" + WORKSPACE_SCHEMA_VERSION + ").");
+            this.statusLine.error("Import failed: the file's schema version (" + data.schemaVersion + ") is newer than the version this app supports (" + WORKSPACE_SCHEMA_VERSION + ").");
             return;
           }
           
@@ -945,10 +913,10 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           // next push does a full (correct) scan instead of risking a false
           // "clean" for something this import actually changed.
           await PushCache.invalidateAll();
-          this.toastr.success("Workspace imported successfully.");
+          this.statusLine.success("Workspace imported successfully.");
           this.updateList();
         } catch (err) {
-          this.toastr.error("Import failed: " + err);
+          this.statusLine.error("Import failed: " + err);
         }
       });
     };
@@ -957,24 +925,6 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
 
   triggerOmmrImport() {
     document.getElementById('importOmmrFile')?.click();
-  }
-
-  onOmmrContextMenu(me: MouseEvent) {
-    this.onGeneralContextMenu(me, 'Import ZIP (OMMR/monodi)', () => this.triggerOmmrImport(), 'metadata', 'exporting-data');
-  }
-
-  onGeneralContextMenu(me: MouseEvent, label: string, action: () => void, helpTopic: string, helpHash: string) {
-    me.preventDefault();
-    me.stopPropagation();
-    
-    const items = [
-      {
-        label: label,
-        action: action
-      }
-    ];
-
-    this.contextMenuService.open(me, items, helpTopic, helpHash);
   }
 
   /**
@@ -1068,7 +1018,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       });
       if (metaFiles.length === 0) {
         this.finishImport(false);
-        this.toastr.error('No meta.json files found inside this ZIP — is it a valid monodi/OMMR export?');
+        this.statusLine.error('No meta.json files found inside this ZIP — is it a valid monodi/OMMR export?');
         event.target.value = '';
         return;
       }
@@ -1288,7 +1238,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       this.updateList();
     } catch (err) {
       console.error('ZIP import failed:', err);
-      this.toastr.error(`Error reading ZIP: ${(err as Error)?.message ?? err}`);
+      this.statusLine.error(`Error reading ZIP: ${(err as Error)?.message ?? err}`);
       this.finishImport(false);
     } finally {
       event.target.value = '';
@@ -1336,7 +1286,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
    *  documents and only redo the rest. */
   cancelImport(): void {
     this.importProgress.cancelled = true;
-    this.toastr.info('Import cancelled — partial progress kept.', 'Cancelled');
+    this.statusLine.info('Import cancelled — partial progress kept.', 'Cancelled');
     this.finishImport(false);
   }
 
@@ -1381,14 +1331,14 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     this.isExporting = false;
     this.exportStatusMessage = '';
     
-    const toastRef = this.toastr.info("Loading workspace documents...", "Export", { disableTimeOut: true });
+    const toastRef = this.statusLine.info("Loading workspace documents...", "Export", { disableTimeOut: true });
     try {
       await this.loadAllDocuments();
-      this.toastr.remove(toastRef.toastId);
+      this.statusLine.remove(toastRef.toastId);
       this.showExportDialog = true;
     } catch(e) {
-      this.toastr.remove(toastRef.toastId);
-      this.toastr.error("Failed to load documents: " + e);
+      this.statusLine.remove(toastRef.toastId);
+      this.statusLine.error("Failed to load documents: " + e);
     }
   }
 
@@ -1558,11 +1508,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       
       if (res.saved) {
         this.backupReminder.markBackup();
-        this.toastr.success("Workspace successfully exported as ZIP.");
+        this.statusLine.success("Workspace successfully exported as ZIP.");
       }
       this.closeExportDialog();
     } catch (e) {
-      this.toastr.error("Error exporting workspace ZIP: " + e);
+      this.statusLine.error("Error exporting workspace ZIP: " + e);
       console.error(e);
     }
   }
@@ -1807,11 +1757,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       });
       
       if (res.saved) {
-        this.toastr.success("HTML Edition exported successfully!");
+        this.statusLine.success("HTML Edition exported successfully!");
       }
       this.closeExportDialog();
     } catch (e) {
-      this.toastr.error("Error generating HTML export: " + e);
+      this.statusLine.error("Error generating HTML export: " + e);
       console.error(e);
     } finally {
       this.renderingDocument = null;

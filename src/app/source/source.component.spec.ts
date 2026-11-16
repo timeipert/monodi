@@ -7,8 +7,7 @@ import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { SourceComponent } from './source.component';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
-import { ToastrService } from 'ngx-toastr';
-import { ToolsService } from '../tools.service';
+import { StatusLineService } from '../status-line.service';
 import { PageTitleService } from '../page-title.service';
 
 describe('SourceComponent', () => {
@@ -41,16 +40,11 @@ describe('SourceComponent', () => {
     logout: () => {}
   };
 
-  const mockToastrService = {
+  const mockStatusLineService = {
     error: () => {},
     success: () => {},
     info: () => {},
     warning: () => {}
-  };
-
-  const mockToolsService = {
-    addStack: () => {},
-    remove: () => {}
   };
 
   const mockPageTitleService = {
@@ -66,8 +60,7 @@ describe('SourceComponent', () => {
         { provide: ActivatedRoute, useValue: mockActivatedRoute },
         { provide: APIService, useValue: mockAPIService },
         { provide: UserService, useValue: mockUserService },
-        { provide: ToastrService, useValue: mockToastrService },
-        { provide: ToolsService, useValue: mockToolsService },
+        { provide: StatusLineService, useValue: mockStatusLineService },
         { provide: PageTitleService, useValue: mockPageTitleService }
       ]
     })
@@ -89,7 +82,7 @@ describe('SourceComponent', () => {
       const update = spyOn(mockAPIService, 'updateSource').and.returnValues(
         throwError(() => new Error('The storage is full')) as any,
         of({ kind: 'Ok' }) as any);
-      const toast = spyOn(mockToastrService, 'error');
+      const toast = spyOn(mockStatusLineService, 'error');
 
       component.update();                       // fails
       expect(component.isSaving).toBeFalse();
@@ -103,7 +96,7 @@ describe('SourceComponent', () => {
 
     it('does not tell the person again for every failed autosave in a row', () => {
       spyOn(mockAPIService, 'updateSource').and.returnValue(throwError(() => new Error('full')) as any);
-      const toast = spyOn(mockToastrService, 'error');
+      const toast = spyOn(mockStatusLineService, 'error');
       component.update(); component.update(); component.update();
       expect(toast).toHaveBeenCalledTimes(1);
     });

@@ -99,9 +99,9 @@
 /* Tabs */
 .mei-tabs .nav-link { color: var(--color-text-muted); padding: 0.5rem 1rem; border-bottom-width: 2px; }
 .mei-tabs .nav-link.active { color: var(--color-text); font-weight: 500; }
-.mei-tabs .tab-hint { font-size: 0.72rem; color: var(--color-text-muted); font-weight: 400; }
+
 .mei-lead { color: var(--color-text-muted); margin-bottom: 1.25rem; }
-.mei-intro { max-width: 46rem; }
+
 .mei-pane { max-height: 640px; overflow-y: auto; }
 .mei-group-title {
   font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;

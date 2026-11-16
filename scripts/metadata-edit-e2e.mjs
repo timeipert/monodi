@@ -60,7 +60,7 @@ try {
     await put('monodi_notes_doc_doc3', notes); await put('monodi_notes_index', ['doc3']); await put('monodi_notes_migrated_v1', true); await put('monodi_settings', {});
     db.close();
   }, { docs, sources, notes: NOTES });
-  await page.goto(BASE + '/#/metadata', { waitUntil: 'networkidle0' });
+  await page.goto(BASE + '/#/sources?view=sheet', { waitUntil: 'networkidle0' });
   await page.reload({ waitUntil: 'networkidle0' });
   await page.waitForSelector(cell(0, 2), { timeout: 20000 });
 

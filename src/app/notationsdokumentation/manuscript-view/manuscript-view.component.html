@@ -3,7 +3,7 @@
     <div class="mv-dialog shadow-lg" role="dialog" aria-modal="true" aria-label="Show in manuscript" (mousedown)="$event.stopPropagation()">
       <div class="mv-head">
         <div class="d-flex align-items-center gap-3 flex-wrap">
-          <h5 class="mb-0 fw-bold"><i class="bi bi-journal-image text-primary me-2"></i>Show in manuscript</h5>
+          <h5 class="mb-0 fw-bold">Show in manuscript</h5>
           @if (state.lookup) {
             <span class="mv-pattern d-flex align-items-center gap-2">
               <app-svg-pattern [pattern]="state.lookup.pattern" style="height: 22px; display: block;"></app-svg-pattern>
@@ -27,7 +27,7 @@
             <p class="small text-muted">{{ state.lookup.notes }}</p>
           }
           @if (state.manifestError) {
-            <p class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>{{ state.manifestError }}</p>
+            <p class="small text-warning">{{ state.manifestError }}</p>
           }
 
           @if (primary.length) {
@@ -52,7 +52,7 @@
             }
           } @else {
             <p class="small text-muted mv-nolink">
-              <i class="bi bi-info-circle me-1"></i>This sign is not linked to a snippet yet, and its line is not linked to a line region.
+              This sign is not linked to a snippet yet, and its line is not linked to a line region.
               @if (examples.length) { Here are other places where the same pattern was marked. }
             </p>
           }

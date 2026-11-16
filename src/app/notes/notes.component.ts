@@ -12,7 +12,7 @@ import { EditorShortcutsService, ShortcutConfig, DEFAULT_SHORTCUTS } from './edi
 import { ToolsService } from '../tools.service';
 import { musicLanguage } from './language';
 import { assertNever, maxOf, textWidth, focusContentEditable } from '../../utils';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import * as R from './Request';
 import { v4 as UUID } from "uuid";
 import { FocusService } from '../focus.service';
@@ -203,7 +203,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   constructor(
     private focusService: FocusService,
     private cdr: ChangeDetectorRef,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private toolsService: ToolsService,
     private undoService: UndoService,
     private modalService: NgbModal,
@@ -230,13 +230,13 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
 
   saveShortcutsModal(): void {
     this.shortcutsService.saveShortcuts(this.editingShortcuts);
-    this.toastr.success('Keyboard shortcuts updated.');
+    this.statusLine.success('Keyboard shortcuts updated.');
   }
 
   resetShortcutsModal(): void {
     this.shortcutsService.resetToDefaults();
     this.editingShortcuts = { ...this.shortcutsService.getShortcuts() };
-    this.toastr.info('Keyboard shortcuts reset to defaults.');
+    this.statusLine.info('Keyboard shortcuts reset to defaults.');
   }
 
   refresh() {
@@ -1018,7 +1018,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
       this.drawablesDirty = true;
     }
     if (this.getActiveComments().length > 0) {
-      this.toastr.info('Please delete the comment before deleting the symbol.');
+      this.statusLine.info('Please delete the comment before deleting the symbol.');
     } else {
       this.withPath((s, ns, gr, no) => {
         this.undoService.beforeChange('Edit Note');
@@ -1650,7 +1650,7 @@ export class NotesComponent implements OnDestroy, OnInit, OnChanges, Focusable, 
   }
 
   onContextMenu(me: MouseEvent, d: Drawable, voiceIndex: number): void {
-    if (!(d instanceof DNote)) {
+    if (this.readOnly || !(d instanceof DNote)) {
       return;
     }
     

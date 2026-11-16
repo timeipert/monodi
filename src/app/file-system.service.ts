@@ -163,7 +163,7 @@ export class FileSystemService {
         suggestedName,
         types: types || [
           {
-            description: 'Monodi Workspace Backup',
+            description: 'monodi workspace backup',
             accept: { 'application/json': ['.monodijson', '.json'] }
           }
         ]

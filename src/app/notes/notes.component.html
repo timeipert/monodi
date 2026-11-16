@@ -23,9 +23,9 @@
               height="60px" [attr.fill]="syllableBracketColor('start')" />
           }
           @if (!readOnly && isPickedStartSyllable) {
-            <rect x="1" y="32" [attr.width]="getWidth() - 2" height="56" fill="none" stroke="#f59f00" stroke-width="2.5"
+            <rect x="1" y="32" [attr.width]="getWidth() - 2" height="56" fill="none" stroke="#a6a6a6" stroke-width="2.5"
               stroke-dasharray="4 3" class="comment-start-marker" style="pointer-events: none;" />
-            <text [attr.x]="getWidth() / 2" y="26" text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
+            <text [attr.x]="getWidth() / 2" y="26" text-anchor="middle" fill="#646464" font-size="9" font-weight="700"
               style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
           }
           @if (!readOnly && isThisCommentStart()) {
@@ -47,14 +47,14 @@
                   @if (isPickedCommentStart(drawable)) {
                     <circle
                       [attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 30"
-                      r="16" fill="none" stroke="#f59f00" stroke-width="2.5"
+                      r="16" fill="none" stroke="#a6a6a6" stroke-width="2.5"
                       stroke-dasharray="4 3" class="comment-start-marker"
                       style="pointer-events: none;" />
                   }
                   @if (isPickedCommentStart(drawable)) {
                     <text
                       [attr.x]="drawable.x + 6" [attr.y]="drawable.y - 6"
-                      text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
+                      text-anchor="middle" fill="#646464" font-size="9" font-weight="700"
                     style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
                   }
                   <!-- Highlight circle: a search result, or a note the MEI tab highlights -->
@@ -165,7 +165,7 @@
 <ng-template #shortcutsConfigModal let-modal>
   <div class="modal-header bg-light py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
     <h5 class="modal-title fw-bold text-primary d-flex align-items-center gap-2 m-0 fs-6">
-      <i class="bi bi-keyboard"></i> Transcription Editor Keyboard Shortcuts
+      Transcription Editor Keyboard Shortcuts
     </h5>
     <button type="button" class="btn-close btn-sm" (click)="modal.dismiss()"></button>
   </div>

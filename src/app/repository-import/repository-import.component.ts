@@ -7,7 +7,7 @@ import type {
   CantusPlan, CantusSource, CatalogEntry, ChantSelection, CmIndex, CmPlan, CmSource, ImportManifest, ImportRecord,
   LoadedCatalog, LoadedDataset,
 } from '@monodi/core/datasets';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { GithubService } from '../github.service';
 import { ImportProgress, ImportSummary, RepositoryImportService, describeImportError } from '../repository-import.service';
 
@@ -93,7 +93,7 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
   checkingUpdates = false;
   private updateTargets = new Map<string, { dataset: LoadedDataset; index: CmIndex }>();
 
-  constructor(private service: RepositoryImportService, private toastr: ToastrService, private github: GithubService) {}
+  constructor(private service: RepositoryImportService, private statusLine: StatusLineService, private github: GithubService) {}
 
   ngOnInit(): void {
     this.tab = this.startTab;
@@ -368,7 +368,7 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
         this.summary = await this.service.importCantus(this.active, this.cantusPlan, this.chantSelection,
           { ...options, alignText: this.alignText });
       }
-      if (this.summary) this.toastr.success(`${this.summary.documents} chant(s) imported from ${this.summary.sources} source(s).`);
+      if (this.summary) this.statusLine.success(`${this.summary.documents} chant(s) imported from ${this.summary.sources} source(s).`);
     } catch (error) {
       this.error = describeImportError(error);
       if (!(error instanceof DatasetError && error.kind === 'aborted')) console.error('Import from repository failed:', error);
@@ -419,7 +419,7 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
           this.outdated.add(recordKey(record.datasetId, record.sourceId));
         }
       }
-      this.toastr.info(this.outdated.size === 0 ? 'Everything imported is up to date.' : `${this.outdated.size} source(s) changed in the repository.`);
+      this.statusLine.info(this.outdated.size === 0 ? 'Everything imported is up to date.' : `${this.outdated.size} source(s) changed in the repository.`);
     } catch (error) {
       this.error = describeImportError(error);
     } finally {
@@ -453,7 +453,7 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
     if (this.running) return;
     try {
       const changed = await this.service.addOriginalLinks();
-      this.toastr.success(changed === 0 ? 'All imported chants have the link already.' : `The link to the original page was added to ${changed} chant(s).`);
+      this.statusLine.success(changed === 0 ? 'All imported chants have the link already.' : `The link to the original page was added to ${changed} chant(s).`);
     } catch (error) {
       this.error = describeImportError(error);
     }
@@ -467,7 +467,7 @@ export class RepositoryImportComponent implements OnInit, OnDestroy {
     if (!ok) return;
     try {
       const result = await this.service.removeImport(record);
-      this.toastr.success(`${result.documents} chant(s) removed${result.sourceRemoved ? ' with their source' : ''}.`);
+      this.statusLine.success(`${result.documents} chant(s) removed${result.sourceRemoved ? ' with their source' : ''}.`);
       await this.refreshManifest();
     } catch (error) {
       this.error = describeImportError(error);

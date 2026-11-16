@@ -20,13 +20,13 @@
             @if (filtered) { <button type="button" class="btn btn-sm btn-link py-0" (click)="clearFilters()">Clear</button> }
             @if (t.rowDocs && order.length > 0) {
               <button type="button" class="btn btn-sm btn-outline-primary py-0" (click)="openDocs.emit(filteredDocs)" title="Select the documents behind the shown rows in the search">
-                <i class="bi bi-box-arrow-up-right me-1"></i>Open {{ filteredDocs.length | number }} document(s)
+                Open {{ filteredDocs.length | number }} document(s)
               </button>
             }
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadCsv()" title="Download the shown rows as CSV"><i class="bi bi-download me-1"></i>CSV</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadCsv()" title="Download the shown rows as CSV">CSV</button>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyLatex()"
               [title]="'Copy the shown rows as a LaTeX table (booktabs; at most ' + latexMaxRows + ' rows, the CSV has all)'">
-              <i class="bi me-1" [class.bi-clipboard]="!latexCopied" [class.bi-clipboard-check]="latexCopied"></i>{{ latexCopied ? 'Copied' : 'LaTeX' }}
+              {{ latexCopied ? 'Copied' : 'LaTeX' }}
             </button>
           }
         </header>
@@ -76,7 +76,7 @@
                       <td class="text-nowrap">
                         @if (rowDocs(ri); as docs) {
                           <button type="button" class="btn btn-link btn-sm p-0" (click)="openDocs.emit(docs)" title="Select these documents in the search to read or compare them">
-                            <i class="bi bi-box-arrow-up-right"></i> {{ docs.length }}
+                            {{ docs.length }}
                           </button>
                         }
                       </td>
@@ -164,7 +164,7 @@
         <div class="rv-fig" [style.max-width.px]="figurePx" [innerHTML]="figureHtml" role="img" [attr.aria-label]="fv.title"></div>
         @if (exportError) { <p class="small text-danger mb-0">{{ exportError }}</p> }
         <p class="rv-caption small mb-1">{{ fv.caption }}
-          <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" (click)="copyCaption()" title="Copy the caption to the clipboard"><i class="bi bi-clipboard"></i> Copy</button>
+          <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" (click)="copyCaption()" title="Copy the caption to the clipboard">Copy</button>
         </p>
         @if (fv.note) { <p class="small text-muted">{{ fv.note }}</p> }
       </section>
@@ -180,9 +180,9 @@
             <span>{{ matrixLow }}</span><span class="rv-ramp" [style.background]="rampGradient"></span><span>{{ matrixHigh }}</span>
             <span>{{ m.lowIsClose ? '(far … close)' : '(low … high)' }}</span>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadMatrix()"><i class="bi bi-download me-1"></i>CSV</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="downloadMatrix()">CSV</button>
           <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyMatrixLatex()" title="Copy the matrix as a LaTeX table (booktabs)">
-            <i class="bi me-1" [class.bi-clipboard]="!latexCopied" [class.bi-clipboard-check]="latexCopied"></i>{{ latexCopied ? 'Copied' : 'LaTeX' }}
+            {{ latexCopied ? 'Copied' : 'LaTeX' }}
           </button>
           <ng-container *ngTemplateOutlet="figureTools"></ng-container>
         </header>
@@ -267,7 +267,7 @@
   </select>
   <div ngbDropdown placement="bottom-end" class="d-inline-block">
     <button type="button" class="btn btn-sm btn-outline-secondary py-0" ngbDropdownToggle [disabled]="!!exporting">
-      <i class="bi bi-download me-1"></i>{{ exporting ? 'Making ' + exporting.toUpperCase() + '…' : 'Download' }}
+      {{ exporting ? 'Making ' + exporting.toUpperCase() + '…' : 'Download' }}
     </button>
     <div ngbDropdownMenu>
       <button type="button" ngbDropdownItem (click)="download('pdf')">PDF <span class="small text-muted">vector, transparent</span></button>

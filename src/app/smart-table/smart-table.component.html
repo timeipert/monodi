@@ -7,10 +7,9 @@
       @if (filterable && allRows.length > 0) {
         <div>
           <div class="input-group input-group-sm" style="max-width: 320px;">
-            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-funnel"></i></span>
-            <input type="text"
-              class="form-control border-start-0"
-              placeholder="Filter table..."
+                        <input type="text"
+              class="form-control"
+              placeholder="Filter"
               [(ngModel)]="filterText"
               (ngModelChange)="applyFilterAndPagination()" />
             @if (filterText) {
@@ -32,15 +31,13 @@
           <button class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
             (click)="openBatchEditModal()"
             title="Set a value for a column across all selected rows">
-            <i class="bi bi-pencil-square"></i>
-            <span>Set Column Value...</span>
+                        <span>Set value…</span>
           </button>
           @if (printable) {
             <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
               (click)="onBatchPrint.emit(getSelectedArray())"
               title="Print the selected documents as one PDF">
-              <i class="bi bi-file-pdf"></i>
-              <span>Print Selected</span>
+                            <span>Print</span>
             </button>
           }
           @if (canDelete) {
@@ -48,14 +45,13 @@
               class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"
               (click)="startBatchDelete()"
               title="Delete selected items (with double confirmation)">
-              <i class="bi bi-trash"></i>
-              <span>Delete Selected</span>
+                            <span>Delete</span>
             </button>
           }
           <button class="btn btn-sm btn-link text-secondary text-decoration-none p-0 ms-1"
             (click)="clearSelection()"
             title="Deselect all rows">
-            <i class="bi bi-x-circle me-1"></i>Deselect All
+            Deselect
           </button>
         </div>
       }
@@ -93,15 +89,12 @@
               </div>
             </th>
           }
-          @if (canDelete) {
-            <th style="width: 80px;" class="text-end pe-3">Actions</th>
-          }
         </tr>
       </thead>
       <tbody>
         @if (pagedRows.length === 0) {
           <tr>
-            <td [attr.colspan]="headers.length + (canDelete ? 1 : 0) + (selectable ? 1 : 0)" class="text-center py-4 text-muted">
+            <td [attr.colspan]="headers.length + (selectable ? 1 : 0)" class="text-center py-4 text-muted">
               No matching results found.
             </td>
           </tr>
@@ -135,15 +128,6 @@
                 }
               </td>
             }
-            @if (canDelete) {
-              <td class="text-end pe-3" (click)="$event.stopPropagation()">
-                <button class="btn btn-sm btn-outline-danger border-0"
-                  (click)="requestDelete(row.dataObject); $event.stopPropagation();"
-                  title="Delete">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </td>
-            }
           </tr>
         }
       </tbody>
@@ -151,7 +135,7 @@
   </div>
 
   <!-- Pagination Controls -->
-  @if (paginated && (filteredRows.length > 0)) {
+  @if (paginated && totalPages > 1) {
     <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 gap-2"
       >
       <div class="d-flex align-items-center flex-wrap gap-3">
@@ -262,7 +246,7 @@
         <div class="modal-footer border-top bg-light px-4 py-2 d-flex justify-content-between">
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeBatchEditModal()">Cancel</button>
           <button type="button" class="btn btn-sm btn-primary px-3" (click)="applyBatchEdit()" [disabled]="!selectedBatchFieldKey">
-            <i class="bi bi-check-lg me-1"></i>Apply to {{ selectedCount }} items
+            Apply to {{ selectedCount }} items
           </button>
         </div>
       </div>

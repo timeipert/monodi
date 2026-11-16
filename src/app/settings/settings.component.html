@@ -13,9 +13,6 @@
       <!-- Sidebar navigation (desktop) -->
       <div class="col-auto d-none d-lg-block">
         <nav class="settings-nav position-sticky" style="top: 80px;" aria-label="Settings sections">
-          <div class="settings-nav-title">
-            <h2 class="page-title mb-0" style="font-size: 1.25rem;">Settings</h2>
-          </div>
           @for (group of tabGroups; track group) {
             <div class="settings-nav-group">
               <div class="settings-nav-group-label">{{ group.label }}</div>
@@ -24,7 +21,6 @@
                   class="settings-nav-item"
                   [class.active]="activeTab === t.id"
                   (click)="selectTab(t.id)">
-                  <i class="bi {{ t.icon }}"></i>
                   <span>{{ t.label }}</span>
                 </button>
               }
@@ -37,13 +33,10 @@
                 <span><span class="spinner-border spinner-border-sm me-2" style="width: 0.7rem; height: 0.7rem;"></span>Saving…</span>
               }
               @case ('saved') {
-                <span><i class="bi bi-check-circle-fill me-2"></i>All changes saved</span>
+                <span>All changes saved</span>
               }
               @case ('error') {
-                <span><i class="bi bi-exclamation-triangle-fill me-2"></i>Save failed</span>
-              }
-              @default {
-                <span><i class="bi bi-cloud-check me-2"></i>Changes save automatically</span>
+                <span>Save failed</span>
               }
             }
           </div>
@@ -59,7 +52,7 @@
                 class="settings-nav-mobile-item"
                 [class.active]="activeTab === t.id"
                 (click)="selectTab(t.id)">
-                <i class="bi {{ t.icon }} me-1"></i>{{ t.label }}
+                {{ t.label }}
               </button>
             }
           }
@@ -69,13 +62,6 @@
           <!-- 1. Metadata Schema Tab -->
           @if (activeTab === 'metadata') {
             <div class="tab-pane fade show active">
-              <div class="settings-pane-head">
-                <i class="bi bi-card-list"></i>
-                <div>
-                  <div class="settings-pane-title">Metadata Schemas</div>
-                  <div class="settings-pane-sub">Predefined value lists and custom fields for sources and documents.</div>
-                </div>
-              </div>
               <div class="row g-3">
                 <!-- Master Column -->
                 <div class="col-md-5">
@@ -118,7 +104,7 @@
                     </ul>
                     <!-- Add Custom Field Form -->
                     <div class="p-3 bg-light border-top">
-                      <h6 class="fw-semibold mb-2" style="font-size: 0.9rem;"><i class="bi bi-plus-circle me-1"></i>New Custom Field</h6>
+                      <h6 class="fw-semibold mb-2" style="font-size: 0.9rem;">New Custom Field</h6>
                       <div class="mb-2">
                         <select class="form-select form-select-sm mb-2" [(ngModel)]="newCustomFieldType">
                           <option value="source">For Sources</option>
@@ -135,11 +121,7 @@
                 <!-- Detail Column -->
                 <div class="col-md-7">
                   @if (!selectedField) {
-                    <div class="bg-white rounded-3 shadow-sm border border-light p-5 text-center text-muted d-flex flex-column justify-content-center h-100" style="min-height: 400px;">
-                      <i class="bi bi-card-list fs-1 mb-3 text-light"></i>
-                      <h5 class="fw-semibold">Select a Metadata Field</h5>
-                      <p class="mb-0">Choose a metadata schema from the left to configure its predefined dropdown options.</p>
-                    </div>
+                    <p class="text-muted p-5 text-center">Select a field.</p>
                   }
                   @if (selectedField) {
                     <div class="bg-white rounded-3 shadow-sm border border-light p-4 h-100">
@@ -180,16 +162,8 @@
           <!-- 2. GitHub Sync Tab -->
           @if (activeTab === 'github') {
             <div class="tab-pane fade show active">
-              <div class="settings-pane-head">
-                <i class="bi bi-github"></i>
-                <div>
-                  <div class="settings-pane-title">GitHub Sync</div>
-                  <div class="settings-pane-sub">Connect a repository for versioned backup and team collaboration.</div>
-                </div>
-              </div>
               <div class="card shadow-sm border-light">
                 <div class="card-header bg-light d-flex align-items-center">
-                  <i class="bi bi-github fs-5 me-2"></i>
                   <h6 class="mb-0 fw-semibold">GitHub Synchronization</h6>
                 </div>
                 <div class="card-body bg-white">
@@ -237,7 +211,7 @@
                             Sign in with GitHub
                           </button>
                           <small class="text-muted flex-grow-1" style="min-width: 240px;">
-                            You are sent to GitHub and come back here. Monodi only asks for write access
+                            You are sent to GitHub and come back here. monodi only asks for write access
                             to the repositories you install the app on — nothing else.
                           </small>
                         </div>
@@ -260,7 +234,7 @@
                           <div class="d-flex gap-2">
                             @if (githubAppUrl) {
                               <a class="btn btn-primary btn-sm" [href]="githubAppUrl" target="_blank" rel="noopener">
-                                <i class="bi bi-box-arrow-up-right me-1"></i>Install the app
+                                Install the app
                               </a>
                             }
                             <button class="btn btn-outline-secondary btn-sm" (click)="loadGithubRepos()">Check again</button>
@@ -347,9 +321,7 @@
                         </div>
                         <div class="col-md-2">
                           <button class="btn btn-primary btn-sm w-100" (click)="connectGithub()" [disabled]="isGithubConnecting">
-                            @if (!isGithubConnecting) {
-                              <i class="bi bi-link-45deg me-1"></i>
-                            }
+                            
                             @if (isGithubConnecting) {
                               <span class="spinner-border spinner-border-sm me-1"></span>
                             }
@@ -367,17 +339,10 @@
           <!-- 3. PDF Export & Layout Settings Tab -->
           @if (activeTab === 'pdf') {
             <div class="tab-pane fade show active">
-              <div class="settings-pane-head">
-                <i class="bi bi-file-pdf"></i>
-                <div>
-                  <div class="settings-pane-title">PDF Layout</div>
-                  <div class="settings-pane-sub">Page geometry, spacing, brackets, and typography of the vector PDF export — with live preview.</div>
-                </div>
-              </div>
               <!-- Group 0: Page format -->
               <div class="card shadow-sm border-light mb-4">
                 <div class="card-header bg-light py-2">
-                  <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-file-earmark me-2"></i>Page format</h6>
+                  <h6 class="mb-0 fw-semibold text-primary">Page format</h6>
                 </div>
                 <div class="card-body bg-white py-3">
                   <div class="row g-3">
@@ -407,7 +372,7 @@
               <!-- Group 1: Scaling & Zoom -->
               <div class="card shadow-sm border-light mb-4">
                 <div class="card-header bg-light py-2">
-                  <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-zoom-in me-2"></i>Scaling & Zoom</h6>
+                  <h6 class="mb-0 fw-semibold text-primary">Scaling & Zoom</h6>
                 </div>
                 <div class="card-body bg-white py-3">
                   <div class="row g-3">
@@ -431,7 +396,7 @@
               <!-- Group 2: Page Layout & Margins -->
               <div class="card shadow-sm border-light mb-4">
                 <div class="card-header bg-light py-2">
-                  <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-aspect-ratio me-2"></i>Page Layout & Margins</h6>
+                  <h6 class="mb-0 fw-semibold text-primary">Page Layout & Margins</h6>
                 </div>
                 <div class="card-body bg-white py-3">
                   <div class="row g-3">
@@ -483,7 +448,7 @@
               <!-- Group 3: Musical Staves & Lyrics -->
               <div class="card shadow-sm border-light mb-4">
                 <div class="card-header bg-light py-2">
-                  <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-music-note-list me-2"></i>Musical Staves & Lyrics Spacing</h6>
+                  <h6 class="mb-0 fw-semibold text-primary">Musical Staves & Lyrics Spacing</h6>
                 </div>
                 <div class="card-body bg-white py-3">
                   <div class="row g-3">
@@ -535,7 +500,7 @@
               <!-- Group 4: Lemma Brackets -->
               <div class="card shadow-sm border-light mb-4">
                 <div class="card-header bg-light py-2">
-                  <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-brackets me-2"></i>Lemma Brackets</h6>
+                  <h6 class="mb-0 fw-semibold text-primary">Lemma Brackets</h6>
                 </div>
                 <div class="card-body bg-white py-3">
                   <div class="row g-3">
@@ -573,7 +538,7 @@
               <!-- Group 5: Critical Apparatus & Typography -->
               <div class="card shadow-sm border-light">
                 <div class="card-header bg-light py-2">
-                  <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-fonts me-2"></i>Critical Apparatus & Typography</h6>
+                  <h6 class="mb-0 fw-semibold text-primary">Critical Apparatus & Typography</h6>
                 </div>
                 <div class="card-body bg-white py-3">
                   <div class="row g-3 mb-3">
@@ -894,7 +859,7 @@
                 <!-- Heading where a document begins -->
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-card-heading me-2"></i>Document Heading</h6>
+                    <h6 class="mb-0 fw-semibold text-primary">Document Heading</h6>
                     <div>
                       <button type="button" class="btn btn-sm btn-outline-secondary py-0 me-1" (click)="usePrintedVolumeHeading()" title="Only the reference, as in the printed Corpus Monodicum volume">Printed volume: reference only</button>
                       <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="resetHeadingFields()">Reset to default</button>
@@ -950,7 +915,7 @@
                 <!-- Group 6: Header, Footer & Running Headline -->
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light py-2">
-                    <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-layout-text-window-reverse me-2"></i>Header, Footer & Running Headline</h6>
+                    <h6 class="mb-0 fw-semibold text-primary">Header, Footer & Running Headline</h6>
                   </div>
                   <div class="card-body bg-white py-3">
                     <div class="row g-3">
@@ -1003,7 +968,7 @@
                 <!-- Group 7: Synopsis PDF Export Settings -->
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light py-2">
-                    <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-file-earmark-music me-2"></i>Synopsis PDF Export Settings</h6>
+                    <h6 class="mb-0 fw-semibold text-primary">Synopsis PDF Export Settings</h6>
                   </div>
                   <div class="card-body bg-white py-3">
                     <div class="row g-3">
@@ -1052,16 +1017,8 @@
             <!-- 4. Container Names Tab -->
             @if (activeTab === 'containers') {
               <div class="tab-pane fade show active">
-                <div class="settings-pane-head">
-                  <i class="bi bi-diagram-3"></i>
-                  <div>
-                    <div class="settings-pane-title">Container Names</div>
-                    <div class="settings-pane-sub">Map genre combinations to the structural level labels shown in the editor.</div>
-                  </div>
-                </div>
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light d-flex align-items-center">
-                    <i class="bi bi-diagram-3 fs-5 me-2"></i>
                     <h6 class="mb-0 fw-semibold">Dynamic Container Names</h6>
                   </div>
                   <div class="card-body bg-white">
@@ -1135,16 +1092,8 @@
             <!-- Notation Set: the standard set of the notation documentation -->
             @if (activeTab === 'notation') {
               <div class="tab-pane fade show active">
-                <div class="settings-pane-head">
-                  <i class="bi bi-diagram-3"></i>
-                  <div>
-                    <div class="settings-pane-title">Notation Set</div>
-                    <div class="settings-pane-sub">Which neume patterns every manuscript's notation documentation shows, and in which order.</div>
-                  </div>
-                </div>
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light d-flex align-items-center">
-                    <i class="bi bi-diagram-3 fs-5 me-2"></i>
                     <h6 class="mb-0 fw-semibold">Standard set</h6>
                   </div>
                   <div class="card-body bg-white">
@@ -1159,16 +1108,8 @@
             }
             @if (activeTab === 'editor') {
               <div class="tab-pane fade show active">
-                <div class="settings-pane-head">
-                  <i class="bi bi-pencil-square"></i>
-                  <div>
-                    <div class="settings-pane-title">Editor</div>
-                    <div class="settings-pane-sub">Behaviour of the transcription editor.</div>
-                  </div>
-                </div>
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light d-flex align-items-center">
-                    <i class="bi bi-pencil-square fs-5 me-2"></i>
                     <h6 class="mb-0 fw-semibold">Editor Configuration</h6>
                   </div>
                   <div class="card-body bg-white">
@@ -1189,13 +1130,6 @@
             <!-- 6. MEI Export Tab -->
             @if (activeTab === 'mei') {
               <div class="tab-pane fade show active">
-                <div class="settings-pane-head">
-                  <i class="bi bi-music-note-beamed"></i>
-                  <div>
-                    <div class="settings-pane-title">MEI Mapping</div>
-                    <div class="settings-pane-sub">Control the structure and tag names of exported MEI XML with mapping profiles.</div>
-                  </div>
-                </div>
                 <app-mei-mapping-editor [settings]="settings" (settingsChange)="onSettingsChange()">
                 @if (settings) {
                   <div meiPublication class="mt-4 pt-4 border-top" id="publicationSettings">
@@ -1246,7 +1180,7 @@
                       </div>
                     }
                     <div class="d-flex flex-wrap gap-2 mt-2">
-                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="addContributor()"><i class="bi bi-plus-lg"></i> Add contributor</button>
+                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="addContributor()">Add contributor</button>
                       <button type="button" class="btn btn-sm btn-outline-secondary" (click)="fillPublicationFromMapping()" title="Fills empty fields with the values of the Corpus Monodicum from the shared mapping; existing values stay.">Fill empty fields with the Corpus Monodicum values</button>
                     </div>
                   </div>
@@ -1258,18 +1192,11 @@
             @if (activeTab === 'htmlExport' && settings) {
               <div class="tab-pane fade show active">
                 <div class="settings-panel fade-in p-4 p-md-5">
-                  <div class="settings-pane-head">
-                    <i class="bi bi-globe2"></i>
-                    <div>
-                      <div class="settings-pane-title">HTML Edition</div>
-                      <div class="settings-pane-sub">Configure the self-contained offline edition viewer: metadata, frontpage, header, footer, and custom CSS.</div>
-                    </div>
-                  </div>
                   <div class="row g-4">
                     <div class="col-12 col-xl-6">
                       <div class="card shadow-sm h-100 border-0">
                         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                          <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-journal-richtext me-2"></i>Source Metadata</h5>
+                          <h5 class="card-title fw-bold text-primary mb-0">Source Metadata</h5>
                           <p class="text-muted small mt-1 mb-0">Select fields to show in the index source list.</p>
                         </div>
                         <div class="card-body">
@@ -1293,7 +1220,7 @@
                     <div class="col-12 col-xl-6">
                       <div class="card shadow-sm h-100 border-0">
                         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                          <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-file-earmark-music me-2"></i>Document Metadata</h5>
+                          <h5 class="card-title fw-bold text-primary mb-0">Document Metadata</h5>
                           <p class="text-muted small mt-1 mb-0">Select fields to show on the document view.</p>
                         </div>
                         <div class="card-body">
@@ -1317,7 +1244,7 @@
                     <div class="col-12">
                       <div class="card shadow-sm border-0 mt-2">
                         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                          <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-palette me-2"></i>Custom CSS</h5>
+                          <h5 class="card-title fw-bold text-primary mb-0">Custom CSS</h5>
                           <p class="text-muted small mt-1 mb-0">Inject custom CSS directly into all exported HTML pages.</p>
                         </div>
                         <div class="card-body">
@@ -1329,7 +1256,7 @@
                     <div class="col-12">
                       <div class="card shadow-sm border-0 mt-3">
                         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                          <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-layout-text-window-reverse me-2"></i>Frontpage HTML Snippet</h5>
+                          <h5 class="card-title fw-bold text-primary mb-0">Frontpage HTML Snippet</h5>
                           <p class="text-muted small mt-1 mb-0">Custom HTML banner or introduction shown at the top of the main index page.</p>
                         </div>
                         <div class="card-body">
@@ -1341,7 +1268,7 @@
                     <div class="col-12">
                       <div class="card shadow-sm border-0 mt-3">
                         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                          <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-layout-three-columns me-2"></i>Header HTML Snippet</h5>
+                          <h5 class="card-title fw-bold text-primary mb-0">Header HTML Snippet</h5>
                           <p class="text-muted small mt-1 mb-0">Custom HTML header injected at the top of all source overview and document pages.</p>
                         </div>
                         <div class="card-body">
@@ -1353,7 +1280,7 @@
                     <div class="col-12">
                       <div class="card shadow-sm border-0 mt-3">
                         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                          <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-file-earmark-bar-graph me-2"></i>Footer HTML Snippet</h5>
+                          <h5 class="card-title fw-bold text-primary mb-0">Footer HTML Snippet</h5>
                           <p class="text-muted small mt-1 mb-0">Custom HTML footer injected at the bottom of all exported pages.</p>
                         </div>
                         <div class="card-body">
@@ -1373,19 +1300,12 @@
             @if (activeTab === 'workspace') {
               <div class="tab-pane fade show active">
                 <div class="settings-panel fade-in p-4 p-md-5">
-                  <div class="settings-pane-head">
-                    <i class="bi bi-database-gear"></i>
-                    <div>
-                      <div class="settings-pane-title">Workspace</div>
-                      <div class="settings-pane-sub">Import, export, inspect storage usage, and reset workspace state.</div>
-                    </div>
-                  </div>
                   <!-- ─────────────────── Storage stats card ─────────────────── -->
                   <div class="card shadow-sm border-0 mb-4">
                     <div class="card-body">
                       <div class="d-flex align-items-start justify-content-between mb-3">
                         <div>
-                          <h5 class="fw-bold mb-1"><i class="bi bi-pie-chart me-2 text-secondary"></i>Storage usage</h5>
+                          <h5 class="fw-bold mb-1">Storage usage</h5>
                           <p class="text-muted small mb-0">
                             All workspace data is kept in your browser's IndexedDB.
                             @if (statsComputed && lastComputedTime) {
@@ -1411,7 +1331,7 @@
                             }
                             @if (api.storagePersisted !== true) {
                               <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size: 0.75rem;" (click)="requestPersistence()">
-                                <i class="bi bi-shield-lock-fill me-1"></i>Enable Protection
+                                Enable Protection
                               </button>
                             }
                           </div>
@@ -1421,9 +1341,7 @@
                             @if (loadingStats) {
                               <span class="spinner-border spinner-border-sm" role="status"></span>
                             }
-                            @if (!loadingStats) {
-                              <i class="bi bi-arrow-clockwise"></i>
-                            }
+                            
                           </button>
                         }
                       </div>
@@ -1434,7 +1352,7 @@
                             Database storage size, record counts, and orphan notes/documents have not been calculated yet.
                           </p>
                           <button type="button" class="btn btn-primary btn-sm px-4" (click)="refreshWorkspaceStats()">
-                            <i class="bi bi-play-fill me-1"></i>Compute Workspace Stats
+                            Compute Workspace Stats
                           </button>
                         </div>
                       }
@@ -1505,7 +1423,7 @@
                               <div class="progress" style="height: 8px; border-radius: 9999px;">
                                 <div class="progress-bar"
                                   [style.width.%]="storagePct"
-                                  [style.background]="storagePct < 60 ? '#16a34a' : (storagePct < 85 ? '#f59e0b' : '#dc2626')">
+                                  [style.background]="storagePct < 60 ? '#111' : (storagePct < 85 ? '#777' : '#b42318')">
                                 </div>
                               </div>
                             </div>
@@ -1526,7 +1444,7 @@
                             }
                             @if (workspaceStats.orphanDocs === 0 && workspaceStats.orphanNotes === 0) {
                               <span class="badge bg-success-subtle text-success border">
-                                <i class="bi bi-check-circle me-1"></i>No orphan rows
+                                No orphan rows
                               </span>
                             }
                             @if (workspaceStats.orphanDocs === -1 || workspaceStats.orphanNotes === -1) {
@@ -1540,30 +1458,21 @@
                       }
                     </div>
                   </div>
-                  <!-- ─────────────────── Import & Export: one place ─────────────────── -->
-                  <div class="card shadow-sm border-0 mb-4">
-                    <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-                      <h5 class="fw-bold mb-0"><i class="bi bi-arrow-down-up me-2 text-primary"></i>Import & Export</h5>
-                      <a class="btn btn-outline-primary btn-sm" [routerLink]="['/import-export']">
-                        Open Import / Export <i class="bi bi-arrow-right ms-1"></i>
-                      </a>
-                    </div>
-                  </div>
                   <!-- ───────────── Direct OS File Backup / Sync (Chromium) ───────────── -->
                   <div class="card shadow-sm border-0 mb-4">
                     <div class="card-body">
                       <div class="d-flex align-items-center justify-content-between mb-2">
                         <h5 class="fw-bold mb-0">
-                          <i class="bi bi-hdd-network me-2 text-primary"></i>Direct OS File Sync & Live Backup
+                          Direct OS File Sync & Live Backup
                         </h5>
                         @if (isFileSystemSupported) {
                           <span class="badge bg-primary-subtle text-primary border">
-                            <i class="bi bi-check2-circle me-1"></i>Chromium File System API Ready
+                            Chromium File System API Ready
                           </span>
                         }
                         @if (!isFileSystemSupported) {
                           <span class="badge bg-secondary-subtle text-secondary border">
-                            <i class="bi bi-info-circle me-1"></i>Fallback Mode (Chrome / Edge recommended)
+                            Fallback Mode (Chrome / Edge recommended)
                           </span>
                         }
                       </div>
@@ -1591,13 +1500,11 @@
                                     @if (isSavingBackup) {
                                       <span class="spinner-border spinner-border-sm me-1"></span>
                                     }
-                                    @if (!isSavingBackup) {
-                                      <i class="bi bi-arrow-repeat me-1"></i>
-                                    }
+                                    
                                     Sync Now to Disk
                                   </button>
                                   <button type="button" class="btn btn-sm btn-outline-secondary" (click)="unlinkOsBackupFile()" [disabled]="isSavingBackup">
-                                    <i class="bi bi-x-circle me-1"></i>Unlink
+                                    Unlink
                                   </button>
                                 </div>
                               </div>
@@ -1605,11 +1512,10 @@
                           }
                           @if (!linkedBackupFileName) {
                             <div class="text-center p-4 bg-light border rounded mb-2">
-                              <i class="bi bi-folder-symlink text-secondary" style="font-size: 2rem;"></i>
                               <h6 class="fw-semibold mt-2 mb-1">No OS backup file currently linked</h6>
                               <p class="text-muted small mb-3">Choose a location on your hard drive to create or link an active workspace backup file.</p>
                               <button type="button" class="btn btn-sm btn-outline-primary px-3" (click)="linkOsBackupFile()">
-                                <i class="bi bi-link-45deg me-1"></i>Pick & Link OS Backup File
+                                Pick & Link OS Backup File
                               </button>
                             </div>
                           }
@@ -1626,7 +1532,7 @@
                   <!-- ─────────────────── Cleanup / soft resets ─────────────────── -->
                   <div class="card shadow-sm border-0 mb-4">
                     <div class="card-body">
-                      <h5 class="fw-bold mb-3"><i class="bi bi-tools me-2 text-secondary"></i>Cleanup & soft resets</h5>
+                      <h5 class="fw-bold mb-3">Cleanup & soft resets</h5>
                       <p class="text-muted small mb-3">Tidy up rows that fell out of sync, or roll specific preference groups back to defaults. None of these touch the chant data itself.</p>
                       <div class="d-flex flex-column gap-2">
                         <!-- Reset settings -->
@@ -1737,7 +1643,7 @@
                     <div class="card-body">
                       <div class="d-flex align-items-start justify-content-between mb-3">
                         <div>
-                          <h5 class="fw-bold mb-1 text-danger"><i class="bi bi-exclamation-octagon me-2"></i>Danger zone</h5>
+                          <h5 class="fw-bold mb-1 text-danger">Danger zone</h5>
                           <p class="text-muted small mb-0">These actions cannot be undone. Export the workspace first if you might want it back.</p>
                         </div>
                       </div>
@@ -1753,7 +1659,7 @@
                             [class.btn-danger]="armedAction === 'wipe-analyses'"
                             [disabled]="busyAction || analysisCount === 0"
                             (click)="armAction('wipe-analyses')">
-                            <i class="bi bi-trash3 me-1"></i>{{ armedAction === 'wipe-analyses' ? 'Click again to confirm' : 'Delete analyses' }}
+                            {{ armedAction === 'wipe-analyses' ? 'Click again to confirm' : 'Delete analyses' }}
                           </button>
                         </div>
                         <!-- Wipe documents -->
@@ -1803,7 +1709,7 @@
                             <div class="text-muted small">Recommended after any destructive action so cached in-memory state is rebuilt.</div>
                           </div>
                           <button type="button" class="btn btn-sm btn-outline-primary" (click)="reloadPage()">
-                            <i class="bi bi-arrow-clockwise me-1"></i>Reload
+                            Reload
                           </button>
                         </div>
                       </div>
@@ -1815,17 +1721,10 @@
             <!-- 9. Shortcuts Tab -->
             @if (activeTab === 'shortcuts') {
               <div class="tab-pane fade show active">
-                <div class="settings-pane-head">
-                  <i class="bi bi-keyboard"></i>
-                  <div>
-                    <div class="settings-pane-title">Keyboard Shortcuts</div>
-                    <div class="settings-pane-sub">Customize key bindings for building blocks and note modifications in the transcription editor.</div>
-                  </div>
-                </div>
                 <!-- Note Creation & Building Blocks Card -->
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light py-2">
-                    <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-bricks me-2"></i>Note Creation & Building Blocks</h6>
+                    <h6 class="mb-0 fw-semibold text-primary">Note Creation & Building Blocks</h6>
                   </div>
                   <div class="card-body p-0">
                     <div class="table-responsive">
@@ -1916,7 +1815,7 @@
                 <!-- Note Type Modifications Card -->
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light py-2">
-                    <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-music-note-beamed me-2"></i>Note Type Modifications</h6>
+                    <h6 class="mb-0 fw-semibold text-primary">Note Type Modifications</h6>
                   </div>
                   <div class="card-body p-0">
                     <div class="table-responsive">
@@ -2001,7 +1900,7 @@
                 <!-- Structure & Merge Operations Card -->
                 <div class="card shadow-sm border-light mb-4">
                   <div class="card-header bg-light py-2">
-                    <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-diagram-3 me-2"></i>Structure & Merge Operations</h6>
+                    <h6 class="mb-0 fw-semibold text-primary">Structure & Merge Operations</h6>
                   </div>
                   <div class="card-body p-0">
                     <div class="table-responsive">
@@ -2066,10 +1965,10 @@
                 <!-- Actions Footer -->
                 <div class="d-flex justify-content-between align-items-center pt-2 pb-4">
                   <button type="button" class="btn btn-outline-secondary btn-sm" (click)="resetShortcutsConfig()">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Defaults
+                    Reset to Defaults
                   </button>
                   <button type="button" class="btn btn-primary btn-sm px-4 shadow-sm" (click)="saveShortcutsConfig()">
-                    <i class="bi bi-check2 me-1"></i>Save Shortcuts Settings
+                    Save Shortcuts Settings
                   </button>
                 </div>
               </div>
@@ -2082,7 +1981,7 @@
             <div class="preview-sidebar position-sticky" style="top: 80px;">
               <div class="card shadow-sm border-light">
                 <div class="card-header bg-light d-flex align-items-center justify-content-between py-2">
-                  <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-eye text-primary me-2"></i>Layout Preview ({{previewScale}}x Scale)</h6>
+                  <h6 class="mb-0 fw-bold text-dark">Layout Preview ({{previewScale}}x Scale)</h6>
                   <span class="badge bg-primary px-2" style="font-size: 0.75rem;">A4 Mockup</span>
                 </div>
                 <div class="card-body bg-dark-subtle p-3 d-flex flex-column align-items-center gap-3 overflow-auto" style="max-height: calc(100vh - 160px);">

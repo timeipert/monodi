@@ -14,73 +14,20 @@ svg {
     border-bottom: 1px solid var(--color-border) !important;
 }
 
-/* Brand wordmark */
+/* Name of the app: plain text, not a link. */
 .brand-wordmark {
-    font-size: 1.15rem;
-    font-weight: 700;
-    letter-spacing: -0.4px;
-    color: var(--color-text) !important;
-    text-decoration: none;
     font-family: var(--serif);
-}
-.brand-zero {
-    font-weight: 300;
-    color: var(--color-primary);
-    margin-left: 3px;
-    letter-spacing: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    cursor: default;
 }
 
-/* Nav links */
-.navbar .nav-link {
-    color: var(--color-text-muted) !important;
-    font-weight: 500;
-    padding: 0.4rem 0.75rem;
-    border-radius: 6px;
-    transition: color 0.15s, background 0.15s;
-}
-.navbar .nav-link:hover {
-    color: var(--color-text) !important;
-    background: var(--color-surface-muted);
-}
-.navbar .nav-link.active,
-.navbar .nav-link.active.text-accent {
-    color: var(--color-primary) !important;
-    background: var(--color-primary-light);
-}
-
-/* Settings gear link — same treatment */
-.navbar .nav-link i.bi-gear-fill {
-    opacity: 0.8;
-}
-
-/* GitHub Pull/Push buttons — tinted to look right on dark bg */
-.navbar .btn-outline-success {
-    border-color: rgba(52, 211, 153, 0.5);
-    color: var(--color-success);
-    background: transparent;
-}
-.navbar .btn-outline-success:hover {
-    background: rgba(52, 211, 153, 0.12);
-    border-color: var(--color-success);
-    color: var(--color-success);
-}
-.navbar .btn-success {
-    background: rgba(52, 211, 153, 0.18);
-    border-color: rgba(52, 211, 153, 0.4);
-    color: var(--color-success);
-}
-.navbar .btn-success:hover {
-    background: rgba(52, 211, 153, 0.28);
-    color: var(--color-success);
-}
-
-/* Hamburger toggler on mobile */
-.navbar .navbar-toggler {
-    border-color: var(--color-border-hover);
-}
-.navbar .navbar-toggler-icon {
-    filter: none;
-}
+/* Nav links: muted text, the active view in black. */
+.navbar .nav-link { color: var(--color-text-muted) !important; padding: .4rem .75rem; }
+.navbar .nav-link:hover,
+.navbar .nav-link.active { color: var(--color-text) !important; }
+.navbar .nav-link.active { background: var(--color-surface-muted); }
 
 /* ── Toolbar strip (note editor toolbar) ─────────────
    One tone lighter than the navbar — a warm dark strip.
@@ -97,29 +44,6 @@ svg {
 }
 
 /* Icon buttons */
-.btn-toolbar-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    border-radius: 7px;
-    border: 1px solid var(--color-border-hover);
-    background: var(--color-surface);
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-}
-.btn-toolbar-icon:hover {
-    background: var(--color-surface-muted);
-    border-color: var(--color-text-light);
-}
-
-.toolbar-icon {
-    width: 20px;
-    height: 20px;
-    display: block;
-}
 
 /* Back button */
 .monodi-tool-bar .btn-outline-secondary {
@@ -176,8 +100,12 @@ svg {
 }
 
 .backup-reminder {
-  background: var(--color-warning-light);
+  display: flex; align-items: center; gap: .25rem 1rem; flex-wrap: wrap;
+  padding: .5rem 1.5rem; font-size: .9rem; color: var(--color-text);
+  background: var(--color-surface-muted); border-bottom: 1px solid var(--color-border-hover); border-left: 4px solid var(--color-text);
 }
+.backup-reminder a { color: var(--color-text); text-decoration: underline; }
+.backup-reminder .btn-link { color: var(--color-text-muted); padding: 0 .4rem; font-size: .85rem; }
 
 .sync-progress-overlay {
   position: fixed;

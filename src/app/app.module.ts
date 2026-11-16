@@ -5,16 +5,16 @@ import { GlobalErrorHandler } from './global-error-handler';
 import { ServiceWorkerModule } from '@angular/service-worker';
 import { FormsModule } from '@angular/forms';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { ToastrModule, ToastrService } from 'ngx-toastr';
+import { StatusLineService } from './status-line.service';
+import { RangeSliderComponent } from './range-slider.component';
+import { StatusLineComponent } from './status-line.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 
 import { AppComponent } from './app.component';
-import { WelcomeComponent } from './welcome/welcome.component';
 // Removed LoginComponent
 import { SettingsComponent } from './settings/settings.component';
 import { SourcesOverviewComponent } from './sources-overview/sources-overview.component';
@@ -24,7 +24,6 @@ import { DocumentComponent } from './document/document.component';
 import { PdfExportDialogComponent } from './pdf-export-dialog.component';
 import { SmartTableComponent } from './smart-table/smart-table.component';
 import { ConfirmDeactivateGuard } from './ConfirmDeactivateGuard';
-import { ZipUploadComponent } from './zip-upload/zip-upload.component';
 import { CommentComponent } from './comment/comment.component';
 import { FlagPatternsDialogComponent } from './notes/flag-patterns-dialog.component';
 import { MeiAnnotationDialogComponent } from './mei/mei-annotation-dialog.component';
@@ -47,7 +46,6 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
 import { MeiStructurePanelComponent } from './mei/mei-structure-panel.component';
 import { ImportExportComponent } from './import-export/import-export.component';
 import { RepositoryImportComponent } from './repository-import/repository-import.component';
-import { SelectionDashboardComponent } from './search/selection-dashboard/selection-dashboard.component';
 import { ChartBarsComponent } from './search/charts/chart-bars.component';
 import { ChartScatterComponent } from './search/charts/chart-scatter.component';
 import { MetadataGridComponent } from './metadata-grid/metadata-grid.component';
@@ -59,7 +57,6 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
 
 @NgModule({ declarations: [
         AppComponent,
-        WelcomeComponent,
         SourcesOverviewComponent,
         SubcorporaSelectorComponent,
         SourceComponent,
@@ -67,7 +64,6 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         DocumentComponent,
         PdfExportDialogComponent,
         SmartTableComponent,
-        ZipUploadComponent,
         CommentComponent,
         FlagPatternsDialogComponent,
         MeiAnnotationDialogComponent,
@@ -85,7 +81,6 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         MeiStructurePanelComponent,
         ImportExportComponent,
         RepositoryImportComponent,
-        SelectionDashboardComponent,
         ChartBarsComponent,
         ChartScatterComponent,
         MetadataGridComponent,
@@ -97,8 +92,8 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
-        BrowserAnimationsModule,
-        ToastrModule.forRoot(),
+        RangeSliderComponent,
+        StatusLineComponent,
         FormsModule,
         NotationsdokumentationModule,
         NgbModule,
@@ -108,15 +103,13 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
         SelectionToolsModule,
         RouterModule.forRoot([
             {
-                path: 'login',
-                redirectTo: '/sources',
-                pathMatch: 'full'
-            }, {
                 path: 'sources',
                 component: SourcesOverviewComponent,
+                canDeactivate: [ConfirmDeactivateGuard],
             }, {
                 path: 'source/:id',
                 component: SourceComponent,
+                canDeactivate: [ConfirmDeactivateGuard],
             }, {
                 path: 'source',
                 component: SourceComponent,
@@ -134,9 +127,9 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
                 path: 'analysis',
                 loadChildren: () => import('./analysis/analysis.module').then(m => m.AnalysisModule),
             }, {
+                // The sheet is a view of the Sources page; this address keeps old links and bookmarks working.
                 path: 'metadata',
-                component: MetadataGridComponent,
-                canDeactivate: [ConfirmDeactivateGuard],
+                redirectTo: () => inject(Router).parseUrl('/sources?view=sheet'),
             }, {
                 path: 'stats',
                 loadChildren: () => import('./stats/stats.module').then(m => m.StatsModule),
@@ -147,17 +140,12 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
                 path: 'import-export',
                 component: ImportExportComponent,
             }, {
-                path: 'zip-upload',
-                component: ZipUploadComponent,
-            }, {
-                path: 'cc',
-                component: ComplexCommentComponent
-            }, {
                 path: 'manual',
                 loadChildren: () => import('./manual/manual.module').then(m => m.ManualModule)
             }, {
+                // No start page: the app opens on the list of sources, its most used view. Unknown addresses go there too.
                 path: '**',
-                component: WelcomeComponent
+                redirectTo: 'sources'
             }
         ], { useHash: true, anchorScrolling: 'enabled' }),
         ServiceWorkerModule.register('ngsw-worker.js', {
@@ -172,11 +160,11 @@ import { SigleDialogComponent } from './source/sigle-dialog.component';
       // background and reports with a toast.
       provideAppInitializer(() => {
         const session = inject(GithubSessionService);
-        const toastr = inject(ToastrService);
+        const statusLine = inject(StatusLineService);
         session.completeLogin().then(outcome => {
           if (!outcome) return;
-          if (outcome.error) toastr.error(outcome.error, 'GitHub sign-in');
-          else toastr.success(`Signed in as ${outcome.login}`, 'GitHub');
+          if (outcome.error) statusLine.error(outcome.error, 'GitHub sign-in');
+          else statusLine.success(`Signed in as ${outcome.login}`, 'GitHub');
         });
       }),
       provideHttpClient(withInterceptorsFromDi()), { provide: ErrorHandler, useClass: GlobalErrorHandler }] })

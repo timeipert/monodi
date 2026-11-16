@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { SearchComponent, arrayLevenshtein } from './search.component';
 import { HelpButtonComponent } from '../help-button/help-button.component';
 import { APIService } from '../api.service';
@@ -34,7 +34,7 @@ describe('SearchComponent', () => {
     set: () => {}
   };
 
-  const mockToastrService = {
+  const mockStatusLineService = {
     success: () => {},
     error: () => {},
     info: () => {},
@@ -49,7 +49,7 @@ describe('SearchComponent', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: APIService, useValue: mockAPIService },
         { provide: PageTitleService, useValue: mockPageTitleService },
-        { provide: ToastrService, useValue: mockToastrService }
+        { provide: StatusLineService, useValue: mockStatusLineService }
       ]
     });
     fixture = TestBed.createComponent(SearchComponent);
@@ -62,8 +62,7 @@ describe('SearchComponent', () => {
   });
 
   describe('Synopsis Metadata and Staff Scaling', () => {
-    it('should initialize synopsis columns definitions on loadCols', () => {
-      component.loadCols();
+    it('initialises the synopsis column definitions', () => {
       expect(component.synopsisMetadataCols).toBeDefined();
       expect(component.synopsisMetadataCols.length).toBeGreaterThan(0);
       
@@ -342,7 +341,7 @@ describe('SearchComponent selection (all hits, not only the page)', () => {
         { provide: UserService, useValue: { user: of({ token: 't', name: 'u' }) } },
         { provide: APIService, useValue: api },
         { provide: PageTitleService, useValue: { set: () => {} } },
-        { provide: ToastrService, useValue: { success: () => {}, error: () => {}, info: () => {}, warning: () => {} } },
+        { provide: StatusLineService, useValue: { success: () => {}, error: () => {}, info: () => {}, warning: () => {} } },
       ],
     });
     fixture = TestBed.createComponent(SearchComponent);
@@ -351,10 +350,13 @@ describe('SearchComponent selection (all hits, not only the page)', () => {
     await TestBed.inject(SelectionService).ensureIndex('t');
   });
 
-  it('select all on the documents tab selects every hit, also those on other pages', () => {
-    component.documentResults = docs.slice();
-    component.activeTab = 'documents';
-    expect(component.pagedDocumentResults.length).toBeLessThan(60);
+  /** One melody match per document: 60 hits over several pages. */
+  const melodyHits = () => docs.map(d => ({ document: d, occurrences: [], matchingSyllables: [] }) as any);
+
+  it('select all on the melody tab selects every hit, also those on other pages', () => {
+    component.melodyResults = melodyHits();
+    component.activeTab = 'melody';
+    expect(component.pagedMelodyResults.length).toBeLessThan(60);
     const ids = component.currentHitDocIds();
     expect(ids.length).toBe(60);
     component.selection.selectAll(ids);
@@ -363,9 +365,9 @@ describe('SearchComponent selection (all hits, not only the page)', () => {
   });
 
   it('invert keeps the complement of the picks among the hits', () => {
-    component.documentResults = docs.slice();
+    component.melodyResults = melodyHits();
     component.selection.add(['d0', 'd1', 'd2']);
-    component.selection.invert(component.documentHitDocIds);
+    component.selection.invert(component.melodyHitDocIds);
     expect(component.selection.size).toBe(57);
     expect(component.isDocSelected('d0')).toBeFalse();
     expect(component.isDocSelected('d59')).toBeTrue();
@@ -435,10 +437,11 @@ describe('SearchComponent selection (all hits, not only the page)', () => {
     expect(component.synopsisDocs.length).toBe(20);
   });
 
-  it('the selection bar renders in the documents tab with the number of all hits', () => {
-    component.documentResults = docs.slice();
-    component.activeTab = 'documents';
-    component.documentSearched = true;
+  it('the selection bar renders in the melody tab with the number of all hits', () => {
+    component.activeTab = 'melody';
+    component.melodySearched = true;
+    component.melodyWithNotes = 60;
+    component.melodyResults = melodyHits();
     fixture.debugElement.injector.get(ChangeDetectorRef).detectChanges();
     const bar = (fixture.nativeElement as HTMLElement).querySelector('app-selection-bar');
     expect(bar).toBeTruthy();

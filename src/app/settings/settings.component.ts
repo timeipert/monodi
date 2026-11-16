@@ -15,7 +15,7 @@ import { environment } from '../../environments/environment';
 import { Subscription } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PageTitleService } from '../page-title.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { NotesStore } from '../notes-store';
 import { PushCache } from '../push-cache';
 import * as localforage from 'localforage';
@@ -324,7 +324,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     public github: GithubService,
     public session: GithubSessionService,
     private pageTitle: PageTitleService,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private cdRef: ChangeDetectorRef,
     private route: ActivatedRoute,
     private router: Router,
@@ -338,13 +338,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   saveShortcutsConfig() {
     this.shortcutsService.saveShortcuts(this.shortcutsConfig);
-    this.toastr.success('Editor shortcuts updated.');
+    this.statusLine.success('Editor shortcuts updated.');
   }
 
   resetShortcutsConfig() {
     this.shortcutsService.resetToDefaults();
     this.shortcutsConfig = { ...this.shortcutsService.getShortcuts() };
-    this.toastr.info('Editor shortcuts reset to defaults.');
+    this.statusLine.info('Editor shortcuts reset to defaults.');
   }
 
   /** Fixed lists: constants, so the template sees the same objects on every change-detection pass. */
@@ -408,13 +408,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
             if (!this.settings.htmlExportDocumentMetadata) this.settings.htmlExportDocumentMetadata = this.htmlExportDocumentFields.map(f => f.key);
             if (!this.settings.htmlExportCustomCss) this.settings.htmlExportCustomCss = '';
             if (!this.settings.htmlExportFrontpageHtml) {
-              this.settings.htmlExportFrontpageHtml = `<div class="frontpage-banner text-center py-5 mb-5 rounded-4 shadow-sm" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white;">\n  <h1 class="display-4 fw-bold">Monodi Edition</h1>\n  <p class="lead opacity-75">Digital musicological source edition</p>\n  <hr class="my-4 mx-auto style-light" style="width: 100px; border-color: rgba(255,255,255,0.3); border-width: 3px;">\n  <div class="d-flex justify-content-center gap-3">\n    <span class="badge bg-white text-primary px-3 py-2 rounded-pill fs-7">Offline Viewer</span>\n    <span class="badge bg-info text-dark px-3 py-2 rounded-pill fs-7">Interactive Search</span>\n  </div>\n</div>`;
+              this.settings.htmlExportFrontpageHtml = `<div class="frontpage-banner text-center py-5 mb-5 rounded-4 shadow-sm" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white;">\n  <h1 class="display-4 fw-bold">monodi Edition</h1>\n  <p class="lead opacity-75">Digital musicological source edition</p>\n  <hr class="my-4 mx-auto style-light" style="width: 100px; border-color: rgba(255,255,255,0.3); border-width: 3px;">\n  <div class="d-flex justify-content-center gap-3">\n    <span class="badge bg-white text-primary px-3 py-2 rounded-pill fs-7">Offline Viewer</span>\n    <span class="badge bg-info text-dark px-3 py-2 rounded-pill fs-7">Interactive Search</span>\n  </div>\n</div>`;
             }
             if (!this.settings.htmlExportHeaderHtml) {
-              this.settings.htmlExportHeaderHtml = `<div class="edition-header py-2 px-3 mb-4 rounded-3 border bg-white d-flex justify-content-between align-items-center">\n  <span class="text-secondary fw-semibold small text-uppercase tracking-wider">Monodi Digital Scholarly Edition</span>\n  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Status: Final</span>\n</div>`;
+              this.settings.htmlExportHeaderHtml = `<div class="edition-header py-2 px-3 mb-4 rounded-3 border bg-white d-flex justify-content-between align-items-center">\n  <span class="text-secondary fw-semibold small text-uppercase tracking-wider">monodi Digital Scholarly Edition</span>\n  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Status: Final</span>\n</div>`;
             }
             if (!this.settings.htmlExportFooterHtml) {
-              this.settings.htmlExportFooterHtml = `<footer class="edition-footer mt-5 pt-4 pb-3 border-top text-center text-muted small">\n  <p class="mb-1">&copy; 2026 Scholarly Monodi Edition Project. All rights reserved.</p>\n  <p class="opacity-75">Generated with Monodi+ zero. Free to share and adapt for non-commercial scholarly purposes.</p>\n</footer>`;
+              this.settings.htmlExportFooterHtml = `<footer class="edition-footer mt-5 pt-4 pb-3 border-top text-center text-muted small">\n  <p class="mb-1">&copy; 2026 Scholarly monodi Edition Project. All rights reserved.</p>\n  <p class="opacity-75">Generated with monodi. Free to share and adapt for non-commercial scholarly purposes.</p>\n</footer>`;
             }
             if (!this.settings.clefDisplayMode) this.settings.clefDisplayMode = 'document-start';
             if (!this.settings.notationColor) this.settings.notationColor = '#333333';
@@ -718,7 +718,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.isGithubSigningIn = true;
     this.session.startLogin().catch(e => {
       this.isGithubSigningIn = false;
-      this.toastr.error(e?.message || 'Could not start the sign-in.');
+      this.statusLine.error(e?.message || 'Could not start the sign-in.');
       this.cdRef.markForCheck();
     });
   }
@@ -785,9 +785,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.isGithubConnecting = false;   // a failed test must not leave the button spinning
     }
     if (ok) {
-      this.toastr.success(`Connected to ${repo.fullName}. Use the Sync button in the top bar to push or pull.`);
+      this.statusLine.success(`Connected to ${repo.fullName}. Use the Sync button in the top bar to push or pull.`);
     } else {
-      this.toastr.error('The repository could not be reached with this sign-in. Check that the app is installed on it.');
+      this.statusLine.error('The repository could not be reached with this sign-in. Check that the app is installed on it.');
     }
     this.cdRef.markForCheck();
   }
@@ -990,7 +990,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.loadingStats = false;
         this.statsComputed = false;
         this.cdRef.markForCheck();
-        this.toastr.error(`Stats failed: ${msg}`, 'Workspace stats error');
+        this.statusLine.error(`Stats failed: ${msg}`, 'Workspace stats error');
       }
     }
   }
@@ -1045,10 +1045,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.busyAction = 'reset-settings';
     try {
       await localforage.removeItem('monodi_settings');
-      this.toastr.success('Settings reset. Reload the page to pick up defaults.', 'Settings cleared');
+      this.statusLine.success('Settings reset. Reload the page to pick up defaults.', 'Settings cleared');
       await this.refreshWorkspaceStats();
     } catch (e) {
-      this.toastr.error(`Reset failed: ${(e as Error)?.message ?? e}`);
+      this.statusLine.error(`Reset failed: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
     }
@@ -1063,7 +1063,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       localStorage.removeItem('monodi_source_cols');
       localStorage.removeItem('monodi_doc_cols');
       localStorage.removeItem('monodi_comment_help_dismissed');
-      this.toastr.success('Column visibility & UI hints reset.', 'UI preferences cleared');
+      this.statusLine.success('Column visibility & UI hints reset.', 'UI preferences cleared');
     } finally {
       this.busyAction = '';
     }
@@ -1081,7 +1081,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.busyAction = 'reset-push-cache';
     try {
       await PushCache.invalidateAll();
-      this.toastr.success('The next push will fully re-check every manuscript against GitHub.', 'Push cache reset');
+      this.statusLine.success('The next push will fully re-check every manuscript against GitHub.', 'Push cache reset');
     } finally {
       this.busyAction = '';
     }
@@ -1096,15 +1096,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
       const noteIds = await NotesStore.getIndex();
       const orphans = noteIds.filter(id => !docIds.has(id));
       if (orphans.length === 0) {
-        this.toastr.info('No orphan notes found.', 'Already clean');
+        this.statusLine.info('No orphan notes found.', 'Already clean');
       } else {
         await NotesStore.removeMany(orphans);
         await PushCache.invalidateAll();
-        this.toastr.success(`Removed ${orphans.length} orphan note row${orphans.length === 1 ? '' : 's'}.`);
+        this.statusLine.success(`Removed ${orphans.length} orphan note row${orphans.length === 1 ? '' : 's'}.`);
       }
       await this.refreshWorkspaceStats();
     } catch (e) {
-      this.toastr.error(`Cleanup failed: ${(e as Error)?.message ?? e}`);
+      this.statusLine.error(`Cleanup failed: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
     }
@@ -1119,18 +1119,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
       const sourceIds = new Set(sources.map(s => s.id));
       const orphans = documents.filter(d => !sourceIds.has(d.quelle_id));
       if (orphans.length === 0) {
-        this.toastr.info('No orphan documents found.', 'Already clean');
+        this.statusLine.info('No orphan documents found.', 'Already clean');
       } else {
         const keep = documents.filter(d => sourceIds.has(d.quelle_id));
         await localforage.setItem('monodi_documents', keep);
         this.api.invalidateCache();
         await NotesStore.removeMany(orphans.map(d => d.id));
         await PushCache.invalidateAll();
-        this.toastr.success(`Removed ${orphans.length} orphan document${orphans.length === 1 ? '' : 's'} and their notes.`);
+        this.statusLine.success(`Removed ${orphans.length} orphan document${orphans.length === 1 ? '' : 's'} and their notes.`);
       }
       await this.refreshWorkspaceStats();
     } catch (e) {
-      this.toastr.error(`Cleanup failed: ${(e as Error)?.message ?? e}`);
+      this.statusLine.error(`Cleanup failed: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
     }
@@ -1150,10 +1150,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
       localStorage.removeItem('monodi_pattern_params');
       await localforage.removeItem('monodi_cached_pattern_stats'); // IndexedDB copy
       await AnalysisStore.deleteAll(); // saved analyses refer to the documents that are gone
-      this.toastr.success('All documents and notes deleted. Sources kept.', 'Documents wiped');
+      this.statusLine.success('All documents and notes deleted. Sources kept.', 'Documents wiped');
       await this.refreshWorkspaceStats();
     } catch (e) {
-      this.toastr.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
+      this.statusLine.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
     }
@@ -1176,9 +1176,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
     try {
       await AnalysisStore.deleteAll();
       await this.refreshAnalysisStats();
-      this.toastr.success('Saved analyses deleted. Documents are untouched.', 'Analyses cleared');
+      this.statusLine.success('Saved analyses deleted. Documents are untouched.', 'Analyses cleared');
     } catch (e) {
-      this.toastr.error(`Could not delete the analyses: ${(e as Error)?.message ?? e}`);
+      this.statusLine.error(`Could not delete the analyses: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
     }
@@ -1214,10 +1214,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
       await AnalysisStore.deleteAll();
       this.statsComputed = false;
       this.lastComputedTime = null;
-      this.toastr.success('Workspace cleared. Reload the page for a clean slate.', 'Everything wiped');
+      this.statusLine.success('Workspace cleared. Reload the page for a clean slate.', 'Everything wiped');
       await this.refreshWorkspaceStats();
     } catch (e) {
-      this.toastr.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
+      this.statusLine.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
     }
@@ -1229,19 +1229,19 @@ export class SettingsComponent implements OnInit, OnDestroy {
         const persisted = await navigator.storage.persist();
         this.api.storagePersisted = persisted;
         if (persisted) {
-          this.toastr.success('Workspace storage is now protected from eviction.', 'Storage Protected');
+          this.statusLine.success('Workspace storage is now protected from eviction.', 'Storage Protected');
         } else {
-          this.toastr.warning(
+          this.statusLine.warning(
             'Browser rejected persistence request. To protect data, bookmark this app, grant notifications, or add it to your home screen.',
             'Eviction Protection Rejected'
           );
         }
         await this.refreshWorkspaceStats();
       } catch (err) {
-        this.toastr.error('Failed to request storage persistence: ' + err, 'Request Failed');
+        this.statusLine.error('Failed to request storage persistence: ' + err, 'Request Failed');
       }
     } else {
-      this.toastr.error('Storage Persistence API is not supported by your browser.', 'Unsupported');
+      this.statusLine.error('Storage Persistence API is not supported by your browser.', 'Unsupported');
     }
   }
 
@@ -1279,12 +1279,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
         const name = handle.name || 'monodi_workspace_backup.monodijson';
         this.linkedBackupFileName = name;
         safeStorage.set('monodi_os_backup_name', name);
-        this.toastr.success(`Linked to ${name}`, 'OS File Linked');
+        this.statusLine.success(`Linked to ${name}`, 'OS File Linked');
         await this.syncWorkspaceToOsFile();
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        this.toastr.error(`Failed to link OS file: ${err?.message || err}`);
+        this.statusLine.error(`Failed to link OS file: ${err?.message || err}`);
       }
     }
   }
@@ -1296,7 +1296,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.linkedBackupHandle = null;
     this.linkedBackupFileName = null;
     this.lastBackupTime = null;
-    this.toastr.info('OS backup file unlinked.', 'Unlinked');
+    this.statusLine.info('OS backup file unlinked.', 'Unlinked');
     this.cdRef.markForCheck();
   }
 
@@ -1305,7 +1305,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.linkedBackupHandle = await this.fsService.getStoredHandle('monodi_os_backup_handle');
     }
     if (!this.linkedBackupHandle) {
-      this.toastr.warning('No OS file linked. Please link a file first.', 'Backup File Needed');
+      this.statusLine.warning('No OS file linked. Please link a file first.', 'Backup File Needed');
       return;
     }
 
@@ -1325,12 +1325,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
         const now = new Date().toLocaleTimeString();
         this.lastBackupTime = now;
         safeStorage.set('monodi_os_backup_time', now);   // the file is written; a full storage must not turn that into an error
-        this.toastr.success(`Workspace saved directly to ${this.linkedBackupFileName || 'OS file'}.`, 'OS Backup Complete');
+        this.statusLine.success(`Workspace saved directly to ${this.linkedBackupFileName || 'OS file'}.`, 'OS Backup Complete');
       } else {
-        this.toastr.warning('Permission required or write failed. Please re-link or permit access to your backup file.', 'Write Access Needed');
+        this.statusLine.warning('Permission required or write failed. Please re-link or permit access to your backup file.', 'Write Access Needed');
       }
     } catch (e: any) {
-      this.toastr.error(`Failed to sync to OS file: ${e?.message || e}`);
+      this.statusLine.error(`Failed to sync to OS file: ${e?.message || e}`);
     } finally {
       this.isSavingBackup = false;
       this.cdRef.markForCheck();

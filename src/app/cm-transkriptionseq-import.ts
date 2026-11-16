@@ -40,7 +40,7 @@ const KNOWN_SCHEMA = 2;
 export function convertCmTranscriptionFile(file: any): ExchangeFile {
   if (!isCmTranscriptionFile(file)) throw new Error('This is not a file from the Neume Viewer.');
   if (typeof file.schemaVersion === 'number' && file.schemaVersion > KNOWN_SCHEMA) {
-    throw new Error('This file was written by a newer version of the Neume Viewer. Update Monodi-Zero to read it.');
+    throw new Error('This file was written by a newer version of the Neume Viewer. Update monodi to read it.');
   }
   const d = file.data;
   const bySource = new Map<string, ExchangeSource>();

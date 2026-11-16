@@ -1,12 +1,13 @@
+<!-- The Analysis page has two jobs: (1) run analysis methods on a set of documents; (2) keep the results as
+     named analyses that open again without computing (the header: saved analyses, new, import). -->
 <div class="container-fluid px-4 py-3 analysis-page" style="max-width: 1300px;">
-  <app-analysis-tabs></app-analysis-tabs>
-  <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <h3 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Analysis</h3>
+  <header class="analysis-head">
+    <app-analysis-tabs></app-analysis-tabs>
     <div class="d-flex flex-wrap gap-2 align-items-center">
       @if (summaries.length > 0) {
         <div ngbDropdown placement="bottom-end" class="d-inline-block">
           <button class="btn btn-sm btn-outline-primary" type="button" ngbDropdownToggle id="saved-analyses">
-            <i class="bi bi-folder2-open me-1"></i>Saved analyses ({{ summaries.length }})
+            Saved analyses ({{ summaries.length }})
           </button>
           <div ngbDropdownMenu aria-labelledby="saved-analyses" class="p-1" style="min-width: 22rem; max-height: 22rem; overflow: auto;">
             @for (s of summaries; track s.id) {
@@ -24,9 +25,11 @@
           </div>
         </div>
       }
-      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="go(null)"><i class="bi bi-plus-lg me-1"></i>New</button>
+      @if (current) {
+        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="go(null)">New</button>
+      }
       <label class="btn btn-sm btn-outline-secondary mb-0" title="Open a .monodi-analysis.json file">
-        <i class="bi bi-upload me-1"></i>Import
+        Import
         <input type="file" accept=".json,.monodi-analysis.json,application/json" class="d-none" (change)="importFile($event)" />
       </label>
     </div>
@@ -36,33 +39,31 @@
 
   @if (!current) {
     <!-- ─── Start: choose the corpus ─── -->
-    <p class="text-muted small">Choose documents, tick the methods to run, and keep the result as a named analysis that opens again without computing.</p>
     <section class="card shadow-sm mb-3" aria-labelledby="start-heading">
       <div class="card-body">
-        <h5 id="start-heading" class="card-title">Choose the documents</h5>
+        <h2 id="start-heading" class="analysis-label">Documents</h2>
         <div class="d-flex flex-column gap-2">
           <label class="d-flex align-items-center gap-2">
             <input type="radio" class="form-check-input mt-0" name="start" value="selection" [(ngModel)]="startMode" />
-            <span><strong>My selection</strong> from the search page: {{ selectionCount | number }} document(s)</span>
+            <span>Selection: {{ selectionCount | number }}</span>
           </label>
           <label class="d-flex align-items-center gap-2" [class.text-muted]="hitsCount === 0">
             <input type="radio" class="form-check-input mt-0" name="start" value="hits" [(ngModel)]="startMode" [disabled]="hitsCount === 0" />
-            <span><strong>The hits</strong> of the last search opened from there: {{ hitsCount | number }} document(s)
-              @if (hitsCount === 0) { <em>(use "Analysis…" on the search page)</em> }</span>
+            <span>Hits of the last search: {{ hitsCount | number }}</span>
           </label>
           <label class="d-flex align-items-center gap-2">
             <input type="radio" class="form-check-input mt-0" name="start" value="sources" [(ngModel)]="startMode" />
-            <span><strong>Sources</strong> picked below</span>
+            <span>Sources</span>
           </label>
           <label class="d-flex align-items-center gap-2">
             <input type="radio" class="form-check-input mt-0" name="start" value="all" [(ngModel)]="startMode" />
-            <span><strong>Every document</strong> of the workspace: {{ selSvc.allDocs().length | number }}</span>
+            <span>All documents: {{ selSvc.allDocs().length | number }}</span>
           </label>
         </div>
 
         @if (startMode === 'sources') {
           <div class="mt-3 border rounded p-2">
-            <input type="search" class="form-control form-control-sm mb-2" placeholder="Filter the sources…" [(ngModel)]="sourceFilter" aria-label="Filter the sources" />
+            <input type="search" class="form-control form-control-sm mb-2" placeholder="Filter" [(ngModel)]="sourceFilter" aria-label="Filter the sources" />
             <app-selection-bar [universe]="filteredSourceIds" [selection]="sourcePick" noun="sources"></app-selection-bar>
             <div class="mt-2 overflow-auto" style="max-height: 260px; columns: 3 240px;">
               @for (s of filteredSources; track s.id) {
@@ -77,16 +78,12 @@
 
         <div class="mt-3 d-flex align-items-center gap-3">
           <button type="button" class="btn btn-primary" (click)="createFromStart()" [disabled]="startIds.length === 0">
-            Create an analysis of {{ startIds.length | number }} document(s)
+            Create analysis ({{ startIds.length | number }})
           </button>
           @if (startIds.length > 5000) {
-            <span class="text-warning small">A large corpus. Reading the documents takes time; results are kept.</span>
+            <span class="text-muted small">Reading this many documents takes time.</span>
           }
         </div>
-        <p class="small text-muted mt-3 mb-0">
-          Nothing is computed until methods are ticked and run. Each result is saved with a fingerprint of the documents it was computed from,
-          so a saved analysis is opened without recomputing.
-        </p>
       </div>
     </section>
   } @else {
@@ -99,11 +96,11 @@
           <span class="flex-grow-1"></span>
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="checkChanges()" [disabled]="checking || busy || records.size === 0"
             title="Read the documents again and compare them with what the stored results were computed from">
-            @if (checking) { <span class="spinner-border spinner-border-sm me-1"></span>{{ checkProgress.done | number }} / {{ checkProgress.total | number }} } @else { <i class="bi bi-arrow-repeat me-1"></i>Check for changes }
+            @if (checking) { <span class="spinner-border spinner-border-sm me-1"></span>{{ checkProgress.done | number }} / {{ checkProgress.total | number }} } @else { Check for changes }
           </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="duplicate()" title="Duplicate"><i class="bi bi-files"></i></button>
           <div ngbDropdown class="btn-group">
-            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="export(true)" title="Write the analysis with its results to a file"><i class="bi bi-download me-1"></i>Export</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="export(true)" title="Write the analysis with its results to a file">Export</button>
             <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle-split" ngbDropdownToggle aria-label="More export options"></button>
             <div ngbDropdownMenu><button type="button" ngbDropdownItem (click)="export(false)">Without results (corpus and methods only)</button></div>
           </div>
@@ -118,29 +115,25 @@
       <div class="card-body py-2">
         <div class="d-flex flex-wrap align-items-center gap-2">
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="methodsOpen = !methodsOpen" [attr.aria-expanded]="methodsOpen">
-            <i class="bi" [class.bi-chevron-down]="methodsOpen" [class.bi-chevron-right]="!methodsOpen"></i>
-            <span id="methods-heading" class="ms-1">Methods</span> <span class="badge bg-secondary ms-1">{{ ticked.length }}</span>
+            <span id="methods-heading">Methods</span> <span class="badge bg-secondary ms-1">{{ ticked.length }}</span>
           </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="filtersOpen = !filtersOpen" [attr.aria-expanded]="filtersOpen" title="Leave chants and words out of every method">
-            <i class="bi bi-funnel me-1"></i>Leave out <span class="small text-muted ms-1">{{ filterSummary }}</span>
+            Leave out <span class="small text-muted ms-1">{{ filterSummary }}</span>
           </button>
           <span class="flex-grow-1"></span>
           <span class="small text-muted">{{ pending.length }} to compute</span>
           @if (busy) { <button type="button" class="btn btn-sm btn-outline-danger" (click)="cancelRun()">Cancel</button> }
           <button type="button" class="btn btn-primary btn-sm" (click)="run()" [disabled]="busy || ticked.length === 0"
             title="Computes the ticked methods that have no valid stored result; the others are reused">
-            @if (busy) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-play-fill me-1"></i> }
-            Run ticked methods
+            @if (busy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            Run
           </button>
         </div>
 
         @if (filtersOpen) {
           <div class="mt-3 border-top pt-3" id="leave-out">
             <h6 class="mb-1">Leave out chants</h6>
-            <p class="small text-muted mb-2">
-              Chants that are always the same (a Kyrie, a Gloria, a psalm tone) make noise in every count. A rule leaves out every chant whose field matches,
-              from every method and from the corpus search. {{ excludedCount | number }} of {{ current.corpus.docIds.length | number }} chants are left out now.
-            </p>
+            <p class="small text-muted mb-2">{{ excludedCount | number }} of {{ current.corpus.docIds.length | number }} chants left out.</p>
             @for (r of filters.exclude; track $index) {
               <div class="d-flex align-items-center gap-2 mb-1 small">
                 <span class="badge bg-light text-dark border">{{ fieldLabel(r.field) }} {{ r.mode === 'equals' ? 'is' : 'contains' }} “{{ r.value }}”</span>
@@ -169,7 +162,7 @@
               </div>
             </div>
             @if (valueChips.length > 0) {
-              <div class="mt-2 small text-muted">Most frequent in “{{ fieldLabel(newRule.field) }}” — click to leave out:</div>
+              <div class="mt-2 small text-muted">Most frequent:</div>
               <div class="d-flex flex-wrap gap-1 mt-1">
                 @for (c of valueChips; track c.value) {
                   <button type="button" class="btn btn-sm py-0" [class.btn-outline-secondary]="!isExcludedValue(c.value)" [class.btn-secondary]="isExcludedValue(c.value)"
@@ -179,7 +172,6 @@
             }
 
             <h6 class="mt-3 mb-1">Leave out words (stop words)</h6>
-            <p class="small text-muted mb-2">Words that are left out of every word count, word pattern and word comparison. The melody is not touched.</p>
             <div class="form-check mb-1">
               <input class="form-check-input" type="checkbox" id="stop-builtin" [checked]="filters.stopWords.builtIn" (change)="setBuiltInStopWords($any($event.target).checked)" />
               <label class="form-check-label small" for="stop-builtin">Latin function words ({{ stopWordCount }}: et, in, ad, cum, non, est, qui, quae …)</label>
@@ -239,9 +231,9 @@
     <!-- ─── Results ─── -->
     <section class="card shadow-sm mb-3" aria-labelledby="results-heading">
       <div class="card-body">
-        <h5 id="results-heading" class="mb-2">Results</h5>
+        <h2 id="results-heading" class="analysis-label">Results</h2>
         @if (records.size === 0) {
-          <p class="text-muted mb-0">No result yet. Open <em>Methods</em>, tick methods and run them.</p>
+          <p class="text-muted mb-0">No results.</p>
         } @else {
           <ul class="nav nav-pills flex-wrap gap-1 mb-3" aria-label="Methods with results">
             @for (m of current.methods; track m.id) {
@@ -249,7 +241,7 @@
                 <li class="nav-item">
                   <button type="button" class="nav-link py-1 px-2 small" [class.active]="shown === m.id" (click)="showMethod(m.id)" [title]="allMethodTitle(m.id)">
                     {{ shortTitle(m.id) }}
-                    @if (statusOf(m.id).state === 'stale') { <i class="bi bi-exclamation-triangle-fill text-warning ms-1" title="Out of date"></i> }
+                    @if (statusOf(m.id).state === 'stale') { <span class="ms-1" title="Out of date">*</span> }
                   </button>
                 </li>
               }
@@ -257,18 +249,18 @@
           </ul>
           @if (shownRecord; as rec) {
             <div class="small text-muted mb-2" [title]="provenance(rec)">
-              <i class="bi bi-info-circle me-1"></i>{{ provenance(rec) }}
+              {{ provenance(rec) }}
             </div>
             @if (statusOf(rec.methodId).state === 'stale') {
               <div class="alert alert-warning py-2 small d-flex align-items-center justify-content-between">
-                <span><strong>Out of date:</strong> {{ $any(statusOf(rec.methodId)).reason }} The result below was computed from the earlier state.</span>
+                <span>Out of date: {{ $any(statusOf(rec.methodId)).reason }}</span>
                 <button type="button" class="btn btn-sm btn-warning" (click)="recompute(rec.methodId)" [disabled]="busy">Recompute</button>
               </div>
             }
             <!-- The settings of this result, where the result is: change them and recompute -->
             <div class="result-settings border rounded p-2 mb-3" [class.border-primary]="paramsChanged(rec.methodId)">
               <div class="d-flex flex-wrap align-items-center gap-1">
-                <span class="small fw-semibold text-secondary me-1"><i class="bi bi-sliders me-1"></i>Settings</span>
+                <span class="small fw-semibold text-secondary me-1">Settings</span>
                 @for (c of paramChips(rec.methodId); track c.label) {
                   <span class="badge bg-light text-dark border fw-normal" [title]="c.label">{{ c.label }}: <strong>{{ c.value }}</strong></span>
                 }
@@ -277,33 +269,25 @@
                 @if (paramsChanged(rec.methodId)) {
                   <span class="small text-primary">settings changed</span>
                   <button type="button" class="btn btn-sm btn-primary" (click)="run([rec.methodId])" [disabled]="busy">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Recompute with these settings
+                    Recompute with these settings
                   </button>
                 }
               </div>
               @if (settingsOpen && shownMethod; as sm) {
                 <div class="mt-2"><app-param-form [method]="sm" [values]="paramsOf(rec.methodId)" [fields]="fields" (changed)="setParams(rec.methodId, $event)"></app-param-form></div>
-                <div class="mt-2 d-flex gap-2">
-                  <button type="button" class="btn btn-sm btn-primary" (click)="run([rec.methodId]); settingsOpen = false" [disabled]="busy || !paramsChanged(rec.methodId)">Recompute with these settings</button>
-                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="settingsOpen = false">Close</button>
-                </div>
               }
-              <div class="small text-muted mt-1">
-                <i class="bi bi-funnel me-1"></i>Left out: {{ filterSummary }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1" (click)="openLeaveOut()">Change</button>
-              </div>
             </div>
             <p class="mb-2"><strong>{{ rec.result.summary }}</strong>
               <span class="text-muted small">computed in {{ rec.durationMs / 1000 | number: '1.1-1' }} s, stored {{ formatBytes(rec.bytes) }}</span></p>
-            @for (n of rec.result.notes; track $index) { <p class="small text-muted mb-1"><i class="bi bi-dot"></i>{{ n }}</p> }
+            @for (n of rec.result.notes; track $index) { <p class="small text-muted mb-1">{{ n }}</p> }
             <div class="d-flex flex-column gap-4 mt-3">
               @for (v of rec.result.views; track $index) {
                 <app-result-view [view]="v" [fileStem]="current.name" (openDocs)="openDocs($event)" (searchPattern)="searchPattern($event)"></app-result-view>
               }
             </div>
             <p class="small text-muted mt-3 mb-0">
-              <i class="bi bi-journal-text me-1"></i>Method: <strong>{{ shownMethod?.title }}</strong>, version {{ rec.methodVersion }}
-              · <a [href]="softwareUrl" target="_blank" rel="noopener">Monodi-Zero analysis library</a>
+              Method: <strong>{{ shownMethod?.title }}</strong>, version {{ rec.methodVersion }}
+              · <a [href]="softwareUrl" target="_blank" rel="noopener">monodi analysis library</a>
               · <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="openAlgorithm(algoModal)">Algorithm and references</button>
             </p>
             <ng-template #algoModal let-modal>
@@ -314,24 +298,16 @@
               <div class="modal-body">
                 @if (report(rec); as r) {
                   <div class="d-flex flex-wrap gap-2 mb-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyReport(rec, 'text')"><i class="bi bi-clipboard me-1"></i>Copy text</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyReport(rec, 'latex')"><i class="bi bi-clipboard me-1"></i>Copy LaTeX</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyReport(rec, 'bibtex')"><i class="bi bi-clipboard me-1"></i>Copy BibTeX</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyReport(rec, 'text')">Copy text</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyReport(rec, 'latex')">Copy LaTeX</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="copyReport(rec, 'bibtex')">Copy BibTeX</button>
                   </div>
                   <pre class="algo-text small mb-0">{{ r.text }}</pre>
                 }
               </div>
             </ng-template>
-            <div class="mt-3">
-              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="recompute(rec.methodId)" [disabled]="busy"><i class="bi bi-arrow-clockwise me-1"></i>Recompute this method</button>
-            </div>
           }
         }
-        <hr>
-        <p class="small text-muted mb-0">
-          These results are an aid to scholarly reading, not findings: every figure needs interpretation against the sources.
-          Melodies are read as the first voice without accidentals and latent notes (see the manual, Analysis).
-        </p>
       </div>
     </section>
 
@@ -339,10 +315,9 @@
     <section class="card shadow-sm mb-3" id="corpus-card" aria-labelledby="corpus-heading">
       <div class="card-body">
         <div class="d-flex align-items-center justify-content-between">
-          <h5 id="corpus-heading" class="mb-0">Search the corpus</h5>
+          <h2 id="corpus-heading" class="analysis-label mb-0">Documents of this analysis</h2>
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="corpusOpen = !corpusOpen">{{ corpusOpen ? 'Hide' : 'Show' }}</button>
         </div>
-        <p class="small text-muted mt-1 mb-0">List and filter the {{ current.corpus.docIds.length | number }} documents of this analysis, or find the chants that contain a melodic pattern.</p>
         @if (corpusOpen) {
           <div class="mt-3">
             <app-corpus-panel [def]="current" [docs]="corpusDocs" [sources]="sources" [token]="user?.token ?? ''" [request]="patternRequest" (openDocs)="openDocs($event)"></app-corpus-panel>

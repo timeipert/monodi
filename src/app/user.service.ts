@@ -22,7 +22,7 @@ export class UserService {
 
   public logout(): void {
     // Local app doesn't really log out
-    this.router.navigate(['/']);
+    this.router.navigate(['/sources']);
   }
 }
 

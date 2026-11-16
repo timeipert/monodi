@@ -1,5 +1,5 @@
 <h1 id="use-cases">Use Cases</h1>
-<p class="lead">To help you get the most out of Monodi-Zero, here are step-by-step guides for common research workflows.</p>
+<p class="lead">To help you get the most out of monodi, here are step-by-step guides for common research workflows.</p>
 
 <h2 id="use-case-1-transcribing-a-melody-and-printing-it-as-pdf">Use Case 1: Transcribing a Melody and Printing it as PDF</h2>
 <p>Imagine you have a single manuscript page that you want to transcribe, preview, and then save as a cleanly formatted PDF document for a presentation or publication.</p>
@@ -35,7 +35,7 @@
 <hr>
 
 <h2 id="use-case-2-setting-up-a-collaborative-team-project">Use Case 2: Setting up a Collaborative Team Project</h2>
-<p>If you are working with a group of researchers or students, you need a way to share data securely and track everyone's changes. Monodi-Zero natively integrates with <strong>GitHub</strong> to act as a backend database.</p>
+<p>If you are working with a group of researchers or students, you need a way to share data securely and track everyone's changes. monodi natively integrates with <strong>GitHub</strong> to act as a backend database.</p>
 
 <h3 id="step-1-create-a-github-repository">Step 1: Create a GitHub Repository</h3>
 <ol>
@@ -43,8 +43,8 @@
   <li>Invite all your team members as <strong>collaborators</strong> to this repository.</li>
 </ol>
 
-<h3 id="step-2-configure-monodi-zero">Step 2: Configure Monodi-Zero</h3>
-<p>Each team member must configure their local Monodi-Zero instance to connect to this repository:</p>
+<h3 id="step-2-configure-monodi">Step 2: Configure monodi</h3>
+<p>Each team member must configure their local monodi instance to connect to this repository:</p>
 <ol>
   <li>Click on <strong>Settings</strong> in the top navigation bar.</li>
   <li>In the <strong>GitHub Synchronization</strong> section, enter the repository name (e.g., <code>username/my-monodi-project</code>).</li>
@@ -55,17 +55,17 @@
 <p>Once connected, a "Sync" indicator will appear in the top navigation bar. Here is the daily workflow for your team:</p>
 <ul>
   <li><strong>Start of the Day</strong>: Click the <strong>Pull</strong> button (cloud with a down arrow) to pull the latest changes that other team members made.</li>
-  <li><strong>Working</strong>: Work normally. Monodi-Zero saves all changes to your local browser storage instantly, so you never lose work if you close the tab.</li>
+  <li><strong>Working</strong>: Work normally. monodi saves all changes to your local browser storage instantly, so you never lose work if you close the tab.</li>
   <li><strong>End of the Day</strong>: Click the <strong>Push</strong> button (cloud with an up arrow) to upload your daily work to GitHub.</li>
 </ul>
 
 <h3 id="resolving-conflicts">Resolving Conflicts</h3>
-<p>Because Monodi-Zero stores each document as a separate JSON file, team members can work on different documents simultaneously without issue. If two members edit the <em>exact same document</em> at the same time, the last person to Push will be warned to Pull and resolve the changes first.</p>
+<p>Because monodi stores each document as a separate JSON file, team members can work on different documents simultaneously without issue. If two members edit the <em>exact same document</em> at the same time, the last person to Push will be warned to Pull and resolve the changes first.</p>
 
 <hr>
 
 <h2 id="use-case-3-comparative-variant-analysis-via-critical-apparatus">Use Case 3: Melodic Variant Analysis via the Critical Apparatus</h2>
-<p>As a musicologist, you often need to document spelling or melodic differences between your primary manuscript source and other concordant sources. Monodi-Zero allows you to build a structured critical apparatus directly inline.</p>
+<p>As a musicologist, you often need to document spelling or melodic differences between your primary manuscript source and other concordant sources. monodi allows you to build a structured critical apparatus directly inline.</p>
 
 <h3 id="step-1-select-melodic-segment">Step 1: Select the Target Syllable or Note</h3>
 <p>Identify the syllable in your transcription editor where the variant occurs. Focus on that syllable or its notes in the editor.</p>
@@ -94,7 +94,7 @@
 <hr>
 
 <h2 id="use-case-4-reconstructing-damaged-folios">Use Case 4: Reconstructing Damaged Folios</h2>
-<p>Liturgical manuscripts are often centuries old and suffer from physical damage (tears, ink fading, or water stains). Monodi-Zero combines image annotation with critical apparatus markup to support editorial reconstruction.</p>
+<p>Liturgical manuscripts are often centuries old and suffer from physical damage (tears, ink fading, or water stains). monodi combines image annotation with critical apparatus markup to support editorial reconstruction.</p>
 
 <h3 id="reconstruction-step-1">Step 1: Map the Damaged Area</h3>
 <p>Open the document in <strong>Split Screen</strong> mode. Zoom in on the damaged section of the manuscript in the IIIF viewer. Draw an annotation zone covering the illegible stave or text fragment and click <strong>Link</strong>.</p>
@@ -116,13 +116,13 @@
 <hr>
 
 <h2 id="use-case-5-classroom-pedagogical-corpus-transcription">Use Case 5: Classroom &amp; Pedagogical Corpus Transcription</h2>
-<p>Instructors teaching paleography or medieval musicology can use Monodi-Zero to collaborate on class-wide transcription projects, tracking student work via GitHub.</p>
+<p>Instructors teaching paleography or medieval musicology can use monodi to collaborate on class-wide transcription projects, tracking student work via GitHub.</p>
 
 <h3 id="class-step-1">Step 1: Set up the Course Repository</h3>
 <p>The instructor creates a GitHub repository (e.g., <code>university-chant-project-2026</code>) and commits a set of empty source documents (holding only metadata, IIIF links, and blank staffs).</p>
 
 <h3 id="class-step-2">Step 2: Connect Student Instances</h3>
-<p>Each student connects their browser's Monodi-Zero instance to the central repository under **Settings**, using their personal GitHub account credentials.</p>
+<p>Each student connects their browser's monodi instance to the central repository under **Settings**, using their personal GitHub account credentials.</p>
 
 <h3 id="class-step-3">Step 3: Assigned Transcription Workflow</h3>
 <ol>
@@ -138,7 +138,7 @@
 <hr>
 
 <h2 id="use-case-6-importing-a-corpus-and-analyzing-formulas">Use Case 6: Importing an Existing Corpus and Analyzing Melodic Formulas</h2>
-<p>Suppose you have received a large chant corpus as a ZIP export (from another Monodi instance or an OMMR4all project) and want to study recurring melodic formulas within one genre.</p>
+<p>Suppose you have received a large chant corpus as a ZIP export (from another monodi instance or an OMMR4all project) and want to study recurring melodic formulas within one genre.</p>
 
 <h3 id="import-step-1">Step 1: Import the ZIP</h3>
 <ol>

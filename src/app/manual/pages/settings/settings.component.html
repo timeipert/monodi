@@ -1,11 +1,11 @@
 <h1 id="settings-customization">Settings &amp; Customization</h1>
-<p class="lead">Monodi-Zero is highly customizable, allowing researchers to adapt it to their projects' specific metadata schemes, liturgy structures, print layouts, and XML schemas.</p>
+<p class="lead">monodi is highly customizable, allowing researchers to adapt it to their projects' specific metadata schemes, liturgy structures, print layouts, and XML schemas.</p>
 
 <h2 id="settings-tabs">Configuration Tabs</h2>
 <p>Click on <strong>Settings</strong> in the main navigation bar to configure the following areas:</p>
 
 <h3 id="metadata-schemas">1. Metadata Schemas</h3>
-<p>Each musicological project has different indexing requirements. Monodi-Zero lets you customize the database fields:</p>
+<p>Each musicological project has different indexing requirements. monodi lets you customize the database fields:</p>
 <ul>
   <li><strong>Predefined Values</strong>: Add dropdown options for standard fields (like Origin, Order, Feast Day, or Genre) to ensure consistent spelling and cataloging among different transcribers.</li>
   <li><strong>Custom Fields</strong>: Need to store something else (like <i>Composer</i>, <i>Scribe</i>, or a <i>Cantus ID</i>)? Click <strong>New Custom Field</strong>, choose whether it applies to the parent Source or individual child Documents, and name it. It will instantly appear in the metadata panel.</li>
@@ -37,11 +37,11 @@
 </ul>
 
 <h3 id="mei-tag-mappings">5. MEI XML Export Profiles</h3>
-<p>If you need to load your Monodi-Zero transcriptions into external rendering suites (such as Verovio or MEI databases), you can fully customize the generated XML structure using the graphical MEI mapping editor.</p>
+<p>If you need to load your monodi transcriptions into external rendering suites (such as Verovio or MEI databases), you can fully customize the generated XML structure using the graphical MEI mapping editor.</p>
 <p><i>Note for scholars: The default profile targets the MEI neume module (MEI 5.0). Existing exports are unchanged unless the profile is edited.</i></p>
 <ul>
   <li><strong>Profile Management</strong>: Create, duplicate, rename, or delete mapping profiles. You can also export a profile as JSON to share with colleagues or import an external profile. The "active profile" determines the output of your exports.</li>
-  <li><strong>Entity Tree</strong>: The left column displays the structural hierarchy of Monodi (from Document Skeleton down to Notes and Paratext). You can toggle the "enable" checkbox on any entity to include or exclude it from the final XML output.</li>
+  <li><strong>Entity Tree</strong>: The left column displays the structural hierarchy of monodi (from Document Skeleton down to Notes and Paratext). You can toggle the "enable" checkbox on any entity to include or exclude it from the final XML output.</li>
   <li><strong>Rule Editor</strong>: Select an entity in the tree to edit its rules in the middle column. Here you can define the XML <code>tag</code>, manage nested <code>wrappers</code> around the entity, and bind XML attributes to static strings or dynamic data fields using the bounded field vocabulary. You can also dictate where the element's inner text content is pulled from.</li>
   <li><strong>Document Skeleton</strong>: At the root of the tree, you can define the outermost wrapping tags for the entire exported XML document (e.g. <code>&lt;mei&gt;</code> and <code>&lt;music&gt;</code>).</li>
   <li><strong>Live Validated Preview</strong>: The right column renders a live, formatted preview of your current configuration using a sample document. The system instantly validates your rules, providing amber warnings for empty tags, duplicate attributes, or invalid field bindings, and red alerts if the configuration generates invalid XML structure.</li>
@@ -67,7 +67,7 @@
 <hr class="my-4">
 
 <h2 id="undo-redo-system">Undo &amp; Redo System</h2>
-<p>To protect your transcription data, Monodi-Zero tracks every edit, insertion, and structural split in an in-memory **Undo/Redo Stack**:</p>
+<p>To protect your transcription data, monodi tracks every edit, insertion, and structural split in an in-memory **Undo/Redo Stack**:</p>
 <ul>
   <li><strong>History Size</strong>: Configure how many steps are kept in history (default is <code>15</code>) under <i>Editor settings</i>.</li>
   <li><strong>Scope</strong>: History covers pitch changes, note insertions, line splits, clef adjustments, syllable spelling edits, and comment updates.</li>

@@ -2,14 +2,14 @@ import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 import { CommentComponent } from './comment.component';
 import { FormsModule } from '@angular/forms';
 import { NgbActiveModal, NgbModule, NgbPopoverModule } from '@ng-bootstrap/ng-bootstrap';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { CUSTOM_ELEMENTS_SCHEMA, NO_ERRORS_SCHEMA } from '@angular/core';
 
 describe('CommentComponent', () => {
   let component: CommentComponent;
   let fixture: ComponentFixture<CommentComponent>;
 
-  const mockToastrService = {
+  const mockStatusLineService = {
     warning: () => {},
     info: () => {},
     error: () => {},
@@ -27,7 +27,7 @@ describe('CommentComponent', () => {
       imports: [ FormsModule, NgbModule, NgbPopoverModule ],
       schemas: [ NO_ERRORS_SCHEMA, CUSTOM_ELEMENTS_SCHEMA ],
       providers: [
-        { provide: ToastrService, useValue: mockToastrService },
+        { provide: StatusLineService, useValue: mockStatusLineService },
         { provide: NgbActiveModal, useValue: mockActiveModal }
       ]
     })

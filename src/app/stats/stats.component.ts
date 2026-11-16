@@ -8,6 +8,7 @@ import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import * as localforage from 'localforage';
 import { IdSelection } from '../selection/selection-set';
+import { PageTitleService } from '../page-title.service';
 
 export interface Occurence {
   patternId: string;
@@ -118,10 +119,12 @@ export class StatsComponent implements OnInit, OnDestroy {
     private userService: UserService,
     private navService: NavigationService,
     private route: ActivatedRoute,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private pageTitle: PageTitleService,
   ) {}
 
   ngOnInit(): void {
+    this.pageTitle.set('Neume statistics');
     // Set up debounced filtering (300ms)
     this.filterSub = this.filterSubject.pipe(
       debounceTime(300)
@@ -245,15 +248,6 @@ export class StatsComponent implements OnInit, OnDestroy {
 
   onFilterChange() {
     this.filterSubject.next();
-  }
-
-  resetFilters() {
-    this.sourceSearchText = '';
-    this.patternSearchText = '';
-    this.minFrequency = 1;
-    this.sourceSel.replace(this.sources.map(s => s.id ?? ''));
-    // Reset immediately for better responsiveness
-    this.applyFilters();
   }
 
   async loadStats() {

@@ -63,9 +63,7 @@
           @if (isAnalyzingLayout) {
             <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
           }
-          @if (!isAnalyzingLayout) {
-            <i class="bi bi-magic me-1"></i>
-            }Auto-Detect Layout
+          Auto-Detect Layout
           </button>
           @if (activeLayer === 'transcription') {
             <!-- Tools are now floating -->
@@ -73,22 +71,22 @@
           <!-- Regions mode (Only in Notation layer) -->
           @if (activeLayer === 'notation' && viewMode === 'regions') {
             <span class="text-muted small">
-              <i class="bi bi-pencil-square me-1"></i>Draw a box to mark a line region
+              Draw a box to mark a line region
             </span>
           }
           <!-- Items mode (Only in Notation layer) -->
           @if (activeLayer === 'notation' && viewMode === 'items' && activeRegion) {
             <button class="btn btn-sm btn-outline-secondary me-2" (click)="backToRegions()">
-              <i class="bi bi-arrow-left me-1"></i>Regions
+              Back to regions
             </button>
             <span class="fw-semibold small me-3">{{ activeRegion.name }}</span>
             <span class="small" [class.text-danger]="!activePattern"
               [class.text-muted]="!!activePattern">
               @if (!activePattern) {
-                <i class="bi bi-exclamation-circle me-1"></i>Select a pattern first
+                Select a pattern first
               }
               @if (activePattern) {
-                <i class="bi bi-crosshair me-1"></i>Drawing:
+                Drawing:
                 <app-svg-pattern [pattern]="activePattern" class="topbar-svg-pattern"></app-svg-pattern>
                 <strong class="ms-1">{{ activePattern }}@if (activeVariant) {
                   <span> {{ activeVariant }}</span>
@@ -115,7 +113,7 @@
           [class.btn-primary]="showGallery"
           [class.btn-outline-secondary]="!showGallery"
           (click)="showGallery = !showGallery">
-          <i class="bi bi-images me-1"></i>Gallery
+          Gallery
           @if ((source?.annotationItems?.length || 0) > 0) {
             <span class="badge bg-secondary ms-1">
               {{ source?.annotationItems?.length }}
@@ -135,7 +133,7 @@
           <button class="btn btn-primary btn-sm ms-2"
             [disabled]="!pendingRegionName.trim()"
             (click)="confirmRegion()">
-            <i class="bi bi-check-lg me-1"></i>Save &amp; Annotate
+            Save &amp; Annotate
           </button>
           <button class="btn btn-outline-secondary btn-sm ms-1"
           (click)="cancelPendingRegion()">Cancel</button>
@@ -189,7 +187,7 @@
                 <span class="gallery-loc">{{ g.region?.name || '?' }}, p.{{ g.canvasIdx + 1 }}</span>
                 @if (g.linked) {
                   <span class="gallery-linked">
-                    <i class="bi bi-link-45deg"></i>{{ g.linked.syllable }}
+                    {{ g.linked.syllable }}
                   </span>
                 }
               </div>
@@ -520,7 +518,7 @@
                     {{ currentCanvasImage }}
                   </code>
                   <button class="btn btn-sm btn-outline-light mt-3" (click)="retryImage()">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                    Retry
                   </button>
                 </div>
               }
@@ -604,7 +602,7 @@
               <!-- LINKER panel -->
               @if (linkingItemId) {
                 <div class="tool-section linker-section">
-                  <div class="tool-label"><i class="bi bi-link-45deg me-1"></i>Link to neume</div>
+                  <div class="tool-label">Link to neume</div>
                   <div class="text-muted small mb-2">
                     Pattern: <strong>{{ linkingItemDisplayId() }}</strong>
                   </div>

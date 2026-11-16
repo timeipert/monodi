@@ -90,7 +90,7 @@ export function parseExchange(json: string | any): ExchangeFile {
     throw new Error('This is not an annotation file from the Neumen-Editor.');
   }
   if (typeof data.version !== 'number' || data.version > EXCHANGE_VERSION) {
-    throw new Error('This file was written by a newer version of the Neumen-Editor. Update Monodi-Zero to read it.');
+    throw new Error('This file was written by a newer version of the Neumen-Editor. Update monodi to read it.');
   }
   return { ...data, sources: Array.isArray(data.sources) ? data.sources : [] } as ExchangeFile;
 }

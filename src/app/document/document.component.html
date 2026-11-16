@@ -38,19 +38,19 @@
           <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-quote me-2 text-primary"></i>Cite this chant</h5>
+                <h5 class="modal-title">Cite this chant</h5>
                 <button type="button" class="btn-close" (click)="showCiteDialog = false"></button>
               </div>
               <div class="modal-body">
                 <p class="text-muted small">Rudimentary citation suggestions — please adapt to your style guide.</p>
                 <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
                   <span>Citation</span>
-                  <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationText())"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                  <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationText())">Copy</button>
                 </label>
                 <textarea class="form-control form-control-sm mb-3" rows="3" readonly>{{ citationText() }}</textarea>
                 <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
                   <span>BibTeX</span>
-                  <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationBibtex())"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                  <button class="btn btn-sm btn-outline-primary" (click)="copyCitation(citationBibtex())">Copy</button>
                 </label>
                 <textarea class="form-control form-control-sm font-monospace" rows="9" readonly style="font-family: monospace;">{{ citationBibtex() }}</textarea>
               </div>
@@ -65,7 +65,7 @@
       @if (activeHighlight) {
         <div class="alert alert-info border shadow-sm mb-4 py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="fw-semibold text-primary"><i class="bi bi-search me-1"></i>Search Pattern Highlights Active:</span>
+            <span class="fw-semibold text-primary">Search Pattern Highlights Active:</span>
             <span class="badge bg-white text-dark border font-monospace" style="font-size: 0.85rem;">{{activeHighlight.patternLabel}}</span>
             <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
               {{activeHighlight.occurrences.length}} {{activeHighlight.occurrences.length === 1 ? 'instance' : 'instances'}} highlighted
@@ -85,7 +85,7 @@
             }
           </div>
           <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" (click)="clearHighlights()">
-            <i class="bi bi-x-circle me-1 text-danger"></i>Clear Highlights
+            Clear Highlights
           </button>
         </div>
       }
@@ -199,7 +199,7 @@
                       <button type="button" class="btn btn-outline-secondary" [class.active]="meiPrefs.view === 'overview'" (click)="setMeiPref({view: 'overview'})" title="Every attribute value and flag of this document, with counts; click one to highlight its notes">Overview</button>
                     </div>
                     <span class="mei-switches">
-                      <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.showGenerated" (click)="setMeiPref({showGenerated: !meiPrefs.showGenerated})" [attr.aria-pressed]="meiPrefs.showGenerated" title="Note view: also show the attributes the export generates from the Monodi data (grey rows)"><i class="bi bi-lock-fill"></i></button>
+                      <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.showGenerated" (click)="setMeiPref({showGenerated: !meiPrefs.showGenerated})" [attr.aria-pressed]="meiPrefs.showGenerated" title="Note view: also show the attributes the export generates from the monodi data (grey rows)"><i class="bi bi-lock-fill"></i></button>
                       <button type="button" class="btn btn-sm mei-switch" [class.on]="meiPrefs.markInStaff" (click)="setMeiPref({markInStaff: !meiPrefs.markInStaff})" [attr.aria-pressed]="meiPrefs.markInStaff" title="Show the MEI attributes of notes in the staff: a drawing for tilt, curve, rellen, con, angled, hooked and ligated; a dot for every other attribute"><i class="bi bi-record-circle"></i></button>
                     </span>
                   </div>
@@ -355,7 +355,7 @@
                             }
                           </span>
                           <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 flex-shrink-0" (click)="editMeiAttributes(g.target)" title="Edit the attributes set by hand (and the flags of the note)">
-                            <i class="bi bi-pencil"></i><span class="mei-edit-label ms-1">Edit</span>
+                            <span class="mei-edit-label ms-1">Edit</span>
                           </button>
                         </header>
                         @let rows = meiVisibleRows(g);
@@ -369,7 +369,7 @@
                                 <span class="mei-attr-value">{{r.value}}</span>
                                 <span class="mei-attr-tools">
                                   <span class="mei-src-tag" [attr.data-src]="r.source === 'generated' ? 'mapping' : r.source"
-                                    [title]="r.source === 'hand' ? 'Set by hand' : r.source === 'flag' ? 'Written by the flag ' + r.flagKey : r.source === 'rule' ? 'Written by an annotation rule' : 'Generated from the Monodi data by the export mapping; set a value by hand to override it'">
+                                    [title]="r.source === 'hand' ? 'Set by hand' : r.source === 'flag' ? 'Written by the flag ' + r.flagKey : r.source === 'rule' ? 'Written by an annotation rule' : 'Generated from the monodi data by the export mapping; set a value by hand to override it'">
                                     @switch (r.source) { @case ('hand') { hand } @case ('flag') { flag {{r.flagKey}} } @case ('rule') { rule } @default { data } }
                                   </span>
                                   <button type="button" class="mei-tool" [class.on]="isMeiRowLens(g, r)" (click)="findMeiRow(g, r)" [title]="'Highlight every place with ' + r.name + '=&quot;' + r.value + '&quot;'" [attr.aria-label]="'Find ' + r.name + ' ' + r.value"><i class="bi bi-search"></i></button>
@@ -418,13 +418,13 @@
                   <!-- ② Add / Cancel button -->
                   @if (!isCommentCreationMode) {
                     <button class="btn btn-primary btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="startCommentCreation()">
-                      <i class="bi bi-plus-lg me-1"></i>Add Comment
+                      Add Comment
                       <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Ctrl+K</kbd>
                     </button>
                   }
                   @if (isCommentCreationMode) {
                     <button class="btn btn-warning btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="cancelCommentCreation()">
-                      <i class="bi bi-x-lg me-1"></i>Cancel comment creation
+                      Cancel comment creation
                       <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Esc</kbd>
                     </button>
                   }
@@ -434,7 +434,7 @@
                       class="btn btn-link btn-sm text-decoration-none text-muted p-0 mb-2 align-self-start"
                       (click)="reopenCommentHelp()"
                       style="font-size: 0.75rem;">
-                      <i class="bi bi-question-circle me-1"></i>How does adding a comment work?
+                      How does adding a comment work?
                     </button>
                   }
                   <!-- ④ Compact summary header above the list -->
@@ -492,14 +492,14 @@
                               class="category-badge text-white ms-1"
                               [style.background-color]="cat.color"
                               [attr.title]="cat.label">
-                              <i class="bi" [class]="cat.icon"></i>{{cat.label}}
+                              {{cat.label}}
                             </span>
                           }
                         </div>
                         <!-- Spanned text preview (the lemma) -->
                         @if (getCommentPreview(comment)) {
                           <div class="comment-lemma">
-                            <i class="bi bi-quote"></i>{{getCommentPreview(comment)}}
+                            {{getCommentPreview(comment)}}
                           </div>
                         }
                         <!-- Body preview -->
@@ -553,7 +553,7 @@
                   <div class="struct-card">
                     @if (getStructureTree(); as tree) {
                       <div class="struct-card-head justify-content-between">
-                        <span><i class="bi bi-diagram-3"></i>Hierarchy &amp; sections</span>
+                        <span>Hierarchy &amp; sections</span>
                         @if (tree.length) {
                           <span class="struct-count">{{ tree.length }}</span>
                         }
@@ -612,7 +612,7 @@
               Click a <strong>line-change</strong> in the transcription to link it to
               <strong class="ms-1">«{{ linkModeRegionName }}»</strong>
               <button class="btn btn-sm btn-outline-light ms-3 py-0" (click)="isLinkingMode = false">
-                <i class="bi bi-x me-1"></i>Cancel
+                Cancel
               </button>
             </div>
           }
@@ -638,8 +638,8 @@
         <div
           (mousedown)="startSplitDrag($event)"
           style="width: 8px; cursor: col-resize; background: var(--color-border); border-radius: 4px; margin: 0 -0.5rem; z-index: 10; transition: background 0.2s;"
-          onmouseover="this.style.background='#ced4da'"
-          onmouseout="this.style.background='#e9ecef'">
+          onmouseover="this.style.background='#d3d3d3'"
+          onmouseout="this.style.background='#ececec'">
         </div>
       }
       <!-- Right Column: Content -->
@@ -682,7 +682,7 @@
                 }
               </div>
               <button type="button" class="btn btn-sm btn-light ccb-cancel" (click)="cancelCommentCreation()" title="Cancel (Esc)">
-                <i class="bi bi-x-lg me-1"></i>Cancel
+                Cancel
                 <kbd class="ms-2">Esc</kbd>
               </button>
             </div>
@@ -708,15 +708,15 @@
                     <span class="srp-group-label">Search in</span>
                     <label class="srp-check" for="srScopeSyllables">
                       <input class="form-check-input" type="checkbox" id="srScopeSyllables" [(ngModel)]="searchScopeSyllables" (ngModelChange)="onSearchQueryChange()">
-                      <i class="bi bi-fonts"></i>Syllable text
+                      Syllable text
                     </label>
                     <label class="srp-check" for="srScopeNotes">
                       <input class="form-check-input" type="checkbox" id="srScopeNotes" [(ngModel)]="searchScopeNotes" (ngModelChange)="onSearchQueryChange()">
-                      <i class="bi bi-music-note-beamed"></i>Notes
+                      Notes
                     </label>
                     <label class="srp-check" for="srScopeParatext">
                       <input class="form-check-input" type="checkbox" id="srScopeParatext" [(ngModel)]="searchScopeParatext" (ngModelChange)="onSearchQueryChange()">
-                      <i class="bi bi-paragraph"></i>Paratext
+                      Paratext
                     </label>
                   </div>
                   <div class="srp-group" role="group" aria-label="Matching">
@@ -808,7 +808,7 @@
             <!-- Linking-mode highlight ring on the editor panel -->
             @if (splitScreen && isLinkingMode) {
               <div class="linking-mode-editor-hint">
-                <i class="bi bi-hand-index me-1"></i> Click a line-change below to link it
+                Click a line-change below to link it
               </div>
             }
             <div (focusout)="save()">
@@ -836,9 +836,6 @@
       <i class="bi" [ngClass]="spreadVoices ? 'bi-check-square' : 'bi-square'" aria-hidden="true"></i> Spread voices
     </button>
     <span class="editor-status-item" [class.editor-status-error]="saveError">{{saveStateLabel}}</span>
-    <span class="editor-status-item" [title]="isOnline ? 'Online' : 'Offline'">
-      <span class="editor-status-dot" [class.on]="isOnline"></span>{{isOnline ? 'Online' : 'Offline'}}
-    </span>
   </footer>
 }
 </div>
@@ -933,7 +930,7 @@
               <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatStandard" value="none" [(ngModel)]="exportJsonMode" style="float: left;">
               <div class="ms-4">
                 <label class="form-check-label fw-bold text-dark" for="formatStandard">
-                  Standard (Monodi-Zero)
+                  Standard (monodi)
                 </label>
                 <div class="text-muted small mt-1">Native two-voice file (recommended)</div>
               </div>

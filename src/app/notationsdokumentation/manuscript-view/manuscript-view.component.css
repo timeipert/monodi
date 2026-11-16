@@ -1,4 +1,4 @@
-.mv-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, 0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.mv-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(23, 23, 23, 0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .mv-dialog { background: var(--color-surface); border-radius: 12px; width: min(1040px, 100%); max-height: calc(100vh - 2rem); display: flex; flex-direction: column; overflow: hidden; }
 .mv-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--color-border); }
 .mv-body { padding: 1.1rem 1.25rem 1.4rem; overflow-y: auto; }

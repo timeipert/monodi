@@ -2,7 +2,7 @@ import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { NotesComponent } from './notes.component';
 import { FocusService } from '../focus.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { ToolsService } from '../tools.service';
 import { UndoService } from '../undoService';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
@@ -21,7 +21,7 @@ describe('NotesComponent', () => {
     mode: { kind: 'Normal' }
   };
 
-  const mockToastrService = {
+  const mockStatusLineService = {
     info: () => {},
     warning: () => {},
     error: () => {},
@@ -52,7 +52,7 @@ describe('NotesComponent', () => {
       declarations: [ NotesComponent ],
       providers: [
         { provide: FocusService, useValue: mockFocusService },
-        { provide: ToastrService, useValue: mockToastrService },
+        { provide: StatusLineService, useValue: mockStatusLineService },
         { provide: ToolsService, useValue: mockToolsService },
         { provide: UndoService, useValue: mockUndoService },
         { provide: NgbModal, useValue: mockNgbModal },

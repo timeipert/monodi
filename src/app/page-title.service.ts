@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 
-const APP_NAME = 'Monodi';
+const APP_NAME = 'monodi';
 
 @Injectable({ providedIn: 'root' })
 export class PageTitleService {

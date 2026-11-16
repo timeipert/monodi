@@ -4,7 +4,7 @@ import * as S from './Section';
 import * as Model from '../types/model';
 import * as MS from '../types/modelStorage';
 import { Event, PasteRequested, MoveRequested, NewCommentRequested } from './Event';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { Focusable } from "../types/Focus";
 import { focusNewChild } from "../../utils";
 import { ResolveCommentSpansRequested, CommentDeletionRequested, LineFocusShiftRequest } from "../types/CommonEvent";
@@ -27,7 +27,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
 
   private mapDropSub = new Subscription();
 
-  constructor(private toaster: ToastrService, private cdr: ChangeDetectorRef, undoService: UndoService, private dragState: DragStateService, private navService: NavigationService, private focusService: FocusService) {
+  constructor(private toaster: StatusLineService, private cdr: ChangeDetectorRef, undoService: UndoService, private dragState: DragStateService, private navService: NavigationService, private focusService: FocusService) {
     super("Edition unit", {
       StaleCommentRemovealRequested: (e: any, oldIndex: number) => { Model.removeStaleComments(this.data); },
       NewCommentRequested: (e: NewCommentRequested, oldIndex: number) => {

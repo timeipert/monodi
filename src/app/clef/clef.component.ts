@@ -3,7 +3,7 @@ import { AfterViewChecked, ChangeDetectorRef, Component, OnInit, OnDestroy, Chan
 import * as VM from '../types/model';
 import { ToolsService } from '../tools.service';
 import { assertNever } from '../../utils';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import * as R from '../notes/Request';
 import { FocusService } from '../focus.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
@@ -70,7 +70,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   constructor(
     private focusService: FocusService,
     private cdr: ChangeDetectorRef,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private toolsService: ToolsService,
     private undoService: UndoService,
     private modalService: NgbModal,
@@ -145,7 +145,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
 
   deleteClef(focusLast: boolean) {
     if (this.getActiveComments().length > 0) {
-      this.toastr.info("Please delete the comment before deleting the symbol.");
+      this.statusLine.info("Please delete the comment before deleting the symbol.");
     } else {
       this.request.emit({ kind: "DeletionRequested", focusLast });
     }
@@ -167,7 +167,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   startComment(): void {
     if (this.focusService.mode.kind === "Normal") {
       this.focusService.mode = { kind: "CommentCreate", startNoteUUID: this.model.uuid };
-      this.toastr.info("Now click the note where the comment should end.", "Pick the end note");
+      this.statusLine.info("Now click the note where the comment should end.", "Pick the end note");
     }
   }
 
@@ -178,6 +178,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   }
 
   onContextMenu(me: MouseEvent): void {
+    if (this.readOnly) return; // outside the editor the browser's own menu stays
     this.clicked(); // Focus the clef
     const items = [
       {

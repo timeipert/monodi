@@ -17,9 +17,6 @@
             [class.disabled]="item.disabled"
             [class.checked]="item.checked"
             (click)="executeAction(item, $event)">
-            @if (item.icon) {
-              <i class="bi" [ngClass]="item.icon"></i>
-            }
             <span>{{ item.label }}</span>
             @if (item.hint) { <span class="menu-hint">{{ item.hint }}</span> }
             @if (item.checked) {

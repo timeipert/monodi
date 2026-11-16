@@ -86,8 +86,8 @@ describe('Renaming and merging a siglum, through to the push', () => {
     api = TestBed.inject(APIService);
     await new Promise((r) => setTimeout(r, 30));      // the service's own start-up reads
 
-    const toastr = jasmine.createSpyObj('ToastrService', ['error', 'success', 'info']);
-    github = new GithubService(toastr, new GithubSessionService());
+    const statusLine = jasmine.createSpyObj('StatusLineService', ['error', 'success', 'info']);
+    github = new GithubService(statusLine, new GithubSessionService());
     (github as any).octokit = makeOctokit();
     (github as any).config = { token: 'x', owner: 'o', repo: 'r', branch: 'main' };
     expect(await github.pushDatabase(new LocalWorkspaceSource(), 'first')).toBeTrue();

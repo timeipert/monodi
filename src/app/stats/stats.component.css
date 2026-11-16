@@ -148,3 +148,7 @@
 .opacity-30 {
   opacity: 0.3;
 }
+
+/* One row of filters above the matrix. */
+.stats-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: 1rem; }
+.stats-filters input[type="search"] { width: 14rem; }

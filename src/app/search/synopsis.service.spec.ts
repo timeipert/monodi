@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { ToastrModule, ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { SynopsisService, AlignedLineElement, AlignedNode } from './synopsis.service';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
@@ -13,13 +13,12 @@ describe('SynopsisService', () => {
     TestBed.configureTestingModule({
       imports: [
         HttpClientTestingModule,
-        ToastrModule.forRoot()
       ],
       providers: [
         SynopsisService,
         APIService,
         UserService,
-        ToastrService
+        StatusLineService
       ]
     });
     service = TestBed.inject(SynopsisService);

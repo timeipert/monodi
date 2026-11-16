@@ -7,7 +7,7 @@ import { handleFocusShiftFromChild, handleFocusChangeFromParent, focusNewChild }
 import { Focusable, FocusChange } from "../types/Focus";
 import { UndoService } from '../undoService';
 import { ContextMenuService } from '../context-menu/context-menu.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { FocusService } from '../focus.service';
 import { ToolsService } from '../tools.service';
 import { Subscription } from 'rxjs';
@@ -48,7 +48,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     undo: UndoService,
     private cdr: ChangeDetectorRef, 
     private contextMenuService: ContextMenuService, 
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private focusService: FocusService,
     private toolService: ToolsService,
     private el: ElementRef
@@ -100,7 +100,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     if (child && child.kind === Model.ContainerKind.FormteilContainer) {
       const formteilCount = this.data.children.filter(c => c.kind === Model.ContainerKind.FormteilContainer).length;
       if (formteilCount <= 1) {
-        this.toastr.warning("This section cannot be deleted because it is the only one at this level.");
+        this.statusLine.warning("This section cannot be deleted because it is the only one at this level.");
         return;
       }
     }
@@ -170,9 +170,9 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     if (n > 0) {
       const dir = steps > 0 ? 'up' : 'down';
       const amount = Math.abs(steps) === 7 ? 'an octave' : `${Math.abs(steps)} step(s)`;
-      this.toastr.success(`Transposed ${n} notes ${dir} ${amount}.`, 'Transposed');
+      this.statusLine.success(`Transposed ${n} notes ${dir} ${amount}.`, 'Transposed');
     } else {
-      this.toastr.info('No notes to transpose here.');
+      this.statusLine.info('No notes to transpose here.');
     }
     this.cdr.detectChanges();
   }
@@ -181,7 +181,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     this.undo.beforeChange();
     const n = Model.mergeZeilenWithLineChanges(this.data);
     if (n > 0) {
-      this.toastr.success(`Merged ${n} lines into one; manuscript breaks kept as |.`, 'Lines merged');
+      this.statusLine.success(`Merged ${n} lines into one; manuscript breaks kept as |.`, 'Lines merged');
     }
     this.cdr.detectChanges();
   }
@@ -247,6 +247,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
   })()
 
   override onContextMenu(me: MouseEvent): void {
+    if (this.readOnly) return; // outside the editor the browser's own menu stays
     me.preventDefault();
     me.stopPropagation();
 

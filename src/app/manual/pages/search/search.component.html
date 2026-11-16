@@ -1,18 +1,12 @@
 <div class="manual-page-split">
   <div class="manual-page-text">
     <h1 id="search-functionality">Search Functionality</h1>
-    <p class="lead">The Search page is the central hub for querying your corpus. It offers four search tabs, post-search filtering, and is the entry point for the Synoptic Comparison and the Melodic Formula Analysis (see <a routerLink="/manual/analysis">Analysis &amp; Statistics</a>).</p>
+    <p class="lead">The Search page is the central hub for querying your corpus. It has two tabs, <em>Text</em> and <em>Melody</em>, and is the entry point for the Synoptic Comparison and the Melodic Formula Analysis (see <a routerLink="/manual/analysis">Analysis &amp; Statistics</a>).</p>
 
-    <h2 id="search-tabs">The Four Search Tabs</h2>
+    <h2 id="search-tabs">The Two Search Tabs</h2>
     <ul>
       <li class="mb-2">
-        <strong>Quick</strong>: Full-text search across all lyric texts and metadata. Four matching modes are available: <em>Phrase</em> (exact word sequence), <em>All words</em>, <em>Any word</em>, and <em>Fuzzy</em> (with an adjustable Levenshtein distance). The <em>medieval spelling tolerance</em> toggle normalizes common orthographic variance (e.g. <code>u/v</code>, <code>i/j</code>, <code>ae/e</code>) so <em>iustus</em> also finds <em>justus</em>. Matches are shown with a highlighted text snippet.
-      </li>
-      <li class="mb-2">
-        <strong>Sources</strong>: Structured metadata query over source fields — siglum, dating, region/place/institution of origin, order tradition, source type, library, and shelfmark.
-      </li>
-      <li class="mb-2">
-        <strong>Documents</strong>: Structured metadata query over document fields — document ID, incipit, genres, feast, commentary, and more.
+        <strong>Text</strong>: Full-text search across all lyric texts and the metadata of sources and documents. Four matching modes are available: <em>Exact phrase</em>, <em>All words</em>, <em>Any word</em>, and <em>Similar spelling</em> (with an adjustable Levenshtein distance). The <em>medieval spelling tolerance</em> toggle normalizes common orthographic variance (e.g. <code>u/v</code>, <code>i/j</code>, <code>ae/e</code>) so <em>iustus</em> also finds <em>justus</em>. Matches are shown with a highlighted text snippet.
       </li>
       <li class="mb-2">
         <strong>Melody</strong>: Searches melodic content. Enter <em>pitch names</em> (e.g. <code>f g a</code>), <em>intervals</em>, or a <em>contour</em>. Options include octave sensitivity, restricting matches to stay within one syllable, and a maximum Levenshtein distance for fuzzy melodic matching. Results show the matching passage rendered on a staff with the matched syllables highlighted.
@@ -20,12 +14,8 @@
     </ul>
     <p>Searches run only when you click <strong>Search</strong> — nothing runs automatically. Long scans over large corpora show live progress and can be cancelled; results stream in as they are found. Your search-mode preferences (matching mode, tolerances) are remembered between sessions, but each visit starts with a clean form.</p>
 
-    <h2 id="post-search-filtering">Filtering &amp; Result Tables</h2>
-    <ul>
-      <li><strong>Filter bar</strong>: Every result list has a filter box to narrow the current results without re-searching. Multiple words are combined with AND.</li>
-      <li><strong>Configurable columns</strong>: Source and document result tables have a column picker; your column choices are remembered.</li>
-      <li><strong>Sortable headers</strong> and pagination keep even thousands of results manageable.</li>
-    </ul>
+    <h2 id="post-search-filtering">Field queries</h2>
+    <p>A query on one field (for example all documents whose feast contains <em>Nativitas</em>) is made in the <strong>Sheet</strong> view of the <strong>Sources</strong> page: its filters work per column, for sources and for documents (decision of 2026-11-16: one place for field queries).</p>
 
     <h2 id="fuzzy-matching">Fuzzy Matching (Levenshtein Distance)</h2>
     <p>Chant manuscripts frequently contain scribal variants, spelling differences, or slight musical variations. Both the Quick tab (fuzzy mode) and the Melody tab include an adjustable <strong>Levenshtein Distance</strong> that allows insertions, deletions, and substitutions up to your threshold:</p>
@@ -41,11 +31,11 @@
     <h2 id="from-search-to-analysis">From Search to Analysis</h2>
     <ul>
       <li><strong>Selecting</strong>: every result list has a selection bar: <em>Select all N</em> (every hit, also on other pages), <em>Invert</em>, <em>Only these hits</em> and <em>Clear</em>. A checkbox on a source row selects all documents of that source. The selection is kept while moving between the pages of the application.</li>
-      <li><strong>Compare</strong>: Select two or more documents in any result list and click <em>Open Synopsis</em> to open the <a routerLink="/manual/analysis">Synoptic Comparison</a> (more than 20 witnesses ask first).</li>
-      <li><strong>Analysis page</strong>: <em>Analysis…</em> in the toolbar hands the hits to the <a routerLink="/manual/analysis">Analysis page</a>, where methods are ticked, run and saved.</li>
-      <li><strong>Pattern Analysis</strong>: The <em>Melodic Formula Analysis</em> reads the hits of the current tab, the selection, or every document (a choice on its page), so search first to scope it (e.g. one genre or one source), then open the analysis.</li>
-      <li><strong>Search in my selection</strong>: the quick and the melody search can look only at the selected documents (the menu beside <em>Search</em>).</li>
-      <li><strong>Notes in a window</strong>: in the melody search (<em>Advanced Options</em>) a pitch pattern can be found with other notes between its notes, within a window of a chosen number of notes.</li>
+      <li><strong>Compare</strong>: Select two or more documents in a result list and click <em>Synopsis</em> to open the <a routerLink="/manual/analysis">Synoptic Comparison</a> (more than 20 witnesses ask first).</li>
+      <li><strong>Analysis page</strong>: <em>Analysis</em> in the bar above the hits hands them to the <a routerLink="/manual/analysis">Analysis page</a>, where methods are ticked, run and saved.</li>
+      <li><strong>Pattern Analysis</strong>: <em>Patterns</em> in the same bar opens the <em>Melodic Formula Analysis</em>; it reads the hits of the current tab, the selection, or every document (a choice on its page), so search first to scope it (e.g. one genre or one source), then open the analysis.</li>
+      <li><strong>Search in my selection</strong>: the text and the melody search can look only at the selected documents (the menu beside <em>Search</em>).</li>
+      <li><strong>Notes in a window</strong>: in the melody search (<em>More options</em>) a pitch pattern can be found with other notes between its notes, within a window of a chosen number of notes.</li>
     </ul>
 
     <p><a routerLink="/search" class="btn btn-primary mt-3">Open Search Panel</a></p>

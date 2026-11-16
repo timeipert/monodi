@@ -129,44 +129,10 @@
 }
 
 /* IIIF viewer gets no padding — fills edge to edge */
-.tab-content-panel--flush {
-  padding: 12px 0 0;
-}
 
 button {
     margin: 5px;
 }
 
-.doc-open-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 1px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    text-decoration: none;
-    padding: 3px 8px;
-    border-radius: 6px;
-    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
-    background: color-mix(in srgb, var(--color-primary) 5%, transparent);
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
-    white-space: nowrap;
-}
-.doc-open-link:hover {
-    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-    border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
-    color: var(--color-primary-dark);
-}
 
-.disabled-input{
-    display: block;
-    width: 100%;
-    height: calc(2.25rem + 2px);
-    padding: .375rem .75rem;
-    font-size: 1rem;
-    line-height: 1.5;
-    color: var(--color-text-muted);
-    background-color: var(--color-surface);
-    background-clip: padding-box;
-    border: none;
-}
+.doc-view { margin: 0; border-bottom: 0; gap: 1rem; align-items: center; }

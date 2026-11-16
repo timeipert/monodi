@@ -55,7 +55,7 @@
   <!-- Inline Undo Bar -->
   @if (pendingDeletion) {
     <div class="undo-alert-bar alert alert-secondary d-flex justify-content-between align-items-center mb-3 py-2 px-3">
-      <span class="undo-message"><i class="bi bi-trash3 me-2"></i>Comment deleted</span>
+      <span class="undo-message">Comment deleted</span>
       <button type="button" class="btn btn-sm btn-outline-danger undo-btn px-3 rounded-pill" (click)="undoDeletion()">Undo</button>
     </div>
   }
@@ -192,7 +192,6 @@
 
   @if (activeComments().length === 0) {
     <div class="empty-state">
-      <i class="bi bi-chat-square-dots"></i>
       <h5>No comments to edit</h5>
       <p class="small mb-0">All comments on this span have been deleted.</p>
     </div>

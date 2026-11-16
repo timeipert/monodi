@@ -76,8 +76,7 @@
 }
 
 /* ── Inline control areas ────────────────────────── */
-.para-line,
-.root-line {
+.para-line {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -134,17 +133,6 @@
     }
 }
 
-.formteil-para-detail {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 4px;
-
-    * {
-        font-size: 0.82em;
-    }
-}
-
 /* ── Comment button in paratext ─────────────────── */
 .para-comment-button img {
     cursor: pointer;
@@ -173,7 +161,7 @@ textarea,
 
     &:focus {
         border-color: var(--color-primary-muted);
-        box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.18);
+        box-shadow: 0 0 0 3px rgba(182, 182, 182, 0.18);
     }
 }
 
@@ -214,22 +202,6 @@ textarea,
 }
 
 /* ── Segment type chips ──────────────────────────── */
-span.segment-type {
-    cursor: pointer;
-    border: 1px solid #bfdbfe;
-    border-radius: 5px;
-    padding: 2px 6px;
-    font-size: 0.82em;
-    transition: background 0.12s;
-
-    &:hover {
-        background-color: var(--color-primary-light);
-    }
-}
-
-.segment-type {
-    font-weight: 600;
-}
 
 /* ── Drag insertion indicator ────────────────────── */
 :host-context(body.is-dragging) .app-container.insertion-point {

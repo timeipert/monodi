@@ -1,12 +1,7 @@
 <div #chrome class="sticky-top">
   <nav class="navbar navbar-expand-lg navbar-light px-3 px-md-4 border-bottom" [class.d-none]="editorBar">
-    <a class="navbar-brand d-flex align-items-center gap-2" [routerLink]="['/']" style="text-decoration: none;">
-      <div class="d-flex align-items-baseline" style="font-family: var(--serif); font-weight: 600; font-size: 1.35rem; letter-spacing: 0;">
-        <span style="color: var(--color-text);">Monodi</span>
-        <span style="color: var(--color-primary); font-size: 1.5rem; line-height: 1; margin-left: 1px;">+</span>
-      </div>
-      <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">zero</span>
-    </a>
+    <!-- The name is not a link: "Sources" is the one way to the list of sources. -->
+    <span class="navbar-brand brand-wordmark">monodi</span>
 
     <button class="navbar-toggler" type="button"
       (click)="isNavCollapsed = !isNavCollapsed"
@@ -17,65 +12,48 @@
     <div class="collapse navbar-collapse" id="navbarSupportedContent" [ngbCollapse]="isNavCollapsed">
       <ul class="navbar-nav me-auto">
         <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['sources']" (click)="isNavCollapsed = true">Sources</a>
+          <a class="nav-link" routerLinkActive="active" [routerLink]="['sources']" (click)="isNavCollapsed = true">Sources</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']" (click)="isNavCollapsed = true">Search</a>
+          <a class="nav-link" routerLinkActive="active" [routerLink]="['search']" (click)="isNavCollapsed = true">Search</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [class.active]="onStatsPage" [class.text-accent]="onStatsPage" [routerLink]="['analysis']" (click)="isNavCollapsed = true">Analysis</a>
+          <a class="nav-link" routerLinkActive="active" [class.active]="onStatsPage" [routerLink]="['analysis']" (click)="isNavCollapsed = true">Analysis</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['metadata']" (click)="isNavCollapsed = true">Metadata</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['import-export']" (click)="isNavCollapsed = true">Import / Export</a>
+          <a class="nav-link" routerLinkActive="active" [routerLink]="['import-export']" (click)="isNavCollapsed = true">Import / Export</a>
         </li>
       </ul>
       <ul class="navbar-nav ms-auto align-items-lg-center mt-2 mt-lg-0 gap-2 gap-lg-0">
         @if (github.isConnected) {
           <li class="nav-item me-3">
             <div class="btn-group btn-group-sm">
-              <button class="btn btn-outline-success d-flex align-items-center gap-1" (click)="sync('pull')" [disabled]="isSyncing" title="Pull from GitHub">
-                @if (!isSyncing) {
-                  <i class="bi bi-cloud-arrow-down"></i>
-                }
+              <button class="btn btn-outline-secondary d-flex align-items-center gap-1" (click)="sync('pull')" [disabled]="isSyncing" title="Pull from GitHub">
                 @if (isSyncing) {
                   <span class="spinner-border spinner-border-sm"></span>
                 }
                 Pull
               </button>
-              <button class="btn btn-success d-flex align-items-center gap-1" (click)="sync('push')" [disabled]="isSyncing" title="Push everything to GitHub">
-                @if (!isSyncing) {
-                  <i class="bi bi-cloud-arrow-up"></i>
-                }
+              <button class="btn btn-outline-secondary d-flex align-items-center gap-1" (click)="sync('push')" [disabled]="isSyncing" title="Push everything to GitHub">
                 @if (isSyncing) {
                   <span class="spinner-border spinner-border-sm"></span>
                 }
                 Push
               </button>
-              <button class="btn btn-outline-secondary d-flex align-items-center gap-1" (click)="openSyncDialog('push')" [disabled]="isSyncing" title="Nur ausgewählte Handschriften synchronisieren">
-                <i class="bi bi-list-check"></i>
-                Auswahl…
+              <button class="btn btn-outline-secondary d-flex align-items-center gap-1" (click)="openSyncDialog('push')" [disabled]="isSyncing" title="Sync only selected manuscripts">
+                Selection…
               </button>
             </div>
           </li>
         }
-        <li class="nav-item me-3 d-flex align-items-center gap-2" [attr.title]="isOnline ? 'Online' : 'Offline'">
-          <span [style.background-color]="isOnline ? '#22c55e' : '#9ca3af'"
-            class="rounded-circle d-inline-block shadow-sm"
-            style="width: 10px; height: 10px; transition: background-color 0.3s ease;">
-          </span>
-          <span class="small text-muted fw-medium d-none d-sm-inline" style="font-size: 0.85rem;">{{ isOnline ? 'Online' : 'Offline' }}</span>
-        </li>
         <li class="nav-item">
-          <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']" (click)="isNavCollapsed = true">
-            <i class="bi bi-gear-fill me-1"></i>Settings
+          <a class="nav-link" routerLinkActive="active" [routerLink]="['settings']" (click)="isNavCollapsed = true">
+            Settings
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link fw-medium text-primary" [routerLink]="['/manual']" (click)="isNavCollapsed = true">
-            <i class="bi bi-book-fill me-1"></i>Manual
+          <a class="nav-link" routerLinkActive="active" [routerLink]="['/manual']" (click)="isNavCollapsed = true">
+            Manual
           </a>
         </li>
       </ul>
@@ -83,30 +61,16 @@
   </nav>
 
   <!-- Backup reminder: data is local-first and lost if browser storage is cleared -->
-  <!-- The start page shows the backup state in its own card, so the banner would repeat it there. -->
-  @if (showBackupReminder && !onStartPage) {
-    <div class="backup-reminder border-bottom px-3 py-2">
-      <div class="d-flex align-items-start gap-2 flex-wrap">
-        <i class="bi bi-shield-exclamation fs-5 text-warning flex-shrink-0"></i>
-        <div class="flex-grow-1" style="min-width: 220px;">
-          <div class="fw-semibold">Changes not backed up</div>
-          <div class="small text-muted">
-            Your data lives only in this browser. If the browser's storage is cleared, it is gone for
-            good. Back it up to be safe — via <strong>Export</strong> or <strong>GitHub</strong>.
-          </div>
-        </div>
-        <div class="d-flex align-items-center gap-2 flex-shrink-0">
-          <button class="btn btn-sm btn-warning" (click)="goToBackup()">
-            <i class="bi bi-download me-1"></i>Back up now
-          </button>
-          <button class="btn btn-sm btn-outline-secondary" (click)="snoozeBackup()" title="Hide for 30 minutes">
-            Later
-          </button>
-          <button class="btn btn-sm btn-link text-muted text-decoration-none px-1" (click)="dismissBackupReminder()">
-            Don't show again
-          </button>
-        </div>
-      </div>
+  @if (showBackupReminder) {
+    <!-- One line: data is local-first and lost if the browser storage is cleared. Backing up is done on the
+         Import / Export page (navigation bar), so the line has no button of its own for it. -->
+    <div class="backup-reminder">
+      <span><strong>Changes not backed up.</strong> This browser holds the only copy.
+        Back up on the <a routerLink="/import-export">Import / Export</a> page (Export, Workspace backup).</span>
+      <span class="ms-auto">
+        <button class="btn btn-sm btn-link" (click)="snoozeBackup()" title="Hide for 30 minutes">Later</button>
+        <button class="btn btn-sm btn-link" (click)="dismissBackupReminder()" title="Hide for good in this browser">Don't show again</button>
+      </span>
     </div>
   }
 
@@ -116,7 +80,7 @@
       @if (editorBar && tools.breadcrumb) {
         @let place = tools.breadcrumb();
         <nav class="editor-crumbs" aria-label="Location">
-          <a class="editor-brand" [routerLink]="['/']" title="Monodi-Zero start page">Monodi<span>+</span></a>
+          <span class="editor-brand">monodi</span>
           <i class="bi bi-chevron-right" aria-hidden="true"></i>
           <a [routerLink]="['sources']">Sources</a>
           <i class="bi bi-chevron-right" aria-hidden="true"></i>
@@ -175,16 +139,16 @@
                   class="btn tool-btn d-flex align-items-center justify-content-center"
                   [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
                   (click)="t.menu ? openToolMenu($event, t) : (t.callback && t.callback())"
-                  (contextmenu)="onToolContextMenu($event, t)"
                   [title]="t.title">
                   @if (t.icon === 'mei') {
                     <span class="fw-bold px-1" style="font-family: serif; font-size: 1.1em; letter-spacing: 0.5px;">MEI</span>
                   }
-                  @if (t.icon !== 'mei') {
+                  <!-- A menu with a label shows the word only; other tools are icon buttons. -->
+                  @if (t.icon !== 'mei' && !(t.menu && t.label)) {
                     <i class="bi bi-{{t.icon}} tool-icon"></i>
                   }
                   @if (t.menu && t.label) {
-                    <span class="ms-2 small fw-medium">{{t.label}}</span>
+                    <span class="small fw-medium">{{t.label}}</span>
                     <i class="bi bi-chevron-down ms-1" style="font-size: .7rem;"></i>
                   } @else if (t.active) {
                     <span class="ms-1">{{t.title}}</span>
@@ -275,7 +239,7 @@
       <div class="modal-content shadow-lg">
         <div class="modal-header bg-warning text-dark border-0">
           <h5 class="modal-title fw-bold">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>Merge Conflicts Detected
+            Merge Conflicts Detected
           </h5>
           <button type="button" class="btn-close" (click)="cancelMerge()" title="Cancel sync"></button>
         </div>
@@ -296,10 +260,10 @@
             }
             <div class="btn-group btn-group-sm ms-auto">
               <button class="btn btn-outline-secondary" (click)="bulkSetResolution('local')" title="Applies to every manuscript matching the current filter">
-                <i class="bi bi-laptop"></i> Visible: keep Local
+                Visible: keep Local
               </button>
               <button class="btn btn-outline-success" (click)="bulkSetResolution('remote')" title="Applies to every manuscript matching the current filter">
-                <i class="bi bi-github"></i> Visible: take Remote
+                Visible: take Remote
               </button>
             </div>
           </div>
@@ -333,12 +297,12 @@
                       <button type="button" class="btn"
                               [class.btn-secondary]="group.resolution === 'local'" [class.btn-outline-secondary]="group.resolution !== 'local'"
                               (click)="setGroupResolution(group, 'local')">
-                        <i class="bi bi-laptop"></i> Local
+                        Local
                       </button>
                       <button type="button" class="btn"
                               [class.btn-success]="group.resolution === 'remote'" [class.btn-outline-success]="group.resolution !== 'remote'"
                               (click)="setGroupResolution(group, 'remote')">
-                        <i class="bi bi-github"></i> Remote
+                        Remote
                       </button>
                     </div>
                   </div>
@@ -368,7 +332,7 @@
         <div class="modal-footer border-0 bg-white">
           <button type="button" class="btn btn-outline-secondary" (click)="cancelMerge()">Cancel</button>
           <button type="button" class="btn btn-primary px-4 fw-medium" (click)="resolveConflicts()">
-            Resolve & Apply <i class="bi bi-check2-circle ms-1"></i>
+            Resolve & Apply
           </button>
         </div>
       </div>
@@ -391,10 +355,10 @@
           <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
             <div class="btn-group btn-group-sm" role="group">
               <button class="btn btn-outline-success" (click)="syncDialogAction = 'push'" [class.active]="syncDialogAction === 'push'">
-                <i class="bi bi-cloud-arrow-up"></i> Push
+                Push
               </button>
               <button class="btn btn-outline-success" (click)="syncDialogAction = 'pull'; openSyncDialog('pull')" [class.active]="syncDialogAction === 'pull'">
-                <i class="bi bi-cloud-arrow-down"></i> Pull
+                Pull
               </button>
             </div>
             <input type="text" class="form-control form-control-sm" style="max-width: 220px;"
@@ -411,7 +375,7 @@
             <button class="btn btn-sm btn-outline-secondary" (click)="selectAllVisible(false)">Keine</button>
             @if (currentUserName) {
               <button class="btn btn-sm btn-outline-primary" (click)="assignSelectedToMe()" [disabled]="selectedManuscriptCount === 0">
-                <i class="bi bi-person-check"></i> Auswahl mir zuteilen
+                Auswahl mir zuteilen
               </button>
             }
             <span class="small text-muted ms-auto">{{ selectedManuscriptCount }} ausgewählt</span>
@@ -462,3 +426,4 @@
 <app-drag-map></app-drag-map>
 <app-context-menu></app-context-menu>
 <app-manuscript-view></app-manuscript-view>
+<app-status-line></app-status-line>

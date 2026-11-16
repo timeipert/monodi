@@ -1,8 +1,13 @@
 .analysis-page .analysis-name { max-width: 24rem; }
 .analysis-page .method-row { padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid transparent; }
 .analysis-page .method-row + .method-row { margin-top: 2px; }
-.analysis-page .method-row.chosen { background: #fdf8f6; border-color: #ead8d2; }
-.analysis-page .nav-pills .nav-link { color: var(--color-text, #222); background: #f3f1ec; }
+.analysis-page .method-row.chosen { background: #fdf8f6; border-color: #dbdbdb; }
+.analysis-page .nav-pills .nav-link { color: var(--color-text, #222); background: #f1f1f1; }
 .analysis-page .nav-pills .nav-link.active { background: var(--color-primary, #9a2a1f); color: #fff; font-weight: 600; }
 .analysis-page .methods-list { max-height: 60vh; overflow-y: auto; }
 .algo-text { white-space: pre-wrap; word-break: break-word; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 90ch; color: #333; max-height: 28rem; overflow: auto; }
+
+/* Header: the page tabs on the left, the saved analyses, "New" and "Import" on the right. */
+.analysis-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .5rem; margin-bottom: 1rem; }
+.analysis-head .page-tabs { flex: 1; margin-bottom: 0; }
+.analysis-label { font-size: 1rem; font-weight: 600; margin-bottom: .5rem; }

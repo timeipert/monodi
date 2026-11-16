@@ -3,7 +3,7 @@
     Which MEI element each level of the transcription becomes, whether it is written, which attributes it gets, and where the text stands.
     The levels nest in the order of the transcription (a neume belongs to one syllable, a note to one neume), so that order is fixed;
     a level that is not written passes its content to the level around it. Any element name is written as given; the warnings below say
-    what the MEI schema or the import of Monodi does not accept.
+    what the MEI schema or the import of monodi does not accept.
   </p>
 
   <!-- Built-in structures -->
@@ -19,7 +19,7 @@
       @if (matching) {
         This profile has the built-in structure "{{ matching.name }}": {{ matching.description }}
       } @else {
-        A structure of its own. The import of Monodi reads it back when this profile is chosen as the format in the import dialog (Sources → Import MEI).
+        A structure of its own. The import of monodi reads it back when this profile is chosen as the format in the import dialog (Sources → Import MEI).
       }
     </div>
   </div>
@@ -28,13 +28,13 @@
   @if (issues.length > 0) {
     <div class="mb-4 small">
       @if (issueCount.error > 0) {
-        <div class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>{{ issueCount.error }} {{ issueCount.error === 1 ? 'name stops' : 'names stop' }} the export (see the levels below).</div>
+        <div class="text-danger">{{ issueCount.error }} {{ issueCount.error === 1 ? 'name stops' : 'names stop' }} the export (see the levels below).</div>
       }
       @if (issueCount.mei > 0) {
-        <div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle-fill me-1"></i>Not valid MEI: {{ issueCount.mei }} {{ issueCount.mei === 1 ? 'warning' : 'warnings' }}. The file is written as described.</div>
+        <div class="text-warning-emphasis">Not valid MEI: {{ issueCount.mei }} {{ issueCount.mei === 1 ? 'warning' : 'warnings' }}. The file is written as described.</div>
       }
       @if (issueCount.import > 0) {
-        <div class="text-warning-emphasis"><i class="bi bi-arrow-repeat me-1"></i>Not read back by the import: {{ issueCount.import }} {{ issueCount.import === 1 ? 'warning' : 'warnings' }}.</div>
+        <div class="text-warning-emphasis">Not read back by the import: {{ issueCount.import }} {{ issueCount.import === 1 ? 'warning' : 'warnings' }}.</div>
       }
     </div>
   }
@@ -64,7 +64,7 @@
           <small class="text-muted d-block mt-1">{{ lv.hint }}</small>
           @for (i of issuesOf(lv.key); track i.message) {
             <div class="small mt-1" [class.text-danger]="i.kind === 'error'" [class.text-warning-emphasis]="i.kind !== 'error'">
-              <i class="bi me-1" [ngClass]="i.kind === 'error' ? 'bi-x-circle' : i.kind === 'mei' ? 'bi-exclamation-triangle' : 'bi-arrow-repeat'"></i>{{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
+              {{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
             </div>
           }
           @if (attributesOf(lv); as attrs) {
@@ -90,7 +90,7 @@
                     <button type="button" class="btn btn-link btn-sm text-danger p-0 ms-1" (click)="removeAttribute(attrs, i)" title="Remove this attribute"><i class="bi bi-x-circle"></i></button>
                   </div>
                 }
-                <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="addAttribute(attrs)"><i class="bi bi-plus"></i> Attribute</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0" (click)="addAttribute(attrs)">Add attribute</button>
                 @if (wrappersOf(lv); as wraps) {
                   <div class="mt-2">
                     <span class="text-muted">Elements around each {{ lv.label | lowercase }}, outermost first (one shared element per parent):</span>
@@ -156,7 +156,7 @@
         </div>
         @for (i of issuesOf('text'); track i.message) {
           <div class="small mt-1" [class.text-danger]="i.kind === 'error'" [class.text-warning-emphasis]="i.kind !== 'error'">
-            <i class="bi me-1" [ngClass]="i.kind === 'error' ? 'bi-x-circle' : i.kind === 'mei' ? 'bi-exclamation-triangle' : 'bi-arrow-repeat'"></i>{{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
+            {{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
           </div>
         }
       </div>
@@ -195,7 +195,7 @@
         <small class="text-muted d-block mt-1">The note types Ascending and Descending (an oval head with a stem up or down). Neumes: <code>nc/&#64;tilt</code> n or s; premensural: <code>note/plica/&#64;dir</code> up or down. Written only with the schema-conformant structure.</small>
         @for (i of issuesOf('stem'); track i.message) {
           <div class="small mt-1" [class.text-danger]="i.kind === 'error'" [class.text-warning-emphasis]="i.kind !== 'error'">
-            <i class="bi me-1" [ngClass]="i.kind === 'error' ? 'bi-x-circle' : i.kind === 'mei' ? 'bi-exclamation-triangle' : 'bi-arrow-repeat'"></i>{{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
+            {{ i.kind === 'mei' ? 'Not valid MEI: ' : i.kind === 'import' ? 'Import: ' : '' }}{{ i.message }}
           </div>
         }
       </div>
@@ -214,7 +214,7 @@
         </div>
         <small class="text-muted d-block mt-1"><code>staffDef/&#64;notationtype</code> tells viewers such as Verovio how to draw the staves; the schema URL goes into the two <code>&lt;?xml-model?&gt;</code> lines at the top of the file. Neither changes what the export checks here (that is the Schema tab).</small>
         @for (i of issuesOf('staffDef'); track i.message) {
-          <div class="small mt-1 text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>Not valid MEI: {{ i.message }}</div>
+          <div class="small mt-1 text-warning-emphasis">Not valid MEI: {{ i.message }}</div>
         }
       </div>
     </div>

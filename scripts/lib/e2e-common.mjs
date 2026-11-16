@@ -52,7 +52,7 @@ export async function openPrintDialog(page, base, ids, title = 'e2e') {
     const c = window.ng.getComponent(document.querySelector('app-search'));
     const seen = new Set();
     const findZone = (o, depth) => {
-      if (!o || typeof o !== 'object' || seen.has(o) || depth > 3) return null;
+      if (!o || typeof o !== 'object' || seen.has(o) || depth > 6) return null;
       seen.add(o);
       if (typeof o.run === 'function' && typeof o.runOutsideAngular === 'function') return o;
       for (const k of Object.keys(o)) { let v; try { v = o[k]; } catch { continue; } const z = findZone(v, depth + 1); if (z) return z; }
@@ -63,6 +63,8 @@ export async function openPrintDialog(page, base, ids, title = 'e2e') {
     zone.run(() => c.pdfDialog.open({ ids, title }));
   }, ids, title);
   await page.waitForSelector('app-pdf-export-dialog', { timeout: 20000 });
+  // The host element exists before the body is drawn; callers read the option switches right away, so wait for them.
+  await page.waitForSelector('app-pdf-export-dialog .modal-body .form-check-input', { timeout: 20000 });
   // One document opens as "Content only" (no heading, cover or notation documentation); these tests drive the edition options.
   await page.evaluate(() => {
     const el = document.querySelector('app-pdf-export-dialog');

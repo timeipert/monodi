@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { APIService, Document, ProjectSettings } from '../api.service';
 import { UserService } from '../user.service';
 import {
@@ -140,7 +140,7 @@ export class RelationsDialogComponent implements OnInit {
 
   private documents: Document[] = [];
 
-  constructor(private api: APIService, private users: UserService, private toastr: ToastrService, private cdr: ChangeDetectorRef) {}
+  constructor(private api: APIService, private users: UserService, private statusLine: StatusLineService, private cdr: ChangeDetectorRef) {}
 
   close(): void { this.closed.emit(); }
 
@@ -204,7 +204,7 @@ export class RelationsDialogComponent implements OnInit {
       if (Object.keys(own).length) next.relationFields = own; else delete next.relationFields;
       await firstValueFrom(this.api.updateSettings(token, next));
       this.rolesDirty = false;
-      this.toastr.success('The fields were saved.');
+      this.statusLine.success('The fields were saved.');
       this.applied.emit();
     });
   }
@@ -216,7 +216,7 @@ export class RelationsDialogComponent implements OnInit {
     await this.write(async (token) => {
       const next = withRelationFields(await this.settingsNow(token));
       if (next) await firstValueFrom(this.api.updateSettings(token, next));
-      this.toastr.success('The relation and unit fields were added.');
+      this.statusLine.success('The relation and unit fields were added.');
       this.applied.emit();
     });
   }
@@ -231,7 +231,7 @@ export class RelationsDialogComponent implements OnInit {
       await firstValueFrom(this.api.updateSettings(token, { ...settings, relationTypes: clean }));
       this.typesDirty = false;
       this.types = clean;
-      this.toastr.success('The relation types were saved.');
+      this.statusLine.success('The relation types were saved.');
     });
   }
 

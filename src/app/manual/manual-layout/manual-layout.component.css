@@ -12,7 +12,7 @@
 
 .manual-sidebar {
   width: 20rem;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--color-border);
   background-color: var(--color-surface);
   padding: 2rem 0;
   position: sticky;
@@ -35,7 +35,7 @@
 .sidebar-links li a {
   display: block;
   padding: 0.75rem 2rem;
-  color: var(--secondary-color);
+  color: var(--color-text-muted);
   text-decoration: none;
   font-size: 0.95rem;
   font-weight: 500;
@@ -44,14 +44,14 @@
 }
 
 .sidebar-links li a:hover {
-  color: var(--accent-color);
+  color: var(--color-primary);
   background-color: color-mix(in srgb, var(--color-primary) 2%, transparent);
 }
 
 .sidebar-links li a.active {
-  color: var(--accent-color);
+  color: var(--color-primary);
   font-weight: 600;
-  border-left-color: var(--accent-color);
+  border-left-color: var(--color-primary);
   background-color: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
@@ -59,7 +59,7 @@
   flex: 1;
   padding: 3rem 4rem;
   max-width: 950px;
-  color: var(--secondary-color);
+  color: var(--color-text-muted);
   line-height: 1.75;
   background-color: var(--color-surface);
   border-radius: 12px;
@@ -70,9 +70,9 @@
 ::ng-deep .manual-content h1 {
   font-weight: 700;
   font-size: 2.25rem;
-  color: var(--primary-color);
+  color: var(--color-text);
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 0.75rem;
   letter-spacing: -0.5px;
 }
@@ -80,17 +80,17 @@
 ::ng-deep .manual-content h2 {
   font-weight: 600;
   font-size: 1.5rem;
-  color: var(--primary-color);
+  color: var(--color-text);
   margin-top: 2.5rem;
   margin-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 0.5rem;
 }
 
 ::ng-deep .manual-content h3 {
   font-weight: 600;
   font-size: 1.2rem;
-  color: var(--primary-color);
+  color: var(--color-text);
   margin-top: 2rem;
   margin-bottom: 0.75rem;
 }
@@ -100,7 +100,7 @@
 }
 
 ::ng-deep .manual-content a {
-  color: var(--accent-color);
+  color: var(--color-primary);
   text-decoration: none;
   font-weight: 500;
 }
@@ -111,7 +111,7 @@
 
 ::ng-deep .manual-content code {
   background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);
-  color: var(--accent-color);
+  color: var(--color-primary);
   padding: 0.2em 0.4em;
   border-radius: 4px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
@@ -126,7 +126,7 @@
 
 ::ng-deep .manual-content .lead {
   font-size: 1.15rem;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-weight: 400;
   line-height: 1.6;
 }
@@ -134,8 +134,8 @@
 /* Shared Highlight trigger style */
 ::ng-deep .manual-content .manual-highlight-trigger {
   cursor: help;
-  border-bottom: 2px dotted var(--accent-color);
-  color: var(--accent-color);
+  border-bottom: 2px dotted var(--color-primary);
+  color: var(--color-primary);
   font-weight: 600;
   transition: all 0.2s ease;
 }
@@ -200,7 +200,7 @@
   border-top-right-radius: 16px;
   cursor: grab;
   user-select: none;
-  color: var(--secondary-color);
+  color: var(--color-text-muted);
 }
 
 ::ng-deep .preview-drag-handle:active {
@@ -212,7 +212,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
 }
@@ -223,7 +223,7 @@
 
 ::ng-deep .bg-success-soft {
   background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  color: var(--accent-color);
+  color: var(--color-primary);
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.25rem 0.6rem;
@@ -240,14 +240,14 @@
 ::ng-deep .shortcut-table th, 
 ::ng-deep .shortcut-table td {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
   text-align: left;
 }
 
 ::ng-deep .shortcut-table th {
   background-color: var(--color-bg);
   font-weight: 600;
-  color: var(--primary-color);
+  color: var(--color-text);
 }
 
 ::ng-deep .shortcut-table kbd {
@@ -255,7 +255,7 @@
   border: 1px solid var(--color-border-hover);
   border-radius: 6px;
   box-shadow: 0 2px 0 rgba(15, 23, 42, 0.08);
-  color: var(--primary-color);
+  color: var(--color-text);
   display: inline-block;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
   font-size: 85%;

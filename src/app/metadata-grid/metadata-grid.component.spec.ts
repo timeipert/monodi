@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { RouterTestingModule } from '@angular/router/testing';
 import { Observable, of, throwError } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 
 import { MetadataGridComponent } from './metadata-grid.component';
 import { APIService, Document, Source } from '../api.service';
@@ -51,7 +51,7 @@ describe('MetadataGridComponent', () => {
           },
         },
         { provide: UserService, useValue: { user: of({ token: 't', user: 'u', roles: [] }), logout: () => {} } },
-        { provide: ToastrService, useValue: { success: () => {}, error: () => {}, info: () => {}, warning: () => {} } },
+        { provide: StatusLineService, useValue: { success: () => {}, error: () => {}, info: () => {}, warning: () => {} } },
         { provide: PageTitleService, useValue: { set: () => {} } },
         { provide: BackupReminderService, useValue: { hasUnbackedChanges: () => false } },
       ],

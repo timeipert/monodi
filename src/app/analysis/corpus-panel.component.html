@@ -24,7 +24,7 @@
       </div>
       <div class="col-12 col-lg-2">
         <button type="submit" class="btn btn-primary btn-sm w-100" [disabled]="searching || !text.trim()">
-          @if (searching) { <span class="spinner-border spinner-border-sm me-1"></span>{{ progress.done | number }} / {{ progress.total | number }} } @else { <i class="bi bi-search me-1"></i>Search }
+          @if (searching) { <span class="spinner-border spinner-border-sm me-1"></span>{{ progress.done | number }} / {{ progress.total | number }} } @else { Search }
         </button>
       </div>
     </form>

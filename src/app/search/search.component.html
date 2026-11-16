@@ -1,951 +1,170 @@
 @if (!showPatternAnalysis) {
   <div>
-    @if (!showSynopsis && !showDashboard) {
-      <div class="search-page container-fluid px-4 py-4" style="max-width: 1200px;">
-        <!-- Page header -->
-        <div class="d-flex align-items-center justify-content-between mb-4">
-          <h2 class="page-title mb-0">Search</h2>
-          <span class="text-muted small">Full-text · Field · Melody</span>
-        </div>
-        <!-- Datalists for autocomplete -->
-        @if (settings) {
-          <datalist id="list-herkunftsregion">@for (s of settings.herkunftsregion; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-herkunftsort">@for (s of settings.herkunftsort; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-herkunftsinstitution">@for (s of settings.herkunftsinstitution; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-ordenstradition">@for (s of settings.ordenstradition; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-quellentyp">@for (s of settings.quellentyp; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-bibliotheksort">@for (s of settings.bibliotheksort; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-bibliothek">@for (s of settings.bibliothek; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-bibliothekssignatur">@for (s of settings.bibliothekssignatur; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-gattung1">@for (s of settings.gattung1; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-gattung2">@for (s of settings.gattung2; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-festtag">@for (s of settings.festtag; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-          <datalist id="list-feier">@for (s of settings.feier; track s) {
-            <option [value]="s"></option>
-          }</datalist>
-        }
-        <!-- Tabs -->
-        <ul class="nav nav-tabs mb-4">
-          <li class="nav-item">
-            <a class="nav-link cursor-pointer" [class.active]="activeTab === 'quick'" (click)="activeTab = 'quick'">
-              <i class="bi bi-search me-1"></i>Quick Search
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link cursor-pointer" [class.active]="activeTab === 'sources'" (click)="activeTab = 'sources'">
-              <i class="bi bi-journal-text me-1"></i>Sources
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link cursor-pointer" [class.active]="activeTab === 'documents'" (click)="activeTab = 'documents'">
-              <i class="bi bi-file-earmark-music me-1"></i>Documents
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link cursor-pointer" [class.active]="activeTab === 'melody'" (click)="activeTab = 'melody'">
-              <i class="bi bi-music-note-beamed me-1"></i>Melody
-            </a>
-          </li>
-        </ul>
-        <!-- ═══════════════════════════════════════════════════════════════════════
-        QUICK SEARCH TAB
-        ════════════════════════════════════════════════════════════════════════════ -->
-        @if (activeTab === 'quick') {
-          <div>
-            <div class="card shadow-sm mb-4">
-              <div class="card-body">
-                <p class="text-muted small mb-3">
-                  Search across <strong>all metadata fields</strong> and <strong>chant syllable text</strong>
-                  in sources and documents at once.
-                </p>
-                <div class="input-group input-group-lg">
-                  <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                  <input class="form-control"
-                    placeholder="Source siglum, text incipit, institution, feast day, syllable text…"
-                    [(ngModel)]="quickText"
-                    (keydown.enter)="searchQuick()" />
-                  @if (quickText) {
-                    <button class="btn btn-outline-secondary" type="button"
-                      (click)="quickText = ''; quickResults = []; quickSearched = false;">
-                      <i class="bi bi-x-lg"></i>
-                    </button>
-                  }
-                  <select class="form-select flex-grow-0 w-auto" [(ngModel)]="searchScope" aria-label="Where to search" title="Search every document, or only the documents of your selection">
-                    <option value="all">Everywhere</option>
-                    <option value="selection" [disabled]="selection.size === 0">My selection ({{selection.size}})</option>
-                  </select>
-                  <button class="btn btn-primary" type="button" (click)="searchQuick()"
-                    [disabled]="quickSearching || !quickText.trim()">
-                    @if (quickSearching) {
-                      <span class="spinner-border spinner-border-sm me-1"></span>
-                    }
-                    Search
-                  </button>
-                </div>
-                <!-- Search options -->
-                <div class="row g-3 mt-2 border-top pt-3">
-                  <div class="col-md-6 d-flex align-items-center gap-3">
-                    <span class="text-muted small fw-semibold">Search mode:</span>
-                    <div class="btn-group btn-group-sm">
-                      <button type="button" class="btn"
-                        [class.btn-primary]="quickSearchMode === 'phrase'"
-                        [class.btn-outline-secondary]="quickSearchMode !== 'phrase'"
-                        (click)="quickSearchMode = 'phrase'">
-                        Exact Phrase
-                      </button>
-                      <button type="button" class="btn"
-                        [class.btn-primary]="quickSearchMode === 'words-and'"
-                        [class.btn-outline-secondary]="quickSearchMode !== 'words-and'"
-                        (click)="quickSearchMode = 'words-and'">
-                        All Words
-                      </button>
-                      <button type="button" class="btn"
-                        [class.btn-primary]="quickSearchMode === 'words-or'"
-                        [class.btn-outline-secondary]="quickSearchMode !== 'words-or'"
-                        (click)="quickSearchMode = 'words-or'">
-                        Any Word
-                      </button>
-                      <button type="button" class="btn"
-                        [class.btn-primary]="quickSearchMode === 'fuzzy'"
-                        [class.btn-outline-secondary]="quickSearchMode !== 'fuzzy'"
-                        (click)="quickSearchMode = 'fuzzy'">
-                        Fuzzy Match
-                      </button>
-                    </div>
-                  </div>
-                  <div class="col-md-6 d-flex align-items-center gap-3 justify-content-md-end flex-wrap">
-                    <div class="form-check form-switch mb-0">
-                      <input class="form-check-input" type="checkbox" id="spellingTolerance" [(ngModel)]="quickMedievalTolerance" />
-                      <label class="form-check-label small" for="spellingTolerance">Medieval spelling tolerance (v=u, j=i, y=i, double letters)</label>
-                    </div>
-                    @if (quickSearchMode === 'fuzzy') {
-                      <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted small">Max spelling differences:</span>
-                        <input type="number" class="form-control form-control-sm" style="width: 55px;" min="1" max="5" [(ngModel)]="quickFuzzyDistance" />
-                      </div>
-                    }
-                  </div>
-                </div>
-                <!-- Recent searches -->
-                @if (recentSearches.length > 0 && !quickSearched) {
-                  <div class="mt-3">
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                      <span class="text-muted small">Recent:</span>
-                      @for (r of recentSearches; track r) {
-                        <button
-                        class="btn btn-sm btn-outline-secondary" (click)="applyRecent(r)">{{r}}</button>
-                      }
-                      <button class="btn btn-sm btn-link text-muted p-0" (click)="clearRecent()">Clear</button>
-                    </div>
-                  </div>
-                }
-              </div>
+    @if (!showSynopsis) {
+      <!-- Search has two jobs: (1) find chants by words or by melody; (2) pass the hits on: open one, or take
+           a set to the synopsis, the pattern finder, the Analysis page or the print dialog (one bar, below). -->
+      <div class="search-page">
+        <nav class="page-tabs" aria-label="Kind of search">
+          <button type="button" [class.active]="activeTab === 'quick'" (click)="selectTab('quick')">Text</button>
+          <button type="button" [class.active]="activeTab === 'melody'" (click)="selectTab('melody')">Melody</button>
+        </nav>
+
+        <!-- The bar under the search: selection of the hits and the four things to do with them. -->
+        <ng-template #hitBar let-ids>
+          <div class="hit-bar">
+            <app-selection-bar [universe]="ids" [selection]="selection" noun="documents" (changed)="onSelectionChanged()"></app-selection-bar>
+            <div class="hit-actions">
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="enterSynopsis()" [disabled]="selectedDocs.length < 2"
+                title="Compare the selected documents side by side (two or more)">Synopsis</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="openPatternAnalysis()"
+                title="Find melodic patterns shared by these documents">Patterns</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="openInAnalysis()"
+                title="Open these documents on the Analysis page">Analysis</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="printResults()"
+                [title]="selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all hits as one PDF'">Print ({{ printCount() | number }})</button>
             </div>
-            @if (quickSearching) {
-              <div class="card shadow-sm mb-3">
-                <div class="card-body py-3">
-                  <div class="d-flex justify-content-between small text-muted mb-1">
-                    <span>Searching {{searchProgress.current | number}} of {{searchProgress.total | number}} documents…</span>
-                    <span>{{searchProgress.matched | number}} hits so far</span>
-                  </div>
-                  <div class="progress" style="height: 6px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" [style.width.%]="searchProgress.total ? (searchProgress.current / searchProgress.total) * 100 : 0"></div>
-                  </div>
-                  <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="cancelSearch()">Cancel</button>
-                </div>
-              </div>
-            }
-            <!-- Quick results -->
-            @if (quickSearched) {
-              <div>
-                @if (quickResults.length === 0) {
-                  <div class="text-center text-muted py-5">
-                    <i class="bi bi-search" style="font-size:2rem;"></i>
-                    <p class="mt-2">No results for "<strong>{{quickText}}</strong>"</p>
-                  </div>
-                }
-                @if (quickResults.length > 0) {
-                  <div>
-                    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-                      <div class="d-flex align-items-center gap-2">
-                        <span class="fw-semibold small text-muted">
-                          Showing <strong>{{quickPageFromIndex | number}}</strong>–<strong>{{quickPageToIndex | number}}</strong> of <strong>{{filteredQuickResults.length | number}}</strong> results
-                          @if (quickTotalPages > 1) {
-                            <span>· page {{quickPage}} / {{quickTotalPages}}</span>
-                          }
-                        </span>
-                        <span class="text-primary small ms-2"><i class="bi bi-info-circle me-1"></i>Check multiple documents below to compare them side-by-side (Synopse).</span>
-                      </div>
-                      <div class="d-flex gap-2 align-items-center">
-                        @if (selectedDocs.length >= 1) {
-                          <button class="btn btn-sm btn-outline-primary" (click)="openDashboard()">
-                            @if (dashboardLoading) {
-                              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                            }
-                            <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
-                          </button>
-                        }
-                        @if (selectedDocs.length >= 2) {
-                          <button class="btn btn-sm btn-primary" (click)="enterSynopsis()">
-                            @if (synopsisLoading) {
-                              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                            }
-                            Open Synopsis ({{selectedDocs.length}})
-                          </button>
-                        }
-                        @if (currentHitDocIds().length > 0) {
-                          <button class="btn btn-sm btn-outline-primary" (click)="openInAnalysis()"
-                            title="Analyse the hits of this tab with the methods of the Analysis page: frequencies, keyness, distances, ChantDigger methods; results are saved">
-                            <i class="bi bi-diagram-3 me-1"></i>Analysis…
-                          </button>
-                        }
-                        @if (printCount() > 0) {
-                          <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
-                            title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
-                            <i class="bi bi-file-pdf me-1"></i>Print PDF ({{printCount()}})
-                          </button>
-                        }
-                        <span class="badge bg-primary-subtle text-primary">{{countQuickResults('source')}} source(s)</span>
-                        <span class="badge bg-success-subtle text-success">{{countQuickResults('document')}} document(s)</span>
-                      </div>
-                    </div>
-                    @if (quickResults.length > 0) {
-                      <div class="mb-3">
-                        <div class="input-group input-group-sm">
-                          <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-funnel"></i></span>
-                          <input type="text" class="form-control border-start-0" placeholder="Filter results by keyword..." [(ngModel)]="quickFilterText" (ngModelChange)="onFilterChange('quick')" />
-                          @if (quickFilterText) {
-                            <button class="btn btn-outline-secondary" type="button" (click)="clearFilter('quick')">
-                              <i class="bi bi-x-lg"></i>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-                    <div class="mb-2">
-                      <app-selection-bar [universe]="quickHitDocIds" [selection]="selection" noun="documents" (changed)="onSelectionChanged()">
-                        @if (quickSourceHitCount > 0) {
-                          <span class="text-muted">includes the documents of {{quickSourceHitCount}} source hit(s)</span>
-                        }
-                      </app-selection-bar>
-                    </div>
-                    <div class="list-group shadow-sm">
-                      @for (r of pagedQuickResults; track trackQuick($index, r)) {
-                        <div
-                          class="list-group-item list-group-item-action cursor-pointer"
-                          (click)="goToQuickResult(r)">
-                          <div class="d-flex align-items-start gap-3">
-                            <!-- Selection Checkbox for Documents -->
-                            @if (r.kind === 'document') {
-                              <div class="d-flex align-self-center me-1" (click)="$event.stopPropagation()">
-                                <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
-                                  [checked]="isDocSelected(r.id)"
-                                  (change)="toggleQuickResultSelection(r, $event)" />
-                                <button type="button" class="btn btn-link p-0 ms-2 text-secondary" title="Print this document as PDF" (click)="printOne(r.id)"><i class="bi bi-file-pdf"></i></button>
-                              </div>
-                            }
-                            <!-- Spacer for Sources to align list elements -->
-                            @if (r.kind === 'source') {
-                              <div class="d-flex align-self-center me-1" (click)="$event.stopPropagation()">
-                                <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
-                                  [checked]="sourceSelectState(r.id) === 'all'" [indeterminate]="sourceSelectState(r.id) === 'some'"
-                                  title="Select all documents of this source" aria-label="Select all documents of this source"
-                                  (change)="toggleSourceSelection(r.id, $event)" />
-                                <span class="ms-2" style="width: 14px;"></span>
-                              </div>
-                            }
-                            <span class="badge mt-1"
-                              [class.bg-primary]="r.kind === 'source'"
-                              [class.bg-success]="r.kind === 'document'"
-                              style="min-width: 70px; text-align:center;">
-                              {{r.kind === 'source' ? 'Source' : 'Document'}}
-                            </span>
-                            <div class="flex-grow-1 text-start">
-                              <div class="fw-semibold">{{r.title}}</div>
-                              <div class="text-muted small">{{r.subtitle}}</div>
-                              <div class="text-muted small opacity-75">{{r.extra}}</div>
-                              <!-- Text snippet from transcription -->
-                              @if (r.snippet) {
-                                <div class="snippet-box mt-1">
-                                  <i class="bi bi-file-text text-muted me-1" style="font-size:0.75rem;"></i>
-                                  <span class="snippet-text">
-                                    <span class="text-muted">{{r.snippet.before}}</span><mark class="snippet-mark">{{r.snippet.match}}</mark><span class="text-muted">{{r.snippet.after}}</span>
-                                  </span>
-                                </div>
-                              }
-                            </div>
-                            <i class="bi bi-chevron-right text-muted mt-1"></i>
-                          </div>
-                        </div>
-                      }
-                    </div>
-                    <!-- Pagination for Quick Search results -->
-                    @if (quickTotalPages > 1) {
-                      <nav class="mt-4 mb-3 d-flex justify-content-center" aria-label="Quick search result pages">
-                        <ul class="pagination pagination-sm mb-0 shadow-sm rounded-pill overflow-hidden">
-                          <li class="page-item" [class.disabled]="quickPage === 1">
-                            <button class="page-link" (click)="goToFirstQuickPage()" title="First page">
-                              <i class="bi bi-chevron-double-left"></i>
-                            </button>
-                          </li>
-                          <li class="page-item" [class.disabled]="quickPage === 1">
-                            <button class="page-link" (click)="goToPrevQuickPage()" title="Previous page">
-                              <i class="bi bi-chevron-left"></i>
-                            </button>
-                          </li>
-                          @for (p of quickPagerWindow; track p; let i = $index) {
-                            @if (p === -1) {
-                              <li class="page-item disabled">
-                                <span class="page-link">…</span>
-                              </li>
-                            }
-                            @if (p !== -1) {
-                              <li class="page-item" [class.active]="p === quickPage">
-                                <button class="page-link" (click)="goToQuickPage(p)">{{ p }}</button>
-                              </li>
-                            }
-                          }
-                          <li class="page-item" [class.disabled]="quickPage === quickTotalPages">
-                            <button class="page-link" (click)="goToNextQuickPage()" title="Next page">
-                              <i class="bi bi-chevron-right"></i>
-                            </button>
-                          </li>
-                          <li class="page-item" [class.disabled]="quickPage === quickTotalPages">
-                            <button class="page-link" (click)="goToLastQuickPage()" title="Last page">
-                              <i class="bi bi-chevron-double-right"></i>
-                            </button>
-                          </li>
-                        </ul>
-                      </nav>
-                    }
-                  </div>
-                }
-              </div>
-            }
           </div>
-        }
-        <!-- ═══════════════════════════════════════════════════════════════════════
-        SOURCES TAB
-        ════════════════════════════════════════════════════════════════════════════ -->
-        @if (activeTab === 'sources') {
-          <div>
-            <div class="card shadow-sm mb-4">
-              <div class="card-body">
-                <p class="text-muted small mb-3">Partial matching — leave fields empty to ignore them.</p>
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Source Siglum</label>
-                    <input class="form-control" [(ngModel)]="sourceQuery.quellensigle" (keydown.enter)="searchSources()" />
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Dating</label>
-                    <input class="form-control" [(ngModel)]="sourceQuery.datierung" (keydown.enter)="searchSources()" />
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Region of Origin</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-herkunftsregion" [(ngModel)]="sourceQuery.herkunftsregion" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsregion', sourceQuery.herkunftsregion)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Place of Origin</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-herkunftsort" [(ngModel)]="sourceQuery.herkunftsort" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsort', sourceQuery.herkunftsort)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Institution of Origin</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-herkunftsinstitution" [(ngModel)]="sourceQuery.herkunftsinstitution" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsinstitution', sourceQuery.herkunftsinstitution)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Order Tradition</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-ordenstradition" [(ngModel)]="sourceQuery.ordenstradition" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('ordenstradition', sourceQuery.ordenstradition)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Source Type</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-quellentyp" [(ngModel)]="sourceQuery.quellentyp" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('quellentyp', sourceQuery.quellentyp)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Library Location</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-bibliotheksort" [(ngModel)]="sourceQuery.bibliotheksort" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliotheksort', sourceQuery.bibliotheksort)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Library</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-bibliothek" [(ngModel)]="sourceQuery.bibliothek" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliothek', sourceQuery.bibliothek)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-muted small mb-1">Library Signature</label>
-                    <div class="input-group">
-                      <input class="form-control" list="list-bibliothekssignatur" [(ngModel)]="sourceQuery.bibliothekssignatur" (keydown.enter)="searchSources()" />
-                      <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliothekssignatur', sourceQuery.bibliothekssignatur)"><i class="bi bi-plus-lg"></i></button>
-                    </div>
-                  </div>
-                  <div class="col-12 mt-2 d-flex justify-content-between align-items-center">
-                    <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearSourceQuery()">
-                      <i class="bi bi-x-circle me-1"></i>Clear
-                    </button>
-                    <button class="btn btn-primary" (click)="searchSources()" [disabled]="sourceSearching">
-                      @if (sourceSearching) {
-                        <span class="spinner-border spinner-border-sm me-1"></span>
-                      }
-                      @if (!sourceSearching) {
-                        <i class="bi bi-search me-1"></i>
-                        }Search Sources
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              @if (sourceSearched && sourceResults.length === 0) {
-                <div class="text-center text-muted py-4">
-                  <i class="bi bi-inbox" style="font-size:2rem;"></i>
-                  <p class="mt-2">No sources match the criteria.</p>
-                </div>
-              }
-              @if (sourceResults.length > 0) {
-                <div class="card shadow-sm">
-                  <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-                    <span class="fw-semibold small text-muted">
-                      Showing <strong>{{sourcesPageFromIndex | number}}</strong>–<strong>{{sourcesPageToIndex | number}}</strong> of <strong>{{filteredSourceResults.length | number}}</strong> sources
-                      @if (sourcesTotalPages > 1) {
-                        <span>· page {{sourcesPage}} / {{sourcesTotalPages}}</span>
+        </ng-template>
+
+        <ng-template #pager let-kind="kind" let-page="page" let-total="total">
+          @if (total > 1) {
+            <nav class="search-pager" aria-label="Result pages">
+              <button type="button" class="btn btn-sm btn-link" [disabled]="page === 1" (click)="goToPage(kind, page - 1)">Previous</button>
+              <span>{{ page }} / {{ total }}</span>
+              <button type="button" class="btn btn-sm btn-link" [disabled]="page === total" (click)="goToPage(kind, page + 1)">Next</button>
+            </nav>
+          }
+        </ng-template>
+
+        <ng-template #progress>
+          <div class="search-progress">
+            <span>{{ searchProgress.current | number }} / {{ searchProgress.total | number }} · {{ searchProgress.matched | number }} hits</span>
+            <button type="button" class="btn btn-sm btn-link" (click)="cancelSearch()">Cancel</button>
+          </div>
+        </ng-template>
+
+        <!-- Text: words in the transcriptions and in the metadata of sources and documents. -->
+        @if (activeTab === 'quick') {
+          <div class="search-bar">
+            <input class="form-control search-input" type="search" placeholder="Words, siglum, incipit, feast"
+              [(ngModel)]="quickText" (keydown.enter)="searchQuick()" autofocus />
+            <select class="form-select search-scope" [(ngModel)]="searchScope" aria-label="Where to search">
+              <option value="all">All documents</option>
+              <option value="selection" [disabled]="selection.size === 0">Selection ({{ selection.size }})</option>
+            </select>
+            <button class="btn btn-primary" type="button" (click)="searchQuick()" [disabled]="quickSearching || !quickText.trim()">Search</button>
+          </div>
+          <div class="search-options">
+            <select class="form-select form-select-sm w-auto" [(ngModel)]="quickSearchMode" aria-label="How words match">
+              <option value="phrase">Exact phrase</option>
+              <option value="words-and">All words</option>
+              <option value="words-or">Any word</option>
+              <option value="fuzzy">Similar spelling</option>
+            </select>
+            @if (quickSearchMode === 'fuzzy') {
+              <label class="d-flex align-items-center gap-2">Differences
+                <input type="number" class="form-control form-control-sm" style="width: 4rem;" min="1" max="5" [(ngModel)]="quickFuzzyDistance" />
+              </label>
+            }
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" id="spellingTolerance" [(ngModel)]="quickMedievalTolerance" />
+              <label class="form-check-label" for="spellingTolerance">Medieval spelling (v=u, j=i, y=i, double letters)</label>
+            </div>
+          </div>
+          @if (quickSearching) {
+            <ng-container *ngTemplateOutlet="progress"></ng-container>
+          }
+          @if (quickSearched && !quickSearching) {
+            @if (quickResults.length === 0) {
+              <p class="search-empty">No results.</p>
+            } @else {
+              <ng-container *ngTemplateOutlet="hitBar; context: { $implicit: quickHitDocIds }"></ng-container>
+              <ul class="quick-hits">
+                @for (r of pagedQuickResults; track trackQuick($index, r)) {
+                  <li (click)="goToQuickResult(r)">
+                    <span (click)="$event.stopPropagation()">
+                      @if (r.kind === 'document') {
+                        <input type="checkbox" class="form-check-input" [checked]="isDocSelected(r.id)"
+                          (change)="toggleQuickResultSelection(r, $event)" aria-label="Select this document" />
+                      } @else {
+                        <input type="checkbox" class="form-check-input"
+                          [checked]="sourceSelectState(r.id) === 'all'" [indeterminate]="sourceSelectState(r.id) === 'some'"
+                          (change)="toggleSourceSelection(r.id, $event)" aria-label="Select all documents of this source" />
                       }
                     </span>
-                    <div class="d-flex gap-2 align-items-center">
-                      @if (filteredSourceResults.length > 0) {
-                        <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1" (click)="openInAnalysis()"
-                          title="Analyse the documents of these sources with the methods of the Analysis page">
-                          <i class="bi bi-diagram-3"></i> Analysis…
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
-                          (click)="openPatternAnalysis()"
-                          title="Identify common melodic patterns within these sources">
-                          <i class="bi bi-diagram-3"></i> Identify Patterns
-                        </button>
+                    <div>
+                      <div class="quick-title">{{ r.title }}@if (r.kind === 'source') {<span class="quick-kind">source</span>}</div>
+                      <div class="quick-sub">{{ r.subtitle }}@if (r.extra) { · {{ r.extra }}}</div>
+                      @if (r.snippet) {
+                        <div class="quick-snippet">{{ r.snippet.before }}<mark>{{ r.snippet.match }}</mark>{{ r.snippet.after }}</div>
                       }
-                      <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                        (click)="exportSourcesCSV()">
-                        <i class="bi bi-download"></i> CSV
-                      </button>
-                      <div class="position-relative">
-                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                          (click)="showSrcColPicker = !showSrcColPicker">
-                          <i class="bi bi-layout-three-columns"></i> Columns
-                        </button>
-                        @if (showSrcColPicker) {
-                          <div class="col-picker shadow-lg border rounded-3 bg-white">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                              <span class="fw-semibold small">Visible columns</span>
-                              <button class="btn-close btn-sm" (click)="showSrcColPicker = false"></button>
-                            </div>
-                            <div class="d-flex flex-column gap-2">
-                              @for (col of srcResultCols; track col) {
-                                <div class="form-check form-switch mb-0">
-                                  <input class="form-check-input" type="checkbox" [id]="'src-res-' + col.key"
-                                    [(ngModel)]="col.visible" (change)="saveSrcCols()" />
-                                  <label class="form-check-label small" [for]="'src-res-' + col.key">{{col.label}}</label>
-                                </div>
-                              }
-                            </div>
-                          </div>
-                        }
-                      </div>
                     </div>
-                  </div>
-                  <div class="card-body p-0">
-                    @if (sourceResults.length > 0) {
-                      <div class="px-3 py-2 border-bottom">
-                        <div class="input-group input-group-sm">
-                          <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-funnel"></i></span>
-                          <input type="text" class="form-control border-start-0" placeholder="Filter sources by keyword..." [(ngModel)]="sourceFilterText" (ngModelChange)="onFilterChange('source')" />
-                          @if (sourceFilterText) {
-                            <button class="btn btn-outline-secondary" type="button" (click)="clearFilter('source')">
-                              <i class="bi bi-x-lg"></i>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-                    <div class="px-3 py-2 border-bottom">
-                      <app-selection-bar [universe]="sourceHitDocIds" [selection]="selection" noun="documents of these sources" (changed)="onSelectionChanged()">
-                        <span class="text-muted">{{filteredSourceResults.length | number}} sources</span>
-                      </app-selection-bar>
-                    </div>
-                    <div class="table-responsive">
-                      <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                          <tr>
-                            <th style="width: 40px;"></th>
-                            @for (col of visibleSrcCols; track col; let first = $first) {
-                              <th [class.ps-3]="first"
-                                class="sortable-th" (click)="sortBy(col.key.toString(), 'src')">
-                                {{col.label}} <i [class]="sortIcon(col.key.toString(), 'src')"></i>
-                              </th>
-                            }
-                          </tr>
-                        </thead>
-                        <tbody>
-                          @for (s of pagedSourceResults; track trackSource($index, s)) {
-                            <tr (click)="goToSource(s.id!)" class="cursor-pointer">
-                              <td class="text-center" (click)="$event.stopPropagation()">
-                                <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
-                                  [checked]="sourceSelectState(s.id) === 'all'" [indeterminate]="sourceSelectState(s.id) === 'some'"
-                                  title="Select all documents of this source" aria-label="Select all documents of this source"
-                                  (change)="toggleSourceSelection(s.id, $event)" />
-                              </td>
-                              @for (col of visibleSrcCols; track col; let first = $first) {
-                                <td
-                                  [class.ps-3]="first" [class.fw-medium]="first" [class.text-accent]="first">
-                                  {{$any(s)[col.key]}}
-                                </td>
-                              }
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
-                    </div>
-                    <!-- Pagination for Sources Search results -->
-                    @if (sourcesTotalPages > 1) {
-                      <nav class="mt-3 mb-3 d-flex justify-content-center" aria-label="Sources search result pages">
-                        <ul class="pagination pagination-sm mb-0 shadow-sm rounded-pill overflow-hidden">
-                          <li class="page-item" [class.disabled]="sourcesPage === 1">
-                            <button class="page-link" (click)="goToFirstSourcesPage()" title="First page">
-                              <i class="bi bi-chevron-double-left"></i>
-                            </button>
-                          </li>
-                          <li class="page-item" [class.disabled]="sourcesPage === 1">
-                            <button class="page-link" (click)="goToPrevSourcesPage()" title="Previous page">
-                              <i class="bi bi-chevron-left"></i>
-                            </button>
-                          </li>
-                          @for (p of sourcesPagerWindow; track p; let i = $index) {
-                            @if (p === -1) {
-                              <li class="page-item disabled">
-                                <span class="page-link">…</span>
-                              </li>
-                            }
-                            @if (p !== -1) {
-                              <li class="page-item" [class.active]="p === sourcesPage">
-                                <button class="page-link" (click)="goToSourcesPage(p)">{{ p }}</button>
-                              </li>
-                            }
-                          }
-                          <li class="page-item" [class.disabled]="sourcesPage === sourcesTotalPages">
-                            <button class="page-link" (click)="goToNextSourcesPage()" title="Next page">
-                              <i class="bi bi-chevron-right"></i>
-                            </button>
-                          </li>
-                          <li class="page-item" [class.disabled]="sourcesPage === sourcesTotalPages">
-                            <button class="page-link" (click)="goToLastSourcesPage()" title="Last page">
-                              <i class="bi bi-chevron-double-right"></i>
-                            </button>
-                          </li>
-                        </ul>
-                      </nav>
-                    }
-                  </div>
-                </div>
-              }
-            </div>
+                  </li>
+                }
+              </ul>
+              <ng-container *ngTemplateOutlet="pager; context: { kind: 'quick', page: quickPage, total: quickTotalPages }"></ng-container>
+            }
           }
-          <!-- ═══════════════════════════════════════════════════════════════════════
-          DOCUMENTS TAB
-          ════════════════════════════════════════════════════════════════════════════ -->
-          @if (activeTab === 'documents') {
-            <div>
-              <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                  <p class="text-muted small mb-3">Partial matching — leave fields empty to ignore them.</p>
-                  <div class="row g-3">
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Document ID</label>
-                      <input class="form-control" [(ngModel)]="documentQuery.dokumenten_id" (keydown.enter)="searchDocuments()" />
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Text Incipit</label>
-                      <input class="form-control" [(ngModel)]="documentQuery.textinitium" (keydown.enter)="searchDocuments()" />
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Genre 1</label>
-                      <div class="input-group">
-                        <input class="form-control" list="list-gattung1" [(ngModel)]="documentQuery.gattung1" (keydown.enter)="searchDocuments()" />
-                        <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('gattung1', documentQuery.gattung1)"><i class="bi bi-plus-lg"></i></button>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Genre 2</label>
-                      <div class="input-group">
-                        <input class="form-control" list="list-gattung2" [(ngModel)]="documentQuery.gattung2" (keydown.enter)="searchDocuments()" />
-                        <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('gattung2', documentQuery.gattung2)"><i class="bi bi-plus-lg"></i></button>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Feast Day</label>
-                      <div class="input-group">
-                        <input class="form-control" list="list-festtag" [(ngModel)]="documentQuery.festtag" (keydown.enter)="searchDocuments()" />
-                        <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('festtag', documentQuery.festtag)"><i class="bi bi-plus-lg"></i></button>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Celebration</label>
-                      <div class="input-group">
-                        <input class="form-control" list="list-feier" [(ngModel)]="documentQuery.feier" (keydown.enter)="searchDocuments()" />
-                        <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('feier', documentQuery.feier)"><i class="bi bi-plus-lg"></i></button>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Bibliographic Reference</label>
-                      <input class="form-control" [(ngModel)]="documentQuery.bibliographischerverweis" (keydown.enter)="searchDocuments()" />
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Print Edition</label>
-                      <input class="form-control" [(ngModel)]="documentQuery.druckausgabe" (keydown.enter)="searchDocuments()" />
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label text-muted small mb-1">Comment</label>
-                      <input class="form-control" [(ngModel)]="documentQuery.kommentar" (keydown.enter)="searchDocuments()" />
-                    </div>
-                    <div class="col-12 mt-2 d-flex justify-content-between align-items-center">
-                      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearDocumentQuery()">
-                        <i class="bi bi-x-circle me-1"></i>Clear
-                      </button>
-                      <button class="btn btn-primary" (click)="searchDocuments()" [disabled]="documentSearching">
-                        @if (documentSearching) {
-                          <span class="spinner-border spinner-border-sm me-1"></span>
-                        }
-                        @if (!documentSearching) {
-                          <i class="bi bi-search me-1"></i>
-                          }Search Documents
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                @if (documentSearched && documentResults.length === 0) {
-                  <div class="text-center text-muted py-4">
-                    <i class="bi bi-inbox" style="font-size:2rem;"></i>
-                    <p class="mt-2">No documents match the criteria.</p>
-                  </div>
-                }
-                @if (documentResults.length > 0) {
-                  <div class="card shadow-sm">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-                      <span class="fw-semibold small text-muted">
-                        Showing <strong>{{documentsPageFromIndex | number}}</strong>–<strong>{{documentsPageToIndex | number}}</strong> of <strong>{{filteredDocumentResults.length | number}}</strong> documents
-                        @if (documentsTotalPages > 1) {
-                          <span>· page {{documentsPage}} / {{documentsTotalPages}}</span>
-                        }
-                      </span>
-                      <div class="d-flex gap-2 align-items-center">
-                        @if (selectedDocs.length >= 1) {
-                          <button class="btn btn-sm btn-outline-primary" (click)="openDashboard()">
-                            @if (dashboardLoading) {
-                              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                            }
-                            <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
-                          </button>
-                        }
-                        @if (selectedDocs.length >= 2) {
-                          <button class="btn btn-sm btn-primary" (click)="enterSynopsis()">
-                            @if (synopsisLoading) {
-                              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                            }
-                            Open Synopsis ({{selectedDocs.length}})
-                          </button>
-                        }
-                        @if (currentHitDocIds().length > 0) {
-                          <button class="btn btn-sm btn-outline-primary" (click)="openInAnalysis()"
-                            title="Analyse the hits of this tab with the methods of the Analysis page: frequencies, keyness, distances, ChantDigger methods; results are saved">
-                            <i class="bi bi-diagram-3 me-1"></i>Analysis…
-                          </button>
-                        }
-                        @if (printCount() > 0) {
-                          <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
-                            title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
-                            <i class="bi bi-file-pdf me-1"></i>Print PDF ({{printCount()}})
-                          </button>
-                        }
-                        @if (filteredDocumentResults.length > 0) {
-                          <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
-                            (click)="openPatternAnalysis()"
-                            title="Identify common melodic patterns within these documents">
-                            <i class="bi bi-diagram-3"></i> Identify Patterns
-                          </button>
-                        }
-                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                          (click)="exportDocumentsCSV()">
-                          <i class="bi bi-download"></i> CSV
-                        </button>
-                        <div class="position-relative">
-                          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                            (click)="showDocColPicker = !showDocColPicker">
-                            <i class="bi bi-layout-three-columns"></i> Columns
-                          </button>
-                          @if (showDocColPicker) {
-                            <div class="col-picker shadow-lg border rounded-3 bg-white">
-                              <div class="d-flex justify-content-between align-items-center mb-3">
-                                <span class="fw-semibold small">Visible columns</span>
-                                <button class="btn-close btn-sm" (click)="showDocColPicker = false"></button>
-                              </div>
-                              <div class="d-flex flex-column gap-2">
-                                @for (col of docResultCols; track col) {
-                                  <div class="form-check form-switch mb-0">
-                                    <input class="form-check-input" type="checkbox" [id]="'doc-res-' + col.key"
-                                      [(ngModel)]="col.visible" (change)="saveDocCols()" />
-                                    <label class="form-check-label small" [for]="'doc-res-' + col.key">{{col.label}}</label>
-                                  </div>
-                                }
-                              </div>
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    <div class="card-body p-0">
-                      @if (documentResults.length > 0) {
-                        <div class="px-3 py-2 border-bottom">
-                          <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-funnel"></i></span>
-                            <input type="text" class="form-control border-start-0" placeholder="Filter documents by keyword..." [(ngModel)]="documentFilterText" (ngModelChange)="onFilterChange('document')" />
-                            @if (documentFilterText) {
-                              <button class="btn btn-outline-secondary" type="button" (click)="clearFilter('document')">
-                                <i class="bi bi-x-lg"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-                      }
-                      <div class="px-3 py-2 border-bottom">
-                        <app-selection-bar [universe]="documentHitDocIds" [selection]="selection" noun="documents" (changed)="onSelectionChanged()"></app-selection-bar>
-                      </div>
-                      <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                          <thead class="table-light">
-                            <tr>
-                              <th style="width: 40px;"></th>
-                              @for (col of visibleDocCols; track col; let first = $first) {
-                                <th [class.ps-3]="first"
-                                  class="sortable-th" (click)="sortBy(col.key.toString(), 'doc')">
-                                  {{col.label}} <i [class]="sortIcon(col.key.toString(), 'doc')"></i>
-                                </th>
-                              }
-                            </tr>
-                          </thead>
-                          <tbody>
-                            @for (d of pagedDocumentResults; track trackDoc($index, d)) {
-                              <tr
-                                (click)="goToDocument(d.quelle_id, d.id)" class="cursor-pointer">
-                                <td class="text-center" (click)="$event.stopPropagation()">
-                                  <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
-                                    [checked]="isDocSelected(d.id)"
-                                    (change)="toggleDocSelection(d, $event)" />
-                                  <button type="button" class="btn btn-link p-0 ms-1 text-secondary" title="Print this document as PDF" (click)="printOne(d.id)"><i class="bi bi-file-pdf"></i></button>
-                                </td>
-                                @for (col of visibleDocCols; track col; let first = $first) {
-                                  <td
-                                    [class.ps-3]="first" [class.fw-medium]="first" [class.text-accent]="first">
-                                    {{$any(d)[col.key]}}
-                                  </td>
-                                }
-                              </tr>
-                            }
-                          </tbody>
-                        </table>
-                      </div>
-                      <!-- Pagination for Documents Search results -->
-                      @if (documentsTotalPages > 1) {
-                        <nav class="mt-3 mb-3 d-flex justify-content-center" aria-label="Documents search result pages">
-                          <ul class="pagination pagination-sm mb-0 shadow-sm rounded-pill overflow-hidden">
-                            <li class="page-item" [class.disabled]="documentsPage === 1">
-                              <button class="page-link" (click)="goToFirstDocumentsPage()" title="First page">
-                                <i class="bi bi-chevron-double-left"></i>
-                              </button>
-                            </li>
-                            <li class="page-item" [class.disabled]="documentsPage === 1">
-                              <button class="page-link" (click)="goToPrevDocumentsPage()" title="Previous page">
-                                <i class="bi bi-chevron-left"></i>
-                              </button>
-                            </li>
-                            @for (p of documentsPagerWindow; track p; let i = $index) {
-                              @if (p === -1) {
-                                <li class="page-item disabled">
-                                  <span class="page-link">…</span>
-                                </li>
-                              }
-                              @if (p !== -1) {
-                                <li class="page-item" [class.active]="p === documentsPage">
-                                  <button class="page-link" (click)="goToDocumentsPage(p)">{{ p }}</button>
-                                </li>
-                              }
-                            }
-                            <li class="page-item" [class.disabled]="documentsPage === documentsTotalPages">
-                              <button class="page-link" (click)="goToNextDocumentsPage()" title="Next page">
-                                <i class="bi bi-chevron-right"></i>
-                              </button>
-                            </li>
-                            <li class="page-item" [class.disabled]="documentsPage === documentsTotalPages">
-                              <button class="page-link" (click)="goToLastDocumentsPage()" title="Last page">
-                                <i class="bi bi-chevron-double-right"></i>
-                              </button>
-                            </li>
-                          </ul>
-                        </nav>
-                      }
-                    </div>
-                  </div>
-                }
+        }
+
+        <!-- Melody: note names or contour, with optional limits. -->
+        @if (activeTab === 'melody') {
+          <div class="search-bar">
+            <select class="form-select search-scope" [(ngModel)]="melodySearchType" aria-label="Search by">
+              <option value="pitch">Pitches</option>
+              <option value="contour">Contour</option>
+            </select>
+            <input class="form-control search-input font-monospace" type="search" [placeholder]="melodyPatternHint"
+              [(ngModel)]="melodyPattern" (keydown.enter)="searchMelody()" />
+            <select class="form-select search-scope" [(ngModel)]="searchScope" aria-label="Where to search">
+              <option value="all">All documents</option>
+              <option value="selection" [disabled]="selection.size === 0">Selection ({{ selection.size }})</option>
+            </select>
+            <button class="btn btn-primary" type="button" (click)="searchMelody()" [disabled]="melodySearching || !melodyPattern.trim() || !!melodyPatternError">Search</button>
+          </div>
+          <div class="search-options">
+            @if (melodyPatternError) {
+              <span class="search-error" role="alert">{{ melodyPatternError }}</span>
+            } @else if (melodySearchType === 'pitch') {
+              <span>A–G (H = B natural, B or Bb = B flat)</span>
+            } @else {
+              <span>u up, d down, r repeat</span>
+            }
+            <span>. any, .? optional</span>
+            @if (melodySearchType === 'pitch') {
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="includeTransposed" [(ngModel)]="melodyIncludeTransposed" />
+                <label class="form-check-label" for="includeTransposed">At any pitch level</label>
               </div>
             }
-            <!-- ═══════════════════════════════════════════════════════════════════════
-            MELODY SEARCH TAB
-            ════════════════════════════════════════════════════════════════════════════ -->
-            @if (activeTab === 'melody') {
-              <div>
-                <div class="card shadow-sm mb-4">
-                  <div class="card-body">
-                    <!-- Search type and Advanced Options toggle -->
-                    <div class="d-flex align-items-center justify-content-between gap-3 mb-3 flex-wrap border-bottom pb-3">
-                      <div class="d-flex align-items-center gap-3 flex-wrap">
-                        <div class="d-flex align-items-center gap-2">
-                          <span class="text-muted small fw-semibold">Search by:</span>
-                          <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn"
-                              [class.btn-primary]="melodySearchType === 'pitch'"
-                              [class.btn-outline-secondary]="melodySearchType !== 'pitch'"
-                              (click)="melodySearchType = 'pitch'">
-                              <i class="bi bi-music-note me-1"></i>Pitch Names
-                            </button>
-                            <button type="button" class="btn"
-                              [class.btn-primary]="melodySearchType === 'contour'"
-                              [class.btn-outline-secondary]="melodySearchType !== 'contour'"
-                              (click)="melodySearchType = 'contour'">
-                              <i class="bi bi-graph-up me-1"></i>Contour
-                            </button>
-                          </div>
-                        </div>
-                        @if (melodySearchType === 'pitch') {
-                          <div class="form-check form-switch mb-0">
-                            <input class="form-check-input" type="checkbox" id="includeTransposedQuick" [(ngModel)]="melodyIncludeTransposed" />
-                            <label class="form-check-label small" for="includeTransposedQuick">Include transposed instances</label>
-                          </div>
-                        }
-                      </div>
-                      <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-                        (click)="showAdvancedOptions = !showAdvancedOptions">
-                        <i class="bi" [class.bi-sliders]="!showAdvancedOptions" [class.bi-chevron-up]="showAdvancedOptions"></i>
-                        <span>{{ showAdvancedOptions ? 'Hide Advanced Options' : 'Advanced Options' }}</span>
-                        @if (melodyRangeStartPct > 0 || melodyRangeEndPct < 100 || melodyOnlyWithinSyllables || melodyMaxDistance > 0 || melodyWithOctave) {
-                          <span class="badge bg-primary rounded-pill ms-1">
-                            Active
-                          </span>
-                        }
-                      </button>
-                    </div>
+            <button type="button" class="btn btn-sm btn-link" (click)="showAdvancedOptions = !showAdvancedOptions">
+              {{ showAdvancedOptions ? 'Fewer options' : 'More options' }}@if (!showAdvancedOptions && (melodyRangeStartPct > 0 || melodyRangeEndPct < 100 || melodyOnlyWithinSyllables || melodyMaxDistance > 0 || melodyWithOctave)) { (set)}
+            </button>
+          </div>
                     <!-- Advanced Options Panel -->
                     @if (showAdvancedOptions) {
                       <div class="p-3 bg-light rounded border mb-3">
                         <div class="row g-3">
-                          <!-- Chant Section Range Filter (%) -->
+                          <!-- Which part of a chant the pattern may lie in: one slider with two handles. -->
                           <div class="col-md-6">
-                            <div class="d-flex align-items-center justify-content-between mb-1">
-                              <label class="form-label small fw-semibold text-secondary mb-0">
-                                <i class="bi bi-arrows-expand me-1"></i>Chant Section Range
-                              </label>
-                              <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-semibold" style="font-size: 0.75rem;">
-                                {{melodyRangeStartPct}}% – {{melodyRangeEndPct}}%
-                              </span>
+                            <div class="d-flex align-items-baseline justify-content-between mb-1">
+                              <label class="form-label small fw-semibold text-secondary mb-0">Part of the chant</label>
+                              <span class="small font-monospace">{{ melodyRangeStartPct }}–{{ melodyRangeEndPct }} %</span>
                             </div>
-                            <!-- Visual Track Bar -->
-                            <div class="position-relative my-2" style="height: 16px;">
-                              <div class="position-absolute w-100 rounded" style="top: 4px; height: 8px; background-color: var(--color-border-hover);"></div>
-                              <div class="position-absolute rounded bg-primary"
-                                [style.left.%]="melodyRangeStartPct"
-                                [style.width.%]="melodyRangeEndPct - melodyRangeStartPct"
-                              style="top: 4px; height: 8px; transition: left 0.05s, width 0.05s;"></div>
-                            </div>
-                            <!-- Dual Sliders & Number Controls -->
-                            <div class="row g-2 align-items-center mb-1">
-                              <div class="col-6">
-                                <div class="d-flex align-items-center gap-1">
-                                  <span class="text-muted small" style="font-size: 0.75rem;">From</span>
-                                  <input type="range" class="form-range flex-grow-1" min="0" max="100" step="1"
-                                    [ngModel]="melodyRangeStartPct"
-                                    (ngModelChange)="onRangeStartChange($event)" />
-                                  <input type="number" class="form-control form-control-sm text-center px-1" style="width: 48px; font-size: 0.75rem;" min="0" max="100"
-                                    [ngModel]="melodyRangeStartPct"
-                                    (ngModelChange)="onRangeStartChange($event)" />
-                                  <span class="text-muted small" style="font-size: 0.75rem;">%</span>
-                                </div>
-                              </div>
-                              <div class="col-6">
-                                <div class="d-flex align-items-center gap-1">
-                                  <span class="text-muted small" style="font-size: 0.75rem;">To</span>
-                                  <input type="range" class="form-range flex-grow-1" min="0" max="100" step="1"
-                                    [ngModel]="melodyRangeEndPct"
-                                    (ngModelChange)="onRangeEndChange($event)" />
-                                  <input type="number" class="form-control form-control-sm text-center px-1" style="width: 48px; font-size: 0.75rem;" min="0" max="100"
-                                    [ngModel]="melodyRangeEndPct"
-                                    (ngModelChange)="onRangeEndChange($event)" />
-                                  <span class="text-muted small" style="font-size: 0.75rem;">%</span>
-                                </div>
-                              </div>
-                            </div>
-                            <!-- Quick Range Presets -->
-                            <div class="d-flex align-items-center gap-1 flex-wrap">
-                              <span class="text-muted small" style="font-size: 0.7rem;">Presets:</span>
-                              <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
-                              (click)="melodyRangeStartPct = 0; melodyRangeEndPct = 100">All (0–100%)</button>
-                              <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
-                              (click)="melodyRangeStartPct = 0; melodyRangeEndPct = 25">Incipit (0–25%)</button>
-                              <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
-                              (click)="melodyRangeStartPct = 25; melodyRangeEndPct = 75">Middle (25–75%)</button>
-                              <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 0.7rem;"
-                              (click)="melodyRangeStartPct = 75; melodyRangeEndPct = 100">Cadence (75–100%)</button>
+                            <app-range-slider label="Part of the chant"
+                              [from]="melodyRangeStartPct" (fromChange)="onRangeStartChange($event)"
+                              [to]="melodyRangeEndPct" (toChange)="onRangeEndChange($event)"></app-range-slider>
+                            <div class="d-flex gap-2 small">
+                              <button type="button" class="btn btn-link btn-sm p-0" (click)="melodyRangeStartPct = 0; melodyRangeEndPct = 25">Incipit</button>
+                              <button type="button" class="btn btn-link btn-sm p-0" (click)="melodyRangeStartPct = 25; melodyRangeEndPct = 75">Middle</button>
+                              <button type="button" class="btn btn-link btn-sm p-0" (click)="melodyRangeStartPct = 75; melodyRangeEndPct = 100">Cadence</button>
+                              <button type="button" class="btn btn-link btn-sm p-0 ms-auto" (click)="melodyRangeStartPct = 0; melodyRangeEndPct = 100">Whole chant</button>
                             </div>
                           </div>
                           <!-- Syllable Boundary Scope -->
                           <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary mb-1">
-                              <i class="bi bi-chat-text me-1"></i>Syllable Boundary Constraint
+                              Syllable Boundary Constraint
                             </label>
                             <div class="form-check form-switch mb-1">
                               <input class="form-check-input" type="checkbox" id="syllableConstraintAdv" [(ngModel)]="melodyOnlyWithinSyllables" />
@@ -960,7 +179,7 @@
                           <!-- Spread notes (window) -->
                           <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary mb-1" for="melodyWindow">
-                              <i class="bi bi-arrows-expand me-1"></i>Notes in order within a window
+                              Notes in order within a window
                             </label>
                             <div class="d-flex align-items-center gap-2">
                               <input id="melodyWindow" type="number" class="form-control form-control-sm" style="width: 80px;" min="0" max="200" [(ngModel)]="melodyWindow" [disabled]="melodySearchType !== 'pitch' || melodyMaxDistance > 0" />
@@ -973,7 +192,7 @@
                           <!-- Max Differences (Allowed Derivations) -->
                           <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary mb-1">
-                              <i class="bi bi-diagram-3 me-1"></i>Max Differences (Allowed Derivations)
+                              Max Differences (Allowed Derivations)
                             </label>
                             <div class="d-flex align-items-center gap-2">
                               <input type="number" class="form-control form-control-sm" style="width: 70px;" min="0" max="6" [(ngModel)]="melodyMaxDistance" />
@@ -984,7 +203,7 @@
                           @if (melodySearchType === 'pitch') {
                             <div class="col-md-6">
                               <label class="form-label small fw-semibold text-secondary mb-1">
-                                <i class="bi bi-music-note-beamed me-1"></i>Pitch Matching Options
+                                Pitch Matching Options
                               </label>
                               <div class="d-flex flex-column gap-1">
                                 <div class="form-check form-switch mb-0">
@@ -1001,94 +220,20 @@
                         </div>
                       </div>
                     }
-                    <!-- Pattern input -->
-                    <label class="form-label text-muted small mb-1">Pattern</label>
-                    <div class="input-group input-group-lg mb-2">
-                      <input class="form-control font-monospace"
-                        [placeholder]="melodyPatternHint"
-                        [(ngModel)]="melodyPattern"
-                        (keydown.enter)="searchMelody()" />
-                      @if (melodyPattern) {
-                        <button class="btn btn-outline-secondary" type="button"
-                          (click)="melodyPattern = ''; melodyResults = []; melodySearched = false;">
-                          <i class="bi bi-x-lg"></i>
-                        </button>
-                      }
-                      <select class="form-select form-select-sm flex-grow-0 w-auto" [(ngModel)]="searchScope" aria-label="Where to search" title="Search every document, or only the documents of your selection">
-                        <option value="all">Everywhere</option>
-                        <option value="selection" [disabled]="selection.size === 0">My selection ({{selection.size}})</option>
-                      </select>
-                      <button class="btn btn-primary" type="button"
-                        (click)="searchMelody()"
-                        [disabled]="melodySearching || !melodyPattern.trim()">
-                        @if (melodySearching) {
-                          <span class="spinner-border spinner-border-sm me-1"></span>
-                        }
-                        @if (!melodySearching) {
-                          <i class="bi bi-search me-1"></i>
-                          }Search
-                        </button>
-                      </div>
-                      <!-- Help text -->
-                      <div class="alert alert-light border small mb-0 py-2">
-                        @if (melodySearchType === 'pitch') {
-                          <strong>Pitch name search:</strong> enter note letters (A–G, case-insensitive, spaces are optional).
-                          @if (!melodyWithOctave) {
-                            <br>Examples: <code>CDEFG</code> &nbsp;|&nbsp; <code>gfedc</code> &nbsp;|&nbsp; <code>AGABC</code>
-                            <br>Octave is <em>ignored</em> — <code>C</code> matches any C regardless of register.
-                          }
-                          @if (melodyWithOctave) {
-                            <br>Examples: <code>C4D4E4F4</code> &nbsp;|&nbsp; <code>G3A3B3C4</code>
-                          }
-                          <br><strong>German notation support:</strong> you can use <code>H</code> for B-natural and <code>Bb</code> or <code>B</code> for B-flat.
-                          <br><strong>Wildcard support:</strong> use <code>.</code> for any single note/step (e.g. <code>C . E</code>), or <code>.?</code> for an optional note/step (0 or 1 note).
-                          <br><strong>Derivation tolerance:</strong> if set >0, matches melodies with differences (mismatches, insertions, deletions) up to the limit.
-                        }
-                        @if (melodySearchType === 'contour') {
-                          <strong>Contour search:</strong> describe melodic direction between consecutive notes (spaces are optional).
-                          <br>Use: <code>u</code> = up &nbsp;|&nbsp; <code>d</code> = down &nbsp;|&nbsp; <code>r</code> = same pitch &nbsp;|&nbsp; <code>.</code> = any direction &nbsp;|&nbsp; <code>.?</code> = optional direction
-                          <br>Examples: <code>uuuu</code> (4-step ascent) &nbsp;|&nbsp; <code>u . d .?</code> (wildcard contour)
-                          <br>A pattern of N letters matches N+1 consecutive notes.
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    <!-- Melody search progress -->
-                    @if (melodySearching) {
-                      <div class="card shadow-sm mb-3">
-                        <div class="card-body py-3">
-                          <div class="d-flex justify-content-between small text-muted mb-1">
-                            <span>Scanning {{searchProgress.current | number}} of {{searchProgress.total | number}} transcriptions…</span>
-                            <span>{{searchProgress.matched | number}} matches so far</span>
-                          </div>
-                          <div class="progress" style="height: 6px;">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" [style.width.%]="searchProgress.total ? (searchProgress.current / searchProgress.total) * 100 : 0"></div>
-                          </div>
-                          <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="cancelSearch()">Cancel</button>
-                        </div>
-                      </div>
-                    }
-                    <!-- Melody results -->
-                    @if (melodySearched && !melodySearching) {
-                      <div>
-                        <!-- Scan stats -->
-                        <div class="d-flex align-items-center gap-3 mb-3 small text-muted">
-                          <span><i class="bi bi-file-earmark-music me-1"></i>{{melodyScanned}} document(s) scanned</span>
-                          <span>·</span>
-                          <span><i class="bi bi-music-note-beamed me-1"></i>{{melodyWithNotes}} with notes</span>
-                          @if (melodyWithNotes === 0) {
-                            <span class="text-warning">
-                              <i class="bi bi-exclamation-triangle me-1"></i>No transcriptions have notes yet
-                            </span>
-                          }
-                        </div>
+          @if (melodySearching) {
+            <ng-container *ngTemplateOutlet="progress"></ng-container>
+          }
+          @if (melodySearched && !melodySearching) {
+            <div>
+              @if (melodyWithNotes === 0) {
+                <p class="search-empty">No transcription has notes.</p>
+              }
                         <!-- Ultra-Compact Wildcard Match Distribution Diagram (Fixed Pitch/Interval Axis <= 100x40px) -->
                         @if (wildcardStats.length > 0) {
                           <div class="card border-0 shadow-sm bg-white mb-3">
                             <div class="card-body py-1 px-2">
                               <div class="d-flex align-items-center justify-content-between mb-1">
                                 <span class="fw-semibold text-secondary d-flex align-items-center gap-1" style="font-size: 0.75rem;">
-                                  <i class="bi bi-pie-chart-fill text-primary" style="font-size: 0.8rem;"></i>
                                   Wildcard Distributions ('.' & '.?')
                                 </span>
                                 <div class="btn-group btn-group-xs">
@@ -1131,7 +276,7 @@
                                     <!-- 190x56 Mini SVG sparkline histogram along fixed pitch/interval X-axis -->
                                     <svg width="190" height="56" class="overflow-visible" style="background-color: var(--color-surface); border-radius: 3px;">
                                       <!-- Baseline -->
-                                      <line x1="0" y1="44" x2="190" y2="44" stroke="#cbd5e1" stroke-width="1" />
+                                      <line x1="0" y1="44" x2="190" y2="44" stroke="#d4d4d4" stroke-width="1" />
                                       <!-- Fixed axis bars -->
                                       @for (bin of (wildcardViewMode === 'pitch' ? stat.pitchAxisBins : stat.intervalAxisBins); track bin) {
                                         <g>
@@ -1141,7 +286,7 @@
                                               [attr.y]="44 - (bin.pct * 0.40)"
                                               [attr.width]="bin.width"
                                               [attr.height]="Math.max(2, bin.pct * 0.40)"
-                                              [attr.fill]="stat.hoveredBin === bin ? '#1e293b' : stat.color"
+                                              [attr.fill]="stat.hoveredBin === bin ? '#282828' : stat.color"
                                               rx="1"
                                               style="cursor: pointer; transition: fill 0.1s;"
                                               (mouseenter)="stat.hoveredBin = bin"
@@ -1154,7 +299,7 @@
                                               [attr.x]="bin.x + bin.width / 2"
                                               y="53"
                                               text-anchor="middle"
-                                              fill="#64748b"
+                                              fill="#727272"
                                               style="font-size: 7.5px; font-family: monospace; pointer-events: none;">
                                               {{bin.label}}
                                             </text>
@@ -1168,286 +313,65 @@
                             </div>
                           </div>
                         }
-                        @if (melodyResults.length === 0) {
-                          <div class="text-center text-muted py-4">
-                            <i class="bi bi-music-note-list" style="font-size:2rem;"></i>
-                            <p class="mt-2">No chants found containing that melodic pattern.</p>
-                            @if (melodyWithNotes > 0) {
-                              <p class="small">
-                                Try a shorter pattern, or check that note names are A–G.
-                              </p>
+              @if (melodyResults.length === 0 && melodyWithNotes > 0) {
+                <p class="search-empty">No match in {{ melodyWithNotes | number }} transcriptions.</p>
+              }
+              @if (melodyResults.length > 0) {
+                <ng-container *ngTemplateOutlet="hitBar; context: { $implicit: melodyHitDocIds }"></ng-container>
+                <table class="table melody-hits align-middle">
+                  <tbody>
+                    @for (r of pagedMelodyResults; track trackMelody($index, r)) {
+                      <tr class="cursor-pointer" (click)="goToMelodyDocument(r)">
+                        <td class="melody-check" (click)="$event.stopPropagation()">
+                          <input type="checkbox" class="form-check-input" [checked]="isDocSelected(r.document.id)"
+                            (change)="toggleDocSelection(r.document, $event)" aria-label="Select this document" />
+                        </td>
+                        <td class="melody-chant">
+                          <div class="quick-title">{{ r.sourceSigle }} · {{ r.document.textinitium || r.document.dokumenten_id }}</div>
+                          <div class="quick-sub">
+                            {{ r.document.dokumenten_id }}@if (r.document.gattung1) { · {{ r.document.gattung1 }}}@if (r.document.festtag) { · {{ r.document.festtag }}}
+                          </div>
+                          @if (r.noteSequenceLabel) {
+                            <div class="quick-sub font-monospace">{{ r.noteSequenceLabel }}</div>
+                          }
+                        </td>
+                        <td class="melody-preview-cell">
+                          <div class="melody-preview">
+                            @for (syl of r.matchingSyllables; track syl; let first = $first) {
+                              <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="r.matchNoteSet" [showGClef]="first"></app-notes>
                             }
                           </div>
-                        }
-                        @if (melodyResults.length > 0) {
-                          <div>
-                            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-                              <div class="d-flex align-items-center gap-3">
-                                <span class="fw-semibold small text-muted">
-                                  Showing <strong>{{melodyPageFromIndex | number}}</strong>–<strong>{{melodyPageToIndex | number}}</strong> of <strong>{{filteredMelodyResults.length | number}}</strong> matches
-                                  @if (melodyTotalPages > 1) {
-                                    <span>· page {{melodyPage}} / {{melodyTotalPages}}</span>
-                                  }
-                                </span>
-                                <span class="text-primary small"><i class="bi bi-info-circle me-1"></i>Select multiple chants below to compare them side-by-side.</span>
-                              </div>
-                              <div class="d-flex gap-2 align-items-center">
-                                @if (selectedDocs.length >= 1) {
-                                  <button class="btn btn-sm btn-outline-primary" (click)="openDashboard()">
-                                    @if (dashboardLoading) {
-                                      <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                    }
-                                    <i class="bi bi-graph-up me-1"></i>Analyze ({{selectedDocs.length}})
-                                  </button>
-                                }
-                                @if (selectedDocs.length >= 2) {
-                                  <button class="btn btn-sm btn-primary" (click)="enterSynopsis()">
-                                    @if (synopsisLoading) {
-                                      <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                    }
-                                    Open Synopsis ({{selectedDocs.length}})
-                                  </button>
-                                }
-                                @if (currentHitDocIds().length > 0) {
-                          <button class="btn btn-sm btn-outline-primary" (click)="openInAnalysis()"
-                            title="Analyse the hits of this tab with the methods of the Analysis page: frequencies, keyness, distances, ChantDigger methods; results are saved">
-                            <i class="bi bi-diagram-3 me-1"></i>Analysis…
-                          </button>
-                        }
-                        @if (printCount() > 0) {
-                                  <button class="btn btn-sm btn-outline-secondary" (click)="printResults()"
-                                    title="{{ selectedDocs.length ? 'Print the selected documents as one PDF' : 'Print all documents of these results as one PDF' }}">
-                                    <i class="bi bi-file-pdf me-1"></i>Print PDF ({{printCount()}})
-                                  </button>
-                                }
-                                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                                  (click)="exportMelodyCSV()">
-                                  <i class="bi bi-download"></i> CSV
-                                </button>
-                              </div>
-                            </div>
-                            @if (melodyResults.length > 0) {
-                              <div class="mb-3">
-                                <div class="input-group input-group-sm">
-                                  <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-funnel"></i></span>
-                                  <input type="text" class="form-control border-start-0" placeholder="Filter melody results by keyword..." [(ngModel)]="melodyFilterText" (ngModelChange)="onFilterChange('melody')" />
-                                  @if (melodyFilterText) {
-                                    <button class="btn btn-outline-secondary" type="button" (click)="clearFilter('melody')">
-                                      <i class="bi bi-x-lg"></i>
-                                    </button>
-                                  }
-                                </div>
-                              </div>
-                            }
-                            <div class="mb-2">
-                              <app-selection-bar [universe]="melodyHitDocIds" [selection]="selection" noun="documents" (changed)="onSelectionChanged()">
-                                <span class="text-muted">{{melodyHitDocIds.length | number}} documents, {{filteredMelodyResults.length | number}} matches</span>
-                              </app-selection-bar>
-                            </div>
-                            <!-- Melody results table with 100px chant position minimap -->
-                            <div class="card shadow-sm border-0 mb-3">
-                              <div class="card-body p-0">
-                                <div class="table-responsive">
-                                  <table class="table table-hover align-middle mb-0">
-                                    <thead class="table-light">
-                                      <tr>
-                                        <th style="width: 40px;" class="text-center"></th>
-                                        <th style="min-width: 170px;">Source & Document</th>
-                                        <th style="width: 120px;" class="text-center">Chant Location</th>
-                                        <th>Melodic Preview</th>
-                                        <th style="min-width: 120px;">Match Info</th>
-                                        <th style="width: 40px;"></th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      @for (r of pagedMelodyResults; track trackMelody($index, r)) {
-                                        <tr
-                                          class="cursor-pointer"
-                                          [style.border-left]="'4px solid ' + (r.docColor || '#cbd5e1')"
-                                          (click)="goToMelodyDocument(r)">
-                                          <!-- Checkbox -->
-                                          <td class="text-center" (click)="$event.stopPropagation()">
-                                            <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
-                                              [checked]="isDocSelected(r.document.id)"
-                                              (change)="toggleDocSelection(r.document, $event)" />
-                                            <button type="button" class="btn btn-link p-0 ms-1 text-secondary" title="Print this document as PDF" (click)="printOne(r.document.id)"><i class="bi bi-file-pdf"></i></button>
-                                          </td>
-                                          <!-- Source & Document info -->
-                                          <td>
-                                            <div class="d-flex align-items-center gap-1 flex-wrap">
-                                              <span class="fw-semibold text-accent" style="font-size: 0.88rem;">{{r.sourceSigle}}</span>
-                                              @if (r.isDocGroupStart && r.docGroupCount && r.docGroupCount > 1) {
-                                                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill ms-1"
-                                                  style="font-size: 0.68rem;"
-                                                  title="Multiple note realizations of contour found in this document">
-                                                  <i class="bi bi-layers me-1"></i>{{r.docGroupCount}} realizations
-                                                </span>
-                                              }
-                                            </div>
-                                            <div class="fw-medium text-dark" style="font-size: 0.84rem;">{{r.document.textinitium || r.document.dokumenten_id}}</div>
-                                            <div class="text-muted" style="font-size: 0.75rem;">
-                                              @if (r.document.dokumenten_id) {
-                                                <span class="badge bg-secondary-subtle text-secondary me-1">{{r.document.dokumenten_id}}</span>
-                                              }
-                                              @if (r.document.gattung1) {
-                                                <span>{{r.document.gattung1}}</span>
-                                              }
-                                              @if (r.document.gattung2) {
-                                                <span> / {{r.document.gattung2}}</span>
-                                              }
-                                              @if (r.document.festtag) {
-                                                <span> · {{r.document.festtag}}</span>
-                                              }
-                                            </div>
-                                            <!-- Realized note sequence badge for contour results -->
-                                            @if (r.noteSequenceLabel) {
-                                              <div class="mt-1">
-                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" style="font-size:0.72rem;">
-                                                  <i class="bi bi-music-note me-1"></i>{{r.noteSequenceLabel}}
-                                                </span>
-                                              </div>
-                                            }
-                                          </td>
-                                          <!-- Chant Location Minimap (100px Canvas/SVG representation with multi-color occurrences) -->
-                                          <td class="text-center align-middle" (click)="$event.stopPropagation()">
-                                            <div class="d-flex flex-column align-items-center">
-                                              <div class="chant-minimap-track border rounded-1 position-relative overflow-hidden bg-light shadow-sm"
-                                                style="width: 100px; height: 14px; border-color: var(--color-border-hover) !important;"
-                                                [title]="r.occurrences.length + ' match(es) in chant'">
-                                                <div class="position-absolute top-50 start-0 end-0 border-top border-secondary opacity-25" style="transform: translateY(-50%);"></div>
-                                                @for (occ of r.occurrences; track occ) {
-                                                  <div
-                                                    class="position-absolute h-100 border-start border-end"
-                                                    [style.left.%]="occ.startPct"
-                                                    [style.width.%]="occ.widthPct"
-                                                    [style.background-color]="occ.color"
-                                                    [style.border-color]="occ.border"
-                                                    style="min-width: 3px;"
-                                                    [title]="'Match (' + occ.pitchKey + '): Notes ' + (occ.startNoteIndex + 1) + '–' + (occ.endNoteIndex + 1) + ' (' + occ.startPct + '%–' + occ.endPct + '%)'">
-                                                  </div>
-                                                }
-                                              </div>
-                                              <!-- Occurrence legend / percentage -->
-                                              <div class="text-muted text-center mt-1" style="font-size: 0.68rem; font-family: monospace; white-space: nowrap;">
-                                                @if (r.occurrences.length === 1) {
-                                                  <span>
-                                                    {{r.occurrences[0].startPct}}%–{{r.occurrences[0].endPct}}%
-                                                  </span>
-                                                }
-                                                @if (r.occurrences.length > 1) {
-                                                  <span class="d-flex align-items-center gap-1 justify-content-center">
-                                                    @for (occ of r.occurrences; track occ) {
-                                                      <span class="badge rounded-circle p-1" [style.background-color]="occ.color" [title]="occ.startPct + '%–' + occ.endPct + '%'"> </span>
-                                                    }
-                                                    <span class="fw-semibold text-dark">{{r.occurrences.length}} matches</span>
-                                                  </span>
-                                                }
-                                              </div>
-                                            </div>
-                                          </td>
-                                          <!-- Melodic Notation Preview -->
-                                          <td>
-                                            <div class="melody-preview-container overflow-auto py-1">
-                                              <div class="d-flex flex-nowrap align-items-center gap-0 p-1 bg-light rounded" style="min-height: 70px;">
-                                                @for (syl of r.matchingSyllables; track syl; let first = $first) {
-                                                  <div style="flex-shrink: 0;">
-                                                    <app-notes [readOnly]="true" [model]="syl" [comments]="[]" [highlightNoteUUIDs]="r.matchNoteSet" [showGClef]="first"></app-notes>
-                                                  </div>
-                                                }
-                                              </div>
-                                            </div>
-                                          </td>
-                                          <!-- Match Info -->
-                                          <td>
-                                            <div class="d-flex flex-column gap-1">
-                                              <div>
-                                                @if (r.distance === 0) {
-                                                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Exact Match</span>
-                                                }
-                                                @if (r.distance !== undefined && r.distance > 0) {
-                                                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill small">
-                                                    {{r.distance}} {{r.distance === 1 ? 'diff' : 'diffs'}}
-                                                  </span>
-                                                }
-                                              </div>
-                                              <div class="text-muted" style="font-size: 0.75rem;">
-                                                <i class="bi bi-music-note me-1"></i>{{r.noteCount}} notes total
-                                              </div>
-                                              @if (r.occurrences.length > 1) {
-                                                <div class="text-muted" style="font-size: 0.72rem;">
-                                                  <i class="bi bi-layers me-1 text-primary"></i>{{r.occurrences.length}} matches in chant
-                                                </div>
-                                              }
-                                            </div>
-                                          </td>
-                                          <!-- Action arrow -->
-                                          <td class="text-end">
-                                            <i class="bi bi-chevron-right text-muted"></i>
-                                          </td>
-                                        </tr>
-                                      }
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            </div>
-                            <!-- Pagination for Melody Search results -->
-                            @if (melodyTotalPages > 1) {
-                              <nav class="mt-4 mb-3 d-flex justify-content-center" aria-label="Melody search result pages">
-                                <ul class="pagination pagination-sm mb-0 shadow-sm rounded-pill overflow-hidden">
-                                  <li class="page-item" [class.disabled]="melodyPage === 1">
-                                    <button class="page-link" (click)="goToFirstMelodyPage()" title="First page">
-                                      <i class="bi bi-chevron-double-left"></i>
-                                    </button>
-                                  </li>
-                                  <li class="page-item" [class.disabled]="melodyPage === 1">
-                                    <button class="page-link" (click)="goToPrevMelodyPage()" title="Previous page">
-                                      <i class="bi bi-chevron-left"></i>
-                                    </button>
-                                  </li>
-                                  @for (p of melodyPagerWindow; track p; let i = $index) {
-                                    @if (p === -1) {
-                                      <li class="page-item disabled">
-                                        <span class="page-link">…</span>
-                                      </li>
-                                    }
-                                    @if (p !== -1) {
-                                      <li class="page-item" [class.active]="p === melodyPage">
-                                        <button class="page-link" (click)="goToMelodyPage(p)">{{ p }}</button>
-                                      </li>
-                                    }
-                                  }
-                                  <li class="page-item" [class.disabled]="melodyPage === melodyTotalPages">
-                                    <button class="page-link" (click)="goToNextMelodyPage()" title="Next page">
-                                      <i class="bi bi-chevron-right"></i>
-                                    </button>
-                                  </li>
-                                  <li class="page-item" [class.disabled]="melodyPage === melodyTotalPages">
-                                    <button class="page-link" (click)="goToLastMelodyPage()" title="Last page">
-                                      <i class="bi bi-chevron-double-right"></i>
-                                    </button>
-                                  </li>
-                                </ul>
-                              </nav>
+                        </td>
+                        <td class="melody-where">
+                          <div class="melody-track" [title]="r.occurrences.length + ' match(es) in the chant'">
+                            @for (occ of r.occurrences; track occ) {
+                              <span [style.left.%]="occ.startPct" [style.width.%]="occ.widthPct"
+                                [title]="'Notes ' + (occ.startNoteIndex + 1) + '–' + (occ.endNoteIndex + 1) + ' (' + occ.startPct + '–' + occ.endPct + ' %)'"></span>
                             }
                           </div>
-                        }
-                      </div>
+                          <div class="quick-sub">
+                            {{ r.distance ? r.distance + (r.distance === 1 ? ' difference' : ' differences') : 'exact' }}@if (r.occurrences.length > 1) { · {{ r.occurrences.length }}×}
+                          </div>
+                        </td>
+                      </tr>
                     }
-                  </div>
-                }
-              </div>
-            }
-            <!-- ═══════════════════════════════════════════════════════════════════════
-            SYNOPSIS COMPARISON VIEW
-            ════════════════════════════════════════════════════════════════════════════ -->
+                  </tbody>
+                </table>
+                <ng-container *ngTemplateOutlet="pager; context: { kind: 'melody', page: melodyPage, total: melodyTotalPages }"></ng-container>
+              }
+            </div>
+          }
+        }
+      </div>
+    }
+    <!-- Synopsis comparison view -->
             @if (showSynopsis) {
               <div class="synopsis-view container-fluid px-4 py-4" style="max-width: 1400px;">
                 <!-- Toolbar (screen only) -->
                 <div class="synopsis-toolbar d-print-none">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
                     <button class="btn btn-outline-secondary btn-sm" (click)="exitSynopsis()" title="Back to search">
-                      <i class="bi bi-arrow-left me-1"></i>Back
+                      Back
                     </button>
                     <div class="btn-group btn-group-sm">
                       <button class="btn" [class.btn-primary]="alignmentMode === 'signature'" [class.btn-outline-secondary]="alignmentMode !== 'signature'" (click)="onAlignmentModeChange('signature')" title="Align by composed signature reference (I-1, I-2, …)">Signature</button>
@@ -1477,7 +401,7 @@
                     <!-- Column Chooser Button -->
                     <div class="position-relative">
                       <button class="btn btn-outline-secondary btn-sm" (click)="showSynopsisColPicker = !showSynopsisColPicker">
-                        <i class="bi bi-layout-three-columns me-1"></i>Columns
+                        Columns
                       </button>
                       @if (showSynopsisColPicker) {
                         <div class="col-picker shadow-lg border rounded-3 bg-white p-3 position-absolute end-0 mt-1" style="z-index: 1050; min-width: 200px;">
@@ -1501,13 +425,11 @@
                       @if (synopsisPdfExporting) {
                         <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                       }
-                      @if (!synopsisPdfExporting) {
-                        <i class="bi bi-file-earmark-pdf me-1"></i>
-                        }{{ synopsisPdfExporting ? 'Generating…' : 'Export PDF' }}
+                      {{ synopsisPdfExporting ? 'Generating…' : 'Export PDF' }}
                       </button>
                     <button class="btn btn-outline-secondary btn-sm ms-2" (click)="printResults()"
                       title="Print the compared documents as one edition (contents table, collected apparatus)">
-                      <i class="bi bi-journal-text me-1"></i>Print documents
+                      Print documents
                     </button>
                     </div>
                   </div>
@@ -1886,21 +808,6 @@
                   </div>
                 }
               </ng-template>
-              <!-- Selection analysis dashboard -->
-              @if (showDashboard) {
-                <div class="dashboard-view container-fluid px-4 py-4" style="max-width: 1200px;">
-                  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                    <div class="d-flex align-items-center gap-2">
-                      <button class="btn btn-outline-secondary btn-sm" (click)="exitDashboard()" title="Back to search">
-                        <i class="bi bi-arrow-left"></i>
-                      </button>
-                      <h5 class="fw-bold mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>Selection analysis</h5>
-                      <span class="text-muted small">{{ selectedDocs.length }} document(s)</span>
-                    </div>
-                  </div>
-                  <app-selection-dashboard [documents]="selectedDocs" [sources]="dashboardSources" [roots]="dashboardRoots"></app-selection-dashboard>
-                </div>
-              }
             </div>
           }
 
@@ -1911,7 +818,7 @@
               <div class="d-flex justify-content-between align-items-center mb-4">
                 <h3 class="mb-0">Melodic Formula Analysis</h3>
                 <button class="btn btn-outline-secondary btn-sm" (click)="exitPatternAnalysis()">
-                  <i class="bi bi-arrow-left me-1"></i> Back to Search
+                  Back to Search
                 </button>
               </div>
               <!-- Settings Card -->
@@ -1970,7 +877,7 @@
                     </div>
                     <div class="col-auto">
                       <button class="btn btn-primary btn-sm px-3" (click)="runPatternGrouping()" [disabled]="patternSearching">
-                        <i class="bi bi-play-fill me-1"></i> Analyze
+                        Analyze
                       </button>
                     </div>
                     @if (patternSearching) {
@@ -2023,12 +930,12 @@
                     <div class="d-flex align-items-center gap-2">
                       <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"
                         (click)="exportPatternAnalysisPDF()" title="Export results as a PDF Report">
-                        <i class="bi bi-file-pdf"></i> Export PDF
+                        Export PDF
                       </button>
                       <div class="position-relative">
                         <button class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
                           (click)="showSavedSessionsPopover = !showSavedSessionsPopover; showSaveSessionForm = false">
-                          <i class="bi bi-folder2-open"></i> Sessions
+                          Sessions
                         </button>
                         @if (showSavedSessionsPopover) {
                           <div class="sessions-popover shadow-lg border rounded-3 bg-white p-3 position-absolute end-0 mt-1 z-3" style="width: 320px;">
@@ -2058,7 +965,7 @@
                             @if (!showSaveSessionForm) {
                               <div class="mb-3">
                                 <button class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center gap-1 py-1.5" (click)="showSaveSessionForm = true">
-                                  <i class="bi bi-plus-circle"></i> Save Current Session
+                                  Save Current Session
                                 </button>
                               </div>
                             }
@@ -2075,10 +982,10 @@
                             <!-- Import/Export JSON Files -->
                             <div class="d-flex gap-2 pt-2 border-top">
                               <button class="btn btn-xs btn-outline-secondary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-1" style="font-size: 0.75rem;" (click)="exportPatternSessionJSON()" title="Download session file">
-                                <i class="bi bi-download"></i> Export JSON
+                                Export JSON
                               </button>
                               <button class="btn btn-xs btn-outline-secondary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-1" style="font-size: 0.75rem;" (click)="triggerImportJSON()" title="Upload session file">
-                                <i class="bi bi-upload"></i> Import JSON
+                                Import JSON
                               </button>
                             </div>
                           </div>
@@ -2116,7 +1023,7 @@
                             <a class="text-muted small text-decoration-none" href="javascript:void(0)"
                               title="Copy a shareable link to this pattern"
                               (click)="openPatternGroupById(g.id)">
-                              <i class="bi bi-link-45deg"></i> #{{ g.id }}
+                              #{{ g.id }}
                             </a>
                           </div>
                           @if (expandedGroupIds.has(g.id)) {
@@ -2226,7 +1133,7 @@
                                 <!-- Timeline SVG Column -->
                                 <td class="align-middle position-relative p-0" style="height: 24px;">
                                   <svg width="100%" height="100%" style="display: block; position: absolute; top:0; left:0;">
-                                    <rect width="100%" height="1" fill="#e9ecef" y="11"></rect>
+                                    <rect width="100%" height="1" fill="#ececec" y="11"></rect>
                                     @for (occ of docRow.occurrences; track occ) {
                                       <rect
                                         [attr.x]="occ.startPct + '%'"

@@ -1,5 +1,5 @@
 import { Component, EventEmitter, HostBinding, Input, Output } from '@angular/core';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../../../status-line.service';
 import * as M from '../../../types/model';
 
 /** One cell of the grid, with where it sits. */
@@ -24,7 +24,7 @@ export class CommentTreeGridComponent {
   @Output() treeEvent = new EventEmitter<M.CommentTreeEvent>();
 
   constructor(
-    private toaster: ToastrService
+    private toaster: StatusLineService
   ) { }
 
 

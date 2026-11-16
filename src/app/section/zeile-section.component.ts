@@ -13,7 +13,7 @@ import { FocusService } from '../focus.service';
 import { ToolsService } from '../tools.service';
 import { Subscription, Observable } from 'rxjs';
 import { take } from 'rxjs/operators';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { v4 as UUID } from "uuid";
 import { UndoService } from '../undoService';
 import { ContextMenuService } from '../context-menu/context-menu.service';
@@ -35,7 +35,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   constructor(
     private modalService: NgbModal,
     private changeRef: ChangeDetectorRef,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private focusService: FocusService,
     undoService: UndoService,
     private contextMenuService: ContextMenuService,
@@ -168,6 +168,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   }
 
   onContextMenu(me: MouseEvent): void {
+    if (this.readOnly) return; // outside the editor the browser's own menu stays
     me.preventDefault();
     me.stopPropagation();
 
@@ -587,7 +588,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   startComment(startUUID: string) {
     if (this.focusService.mode.kind === 'Normal') {
       this.focusService.mode = { kind: 'CommentCreate', startNoteUUID: startUUID };
-      this.toastr.info('Now click the note (or other element) where the comment should end.', 'Pick the end of the comment');
+      this.statusLine.info('Now click the note (or other element) where the comment should end.', 'Pick the end of the comment');
     }
   }
 
@@ -617,7 +618,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       // Don't let the user pick the SAME note as both start and end.
       // (a syllable picked twice is a comment on that whole syllable)
       if (mode.startNoteUUID === endUUID && kind !== Model.CommentPartKind.Syllable) {
-        this.toastr.info('Pick a *different* note as the end of the comment.', 'Same note');
+        this.statusLine.info('Pick a *different* note as the end of the comment.', 'Same note');
         return;
       }
       this.onEvent.emit({

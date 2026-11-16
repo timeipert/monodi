@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Subject, Subscription } from 'rxjs';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { APIService, Document, Source } from '../api.service';
 import { UserService, User } from '../user.service';
 import { NotesStore } from '../notes-store';
@@ -102,7 +102,7 @@ export class PatternAnalysisService {
   constructor(
     private api: APIService,
     private userService: UserService,
-    private toastr: ToastrService
+    private statusLine: StatusLineService
   ) {
     this.subs.push(this.userService.user.subscribe(user => {
       this.user = user;
@@ -123,14 +123,8 @@ export class PatternAnalysisService {
    * workspace), else the documents behind the hits of `activeTab`. Each document is analysed once, however many hits
    * it has (a melody search lists a document once per realisation).
    */
-  async runPatternGrouping(
-    activeTab: string,
-    filteredQuickResults: any[],
-    filteredSourceResults: any[],
-    filteredDocumentResults: any[],
-    filteredMelodyResults: any[],
-    scopeIds: string[] | null = null
-  ) {
+  /** Groups the recurring melodic patterns of the given documents (the hits, the selection or all documents). */
+  async runPatternGrouping(scopeIds: string[]) {
     if (!this.user) return;
     const runId = ++this.runCounter;
     this.patternSearching = true;
@@ -159,38 +153,9 @@ export class PatternAnalysisService {
 
       let targetDocs: { doc: Document; sourceSigle: string }[] = [];
 
-      if (scopeIds) {
-        for (const id of scopeIds) {
-          const doc = docMap.get(id);
-          if (doc) targetDocs.push({ doc, sourceSigle: sourceMap.get(doc.quelle_id)?.quellensigle ?? '' });
-        }
-      } else if (activeTab === 'quick') {
-        const docResults = filteredQuickResults.filter(r => r.kind === 'document');
-        for (const qr of docResults) {
-          const doc = docMap.get(qr.id);
-          if (doc) {
-            const sigle = sourceMap.get(doc.quelle_id)?.quellensigle ?? '';
-            targetDocs.push({ doc, sourceSigle: sigle });
-          }
-        }
-      } else if (activeTab === 'sources') {
-        const sourceIds = new Set(filteredSourceResults.map(s => s.id));
-        for (const doc of allDocs) {
-          if (sourceIds.has(doc.quelle_id)) {
-            const sigle = sourceMap.get(doc.quelle_id)?.quellensigle ?? '';
-            targetDocs.push({ doc, sourceSigle: sigle });
-          }
-        }
-      } else if (activeTab === 'documents') {
-        for (const d of filteredDocumentResults) {
-          const sigle = sourceMap.get(d.quelle_id)?.quellensigle ?? '';
-          targetDocs.push({ doc: d, sourceSigle: sigle });
-        }
-      } else if (activeTab === 'melody') {
-        for (const mr of filteredMelodyResults) {
-          const sigle = mr.sourceSigle || (sourceMap.get(mr.document.quelle_id)?.quellensigle ?? '');
-          targetDocs.push({ doc: mr.document, sourceSigle: sigle });
-        }
+      for (const id of scopeIds) {
+        const doc = docMap.get(id);
+        if (doc) targetDocs.push({ doc, sourceSigle: sourceMap.get(doc.quelle_id)?.quellensigle ?? '' });
       }
 
       // One entry per document: the melody tab lists a document once per realisation, and a document that is
@@ -417,7 +382,7 @@ export class PatternAnalysisService {
 
   async saveCurrentPatternSession(name: string) {
     if (!name.trim()) {
-      this.toastr.error('Please enter a session name');
+      this.statusLine.error('Please enter a session name');
       return;
     }
 
@@ -446,18 +411,18 @@ export class PatternAnalysisService {
 
       this.savedPatternSessions = [newSession, ...this.savedPatternSessions];
       await localforage.setItem('saved_pattern_sessions', this.savedPatternSessions);
-      this.toastr.success('Session saved successfully');
+      this.statusLine.success('Session saved successfully');
       this.notifyChange();
     } catch (e) {
       console.error('Failed to save session:', e);
-      this.toastr.error('Failed to save session');
+      this.statusLine.error('Failed to save session');
     }
   }
 
   async loadPatternSession(id: string) {
     const session = this.savedPatternSessions.find(s => s.id === id);
     if (!session) {
-      this.toastr.error('Session not found');
+      this.statusLine.error('Session not found');
       return;
     }
 
@@ -482,11 +447,11 @@ export class PatternAnalysisService {
       }
 
       this.updatePatternCache();
-      this.toastr.success(`Session "${session.name}" loaded`);
+      this.statusLine.success(`Session "${session.name}" loaded`);
       this.notifyChange();
     } catch (e) {
       console.error('Failed to load session:', e);
-      this.toastr.error('Failed to load session');
+      this.statusLine.error('Failed to load session');
     }
   }
 
@@ -494,11 +459,11 @@ export class PatternAnalysisService {
     try {
       this.savedPatternSessions = this.savedPatternSessions.filter(s => s.id !== id);
       await localforage.setItem('saved_pattern_sessions', this.savedPatternSessions);
-      this.toastr.success('Session deleted');
+      this.statusLine.success('Session deleted');
       this.notifyChange();
     } catch (e) {
       console.error('Failed to delete session:', e);
-      this.toastr.error('Failed to delete session');
+      this.statusLine.error('Failed to delete session');
     }
   }
 

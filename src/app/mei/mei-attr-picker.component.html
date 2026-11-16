@@ -19,7 +19,7 @@
     <input type="text" class="form-control" [placeholder]="placeholder" [(ngModel)]="query" (focus)="open = true" (input)="open = true"
       (keydown.enter)="enter()" (keydown.escape)="open = false; browse = false" autocomplete="off" spellcheck="false">
     <button type="button" class="btn btn-outline-secondary" [class.active]="browse" (click)="toggleBrowse()" title="Browse all attributes by group">
-      <i class="bi bi-diagram-3 me-1"></i>Browse
+      Browse
     </button>
   </div>
   @if (open || browse) {

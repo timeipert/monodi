@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, HostListener, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { APIService } from './api.service';
 import { StackEntry, ToolsService, Tool} from './tools.service';
@@ -41,7 +41,6 @@ export class AppComponent implements AfterViewInit {
   toolHasParent: boolean = false;
   isSyncing = false;
   syncProgress: SyncProgress | null = null;
-  isOnline: boolean = navigator.onLine;
 
   /**
    * Percentage for the bar. Prefers bytes over file counts: one manuscript can
@@ -82,11 +81,6 @@ export class AppComponent implements AfterViewInit {
   }
   showBackupReminder = false;
 
-  /** True on the start page (route `/`, also the fallback for unknown routes). */
-  get onStartPage(): boolean {
-    const path = this.router.url.split(/[?#]/)[0];
-    return path === '/' || path === '';
-  }
   /** Mobile/tablet navbar collapse state (driven by ng-bootstrap's ngbCollapse). */
   isNavCollapsed = true;
 
@@ -116,8 +110,6 @@ export class AppComponent implements AfterViewInit {
   ) {
     userService.user.subscribe(u => this.user = u);
     toolsService.subscribe((ts, hasParent) => { this.tools = ts; this.toolHasParent = hasParent });
-    window.addEventListener('online', () => this.isOnline = true);
-    window.addEventListener('offline', () => this.isOnline = false);
     this.backupReminder.visible$.subscribe(v => this.showBackupReminder = v);
   }
 
@@ -127,53 +119,12 @@ export class AppComponent implements AfterViewInit {
     new ResizeObserver(() => document.documentElement.style.setProperty('--app-chrome-height', chrome.offsetHeight + 'px')).observe(chrome);
   }
 
-  /** Backup reminder banner actions. */
-  goToBackup(): void {
-    this.showBackupReminder = false;
-    this.router.navigate(['/import-export']);
-  }
+  /** Backup reminder line actions. */
   snoozeBackup(): void {
     this.backupReminder.snooze();
   }
   dismissBackupReminder(): void {
     this.backupReminder.dismissForever();
-  }
-
-  @HostListener('contextmenu', ['$event'])
-  onContextMenu(event: MouseEvent) {
-    // This catches any right clicks that were NOT intercepted by child components
-    // (because child components call event.stopPropagation())
-    event.preventDefault();
-    
-    const items = [
-      {
-        label: 'Open Global Manual',
-        icon: 'bi-book',
-        action: () => {
-          const urlTree = this.router.createUrlTree(['/manual']);
-          const serialized = this.router.serializeUrl(urlTree);
-          const url = window.location.origin + window.location.pathname + '#' + serialized;
-          window.open(url, '_blank');
-        }
-      },
-      {
-        label: 'View Use Cases / Tutorials',
-        icon: 'bi-lightbulb',
-        action: () => {
-          const urlTree = this.router.createUrlTree(['/manual', 'use-cases']);
-          const serialized = this.router.serializeUrl(urlTree);
-          const url = window.location.origin + window.location.pathname + '#' + serialized;
-          window.open(url, '_blank');
-        }
-      },
-      {
-        label: 'Open Settings',
-        icon: 'bi-gear',
-        action: () => { this.router.navigate(['/settings']); }
-      }
-    ];
-
-    this.contextMenuService.open(event, items, undefined, undefined);
   }
 
   /** A tool with a menu opens it (text entries) below its button. */
@@ -182,35 +133,6 @@ export class AppComponent implements AfterViewInit {
     event.stopPropagation();
     const r = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.contextMenuService.openAt(r.left, r.bottom + 4, (t.menu || []).map(m => ({ ...m })));
-  }
-
-  onToolContextMenu(event: MouseEvent, t: Tool) {
-    if (t.menu) { this.openToolMenu(event, t); return; }
-    event.preventDefault();
-    event.stopPropagation();
-    
-    let helpTopic = 'transcription';
-    let helpHash = '';
-
-    const titleLower = (t.title || '').toLowerCase();
-    
-    if (titleLower.includes('export') || titleLower.includes('html') || titleLower.includes('mei') || titleLower.includes('pdf')) {
-      helpTopic = 'metadata';
-      helpHash = 'exporting-data';
-    } else if (titleLower.includes('search')) {
-      helpTopic = 'search';
-    } else if (titleLower.includes('iiif') || titleLower.includes('map')) {
-      helpTopic = 'iiif';
-    }
-
-    const items = [
-      {
-        label: 'Execute Action',
-        action: () => { if (t.callback) t.callback(); }
-      }
-    ];
-
-    this.contextMenuService.open(event, items, helpTopic, helpHash);
   }
 
   toolsBack() {
@@ -379,7 +301,7 @@ export class AppComponent implements AfterViewInit {
     // Streams straight from IndexedDB — never materialises the workspace.
     const ok = await this.github.pushDatabase(
       new LocalWorkspaceSource(),
-      `Update ${ids.size} manuscript(s) from Monodi-Light (${date})`,
+      `Update ${ids.size} manuscript(s) from monodi (${date})`,
       p => this.syncProgress = p,
       ids
     );
@@ -575,7 +497,7 @@ export class AppComponent implements AfterViewInit {
       await flushNotes();
     } catch (e) {
       console.error('Streaming merge failed', e);
-      this.toastrError('Merge failed while reading from GitHub. Nothing was lost — try again.');
+      this.statusError('Merge failed while reading from GitHub. Nothing was lost — try again.');
       this.isSyncing = false;
       this.syncProgress = null;
       return;
@@ -629,7 +551,7 @@ export class AppComponent implements AfterViewInit {
     }
   }
 
-  private toastrError(msg: string) {
+  private statusError(msg: string) {
     alert(msg);
   }
 
@@ -843,7 +765,7 @@ export class AppComponent implements AfterViewInit {
        // The merged result was just written to storage above, so the push can
        // stream it back out manuscript by manuscript instead of holding the
        // whole (potentially multi-GB) workspace serialized in memory.
-       const success = await this.github.pushDatabase(new LocalWorkspaceSource(), `Update from Monodi-Light (${date})`, p => this.syncProgress = p);
+       const success = await this.github.pushDatabase(new LocalWorkspaceSource(), `Update from monodi (${date})`, p => this.syncProgress = p);
        if (success) {
          this.backupReminder.markBackup();
          alert('Successfully synced and pushed to GitHub!');

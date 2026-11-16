@@ -1,7 +1,6 @@
-<div class="mg-page container-fluid">
+<div class="mg-page container-fluid" [class.embedded]="embedded">
   <div class="mg-top d-flex flex-wrap align-items-center gap-3">
-    <h4 class="mb-0 fw-bold">Metadata</h4>
-    <ul class="nav nav-pills mg-tabs">
+    <ul class="nav nav-pills mg-tabs" [hidden]="!!sourceSigle">
       <li class="nav-item">
         <button type="button" class="nav-link" [class.active]="active === 'documents'" (click)="setActive('documents')" data-testid="mg-tab-documents">
           Documents @if (views.documents) { <span class="badge text-bg-light ms-1">{{ views.documents.rowCount }}</span> }
@@ -15,19 +14,19 @@
     </ul>
     <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="!view" (click)="commitEdit(); showReplace = true" data-testid="mg-replace"
       title="Find and replace text, across one or more columns or just the selected cells (Ctrl+H)">
-      <i class="bi bi-search me-1"></i>Find &amp; replace
+      Find &amp; replace
     </button>
     <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="!view" (click)="commitEdit(); showFill = true" data-testid="mg-fill"
       title="Fill a column from another one, with a change of the text if you like (a play name into Unit ID)">
-      <i class="bi bi-arrow-right-square me-1"></i>Fill a column
+      Fill a column
     </button>
     <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="totalDirty > 0" (click)="showRelations = true" data-testid="mg-relations"
       [title]="totalDirty > 0 ? 'Save or discard your edits first' : 'Relations between documents (a trope and its primary chant) and units (a play) with a check of the data'">
-      <i class="bi bi-diagram-3 me-1"></i>Relations and units
+      Relations and units
     </button>
     <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="totalDirty > 0" (click)="showImport = true" data-testid="mg-import-cm"
       [title]="totalDirty > 0 ? 'Save or discard your edits first' : 'Mark documents that must not be printed, from the export list of Corpus Monodicum'">
-      <i class="bi bi-file-earmark-excel me-1"></i>Import export list (.xlsx)
+      Import export list (.xlsx)
     </button>
   </div>
 
@@ -95,7 +94,7 @@
       }
       <div class="d-flex flex-wrap align-items-center gap-2">
         <button type="button" class="btn btn-sm btn-outline-primary" (click)="addFilter()" data-testid="mg-add-filter">
-          <i class="bi bi-funnel me-1"></i>Add filter
+          Add filter
         </button>
         <input type="search" class="form-control form-control-sm mg-quick" [(ngModel)]="view.quick" (ngModelChange)="filtersChanged(false)"
           placeholder="Search all columns" aria-label="Search all columns" />
@@ -132,14 +131,10 @@
         @if (view.selectedCount > 0) {
           <button type="button" class="btn btn-sm btn-danger" [disabled]="totalDirty > 0" (click)="askDelete()" data-testid="mg-delete"
             [title]="totalDirty > 0 ? 'Save or discard your edits first' : ''">
-            <i class="bi bi-trash me-1"></i>Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}
+            Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}
           </button>
         }
       </span>
-    </div>
-    <div class="mg-hint text-muted">
-      Click a cell and type, or press Enter, to edit · Ctrl+C / Ctrl+V copy and paste cells (also from Excel) · Delete clears · Ctrl+D fills down ·
-      Ctrl+Enter in a cell fills the whole selection · Ctrl+Z undo · Ctrl+S saves
     </div>
 
     <!-- Grid -->
@@ -212,7 +207,7 @@
     <div class="modal-dialog modal-dialog-centered" (click)="$event.stopPropagation()">
       <div class="modal-content shadow-lg border-0">
         <div class="modal-header">
-          <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}?</h5>
+          <h5 class="modal-title text-danger">Delete {{ view.selectedCount }} {{ active === 'documents' ? 'document(s)' : 'source(s)' }}?</h5>
         </div>
         <div class="modal-body">
           @if (active === 'documents') {

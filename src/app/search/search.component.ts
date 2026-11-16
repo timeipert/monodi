@@ -4,11 +4,10 @@ import { sanitizeNotationColor } from '../notation-color';
 import { sanitizeClefDisplayMode } from '../clef-policy';
 import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef, ViewChild, ElementRef, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
-import { ToastrService } from 'ngx-toastr';
-import { APIService, Source, Document, ProjectSettings } from '../api.service';
+import { StatusLineService } from '../status-line.service';
+import { APIService, Document, ProjectSettings } from '../api.service';
 import { UserService, User } from '../user.service';
-import { Subscription, forkJoin, Subject } from 'rxjs';
-import { debounceTime } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 import { PageTitleService } from '../page-title.service';
 import { PatternAnalysisService } from './pattern-analysis.service';
 import { SynopsisService, AlignedNode, AlignedLineElement } from './synopsis.service';
@@ -35,33 +34,6 @@ export interface ColDef<T> {
   visible: boolean;
 }
 
-const DEFAULT_SRC_COLS: ColDef<Source>[] = [
-  { key: 'quellensigle',         label: 'Source Siglum',     visible: true  },
-  { key: 'datierung',            label: 'Dating',            visible: false },
-  { key: 'herkunftsregion',      label: 'Region of Origin',  visible: false },
-  { key: 'herkunftsort',         label: 'Place of Origin',   visible: true  },
-  { key: 'herkunftsinstitution', label: 'Institution',       visible: true  },
-  { key: 'ordenstradition',      label: 'Order Tradition',   visible: false },
-  { key: 'quellentyp',           label: 'Source Type',       visible: true  },
-  { key: 'bibliotheksort',       label: 'Library Location',  visible: false },
-  { key: 'bibliothek',           label: 'Library',           visible: false },
-  { key: 'bibliothekssignatur',  label: 'Library Signature', visible: false },
-];
-
-const DEFAULT_DOC_COLS: ColDef<Document>[] = [
-  { key: 'dokumenten_id',            label: 'Document ID',        visible: true  },
-  { key: 'textinitium',              label: 'Text Incipit',       visible: true  },
-  { key: 'gattung1',                 label: 'Genre 1',            visible: true  },
-  { key: 'gattung2',                 label: 'Genre 2',            visible: false },
-  { key: 'festtag',                  label: 'Feast Day',          visible: true  },
-  { key: 'feier',                    label: 'Celebration',        visible: false },
-  { key: 'foliostart',               label: 'Folio Start',        visible: false },
-  { key: 'zeilenstart',              label: 'Line Start',         visible: false },
-  { key: 'druckausgabe',             label: 'Print Edition',      visible: false },
-  { key: 'bibliographischerverweis', label: 'Bibliographic Ref.', visible: false },
-  { key: 'editionsstatus',           label: 'Edition Status',     visible: false },
-];
-
 const SYNOPSIS_COLS_KEY = 'monodi_synopsis_cols';
 const DEFAULT_SYNOPSIS_COLS: ColDef<Document>[] = [
   { key: 'dokumenten_id',            label: 'Document ID / Siglum', visible: true  },
@@ -84,9 +56,6 @@ const SYNOPSIS_MAX_WITNESSES = 20;
 /** Printing or analysing more documents than this asks for a confirmation first. */
 const BIG_SELECTION = 200;
 
-const SRC_RES_KEY  = 'monodi_search_src_cols';
-const DOC_RES_KEY  = 'monodi_search_doc_cols';
-const RECENT_KEY   = 'monodi_search_recent';
 
 // ─── Quick-search result ──────────────────────────────────────────────────────
 
@@ -119,6 +88,9 @@ export { arrayLevenshtein } from './pattern-algo';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+/** The two kinds of search: words (in transcriptions and metadata) and melody. */
+export type SearchTab = 'quick' | 'melody';
+
 @Component({
     selector: 'app-search',
     templateUrl: './search.component.html',
@@ -126,7 +98,7 @@ export { arrayLevenshtein } from './pattern-algo';
     standalone: false
 })
 export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
-  activeTab: 'quick' | 'sources' | 'documents' | 'melody' = 'quick';
+  activeTab: SearchTab = 'quick';
   user: User | null = null;
   subs: Subscription[] = [];
   settings: ProjectSettings | null = null;
@@ -148,11 +120,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   synopsisLoading = false;
   synopsisPdfExporting = false;
 
-  // Selection analysis dashboard
-  showDashboard = false;
-  dashboardLoading = false;
-  dashboardRoots: (VM.RootContainer | null)[] = [];
-  dashboardSources: (Source | null)[] = [];
 
   get alignedTree(): AlignedNode[] { return this.synopsisSvc.alignedTree; }
   set alignedTree(v: AlignedNode[]) { this.synopsisSvc.alignedTree = v; }
@@ -290,36 +257,16 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   set quickPage(v) { this.searchExecSvc.quickPage = v; }
 
   // ── Source search delegation ───────────────────────────────────────────────
-  get sourceQuery() { return this.searchExecSvc.sourceQuery; }
-  set sourceQuery(v) { this.searchExecSvc.sourceQuery = v; }
 
-  get sourceResults() { return this.searchExecSvc.sourceResults; }
-  set sourceResults(v) { this.searchExecSvc.sourceResults = v; }
 
-  get sourceSearched() { return this.searchExecSvc.sourceSearched; }
-  set sourceSearched(v) { this.searchExecSvc.sourceSearched = v; }
 
-  get sourceSearching() { return this.searchExecSvc.sourceSearching; }
-  set sourceSearching(v) { this.searchExecSvc.sourceSearching = v; }
 
-  get sourcesPage() { return this.searchExecSvc.sourcesPage; }
-  set sourcesPage(v) { this.searchExecSvc.sourcesPage = v; }
 
   // ── Document search delegation ─────────────────────────────────────────────
-  get documentQuery() { return this.searchExecSvc.documentQuery; }
-  set documentQuery(v) { this.searchExecSvc.documentQuery = v; }
 
-  get documentResults() { return this.searchExecSvc.documentResults; }
-  set documentResults(v) { this.searchExecSvc.documentResults = v; }
 
-  get documentSearched() { return this.searchExecSvc.documentSearched; }
-  set documentSearched(v) { this.searchExecSvc.documentSearched = v; }
 
-  get documentSearching() { return this.searchExecSvc.documentSearching; }
-  set documentSearching(v) { this.searchExecSvc.documentSearching = v; }
 
-  get documentsPage() { return this.searchExecSvc.documentsPage; }
-  set documentsPage(v) { this.searchExecSvc.documentsPage = v; }
 
   // ── Melody search delegation ───────────────────────────────────────────────
   get melodyPattern() { return this.searchExecSvc.melodyPattern; }
@@ -398,26 +345,14 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   get melodyPage() { return this.searchExecSvc.melodyPage; }
   set melodyPage(v) { this.searchExecSvc.melodyPage = v; }
 
-  // View-local configs
-  srcSortCol = '';
-  srcSortAsc = true;
-  showSrcColPicker = false;
-  srcResultCols: ColDef<Source>[] = [];
 
-  docSortCol = '';
-  docSortAsc = true;
-  showDocColPicker = false;
-  docResultCols: ColDef<Document>[] = [];
   synopsisMetadataCols: ColDef<Document>[] = [];
   showSynopsisColPicker = false;
 
   quickPageSize = 25;
-  sourcesPageSize = 25;
-  documentsPageSize = 25;
   melodyPageSize = 10;
 
   // ── Recent searches ───────────────────────────────────────────────────────
-  recentSearches: string[] = [];
 
   // ── Pattern analysis state delegation ──────────────────────────────────────
   get showPatternAnalysis() { return this.patternSvc.showPatternAnalysis; }
@@ -489,17 +424,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
 
   // ── Performance knobs ─────────────────────────────────────────────────────
-  /** Hard cap on how many results are *rendered* at once. Way over this and
-   *  Angular spends all its time in change-detection / DOM updates on
-   *  result rows the user can't even see. They can ask for more via the
-   *  "Show more" buttons. */
-  private static readonly INITIAL_RESULT_LIMIT = 100;
 
-  /** Current visible-result caps; incremented by `showMore*()`. */
-  visibleQuickLimit    = SearchComponent.INITIAL_RESULT_LIMIT;
-  visibleSourceLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
-  visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-  visibleMelodyLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
 
 
 
@@ -508,49 +433,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
 
   // ── Cached sort results (avoid recomputing per CD pass) ──────────────────
-  /** Precomputed sorted view; mirror of `sourceResults` / `documentResults`
-   *  but recomputed only when the data or sort spec actually changes. The
-   *  prior code used getters that ran the sort on *every* change detection
-   *  pass, which is O(N log N) per CD on huge result sets. */
-  private _sortedSources: Source[] = [];
-  private _sortedDocs:    Document[] = [];
-  private _srcSortKey = ''; // composite "col|asc" cache key
-  private _docSortKey = '';
-  private _srcResultsRef: Source[] | null = null;
-  private _docResultsRef: Document[] | null = null;
 
   // ── Post-search filter ───────────────────────────────────────────────────
-  /** Text typed into the in-result filter bars. Empty = no filter. Each
-   *  search tab keeps its own filter so switching tabs doesn't lose state. */
-  quickFilterText    = '';
-  sourceFilterText   = '';
-  documentFilterText = '';
-  melodyFilterText   = '';
 
-  /** Debounced values that actually drive the getter filters. */
-  quickFilterValue    = '';
-  sourceFilterValue   = '';
-  documentFilterValue = '';
-  melodyFilterValue   = '';
 
-  private filterSubject = new Subject<'quick' | 'source' | 'document' | 'melody'>();
 
-  /** Memoised filtered lists. Recomputed only when the underlying results
-   *  array reference or filter string actually changes — otherwise the
-   *  cached array is returned, so a CD-heavy parent component doesn't
-   *  cause a substring scan on every tick. */
-  private _filteredQuick:    QuickResult[]  = [];
-  private _filteredSrc:      Source[]       = [];
-  private _filteredDoc:      Document[]     = [];
-  private _filteredMelody:   MelodyResult[] = [];
-  private _quickFilterKey  = '__init__';
-  private _srcFilterKey    = '__init__';
-  private _docFilterKey    = '__init__';
-  private _melodyFilterKey = '__init__';
-  private _quickFilterRef:  QuickResult[]  | null = null;
-  private _srcFilterRef:    Source[]       | null = null;
-  private _docFilterRef:    Document[]     | null = null;
-  private _melodyFilterRef: MelodyResult[] | null = null;
 
   constructor(
     private api: APIService,
@@ -559,14 +446,13 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     private userService: UserService,
     private pageTitle: PageTitleService,
     private cdRef: ChangeDetectorRef,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private patternSvc: PatternAnalysisService,
     private synopsisSvc: SynopsisService,
     private searchExecSvc: SearchExecService,
     private fsService: FileSystemService,
   ) {
-    this.loadCols();
-    this.loadRecentSearches();
+    this.synopsisMetadataCols = this.loadFromStorage<Document>(SYNOPSIS_COLS_KEY, DEFAULT_SYNOPSIS_COLS);
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -582,17 +468,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
     this.subs.push(this.selSvc.changed$.subscribe(() => this.cdRef.markForCheck()));
 
-    this.subs.push(
-      this.filterSubject.pipe(debounceTime(300)).subscribe(which => {
-        switch (which) {
-          case 'quick':    this.quickFilterValue = this.quickFilterText; break;
-          case 'source':   this.sourceFilterValue = this.sourceFilterText; break;
-          case 'document': this.documentFilterValue = this.documentFilterText; break;
-          case 'melody':   this.melodyFilterValue = this.melodyFilterText; break;
-        }
-        this.applyFilterLimitReset(which);
-      })
-    );
 
     this.subs.push(this.userService.user.subscribe(async user => {
       this.user = user;
@@ -686,208 +561,55 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   async searchQuick() {
-    this.visibleQuickLimit = SearchComponent.INITIAL_RESULT_LIMIT;
     this.updateUrl();
     this.applySearchScope();
-    await this.searchExecSvc.searchQuick(
-      (q) => this.addRecentSearch(q),
-      () => this.clearFilter('quick')
-    );
+    await this.searchExecSvc.searchQuick();
   }
 
   cancelSearch(): void {
     this.searchExecSvc.cancelSearch();
   }
 
-  searchSources() {
-    this.visibleSourceLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-    this.updateUrl();
-    this.searchExecSvc.searchSources();
-  }
 
-  clearSourceQuery() {
-    this.searchExecSvc.sourceQuery = {};
-    this.searchExecSvc.sourceResults = [];
-    this.searchExecSvc.sourceSearched = false;
-    this.srcSortCol = '';
-    this.saveSearchStateToIndexedDB();
-    this.cdRef.markForCheck();
-  }
 
-  searchDocuments() {
-    this.visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-    this.updateUrl();
-    this.searchExecSvc.searchDocuments();
-  }
 
-  clearDocumentQuery() {
-    this.searchExecSvc.documentQuery = {
-      dokumenten_id: undefined, gattung1: undefined, gattung2: undefined,
-      festtag: undefined, feier: undefined, textinitium: undefined,
-      bibliographischerverweis: undefined, druckausgabe: undefined,
-      zeilenstart: undefined, foliostart: undefined, kommentar: undefined,
-    };
-    this.searchExecSvc.documentResults = [];
-    this.searchExecSvc.documentSearched = false;
-    this.docSortCol = '';
-    this.saveSearchStateToIndexedDB();
-    this.cdRef.markForCheck();
-  }
 
   async searchMelody() {
-    this.visibleMelodyLimit = SearchComponent.INITIAL_RESULT_LIMIT;
+    if (this.melodyPatternError) return;
     this.updateUrl();
     this.applySearchScope();
     await this.searchExecSvc.searchMelody();
   }
 
-  get melodyPatternHint(): string {
-    if (this.melodySearchType === 'pitch') {
-      return this.melodyWithOctave
-        ? 'e.g. C4D4E4F4  (note names + octave, no spaces needed)'
-        : 'e.g. CDEFG  (note names A–G, no spaces needed)';
-    } else if (this.melodySearchType === 'contour') {
-      return 'e.g. uudrud  (u=up, d=down, r=repeat)';
+  /** Why the melody pattern cannot be searched (a letter the chosen kind does not know), or '' if it can. A silently
+   *  ignored letter would search for something else than what was typed (contour "CDCDC" became "dd"). */
+  get melodyPatternError(): string {
+    const p = this.melodyPattern.trim();
+    if (!p) return '';
+    if (this.melodySearchType === 'contour') {
+      return /[^udr.?\s]/i.test(p) ? 'Contour knows only u (up), d (down), r (repeat), . and .?. For note names choose Pitches.' : '';
     }
-    return 'e.g. +1-2+0  (signed step differences, spaces optional)';
+    if (this.melodySearchType === 'pitch') {
+      return /[^a-h#♭♯0-9.?\s]/i.test(p) ? 'Pitches are the letters A–H, with # or b, and an octave number if wanted.' : '';
+    }
+    return '';
+  }
+
+  get melodyPatternHint(): string {
+    if (this.melodySearchType === 'contour') return 'uudrud';
+    return this.melodyWithOctave ? 'C4D4E4F4' : 'CDEFG';
   }
 
   // ── Sorting ───────────────────────────────────────────────────────────────
 
-  sortBy(col: string, which: 'src' | 'doc') {
-    if (which === 'src') {
-      if (this.srcSortCol === col) this.srcSortAsc = !this.srcSortAsc;
-      else { this.srcSortCol = col; this.srcSortAsc = true; }
-    } else {
-      if (this.docSortCol === col) this.docSortAsc = !this.docSortAsc;
-      else { this.docSortCol = col; this.docSortAsc = true; }
-    }
-  }
 
-  private sortArr<T>(arr: T[], col: string, asc: boolean): T[] {
-    if (!col) return arr;
-    return [...arr].sort((a, b) => {
-      const av = String((a as any)[col] ?? '').toLowerCase();
-      const bv = String((b as any)[col] ?? '').toLowerCase();
-      return asc ? av.localeCompare(bv) : bv.localeCompare(av);
-    });
-  }
 
-  /**
-   * Sorted-result accessors used by the template's `*ngFor`.
-   *
-   * These USED to be eager `sortArr(...)` getters which re-ran the entire
-   * O(N log N) sort on every Angular change-detection pass — on big result
-   * sets that meant the browser was doing thousands of comparisons per
-   * scroll tick. The cached implementation keeps the previous output and
-   * only re-sorts when either the underlying array reference or the sort
-   * key/direction actually changes.
-   */
-  get sortedSourceResults(): Source[] {
-    const key = this.srcSortCol + '|' + this.srcSortAsc;
-    if (this._srcResultsRef !== this.sourceResults || this._srcSortKey !== key) {
-      this._sortedSources = this.sortArr(this.sourceResults, this.srcSortCol, this.srcSortAsc);
-      this._srcResultsRef = this.sourceResults;
-      this._srcSortKey = key;
-    }
-    return this._sortedSources;
-  }
-  get sortedDocumentResults(): Document[] {
-    const key = this.docSortCol + '|' + this.docSortAsc;
-    if (this._docResultsRef !== this.documentResults || this._docSortKey !== key) {
-      this._sortedDocs = this.sortArr(this.documentResults, this.docSortCol, this.docSortAsc);
-      this._docResultsRef = this.documentResults;
-      this._docSortKey = key;
-    }
-    return this._sortedDocs;
-  }
   // ── Post-search filtering ──────────────────────────────────────────────
-  /**
-   * Generic substring filter. `keyFn` returns a string of all the text the
-   * row should be matchable by (e.g. concatenated metadata). The filter
-   * text is split on whitespace into AND-terms so the user can type
-   * `Aa 13 Karolus` to narrow to rows containing *both* "Aa 13" and
-   * "Karolus" — feels natural for refining a large result set.
-   */
-  private applyFilter<T>(arr: T[], filterText: string, keyFn: (row: T) => string): T[] {
-    const trimmed = filterText.trim().toLowerCase();
-    if (!trimmed) return arr;
-    const terms = trimmed.split(/\s+/).filter(Boolean);
-    return arr.filter(row => {
-      const haystack = keyFn(row).toLowerCase();
-      return terms.every(t => haystack.includes(t));
-    });
-  }
 
-  /** Cached filtered views — keyed on (results ref, filter text) so a CD
-   *  pass that didn't change either skips the substring scan entirely. */
-  get filteredQuickResults(): QuickResult[] {
-    const key = this.quickFilterValue;
-    if (this._quickFilterRef !== this.quickResults || this._quickFilterKey !== key) {
-      this._filteredQuick = this.applyFilter(this.quickResults, key,
-        r => `${r.title} ${r.subtitle} ${r.extra} ${r.snippet?.before ?? ''} ${r.snippet?.match ?? ''} ${r.snippet?.after ?? ''}`);
-      this._quickFilterRef = this.quickResults;
-      this._quickFilterKey = key;
-    }
-    return this._filteredQuick;
-  }
-  get filteredSourceResults(): Source[] {
-    const sorted = this.sortedSourceResults;
-    const key = this.sourceFilterValue;
-    if (this._srcFilterRef !== sorted || this._srcFilterKey !== key) {
-      this._filteredSrc = this.applyFilter(sorted, key,
-        s => Object.values(s).filter(v => typeof v === 'string').join(' '));
-      this._srcFilterRef = sorted;
-      this._srcFilterKey = key;
-    }
-    return this._filteredSrc;
-  }
-  get filteredDocumentResults(): Document[] {
-    const sorted = this.sortedDocumentResults;
-    const key = this.documentFilterValue;
-    if (this._docFilterRef !== sorted || this._docFilterKey !== key) {
-      this._filteredDoc = this.applyFilter(sorted, key,
-        d => Object.values(d).filter(v => typeof v === 'string').join(' '));
-      this._docFilterRef = sorted;
-      this._docFilterKey = key;
-    }
-    return this._filteredDoc;
-  }
-  get filteredMelodyResults(): MelodyResult[] {
-    const key = this.melodyFilterValue;
-    if (this._melodyFilterRef !== this.melodyResults || this._melodyFilterKey !== key) {
-      this._filteredMelody = this.applyFilter(this.melodyResults, key, r => {
-        const d = r.document;
-        return `${r.sourceSigle} ${d.textinitium ?? ''} ${d.dokumenten_id ?? ''} ${d.gattung1 ?? ''} ${d.gattung2 ?? ''} ${d.festtag ?? ''} ${d.feier ?? ''} ${d.foliostart ?? ''}`;
-      });
-      this._melodyFilterRef = this.melodyResults;
-      this._melodyFilterKey = key;
-    }
-    return this._filteredMelody;
-  }
 
-  /** Visible-cap slicing — keeps the DOM small on huge result sets. Slices
-   *  AFTER filtering so "Show more" pages through the filtered view. */
-  get visibleQuickResults():    QuickResult[]  { return this.filteredQuickResults.slice(0, this.visibleQuickLimit); }
-  get visibleSourceResults():   Source[]       { return this.filteredSourceResults.slice(0, this.visibleSourceLimit); }
-  get visibleDocumentResults(): Document[]     { return this.filteredDocumentResults.slice(0, this.visibleDocumentLimit); }
-  get visibleMelodyResults():   MelodyResult[] { return this.filteredMelodyResults.slice(0, this.visibleMelodyLimit); }
 
   // ── Search pagination helper and getters ──────────────────────────────────
 
-  getPagerWindow(currentPage: number, totalPages: number): number[] {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
-    const out: number[] = [1];
-    const winStart = Math.max(2, currentPage - 2);
-    const winEnd   = Math.min(totalPages - 1, currentPage + 2);
-    if (winStart > 2) out.push(-1);
-    for (let p = winStart; p <= winEnd; p++) out.push(p);
-    if (winEnd < totalPages - 1) out.push(-1);
-    out.push(totalPages);
-    return out;
-  }
 
   async saveSearchStateToIndexedDB() {
     await this.searchExecSvc.saveSearchStateToIndexedDB(this.activeTab);
@@ -900,222 +622,57 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.cdRef.markForCheck();
   }
 
-  showMoreQuick():     void { this.visibleQuickLimit    += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
-  showMoreSources():   void { this.visibleSourceLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
-  showMoreDocuments(): void { this.visibleDocumentLimit += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
-  showMoreMelody():    void { this.visibleMelodyLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
 
   trackQuick   = (_: number, r: QuickResult)  => r.id;
-  trackSource  = (_: number, s: Source)       => s.id ?? '';
-  trackDoc     = (_: number, d: Document)     => d.id;
   trackMelody  = (_: number, r: MelodyResult) => r.document.id;
 
   // Quick Search Pagination
   get quickTotalPages(): number {
-    return Math.max(1, Math.ceil(this.filteredQuickResults.length / this.quickPageSize));
+    return Math.max(1, Math.ceil(this.quickResults.length / this.quickPageSize));
   }
   get pagedQuickResults(): QuickResult[] {
     const start = (this.quickPage - 1) * this.quickPageSize;
-    return this.filteredQuickResults.slice(start, start + this.quickPageSize);
+    return this.quickResults.slice(start, start + this.quickPageSize);
   }
-  get quickPageFromIndex(): number {
-    if (this.filteredQuickResults.length === 0) return 0;
-    return (this.quickPage - 1) * this.quickPageSize + 1;
-  }
-  get quickPageToIndex(): number {
-    return Math.min(this.filteredQuickResults.length, this.quickPage * this.quickPageSize);
-  }
-  get quickPagerWindow(): number[] {
-    return this.getPagerWindow(this.quickPage, this.quickTotalPages);
+
+  /** One pager for both tabs (template `#pager`). */
+  goToPage(kind: SearchTab, p: number): void {
+    if (kind === 'quick') this.goToQuickPage(p); else this.goToMelodyPage(p);
   }
 
   goToQuickPage(p: number): void {
-    if (this.filteredQuickResults.length === 0) return;
+    if (this.quickResults.length === 0) return;
     this.quickPage = Math.max(1, Math.min(this.quickTotalPages, p));
     this.saveSearchStateToIndexedDB();
     this.cdRef.markForCheck();
   }
-  goToFirstQuickPage(): void { this.goToQuickPage(1); }
-  goToLastQuickPage():  void { this.goToQuickPage(this.quickTotalPages); }
-  goToPrevQuickPage():  void { this.goToQuickPage(this.quickPage - 1); }
-  goToNextQuickPage():  void { this.goToQuickPage(this.quickPage + 1); }
 
-  // Sources Search Pagination
-  get sourcesTotalPages(): number {
-    return Math.max(1, Math.ceil(this.filteredSourceResults.length / this.sourcesPageSize));
-  }
-  get pagedSourceResults(): Source[] {
-    const start = (this.sourcesPage - 1) * this.sourcesPageSize;
-    return this.filteredSourceResults.slice(start, start + this.sourcesPageSize);
-  }
-  get sourcesPageFromIndex(): number {
-    if (this.filteredSourceResults.length === 0) return 0;
-    return (this.sourcesPage - 1) * this.sourcesPageSize + 1;
-  }
-  get sourcesPageToIndex(): number {
-    return Math.min(this.filteredSourceResults.length, this.sourcesPage * this.sourcesPageSize);
-  }
-  get sourcesPagerWindow(): number[] {
-    return this.getPagerWindow(this.sourcesPage, this.sourcesTotalPages);
-  }
-  goToSourcesPage(p: number): void {
-    if (this.filteredSourceResults.length === 0) return;
-    this.sourcesPage = Math.max(1, Math.min(this.sourcesTotalPages, p));
-    this.saveSearchStateToIndexedDB();
-    this.cdRef.markForCheck();
-  }
-  goToFirstSourcesPage(): void { this.goToSourcesPage(1); }
-  goToLastSourcesPage():  void { this.goToSourcesPage(this.sourcesTotalPages); }
-  goToPrevSourcesPage():  void { this.goToSourcesPage(this.sourcesPage - 1); }
-  goToNextSourcesPage():  void { this.goToSourcesPage(this.sourcesPage + 1); }
 
-  // Documents Search Pagination
-  get documentsTotalPages(): number {
-    return Math.max(1, Math.ceil(this.filteredDocumentResults.length / this.documentsPageSize));
-  }
-  get pagedDocumentResults(): Document[] {
-    const start = (this.documentsPage - 1) * this.documentsPageSize;
-    return this.filteredDocumentResults.slice(start, start + this.documentsPageSize);
-  }
-  get documentsPageFromIndex(): number {
-    if (this.filteredDocumentResults.length === 0) return 0;
-    return (this.documentsPage - 1) * this.documentsPageSize + 1;
-  }
-  get documentsPageToIndex(): number {
-    return Math.min(this.filteredDocumentResults.length, this.documentsPage * this.documentsPageSize);
-  }
-  get documentsPagerWindow(): number[] {
-    return this.getPagerWindow(this.documentsPage, this.documentsTotalPages);
-  }
-  goToDocumentsPage(p: number): void {
-    if (this.filteredDocumentResults.length === 0) return;
-    this.documentsPage = Math.max(1, Math.min(this.documentsTotalPages, p));
-    this.saveSearchStateToIndexedDB();
-    this.cdRef.markForCheck();
-  }
-  goToFirstDocumentsPage(): void { this.goToDocumentsPage(1); }
-  goToLastDocumentsPage():  void { this.goToDocumentsPage(this.documentsTotalPages); }
-  goToPrevDocumentsPage():  void { this.goToDocumentsPage(this.documentsPage - 1); }
-  goToNextDocumentsPage():  void { this.goToDocumentsPage(this.documentsPage + 1); }
 
   // Melody Search Pagination
   get melodyTotalPages(): number {
-    return Math.max(1, Math.ceil(this.filteredMelodyResults.length / this.melodyPageSize));
+    return Math.max(1, Math.ceil(this.melodyResults.length / this.melodyPageSize));
   }
   get pagedMelodyResults(): MelodyResult[] {
     const start = (this.melodyPage - 1) * this.melodyPageSize;
-    return this.filteredMelodyResults.slice(start, start + this.melodyPageSize);
-  }
-  get melodyPageFromIndex(): number {
-    if (this.filteredMelodyResults.length === 0) return 0;
-    return (this.melodyPage - 1) * this.melodyPageSize + 1;
-  }
-  get melodyPageToIndex(): number {
-    return Math.min(this.filteredMelodyResults.length, this.melodyPage * this.melodyPageSize);
-  }
-  get melodyPagerWindow(): number[] {
-    return this.getPagerWindow(this.melodyPage, this.melodyTotalPages);
+    return this.melodyResults.slice(start, start + this.melodyPageSize);
   }
   goToMelodyPage(p: number): void {
-    if (this.filteredMelodyResults.length === 0) return;
+    if (this.melodyResults.length === 0) return;
     this.melodyPage = Math.max(1, Math.min(this.melodyTotalPages, p));
     this.saveSearchStateToIndexedDB();
     this.cdRef.markForCheck();
   }
-  goToFirstMelodyPage(): void { this.goToMelodyPage(1); }
-  goToLastMelodyPage():  void { this.goToMelodyPage(this.melodyTotalPages); }
-  goToPrevMelodyPage():  void { this.goToMelodyPage(this.melodyPage - 1); }
-  goToNextMelodyPage():  void { this.goToMelodyPage(this.melodyPage + 1); }
 
-  /** Reset visible cap whenever the filter changes so users don't have to
-   *  click "Show more" to discover that their narrower filter already fits. */
-  onFilterChange(which: 'quick' | 'source' | 'document' | 'melody'): void {
-    this.filterSubject.next(which);
-  }
 
-  applyFilterLimitReset(which: 'quick' | 'source' | 'document' | 'melody'): void {
-    switch (which) {
-      case 'quick':
-        this.visibleQuickLimit    = SearchComponent.INITIAL_RESULT_LIMIT;
-        this.quickPage = 1;
-        break;
-      case 'source':
-        this.visibleSourceLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
-        this.sourcesPage = 1;
-        break;
-      case 'document':
-        this.visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-        this.documentsPage = 1;
-        break;
-      case 'melody':
-        this.visibleMelodyLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
-        this.melodyPage = 1;
-        break;
-    }
-    this.cdRef.markForCheck();
-  }
 
-  /** Clears the filter for the given tab. */
-  clearFilter(which: 'quick' | 'source' | 'document' | 'melody'): void {
-    switch (which) {
-      case 'quick':    this.quickFilterText = ''; this.quickFilterValue = ''; break;
-      case 'source':   this.sourceFilterText = ''; this.sourceFilterValue = ''; break;
-      case 'document': this.documentFilterText = ''; this.documentFilterValue = ''; break;
-      case 'melody':   this.melodyFilterText = ''; this.melodyFilterValue = ''; break;
-    }
-    this.applyFilterLimitReset(which);
-  }
 
-  get visibleSrcCols() { return this.srcResultCols.filter(c => c.visible); }
-  get visibleDocCols() { return this.docResultCols.filter(c => c.visible); }
 
-  sortIcon(col: string, which: 'src' | 'doc'): string {
-    const activeCol = which === 'src' ? this.srcSortCol : this.docSortCol;
-    const asc       = which === 'src' ? this.srcSortAsc : this.docSortAsc;
-    if (activeCol !== col) return 'bi bi-chevron-expand text-muted opacity-50';
-    return asc ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
-  }
 
   // ── CSV export ────────────────────────────────────────────────────────────
 
-  exportSourcesCSV()   { this.exportCSV(this.sortedSourceResults, this.visibleSrcCols, 'sources.csv'); }
-  exportDocumentsCSV() { this.exportCSV(this.sortedDocumentResults, this.visibleDocCols, 'documents.csv'); }
 
-  exportMelodyCSV() {
-    const rows = this.melodyResults.map(r => ({
-      sourceSigle:  r.sourceSigle,
-      dokumenten_id: r.document.dokumenten_id,
-      textinitium:  r.document.textinitium,
-      gattung1:     r.document.gattung1,
-      festtag:      r.document.festtag,
-      noteCount:    r.noteCount,
-    }));
-    this.exportCSV(rows, [
-      { key: 'sourceSigle',  label: 'Source Siglum', visible: true },
-      { key: 'dokumenten_id', label: 'Document ID',  visible: true },
-      { key: 'textinitium',  label: 'Text Incipit',  visible: true },
-      { key: 'gattung1',     label: 'Genre',         visible: true },
-      { key: 'festtag',      label: 'Feast Day',     visible: true },
-      { key: 'noteCount',    label: 'Note Count',    visible: true },
-    ], 'melody-results.csv');
-  }
 
-  private async exportCSV(data: any[], cols: ColDef<any>[], filename: string) {
-    const visCols = cols.filter(c => c.visible);
-    const header  = visCols.map(c => `"${c.label}"`).join(',');
-    const rows    = data.map(row =>
-      visCols.map(c => `"${String((row as any)[c.key] ?? '').replace(/"/g, '""')}"`).join(',')
-    );
-    const csv  = [header, ...rows].join('\n');
-    await this.fsService.saveFile('\ufeff' + csv, {
-      suggestedName: filename,
-      types: [{
-        description: 'CSV File',
-        accept: { 'text/csv': ['.csv'] }
-      }],
-      fallbackMimeType: 'text/csv;charset=utf-8;'
-    });
-  }
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -1155,13 +712,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     else this.goToDocument(r.sourceId!, r.id);
   }
 
-  // ── Column persistence ────────────────────────────────────────────────────
-
-  loadCols() {
-    this.srcResultCols = this.loadFromStorage<Source>(SRC_RES_KEY, DEFAULT_SRC_COLS);
-    this.docResultCols = this.loadFromStorage<Document>(DOC_RES_KEY, DEFAULT_DOC_COLS);
-    this.synopsisMetadataCols = this.loadFromStorage<Document>(SYNOPSIS_COLS_KEY, DEFAULT_SYNOPSIS_COLS);
-  }
+  // ── Column persistence (synopsis metadata) ────────────────────────────────
 
   private loadFromStorage<T>(key: string, defaults: ColDef<T>[]): ColDef<T>[] {
     try {
@@ -1177,8 +728,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return defaults.map(c => ({ ...c }));
   }
 
-  saveSrcCols() { safeStorage.setJson(SRC_RES_KEY, this.srcResultCols); }
-  saveDocCols() { safeStorage.setJson(DOC_RES_KEY, this.docResultCols); }
   saveSynopsisCols() { safeStorage.setJson(SYNOPSIS_COLS_KEY, this.synopsisMetadataCols); }
 
   get visibleSynopsisCols() {
@@ -1193,36 +742,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   // ── Recent searches ───────────────────────────────────────────────────────
 
-  loadRecentSearches() {
-    const recent = safeStorage.getJson<unknown>(RECENT_KEY, []);
-    this.recentSearches = Array.isArray(recent) ? recent.filter((r): r is string => typeof r === 'string') : [];
-  }
 
-  addRecentSearch(q: string) {
-    if (!q.trim()) return;
-    this.recentSearches = [q, ...this.recentSearches.filter(r => r !== q)].slice(0, 8);
-    safeStorage.setJson(RECENT_KEY, this.recentSearches);
-  }
 
-  applyRecent(q: string)  { this.quickText = q; this.searchQuick(); }
-  clearRecent()           { this.recentSearches = []; safeStorage.remove(RECENT_KEY); }
-  countQuickResults(kind: 'source' | 'document'): number {
-    return this.quickResults.filter(r => r.kind === kind).length;
-  }
 
   // ── Settings helpers ──────────────────────────────────────────────────────
 
-  addToSettings(category: keyof ProjectSettings, value: string | undefined) {
-    if (!value || !value.trim() || !this.settings || !this.user) return;
-    const val = value.trim();
-    const arr = this.settings[category] as any;
-    if (Array.isArray(arr) && !arr.includes(val)) {
-      arr.push(val);
-      this.api.updateSettings(this.user.token, this.settings).subscribe(() => {
-        alert('Added to global options!');
-      });
-    }
-  }
 
   // ── Synoptic Comparison methods ───────────────────────────────────────────
 
@@ -1266,7 +790,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   /** Opens the Analysis page with the documents behind the hits of this tab (and keeps them for its "hits" choice). */
   openInAnalysis(): void {
     const ids = this.currentHitDocIds();
-    const what = { quick: `quick search "${this.quickText}"`, sources: 'source search', documents: 'document search', melody: `melody search "${this.melodyPattern}"` }[this.activeTab];
+    const what = this.activeTab === 'quick' ? `text search "${this.quickText}"` : `melody search "${this.melodyPattern}"`;
     this.selSvc.lastHits = { ids, label: `hits of the ${what}, ${ids.length} documents` };
     this.router.navigate(['/analysis']);
   }
@@ -1291,36 +815,21 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   /** Quick search: the documents among the hits plus all documents of the source hits. */
   get quickHitDocIds(): string[] {
-    return this.memoHits('quick', this.filteredQuickResults, this.selSvc.indexRevision, () =>
-      this.filteredQuickResults.flatMap(r => (r.kind === 'document' ? [r.id] : this.selSvc.docIdsOfSource(r.id))));
-  }
-  /** Sources tab: all documents of the source hits. */
-  get sourceHitDocIds(): string[] {
-    return this.memoHits('sources', this.filteredSourceResults, this.selSvc.indexRevision, () =>
-      this.selSvc.docIdsOfSources(this.filteredSourceResults.map(s => s.id ?? '')));
-  }
-  get documentHitDocIds(): string[] {
-    return this.memoHits('documents', this.filteredDocumentResults, null, () => this.filteredDocumentResults.map(d => d.id));
+    return this.memoHits('quick', this.quickResults, this.selSvc.indexRevision, () =>
+      this.quickResults.flatMap(r => (r.kind === 'document' ? [r.id] : this.selSvc.docIdsOfSource(r.id))));
   }
   /** Melody tab: a document appears once per realisation in the results, here once in all. */
   get melodyHitDocIds(): string[] {
-    return this.memoHits('melody', this.filteredMelodyResults, null, () => this.filteredMelodyResults.map(r => r.document.id));
+    return this.memoHits('melody', this.melodyResults, null, () => this.melodyResults.map(r => r.document.id));
   }
 
   /** The documents behind the hits of the active tab, without repeats. The single place that answers "which documents are these hits?". */
-  currentHitDocIds(tab: 'quick' | 'sources' | 'documents' | 'melody' = this.activeTab): string[] {
-    switch (tab) {
-      case 'quick': return this.quickHitDocIds;
-      case 'sources': return this.sourceHitDocIds;
-      case 'documents': return this.documentHitDocIds;
-      default: return this.melodyHitDocIds;
-    }
+  currentHitDocIds(tab: SearchTab = this.activeTab): string[] {
+    return tab === 'quick' ? this.quickHitDocIds : this.melodyHitDocIds;
   }
 
-  /** Quick results: how many source hits the "all documents" count includes. */
-  get quickSourceHitCount(): number { return this.filteredQuickResults.filter(r => r.kind === 'source').length; }
 
-  selectTab(tab: 'quick' | 'sources' | 'documents' | 'melody') {
+  selectTab(tab: SearchTab) {
     this.activeTab = tab;
     this.updateUrl();
     this.saveSearchStateToIndexedDB();
@@ -1346,8 +855,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     });
   }
 
-  /** Prints one result as a PDF of its own. */
-  printOne(id: string): void { this.pdfDialog.open({ ids: [id] }); }
 
   exitSynopsis() {
     this.showSynopsis = false;
@@ -1380,7 +887,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     const params = this.route.snapshot.queryParams;
     if (!params) return;
 
-    if (params.tab) this.activeTab = params.tab;
+    if (params.tab) this.activeTab = params.tab === 'melody' ? 'melody' : 'quick';
     if (params.align) this.synopsisSvc.alignmentMode = params.align;
     if (params.q) {
       this.quickText = params.q;
@@ -1523,55 +1030,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   // ── Selection analysis dashboard ──────────────────────────────────────────
 
-  openDashboard() {
-    if (!this.user || this.selectedDocs.length < 1) return;
-    if (this.selectedDocs.length > BIG_SELECTION
-      && !confirm(`Analyse ${this.selectedDocs.length} documents at once? Their notes are all read into memory. The Analysis page is better suited to large selections.`)) return;
-    const token = this.user.token;
-    this.dashboardLoading = true;
-    this.cdRef.markForCheck();
-    forkJoin({
-      sources: this.api.listSources(token),
-      notes: forkJoin(this.selectedDocs.map(d => this.api.getDocumentNotes(token, d.id))),
-    }).subscribe({
-      next: ({ sources, notes }) => {
-        const srcList = sources.kind === 'SourcesRetrieved' ? sources.sources : [];
-        const srcMap = new Map(srcList.filter(s => s.id).map(s => [s.id!, s] as [string, Source]));
-        this.dashboardSources = this.selectedDocs.map(d => srcMap.get(d.quelle_id) || null);
-        this.dashboardRoots = notes.map(n => (n.kind === 'NotesRetrieved' ? n.data : null));
-        this.dashboardLoading = false;
-        this.showDashboard = true;
-        this.cdRef.markForCheck();
-      },
-      error: () => {
-        this.dashboardLoading = false;
-        this.toastr.error('Could not load the selected documents for analysis.');
-        this.cdRef.markForCheck();
-      },
-    });
-  }
 
-  exitDashboard() {
-    this.showDashboard = false;
-    this.dashboardRoots = [];
-    this.dashboardSources = [];
-    this.cdRef.markForCheck();
-  }
 
   // ── Pattern Analysis Methods ──────────────────────────────────────────────
 
-  get patternTargetDocsCount(): number {
-    if (this.activeTab === 'quick') {
-      return this.filteredQuickResults.filter(r => r.kind === 'document').length;
-    } else if (this.activeTab === 'sources') {
-      return this.filteredSourceResults.length;
-    } else if (this.activeTab === 'documents') {
-      return this.filteredDocumentResults.length;
-    } else if (this.activeTab === 'melody') {
-      return this.filteredMelodyResults.length;
-    }
-    return 0;
-  }
+  get patternTargetDocsCount(): number { return this.currentHitDocIds().length; }
 
   // Expanded pattern group IDs to paginate/collapse occurrences inside cards
   expandedGroupIds = new Set<number>();
@@ -1592,34 +1055,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return g.occurrences.slice(0, 3);
   }
 
-  async getCurrentSearchDocIds(): Promise<string[]> {
-    if (!this.user) return [];
-    try {
-      const docsRes = await this.api.listDocuments(this.user.token).toPromise();
-      const allDocs = docsRes?.kind === 'DocumentsRetrieved' ? docsRes.documents : [];
-      
-      const docIds: string[] = [];
-      if (this.activeTab === 'quick') {
-        const docResults = this.filteredQuickResults.filter(r => r.kind === 'document');
-        docIds.push(...docResults.map(r => r.id));
-      } else if (this.activeTab === 'sources') {
-        const sourceIds = new Set(this.filteredSourceResults.map(s => s.id));
-        for (const doc of allDocs) {
-          if (sourceIds.has(doc.quelle_id)) {
-            docIds.push(doc.id!);
-          }
-        }
-      } else if (this.activeTab === 'documents') {
-        docIds.push(...this.filteredDocumentResults.map(d => d.id!));
-      } else if (this.activeTab === 'melody') {
-        docIds.push(...this.filteredMelodyResults.map(mr => mr.document.id!));
-      }
-      return docIds;
-    } catch (e) {
-      console.warn('Failed to get current search doc IDs:', e);
-      return [];
-    }
-  }
+  /** The documents the pattern finder works on: the hits of the active tab (with the documents of source hits). */
+  async getCurrentSearchDocIds(): Promise<string[]> { return this.currentHitDocIds(); }
 
   async openPatternAnalysis() {
     this.showPatternAnalysis = true;
@@ -1994,16 +1431,16 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
       const filename = `pattern-analysis-report-${this.patternType}-${this.patternLength}.pdf`;
       doc.save(filename);
-      this.toastr.success('PDF report exported successfully!');
+      this.statusLine.success('PDF report exported successfully!');
     } catch (e) {
       console.error('Failed to export PDF:', e);
-      this.toastr.error('Failed to export PDF report');
+      this.statusLine.error('Failed to export PDF report');
     }
   }
 
   async saveCurrentPatternSession() {
     if (!this.newSessionName.trim()) {
-      this.toastr.error('Please enter a session name');
+      this.statusLine.error('Please enter a session name');
       return;
     }
     await this.patternSvc.saveCurrentPatternSession(this.newSessionName);
@@ -2051,11 +1488,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
         fallbackMimeType: 'application/json'
       });
       if (res.saved) {
-        this.toastr.success('JSON file exported');
+        this.statusLine.success('JSON file exported');
       }
     } catch (e) {
       console.error('Failed to export JSON:', e);
-      this.toastr.error('Failed to export JSON file');
+      this.statusLine.error('Failed to export JSON file');
     }
   }
 
@@ -2092,7 +1529,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       try {
         const data = JSON.parse(e.target.result);
         if (!data || !Array.isArray(data.patternGroups)) {
-          this.toastr.error('Invalid pattern analysis session file');
+          this.statusLine.error('Invalid pattern analysis session file');
           return;
         }
 
@@ -2116,11 +1553,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
         this.patternSvc.updatePatternCache();
         this.showSavedSessionsPopover = false;
-        this.toastr.success('Session imported successfully');
+        this.statusLine.success('Session imported successfully');
         this.cdRef.markForCheck();
       } catch (err) {
         console.error('Failed to parse JSON:', err);
-        this.toastr.error('Failed to parse JSON file');
+        this.statusLine.error('Failed to parse JSON file');
       }
     };
     reader.readAsText(file);
@@ -2188,20 +1625,13 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   async runPatternGrouping() {
-    let scopeIds: string[] | null = null;
+    let scopeIds: string[];
     if (this.patternScope === 'selection') scopeIds = this.selection.ids();
     else if (this.patternScope === 'all') {
       if (this.user) await this.selSvc.ensureIndex(this.user.token);
       scopeIds = this.selSvc.allDocs().map(d => d.id);
     } else scopeIds = this.currentHitDocIds();
-    await this.patternSvc.runPatternGrouping(
-      this.activeTab,
-      this.filteredQuickResults,
-      this.filteredSourceResults,
-      this.filteredDocumentResults,
-      this.filteredMelodyResults,
-      scopeIds
-    );
+    await this.patternSvc.runPatternGrouping(scopeIds);
   }
 
   enableDeduplicationAndReRun() {
@@ -2215,7 +1645,3 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.cdRef.markForCheck();
   }
 }
-
-
-
-

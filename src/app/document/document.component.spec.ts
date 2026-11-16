@@ -8,7 +8,7 @@ import { DocumentComponent } from './document.component';
 import { APIService } from '../api.service';
 import { UserService } from '../user.service';
 import { UndoService } from '../undoService';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { ToolsService } from '../tools.service';
 import { DragStateService } from '../dragger/drag-state.service';
@@ -48,7 +48,7 @@ describe('DocumentComponent', () => {
     undo: () => {}
   };
 
-  const mockToastrService = {
+  const mockStatusLineService = {
     error: () => {},
     success: () => {},
     info: () => {},
@@ -95,7 +95,7 @@ describe('DocumentComponent', () => {
         { provide: APIService, useValue: mockAPIService },
         { provide: UserService, useValue: mockUserService },
         { provide: UndoService, useValue: mockUndoService },
-        { provide: ToastrService, useValue: mockToastrService },
+        { provide: StatusLineService, useValue: mockStatusLineService },
         { provide: NgbModal, useValue: mockNgbModal },
         { provide: ToolsService, useValue: mockToolsService },
         { provide: DragStateService, useValue: mockDragStateService },

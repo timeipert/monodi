@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, TemplateRef } from '@angular/core';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { Subscription } from 'rxjs';
 import { describeFilters, filtersKey, frequentValues, getMethod, groupableFields, LATIN_STOP_WORDS, methodReport, METHODS, SOFTWARE_URL, METHOD_GROUPS, NO_FILTERS, normalizeParams, parseWordList, ruleMatches } from '@monodi/core/analysis';
 import type { AnalysisMethod, CorpusFilters, DocInfo, ExcludeRule, FieldOption, MethodReport, ParamValues } from '@monodi/core/analysis';
@@ -83,7 +83,7 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
     private readonly api: APIService,
     private readonly userService: UserService,
     private readonly pageTitle: PageTitleService,
-    private readonly toastr: ToastrService,
+    private readonly statusLine: StatusLineService,
     private readonly modal: NgbModal,
     private readonly cdr: ChangeDetectorRef,
     readonly selSvc: SelectionService,
@@ -259,7 +259,7 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
 
   async createFromStart(): Promise<void> {
     const ids = this.startIds;
-    if (ids.length === 0) { this.toastr.warning('There are no documents to analyse yet.'); return; }
+    if (ids.length === 0) { this.statusLine.warning('There are no documents to analyse yet.'); return; }
     const origin: CorpusOrigin = this.startMode === 'selection' ? 'selection' : this.startMode === 'hits' ? 'hits' : this.startMode === 'all' ? 'all' : 'manual';
     const label = this.startMode === 'selection' ? `selection of ${ids.length} documents`
       : this.startMode === 'hits' ? (this.selSvc.lastHits?.label ?? `hits of the search, ${ids.length} documents`)
@@ -315,7 +315,7 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
       await AnalysisStore.save(this.current);
       await this.refreshList();
     } catch (e) {
-      this.toastr.error((e as Error).message);
+      this.statusLine.error((e as Error).message);
     }
     this.cdr.markForCheck();
   }
@@ -364,14 +364,14 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
       const parts: string[] = [];
       if (summary.ran.length) parts.push(`computed ${summary.ran.length}`);
       if (summary.cached.length) parts.push(`reused ${summary.cached.length} from the saved results`);
-      if (summary.failed.length) this.toastr.error(summary.failed.map((f) => `${getMethod(f.id)?.title ?? f.id}: ${f.message}`).join('\n'));
-      if (summary.excludedDocs) this.toastr.info(`${summary.excludedDocs} chants were left out by the rules for leaving things out.`);
-      if (summary.missingDocs) this.toastr.warning(`${summary.missingDocs} documents of this analysis no longer exist and were left out.`);
-      if (summary.cancelled) this.toastr.info('The run was cancelled.');
-      else if (parts.length) this.toastr.success(`${parts.join(', ')} (${(summary.ms / 1000).toFixed(1)} s)`);
+      if (summary.failed.length) this.statusLine.error(summary.failed.map((f) => `${getMethod(f.id)?.title ?? f.id}: ${f.message}`).join('\n'));
+      if (summary.excludedDocs) this.statusLine.info(`${summary.excludedDocs} chants were left out by the rules for leaving things out.`);
+      if (summary.missingDocs) this.statusLine.warning(`${summary.missingDocs} documents of this analysis no longer exist and were left out.`);
+      if (summary.cancelled) this.statusLine.info('The run was cancelled.');
+      else if (parts.length) this.statusLine.success(`${parts.join(', ')} (${(summary.ms / 1000).toFixed(1)} s)`);
       await this.refreshList();
     } catch (e) {
-      this.toastr.error(e instanceof AnalysisStoreError ? e.message : `The run failed: ${(e as Error).message}`);
+      this.statusLine.error(e instanceof AnalysisStoreError ? e.message : `The run failed: ${(e as Error).message}`);
     } finally {
       this.busy = false;
       this.cdr.markForCheck();
@@ -396,8 +396,8 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
       if (res) {
         for (const [id, st] of Object.entries(res)) this.status[id] = st;
         const stale = Object.values(res).filter((s) => s.state === 'stale').length;
-        if (stale === 0) this.toastr.success('The documents are unchanged: every stored result is up to date.');
-        else this.toastr.warning(`${stale} result(s) are out of date because documents changed. They stay visible until recomputed.`);
+        if (stale === 0) this.statusLine.success('The documents are unchanged: every stored result is up to date.');
+        else this.statusLine.warning(`${stale} result(s) are out of date because documents changed. They stay visible until recomputed.`);
       }
     } finally {
       this.checking = false;
@@ -437,13 +437,6 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
       out.push({ label: spec.label, value: text });
     }
     return out;
-  }
-
-  /** Open the panel that leaves chants and words out and bring it into view. */
-  openLeaveOut(): void {
-    this.filtersOpen = true;
-    this.cdr.markForCheck();
-    setTimeout(() => document.getElementById('leave-out')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
   }
 
   /** The title without the parenthesis that names the ChantDigger mode, for the tabs. */
@@ -486,9 +479,9 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
     const label = { text: 'text', latex: 'LaTeX', bibtex: 'BibTeX' }[kind];
     try {
       await navigator.clipboard.writeText(kind === 'text' ? r.text : kind === 'latex' ? r.latex : r.bibtex);
-      this.toastr.success(`The description of the method was copied as ${label}.`);
+      this.statusLine.success(`The description of the method was copied as ${label}.`);
     } catch {
-      this.toastr.error('The browser did not allow copying. Select the text and copy it.');
+      this.statusLine.error('The browser did not allow copying. Select the text and copy it.');
     }
   }
 
@@ -536,10 +529,10 @@ export class AnalysisPageComponent implements OnInit, OnDestroy {
       const parsed = AnalysisStore.parseExport(JSON.parse(await file.text()));
       const def = await AnalysisStore.importOne(parsed);
       await this.refreshList();
-      this.toastr.success(`Imported "${def.name}" with ${parsed.results.length} stored result(s). Use "Check for changes" to compare with the documents here.`);
+      this.statusLine.success(`Imported "${def.name}" with ${parsed.results.length} stored result(s). Use "Check for changes" to compare with the documents here.`);
       this.go(def.id);
     } catch (e) {
-      this.toastr.error(e instanceof SyntaxError ? 'This file is not valid JSON.' : (e as Error).message);
+      this.statusLine.error(e instanceof SyntaxError ? 'This file is not valid JSON.' : (e as Error).message);
     }
   }
 

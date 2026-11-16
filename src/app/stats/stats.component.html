@@ -1,22 +1,13 @@
-<div class="container-fluid py-4" style="max-width: 1600px;">
+<div class="container-fluid py-3 px-4">
   <app-analysis-tabs></app-analysis-tabs>
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-    <div>
-      <h2 class="page-title text-dark fw-bold mb-1">
-        <i class="bi bi-bar-chart-line-fill text-success me-2"></i>Workspace Stats
-      </h2>
-      <span class="text-muted">Analyze musical pattern distributions across all manuscripts in the database</span>
-    </div>
+  <!-- Toolbar: shown once statistics exist -->
+  <div class="d-flex justify-content-end align-items-center gap-3 mb-3">
     <div class="d-flex align-items-center gap-3">
       @if (statsComputed && lastComputedTime) {
-        <span class="badge bg-light text-success border border-success-subtle">
-          Last computed: {{ lastComputedTime }}
-        </span>
+        <span class="small text-muted">{{ lastComputedTime }}</span>
       }
       @if (statsComputed || loading) {
-        <button class="btn btn-outline-success d-flex align-items-center gap-1 shadow-sm" (click)="loadStats()" [disabled]="loading">
-          <i class="bi bi-arrow-repeat" [class.spin-loader]="loading"></i>
+        <button class="btn btn-sm btn-outline-secondary" (click)="loadStats()" [disabled]="loading">
           Recalculate
         </button>
       }
@@ -55,18 +46,10 @@
 
   <!-- Computation Placeholder State -->
   @if (!statsComputed && !loading && !loadingCache) {
-    <div class="card shadow-sm border border-light py-5 mb-4 text-center">
-      <div class="card-body py-5 d-flex flex-column align-items-center justify-content-center">
-        <div class="bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
-          <i class="bi bi-bar-chart-line fs-2"></i>
-        </div>
-        <h4 class="fw-bold text-dark mb-2">Musical Pattern Analysis</h4>
-        <p class="text-muted small mb-4 mx-auto" style="max-width: 500px;">
-          Analyze musical pattern frequencies and bracket connections across all manuscripts and pieces in the database.
-          This scans all transcription notes and generates a manuscript-pattern matrix. It may take a moment.
-        </p>
-        <button class="btn btn-success px-4 py-2 shadow-sm" (click)="loadStats()">
-          <i class="bi bi-play-fill me-1"></i>Compute Workspace Patterns
+    <div class="py-5 text-center">
+      <div>
+        <button class="btn btn-primary" (click)="loadStats()">
+          Compute pattern statistics
         </button>
       </div>
     </div>
@@ -75,74 +58,22 @@
   <!-- Main View -->
   @if (statsComputed && !loading && !loadingCache) {
     <div>
-      <!-- Filter Card -->
-      <div class="card border-0 shadow-sm mb-4 bg-light p-3">
-        <div class="row g-3 align-items-end">
-          <!-- Manuscript search -->
-          <div class="col-md-3">
-            <label class="form-label small fw-semibold text-secondary">Search Manuscripts</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text bg-white border-end-0 text-muted">
-                <i class="bi bi-search"></i>
-              </span>
-              <input type="text"
-                class="form-control border-start-0"
-                placeholder="e.g. Aa 13, Domarchiv..."
-                [(ngModel)]="sourceSearchText"
-                (ngModelChange)="onFilterChange()">
-            </div>
-          </div>
-          <!-- Pattern Search -->
-          <div class="col-md-3">
-            <label class="form-label small fw-semibold text-secondary">Search Patterns</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text bg-white border-end-0 text-muted">
-                <i class="bi bi-music-note"></i>
-              </span>
-              <input type="text"
-                class="form-control border-start-0 font-monospace"
-                placeholder="e.g. *ud, *[ud]"
-                [(ngModel)]="patternSearchText"
-                (ngModelChange)="onFilterChange()">
-            </div>
-          </div>
-          <!-- Min Frequency Slider -->
-          <div class="col-md-4">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="form-label small fw-semibold text-secondary mb-0">Min Occurrences Frequency (1-100)</label>
-              <span class="badge bg-success rounded-pill px-2.5 py-1" style="font-size: 0.8rem;">
-                &ge; {{ minFrequency }} times
-              </span>
-            </div>
-            <div class="d-flex align-items-center gap-3">
-              <input type="range"
-                class="form-range flex-grow-1"
-                [min]="1"
-                [max]="100"
-                [(ngModel)]="minFrequency"
-                (ngModelChange)="onFilterChange()">
-              <input type="number"
-                class="form-control form-control-sm text-center font-semibold"
-                style="width: 65px;"
-                [min]="1"
-                [max]="100"
-                [(ngModel)]="minFrequency"
-                (ngModelChange)="onFilterChange()">
-            </div>
-          </div>
-          <!-- Reset Button -->
-          <div class="col-md-2 text-md-end">
-            <button class="btn btn-sm btn-outline-secondary w-100 py-2"
-              (click)="resetFilters()">
-              <i class="bi bi-x-circle me-1"></i>Reset Filters
-            </button>
-          </div>
-        </div>
+      <!-- The page has two jobs: (1) show how often each neume pattern occurs in each manuscript (the matrix);
+           (2) narrow the matrix to some manuscripts, patterns or a minimum count (this row). -->
+      <div class="stats-filters">
+        <input type="search" class="form-control form-control-sm" placeholder="Manuscripts" aria-label="Filter manuscripts"
+          [(ngModel)]="sourceSearchText" (ngModelChange)="onFilterChange()">
+        <input type="search" class="form-control form-control-sm font-monospace" placeholder="Patterns, e.g. *ud" aria-label="Filter patterns"
+          [(ngModel)]="patternSearchText" (ngModelChange)="onFilterChange()">
+        <label class="d-flex align-items-center gap-2 small text-muted mb-0">At least
+          <input type="number" class="form-control form-control-sm" style="width: 5rem;" [min]="1" [max]="100"
+            [(ngModel)]="minFrequency" (ngModelChange)="onFilterChange()">
+        </label>
       </div>
       <!-- Which manuscripts the matrix shows -->
       <details class="mb-3 bg-white border rounded-3 p-2 small">
         <summary class="fw-semibold text-secondary cursor-pointer">
-          Choose manuscripts: {{ sourceSel.size }} of {{ sources.length }} shown
+          Manuscripts shown: {{ sourceSel.size }} of {{ sources.length }}
         </summary>
         <div class="mt-2">
           <app-selection-bar [universe]="textMatchedSourceIds" [selection]="sourceSel" noun="manuscripts" (changed)="onFilterChange()"></app-selection-bar>
@@ -154,7 +85,6 @@
               </label>
             }
           </div>
-          <div class="text-muted mt-1">The list follows the manuscript search above. "Select all" and "Invert" act on every manuscript in the list.</div>
         </div>
       </details>
       <!-- Empty State -->
@@ -162,9 +92,7 @@
         <div
           class="card border-0 shadow-sm text-center py-5">
           <div class="card-body">
-            <i class="bi bi-exclamation-circle text-muted fs-1 mb-3"></i>
-            <h5 class="fw-semibold text-secondary">No matching results found</h5>
-            <p class="text-muted small">Try broadening your search text or decreasing the minimum occurrence frequency.</p>
+            <p class="text-muted mb-0">No match.</p>
           </div>
         </div>
       }
@@ -245,7 +173,7 @@
                           <app-svg-pattern [pattern]="pg.basePattern" class="mb-1"></app-svg-pattern>
                           <span class="font-monospace text-muted small mt-1">{{ pg.basePattern }}</span>
                           <span class="badge bg-light text-secondary border rounded-pill mt-1" style="font-size: 0.7rem;">
-                            {{ pg.totalCount }} total <i class="bi bi-info-circle-fill text-primary ms-0.5"></i>
+                            {{ pg.totalCount }} total
                           </span>
                         </div>
                       </th>
@@ -307,14 +235,14 @@
 
   <!-- Cell Detail Modal (Overlay) -->
   @if (selectedCell) {
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(23, 23, 23, 0.45); backdrop-filter: blur(4px);">
       <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content shadow-lg border-0 rounded-4 overflow-hidden">
           <!-- Modal Header -->
           <div class="modal-header bg-success text-white border-0 px-4 py-3">
             <div class="d-flex flex-column">
               <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
-                <i class="bi bi-file-music-fill"></i>Occurrences Detail
+                Occurrences Detail
               </h5>
               <small class="text-white-50">
                 Pattern <strong class="text-white">{{ selectedCell.patternGroup.basePattern }}</strong> in manuscript
@@ -398,7 +326,7 @@
                         <td class="text-center">
                           <button class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 shadow-xs fw-semibold"
                             (click)="goToOccurrence(occ)">
-                            Editor <i class="bi bi-box-arrow-in-right"></i>
+                            Editor
                           </button>
                         </td>
                       </tr>
@@ -426,14 +354,14 @@
 
   <!-- Type Header Detail Modal (Overlay) -->
   @if (selectedPatternType) {
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(23, 23, 23, 0.45); backdrop-filter: blur(4px);">
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content shadow-lg border-0 rounded-4 overflow-hidden">
           <!-- Modal Header -->
           <div class="modal-header bg-primary text-white border-0 px-4 py-3">
             <div class="d-flex flex-column">
               <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
-                <i class="bi bi-tag-fill"></i>Pattern Type Variants
+                Pattern Type Variants
               </h5>
               <small class="text-white-50">
                 Showing special sign variants (tokens) for base type <strong class="text-white">{{ selectedPatternType.basePattern }}</strong>
@@ -531,7 +459,7 @@
                             <td class="text-center">
                               <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-semibold"
                                 (click)="goToOccurrence(occ)">
-                                Editor <i class="bi bi-box-arrow-in-right"></i>
+                                Editor
                               </button>
                             </td>
                           </tr>

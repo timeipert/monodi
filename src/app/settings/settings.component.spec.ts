@@ -6,7 +6,7 @@ import { APIService } from '../api.service';
 import { UserService } from '../user.service';
 import { GithubService } from '../github.service';
 import { PageTitleService } from '../page-title.service';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { ActivatedRoute } from '@angular/router';
 
 describe('SettingsComponent', () => {
@@ -42,7 +42,7 @@ describe('SettingsComponent', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: GithubService, useValue: mockGithubService },
         { provide: PageTitleService, useValue: mockPageTitleService },
-        { provide: ToastrService, useValue: { success: () => {}, error: () => {} } },
+        { provide: StatusLineService, useValue: { success: () => {}, error: () => {} } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} }, queryParamMap: of({ get: () => null }) } }
       ],
       schemas: [ NO_ERRORS_SCHEMA ]

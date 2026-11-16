@@ -1,7 +1,7 @@
-import { ChangeDetectorRef, Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, HostListener, Input, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
 import { Router } from '@angular/router';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import { Subject, Subscription, debounceTime, firstValueFrom } from 'rxjs';
 
 import { APIService, Document, ProjectSettings, Source } from '../api.service';
@@ -45,6 +45,12 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   readonly rowHeight = 32;
   readonly leadingWidth = GridView.LEADING_WIDTH;
 
+  /** Inside another page (Sources, a source): no page title of its own and a height that leaves room for that page. */
+  @Input() embedded = false;
+  /** The siglum of one source: the grid then shows only the documents of that source (a filter rule on the Source column). */
+  @Input() sourceSigle = '';
+  private scopedTo = '';
+
   active: GridKind = safeStorage.get(TAB_KEY) === 'sources' ? 'sources' : 'documents';
   views: Record<GridKind, GridView | null> = { documents: null, sources: null };
   suggestions: Record<GridKind, Record<string, string[]>> = { documents: {}, sources: {} };
@@ -83,7 +89,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   constructor(
     private api: APIService,
     private userService: UserService,
-    private toastr: ToastrService,
+    private statusLine: StatusLineService,
     private router: Router,
     private pageTitle: PageTitleService,
     private backup: BackupReminderService,
@@ -92,7 +98,8 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
   ) {}
 
   ngOnInit(): void {
-    this.pageTitle.set('Metadata');
+    if (!this.embedded) this.pageTitle.set('Metadata');
+    if (this.sourceSigle) this.active = 'documents';
     // typing in a rule's value or the quick search refilters once, shortly after the last key
     this.subs.push(this.refreshRequests.pipe(debounceTime(150)).subscribe(() => {
       this.view?.refresh();
@@ -183,6 +190,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
       this.unregistered = { documents: unregisteredFields('documents', this.documents, this.settings), sources: unregisteredFields('sources', this.sources, this.settings) };
       this.editing = null;
       this.views = next;
+      this.scopeToSource();
       this.suggestions = {
         documents: this.suggestionsFor('documents'),
         sources: this.suggestionsFor('sources'),
@@ -194,6 +202,16 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
       this.loading = false;
       this.cdr.markForCheck();
     }
+  }
+
+  /** With a `sourceSigle`: a rule "Source equals <siglum>" on the documents table, added once (the person may remove it). */
+  private scopeToSource(): void {
+    const docs = this.views.documents;
+    if (!this.sourceSigle || !docs || this.scopedTo === this.sourceSigle) return;
+    docs.filters = docs.filters.filter(f => f.column !== 'quelle');
+    docs.addFilter({ column: 'quelle', op: 'equals', value: this.sourceSigle });
+    docs.refresh();
+    this.scopedTo = this.sourceSigle;
   }
 
   private suggestionsFor(kind: GridKind): Record<string, string[]> {
@@ -445,7 +463,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
     const view = this.view;
     if (!view) return;
     if (!view.isEditable(ci)) {
-      this.toastr.info(`“${view.columns[ci].label}” cannot be edited here.`);
+      this.statusLine.info(`“${view.columns[ci].label}” cannot be edited here.`);
       return;
     }
     // editing the cell the range starts at keeps the range (Ctrl+Enter fills all of it); any other cell becomes the cursor
@@ -485,7 +503,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
     this.editing = null;                  // first: the blur this focus change causes must find nothing to commit
     this.focusGrid();
     const res = fill ? view.fillRange(this.editText) : view.setCellsAt([{ pos: edit.pos, ci: edit.ci, value: this.editText }]);
-    if (res.rejected > 0) this.toastr.warning(`“${view.columns[edit.ci].label}” cannot be empty.`);
+    if (res.rejected > 0) this.statusLine.warning(`“${view.columns[edit.ci].label}” cannot be empty.`);
     if (dPos || dCi) {
       view.selectCell(edit.pos + dPos, edit.ci + dCi);
       this.ensureVisible();
@@ -524,7 +542,7 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
     const parts: string[] = [];
     if (res.rejected > 0) parts.push(`${res.rejected} cell(s) not changed (read-only column, or empty where a value is required)`);
     if (res.outside > 0) parts.push(`${res.outside} cell(s) were outside the table`);
-    if (parts.length) this.toastr.warning(`${verb} ${res.applied} cell(s); ${parts.join('; ')}.`);
+    if (parts.length) this.statusLine.warning(`${verb} ${res.applied} cell(s); ${parts.join('; ')}.`);
   }
 
   /** Lists the custom values the data carries (an import brought them) as fields: from now on the table, the form and the print show them. */
@@ -539,11 +557,11 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
       if (res.kind !== 'SettingsRetrieved') throw new Error('The settings could not be read.');
       const next = withListedFields(res.settings, kind, keys);
       if (next) await firstValueFrom(this.api.updateSettings(token, next));
-      this.toastr.success(`${keys.length} field(s) are shown in the table now.`);
+      this.statusLine.success(`${keys.length} field(s) are shown in the table now.`);
       await this.load();
     } catch (e: any) {
       console.error('Listing the fields failed', e);
-      this.toastr.error('The fields could not be listed: ' + (e?.message || e));
+      this.statusLine.error('The fields could not be listed: ' + (e?.message || e));
     } finally {
       this.listBusy = false;
       this.cdr.markForCheck();
@@ -602,20 +620,20 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
           : this.api.updateSourcesMetadata(token, changes));
         if (res.kind === 'MetadataUpdated') {
           saved += res.updated;
-          if (res.missing > 0) this.toastr.warning(`${res.missing} ${kind} no longer exist; their edits were skipped.`);
+          if (res.missing > 0) this.statusLine.warning(`${res.missing} ${kind} no longer exist; their edits were skipped.`);
         } else {
           failed = true;
         }
       }
       if (failed) {
-        this.toastr.error('Saving failed. Your edits are still here.');
+        this.statusLine.error('Saving failed. Your edits are still here.');
       } else {
-        this.toastr.success(`Saved ${saved} ${saved === 1 ? 'row' : 'rows'}.`);
+        this.statusLine.success(`Saved ${saved} ${saved === 1 ? 'row' : 'rows'}.`);
         await this.load();               // the tables are rebuilt from what is stored; filters and sort carry over
       }
     } catch (e) {
       console.warn('Metadata grid: saving failed', e);
-      this.toastr.error('Saving failed. Your edits are still here.');
+      this.statusLine.error('Saving failed. Your edits are still here.');
     } finally {
       this.saveBusy = false;
       this.cdr.markForCheck();
@@ -675,16 +693,16 @@ export class MetadataGridComponent implements OnInit, OnDestroy, HasChanges {
         ? this.api.deleteDocuments(token, JSON.stringify(ids))
         : this.api.deleteSources(token, JSON.stringify(ids)));
       if (res.kind === 'UploadFinished') {
-        this.toastr.success(`${ids.length} ${kind === 'documents' ? 'document(s)' : 'source(s)'} deleted.`);
+        this.statusLine.success(`${ids.length} ${kind === 'documents' ? 'document(s)' : 'source(s)'} deleted.`);
         this.showDelete = false;
         // a deleted source takes its documents with it, so both tables are rebuilt
         await this.load();
       } else {
-        this.toastr.error('Deleting failed.');
+        this.statusLine.error('Deleting failed.');
       }
     } catch (e) {
       console.warn('Metadata grid: delete failed', e);
-      this.toastr.error('Deleting failed.');
+      this.statusLine.error('Deleting failed.');
     } finally {
       this.deleteBusy = false;
       this.cdr.markForCheck();

@@ -76,7 +76,7 @@ try {
     await new Promise((res) => { const t = db.transaction('monodi_data', 'readwrite'); t.objectStore('monodi_data').put(list, 'monodi_documents'); t.oncomplete = res; });
     db.close();
   }, custom);
-  await page.goto(BASE + '/#/metadata', { waitUntil: 'networkidle0' });
+  await page.goto(BASE + '/#/sources?view=sheet', { waitUntil: 'networkidle0' });
   await page.reload({ waitUntil: 'networkidle0' });
   await page.waitForSelector('[data-testid=mg-grid]', { timeout: 20000 });
 

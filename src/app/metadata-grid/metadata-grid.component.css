@@ -7,6 +7,8 @@
   padding-bottom: 1rem;
 }
 
+.mg-page.embedded { height: calc(100vh - 200px); padding-top: 0; padding-left: 0; padding-right: 0; }
+
 .mg-tabs .nav-link { padding: 4px 12px; font-size: .9rem; }
 
 .mg-filters { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 8px; }
@@ -31,7 +33,7 @@
   overflow: hidden;
 }
 
-.mg-head-scroll { flex: 0 0 auto; overflow: hidden; background: #f3f5f8; border-bottom: 1px solid var(--color-border); }
+.mg-head-scroll { flex: 0 0 auto; overflow: hidden; background: #f5f5f5; border-bottom: 1px solid var(--color-border); }
 .mg-head { display: flex; align-items: stretch; height: 34px; }
 .mg-body { flex: 1 1 auto; min-height: 0; }
 
@@ -50,7 +52,7 @@
   gap: 4px;
   padding: 0 8px;
   border: 0;
-  border-left: 1px solid #e3e7ec;
+  border-left: 1px solid #e7e7e7;
   background: transparent;
   font-size: .8rem;
   font-weight: 600;
@@ -58,12 +60,12 @@
   color: var(--color-text);
   cursor: pointer;
 }
-.mg-th:hover { background: #e9edf2; }
+.mg-th:hover { background: #ededed; }
 .mg-th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.mg-row { display: flex; align-items: center; border-bottom: 1px solid #eef0f3; font-size: .85rem; }
+.mg-row { display: flex; align-items: center; border-bottom: 1px solid #f0f0f0; font-size: .85rem; }
 .mg-row:hover { background: #f6f9fe; }
-.mg-row.selected { background: #e7f0ff; }
+.mg-row.selected { background: #efefef; }
 .mg-cell {
   flex: 0 0 auto;
   padding: 0 8px;
@@ -75,7 +77,6 @@
 
 .mg-empty { position: absolute; top: 80px; left: 0; right: 0; text-align: center; pointer-events: none; }
 
-.mg-hint { font-size: .78rem; margin: -2px 0 8px; }
 .mg-dirty { font-size: .85rem; color: var(--color-warning-dark); background: var(--color-warning-light); border-radius: 10px; padding: 2px 10px; }
 
 .mg-grid:focus { outline: none; }
@@ -87,7 +88,7 @@
 .mg-cell.readonly { background: #fafbfc; color: var(--color-text-muted); cursor: default; }
 .mg-cell.dirty { background: var(--color-warning-light); }
 .mg-cell.in-range { background: var(--color-primary-light); }
-.mg-cell.dirty.in-range { background: #d7e6c8; }
+.mg-cell.dirty.in-range { background: #e1e1e1; }
 .mg-cell.active { outline: 2px solid var(--color-primary); outline-offset: -2px; background: var(--color-surface); }
 .mg-cell.active.dirty { background: var(--color-warning-light); }
 

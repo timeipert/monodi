@@ -56,31 +56,31 @@
         @if (storable.items || storable.regions) {
           <button type="button" class="btn btn-sm btn-primary ms-auto" id="nd-store-links" (click)="storeLinks()"
             title="Write the links that were found into the snippets (uuid) and line regions (lineUUID), so that the transcription can show its neumes in the manuscript">
-            <i class="bi bi-link-45deg me-1"></i>Store {{ plural(storable.items, 'snippet link') }}@if (storable.regions) { and {{ plural(storable.regions, 'line link') }}}
+            Store {{ plural(storable.items, 'snippet link') }}@if (storable.regions) { and {{ plural(storable.regions, 'line link') }}}
           </button>
         }
       }
     </div>
   </section>
 
-  @if (notes) { <p class="nd-notes" id="nd-notes"><i class="bi bi-chat-left-text me-2 text-muted"></i>{{ notes }}</p> }
+  @if (notes) { <p class="nd-notes" id="nd-notes">{{ notes }}</p> }
 
   <!-- ── The views ── -->
   <div class="nd-toolbar">
     <div class="btn-group btn-group-sm" role="group" aria-label="View">
       @for (v of views; track v.id) {
         <button type="button" class="btn" [id]="'nd-view-' + v.id" [class.btn-primary]="view === v.id" [class.btn-outline-primary]="view !== v.id" (click)="setView(v.id)">
-          <i class="bi me-1" [class]="v.icon"></i>{{ v.label }}
+          {{ v.label }}
         </button>
       }
     </div>
     <span class="flex-grow-1"></span>
     <button type="button" class="btn btn-sm btn-outline-secondary" id="nd-annotate" [disabled]="!source.iiifManifestUrl" (click)="annotate.emit('')"
       [title]="source.iiifManifestUrl ? 'Mark lines and signs on the scans' : 'This manuscript has no IIIF manifest'">
-      <i class="bi bi-bounding-box me-1"></i>Annotate scans
+      Annotate scans
     </button>
     <button type="button" class="btn btn-sm btn-outline-secondary" id="nd-print" (click)="print.emit()" title="Print the notation documentation as a PDF, as the Corpus Monodicum volume does">
-      <i class="bi bi-printer me-1"></i>Print…
+      Print…
     </button>
   </div>
 
@@ -211,7 +211,7 @@
           <label class="form-check-label" for="nd-invert" title="Some libraries publish negatives (light ink on a dark ground); they are recognised and inverted, as in the print">Invert (negative scan)</label>
         </div>
         @if (manifestLoading) { <span class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Reading the manifest…</span> }
-        @if (manifestProblem) { <span class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>{{ manifestProblem }}</span> }
+        @if (manifestProblem) { <span class="small text-warning">{{ manifestProblem }}</span> }
       </div>
 
       @if (!overview.lines.length) {
@@ -295,7 +295,7 @@
       <div class="nd-data" id="nd-data">
         <p class="small text-muted">
           Everything this notation documentation consists of, as it is stored. The manuscript keeps the table, the line regions
-          and the snippets; the workspace keeps the standard set. <i class="bi bi-link-45deg"></i> marks a link to the transcription:
+          and the snippets; the workspace keeps the standard set. marks a link to the transcription:
           <span class="nd-k-stored-text">linked</span> (stored), <span class="nd-k-found-text">found</span> (worked out here; <em>Store links</em> writes it),
           <span class="nd-k-lost-text">lost</span>, <span class="nd-k-none-text">not linked</span>.
         </p>
@@ -338,7 +338,7 @@
         <h6>Line regions · <code>annotationRegions</code> <span class="text-muted fw-normal small">({{ overview.lines.length }})</span></h6>
         <div class="table-responsive nd-data-scroll">
           <table class="table table-sm align-middle nd-data-table" id="nd-data-lines">
-            <thead class="table-light small text-muted"><tr><th><code>id</code></th><th><code>name</code></th><th><code>folioLabel</code></th><th><code>folio</code></th><th><code>canvasId</code> / <code>imageId</code></th><th><code>lineUUID</code></th><th><i class="bi bi-link-45deg"></i> transcription line</th><th class="text-end">Snippets</th></tr></thead>
+            <thead class="table-light small text-muted"><tr><th><code>id</code></th><th><code>name</code></th><th><code>folioLabel</code></th><th><code>folio</code></th><th><code>canvasId</code> / <code>imageId</code></th><th><code>lineUUID</code></th><th>transcription line</th><th class="text-end">Snippets</th></tr></thead>
             <tbody>
               @for (l of overview.lines; track l.region.id) {
                 <tr>
@@ -359,7 +359,7 @@
         <h6>Snippets · <code>annotationItems</code> <span class="text-muted fw-normal small">({{ overview.snippets.length }})</span></h6>
         <div class="table-responsive nd-data-scroll">
           <table class="table table-sm align-middle nd-data-table" id="nd-data-snippets">
-            <thead class="table-light small text-muted"><tr><th><code>id</code></th><th>line (<code>regionId</code>)</th><th><code>pattern</code></th><th><code>variant</code></th><th><code>uuid</code></th><th><code>sysId</code></th><th><i class="bi bi-link-45deg"></i> neume of the transcription</th></tr></thead>
+            <thead class="table-light small text-muted"><tr><th><code>id</code></th><th>line (<code>regionId</code>)</th><th><code>pattern</code></th><th><code>variant</code></th><th><code>uuid</code></th><th><code>sysId</code></th><th>neume of the transcription</th></tr></thead>
             <tbody>
               @for (s of overview.snippets; track s.item.id) {
                 <tr>
@@ -506,12 +506,12 @@
           <section>
             <h6 class="nd-panel-h">In the transcription</h6>
             <p class="small mb-2" [class]="'nd-k-' + dialog.link.kind + '-text'" id="nd-dialog-link">
-              <i class="bi bi-link-45deg"></i> {{ linkText[dialog.link.kind] }}@if (dialog.link.confidence) { ({{ dialog.link.confidence }} confidence)}.
+              {{ linkText[dialog.link.kind] }}@if (dialog.link.confidence) { ({{ dialog.link.confidence }} confidence)}.
             </p>
             @if (dialog.link.neume; as n) {
               <div class="d-flex align-items-center gap-2 mb-1">
                 <app-svg-pattern [pattern]="n.pattern"></app-svg-pattern><code>{{ n.pattern }}</code>
-                @if (dialog.link.patternDiffers) { <span class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>written otherwise than the snippet</span> }
+                @if (dialog.link.patternDiffers) { <span class="small text-warning">written otherwise than the snippet</span> }
               </div>
               <dl class="nd-dl">
                 <dt>Document</dt><dd>{{ docLabel(n.docId) }} <span class="text-muted">{{ docTitle(n.docId) }}</span></dd>
@@ -519,7 +519,7 @@
                 <dt>Syllable</dt><dd><em>{{ n.syllable || '–' }}</em></dd>
                 <dt>Notes</dt><dd>{{ n.notes }}</dd>
               </dl>
-              <button type="button" class="btn btn-sm btn-primary" id="nd-open-transcription" (click)="openInTranscription(n.docId, n.uuid)"><i class="bi bi-box-arrow-up-right me-1"></i>Open in the transcription</button>
+              <button type="button" class="btn btn-sm btn-primary" id="nd-open-transcription" (click)="openInTranscription(n.docId, n.uuid)">Open in the transcription</button>
             }
             <dl class="nd-dl nd-raw mt-2">
               <dt><code>uuid</code></dt><dd class="nd-mono">{{ dialog.item.uuid || '–' }}</dd>

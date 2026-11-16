@@ -1,5 +1,5 @@
 import { ErrorHandler, Injectable, Injector } from '@angular/core';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from './status-line.service';
 
 @Injectable()
 export class GlobalErrorHandler implements ErrorHandler {
@@ -42,9 +42,9 @@ export class GlobalErrorHandler implements ErrorHandler {
     if (now - this.lastToastTime >= 10000) {
       this.lastToastTime = now;
       try {
-        const toastr = this.injector.get(ToastrService);
+        const statusLine = this.injector.get(StatusLineService);
         const msg = String(error?.message ?? error).slice(0, 120);
-        toastr.error(msg, 'Unexpected error');
+        statusLine.error(msg, 'Unexpected error');
       } catch (e) {
         // ignore toast resolution/display failures
       }

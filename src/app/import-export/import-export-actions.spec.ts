@@ -1,9 +1,9 @@
-import { IO_GOALS, IO_SECTIONS, describeAgo, findAction, sectionsOf, tabOfAction } from './import-export-actions';
+import { IO_SECTIONS, sectionsOf } from './import-export-actions';
 
 describe('import-export-actions', () => {
   const all = IO_SECTIONS.flatMap((s) => s.actions);
 
-  it('offers every action once per tab, with a unique id within the tab', () => {
+  it('offers every action once per column, with a unique id within the column', () => {
     for (const tab of ['import', 'export'] as const) {
       const ids = sectionsOf(tab).flatMap((s) => s.actions.map((a) => a.id));
       expect(new Set(ids).size).toBe(ids.length);
@@ -24,31 +24,9 @@ describe('import-export-actions', () => {
     expect(all.filter((a) => !a.ws).map((a) => a.id).sort()).toEqual(['cantus', 'repository']);
   });
 
-  it('gives every card a title, a hint, a format and a line on what it keeps', () => {
+  it('gives every row a title, a format, and a tooltip text (hint and what it keeps)', () => {
     for (const a of all) {
       expect(a.title && a.hint && a.format && a.keeps).toBeTruthy();
     }
-  });
-
-  it('marks the workspace backup as complete and recommended, and no other export', () => {
-    expect(all.filter((a) => a.recommended).map((a) => a.id)).toEqual(['export-workspace']);
-    expect(all.filter((a) => a.complete).map((a) => a.id).sort()).toEqual(['export-workspace', 'import-workspace']);
-  });
-
-  it('points every goal at an action that exists', () => {
-    for (const goal of IO_GOALS) {
-      expect(findAction(goal.actionId)).toBeTruthy(goal.goal);
-      expect(tabOfAction(goal.actionId)).toBeTruthy();
-    }
-  });
-
-  it('says how long ago something was', () => {
-    const now = Date.UTC(2026, 10, 15, 12);
-    const day = 86_400_000;
-    expect(describeAgo(now - 3_600_000, now)).toBe('today');
-    expect(describeAgo(now - day, now)).toBe('yesterday');
-    expect(describeAgo(now - 5 * day, now)).toBe('5 days ago');
-    expect(describeAgo(now - 21 * day, now)).toBe('3 weeks ago');
-    expect(describeAgo(now - 100 * day, now)).toBe('3 months ago');
   });
 });

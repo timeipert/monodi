@@ -1,6 +1,6 @@
 import { Component, EventEmitter, HostListener, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../../status-line.service';
 import { Document, Source } from '../../api.service';
 import { boundsOf, padRect } from '../../iiif-crop';
 import { notationNotes } from '../../notation-doc';
@@ -116,7 +116,7 @@ export class NotationDocsViewComponent implements OnChanges, OnInit {
 
   private loadedFor = '';
 
-  constructor(private route: ActivatedRoute, private router: Router, private toastr: ToastrService) {}
+  constructor(private route: ActivatedRoute, private router: Router, private statusLine: StatusLineService) {}
 
   ngOnInit(): void {
     const q = this.route.snapshot.queryParamMap;
@@ -414,7 +414,7 @@ export class NotationDocsViewComponent implements OnChanges, OnInit {
     if (!this.source) return;
     const done = applyLinks(this.source as any, this.report);
     this.changed();
-    this.toastr.success(`${done.items} snippet${done.items === 1 ? '' : 's'} and ${done.regions} line${done.regions === 1 ? '' : 's'} are now linked to the transcription.`);
+    this.statusLine.success(`${done.items} snippet${done.items === 1 ? '' : 's'} and ${done.regions} line${done.regions === 1 ? '' : 's'} are now linked to the transcription.`);
   }
 
   setShown(pattern: string, shown: boolean): void {

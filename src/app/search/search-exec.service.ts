@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Subject, Subscription } from 'rxjs';
-import { APIService, SourceQuery, DocumentQuery, Source, Document } from '../api.service';
+import { APIService, Source, Document } from '../api.service';
 import { UserService, User } from '../user.service';
 import { PatternAnalysisService } from './pattern-analysis.service';
 import { NotesStore } from '../notes-store';
@@ -538,25 +538,6 @@ export class SearchExecService {
   quickPage = 1;
   quickPageSize = 25;
 
-  sourceQuery: SourceQuery = {};
-  sourceResults: Source[] = [];
-  sourceSearched = false;
-  sourceSearching = false;
-  sourcesPage = 1;
-  sourcesPageSize = 25;
-
-  documentQuery: DocumentQuery = {
-    dokumenten_id: undefined, gattung1: undefined, gattung2: undefined,
-    festtag: undefined, feier: undefined, textinitium: undefined,
-    bibliographischerverweis: undefined, druckausgabe: undefined,
-    zeilenstart: undefined, foliostart: undefined, kommentar: undefined,
-  };
-  documentResults: Document[] = [];
-  documentSearched = false;
-  documentSearching = false;
-  documentsPage = 1;
-  documentsPageSize = 25;
-
   melodyPattern = '';
   melodySearchType: 'pitch' | 'contour' | 'interval' = 'pitch';
   melodyWithOctave = false;
@@ -604,10 +585,7 @@ export class SearchExecService {
     return matchTextInternal(text, query, mode, spellingTolerance, maxDistance);
   }
 
-  async searchQuick(
-    addRecentSearch: (q: string) => void,
-    onFilterReset: () => void
-  ) {
+  async searchQuick() {
     if (!this.user || !this.quickText.trim() || this.quickSearching) return;
 
     if (
@@ -631,8 +609,6 @@ export class SearchExecService {
     this.searchCancelled = false;
     this.searchProgress = { current: 0, total: 0, matched: 0 };
     this.quickPage = 1;
-    onFilterReset();
-    addRecentSearch(this.quickText);
     this.notifyChange();
 
     try {
@@ -779,34 +755,6 @@ export class SearchExecService {
 
     this.saveSearchStateToIndexedDB();
     this.notifyChange();
-  }
-
-  searchSources() {
-    if (!this.user) return;
-    this.sourceSearching = true;
-    this.sourceSearched = false;
-    this.sourcesPage = 1;
-    this.api.querySources(this.user.token, this.sourceQuery).subscribe(res => {
-      if (res.kind === 'SourcesRetrieved') this.sourceResults = res.sources;
-      this.sourceSearched = true;
-      this.sourceSearching = false;
-      this.saveSearchStateToIndexedDB();
-      this.notifyChange();
-    });
-  }
-
-  searchDocuments() {
-    if (!this.user) return;
-    this.documentSearching = true;
-    this.documentSearched = false;
-    this.documentsPage = 1;
-    this.api.queryDocuments(this.user.token, this.documentQuery).subscribe(res => {
-      if (res.kind === 'DocumentsRetrieved') this.documentResults = res.documents;
-      this.documentSearched = true;
-      this.documentSearching = false;
-      this.saveSearchStateToIndexedDB();
-      this.notifyChange();
-    });
   }
 
   async searchMelody() {
@@ -1101,7 +1049,8 @@ export class SearchExecService {
     this.notifyChange();
   }
 
-  activeTab: 'quick' | 'sources' | 'documents' | 'melody' = 'quick';
+  /** The tab of the search page: words or melody. */
+  activeTab: 'quick' | 'melody' = 'quick';
 
   async saveSearchStateToIndexedDB(activeTab?: string) {
     try {
@@ -1109,14 +1058,10 @@ export class SearchExecService {
         activeTab: activeTab || this.activeTab,
         quickText: this.quickText,
         quickPage: this.quickPage,
-        sourcesPage: this.sourcesPage,
-        documentsPage: this.documentsPage,
         melodyPage: this.melodyPage,
         quickSearchMode: this.quickSearchMode,
         quickMedievalTolerance: this.quickMedievalTolerance,
         quickFuzzyDistance: this.quickFuzzyDistance,
-        sourceQuery: this.sourceQuery,
-        documentQuery: this.documentQuery,
         melodyPattern: this.melodyPattern,
         melodySearchType: this.melodySearchType,
         melodyWithOctave: this.melodyWithOctave,
@@ -1176,8 +1121,9 @@ export class SearchExecService {
       const searchData: any = await localforage.getItem('search_state');
       if (searchData) {
         if (searchData.activeTab) {
-          this.activeTab = searchData.activeTab;
-          onSetActiveTab(searchData.activeTab);
+          // A state saved before 2026-11-16 can name the removed tabs "sources" or "documents".
+          this.activeTab = searchData.activeTab === 'melody' ? 'melody' : 'quick';
+          onSetActiveTab(this.activeTab);
         }
 
         if (searchData.quickSearchMode) this.quickSearchMode = searchData.quickSearchMode;

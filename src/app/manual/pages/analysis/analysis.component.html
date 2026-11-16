@@ -1,15 +1,15 @@
 <div class="manual-page-single">
   <h1 id="analysis-and-statistics">Analysis &amp; Statistics</h1>
-  <p class="lead">Beyond transcription and search, Monodi-Zero includes analytical tools that work across a whole corpus: the <strong>Analysis page</strong> (twelve methods, saved and cached), the <strong>Synoptic Comparison</strong> for viewing parallel witnesses side by side, the <strong>Melodic Formula Analysis</strong> for discovering recurring melodic patterns, and the <strong>Notation Statistics</strong> page for quantitative pattern distribution across sources.</p>
+  <p class="lead">Beyond transcription and search, monodi includes analytical tools that work across a whole corpus: the <strong>Analysis page</strong> (twelve methods, saved and cached), the <strong>Synoptic Comparison</strong> for viewing parallel witnesses side by side, the <strong>Melodic Formula Analysis</strong> for discovering recurring melodic patterns, and the <strong>Notation Statistics</strong> page for quantitative pattern distribution across sources.</p>
 
   <h2 id="analysis-page">The Analysis page</h2>
   <p>The page <strong>Analysis</strong> (main navigation) runs analysis methods on a chosen set of chants and keeps the outcome as a named, saved analysis. Nothing is computed until methods are ticked and run, and a saved analysis opens again without computing anything.</p>
 
   <h3 id="analysis-corpus">1 · Choose the documents</h3>
-  <p>Start from the search page: select documents (or run a search) and press <strong>Analysis…</strong> in the result toolbar. On the Analysis page the corpus can be the selection, the hits of that search, the documents of chosen sources, or every document of the workspace.</p>
+  <p>Start from the search page: select documents (or run a search) and press <strong>Analysis</strong> in the bar above the hits. On the Analysis page the corpus can be the selection, the hits of that search, the documents of chosen sources, or every document of the workspace.</p>
 
   <h3 id="analysis-methods">2 · Choose the methods</h3>
-  <p>Tick the methods to run; each has parameters (the arrow beside <em>Parameters</em>) and a speed hint. <strong>Run ticked methods</strong> computes them in the background (the page stays usable; <em>Cancel</em> stops the run) and computes only the methods that have no valid stored result.</p>
+  <p>Tick the methods to run; each has parameters (the arrow beside <em>Parameters</em>) and a speed hint. <strong>Run</strong> computes them in the background (the page stays usable; <em>Cancel</em> stops the run) and computes only the methods that have no valid stored result.</p>
   <ul>
     <li><strong>Overview</strong>: a first figure for a publication: chant lengths, pitch and interval distribution and notes per syllable, one panel per source or genre, with a caption and a description table (see <a href="#analysis-figures">Figures</a>).</li>
     <li><strong>Tonal profile</strong>: range, final, tenor and an estimated mode (1–8) for every chant and group. The mode is a heuristic from the last note, the position of the melody and the most frequent note.</li>
@@ -117,14 +117,14 @@
   <hr class="my-4">
 
   <h2 id="notation-statistics">Notation Statistics</h2>
-  <p>The <strong>Notation statistics</strong> tab (main navigation: <em>Analysis</em>, second tab beside <em>Corpus analyses</em>) provides a quantitative view of notation patterns across your entire workspace, independent of any search.</p>
+  <p>The <strong>Neume statistics</strong> tab (main navigation: <em>Analysis</em>, second tab beside <em>Methods</em>) provides a quantitative view of notation patterns across your entire workspace, independent of any search.</p>
   <ul>
     <li><strong>Pattern × Source matrix</strong> — rows are neume patterns (grouped by their base shape, with ornament signs such as quilisma, oriscus, strophicus and liquescents stripped), columns are your sources. Each cell shows how often the pattern occurs in that source, so notational habits of individual scriptoria become visible at a glance.</li>
     <li><strong>Variant breakdown</strong> — clicking a pattern name opens a modal listing its concrete variants (with ornament signs), how often each variant occurs, and in which sources.</li>
     <li><strong>Occurrence drill-down</strong> — clicking a matrix cell lists every single occurrence (document, folio, line, syllable). Clicking an occurrence opens the transcription editor at exactly that position.</li>
-    <li><strong>Filters</strong> — a minimum-frequency slider, a pattern search box, and a source search box narrow the matrix; all lists are paginated.</li>
+    <li><strong>Filters</strong> — one row above the matrix: a manuscript box, a pattern box and a minimum count; <em>Manuscripts shown</em> picks single manuscripts. All lists are paginated.</li>
   </ul>
-  <p>Because computing the statistics reads every document, it only runs when you click <strong>Compute Workspace Stats</strong>. The result is cached in the browser: navigating away, reloading, or even restarting the browser shows the cached numbers instantly, with the computation date displayed. Click <strong>Recalculate</strong> whenever your transcriptions have changed.</p>
+  <p>Because computing the statistics reads every document, it only runs when you click <strong>Compute pattern statistics</strong>. The result is cached in the browser: navigating away, reloading, or even restarting the browser shows the cached numbers instantly, with the computation date displayed. Click <strong>Recalculate</strong> whenever your transcriptions have changed.</p>
   <p>You can also jump into the statistics from the transcription editor: the context menu of a note offers <em>show this pattern in Stats</em>, which opens the page pre-filtered to that pattern.</p>
 
   <p><a routerLink="/search" class="btn btn-primary mt-3 me-2">Open Search &amp; Analysis</a>

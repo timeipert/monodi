@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
-import { ToastrService } from 'ngx-toastr';
+import { StatusLineService } from '../status-line.service';
 import type { CantusSource, CmDocument, CmSource, LoadedCatalog, LoadedDataset } from '@monodi/core/datasets';
 import { GithubService } from '../github.service';
 import { RepositoryImportService } from '../repository-import.service';
@@ -79,7 +79,7 @@ describe('RepositoryImportComponent', () => {
       imports: [CommonModule, FormsModule],
       providers: [
         { provide: RepositoryImportService, useValue: service },
-        { provide: ToastrService, useValue: { success() {}, info() {}, error() {} } },
+        { provide: StatusLineService, useValue: { success() {}, info() {}, error() {} } },
         { provide: GithubService, useValue: { isConnected: false } },
       ],
     }).compileComponents();
